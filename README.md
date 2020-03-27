@@ -1,29 +1,31 @@
 # README #
 
-This README would normally document whatever steps are necessary to get your application up and running.
+Python code for processing MBARI Dorado-class AUV instrument data
 
-### What is this repository for? ###
+### Purpose of this repository ###
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+The code here is used to process Dorado-class AUV data from the original
+log files recorded by the vehicle's main vehicle computer into more
+interoperable netCDF files.
 
-### How do I get set up? ###
+There is a rich collection of Matlab code (e.g. the Science Data Processing
+toolbox) that already does this and the code here will inherit much of the
+institutional knowledge that has been baked into that code base over the
+last 20 years or so.
 
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
+The goals of this are:
+* Enable ship-based local file based execution and production MBARI network
+* decouple quick-look plot generation -- this code does only data processing
+* All available metadata written to netCDF attributes, including new XML cals
+* Decouple plumbing lag settings from the code -- use config file?
+* Enable easy reprocessing of segments of the archive
+* Create derived products suitable for loading into STOQS
 
-### Contribution guidelines ###
 
-* Writing tests
-* Code review
-* Other guidelines
+### How do I use this  ###
 
-### Who do I talk to? ###
+This requires Python 3.8 and is developed on a STOQS development system
 
-* Repo owner or admin
-* Other community or team contact
+--
+Mike McCann
+27 March 2020
