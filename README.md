@@ -14,8 +14,9 @@ institutional knowledge that has been baked into that code base over the
 last 20 years or so.
 
 The goals of this are:
+
 * Enable ship-based local file based execution and production MBARI network
-* decouple quick-look plot generation -- this code does only data processing
+* Decouple quick-look plot generation -- this code does only data processing
 * All available metadata written to netCDF attributes, including new XML cals
 * Decouple plumbing lag settings from the code -- use config file?
 * Enable easy reprocessing of segments of the archive
@@ -27,5 +28,6 @@ The goals of this are:
 This requires Python 3.8 and is developed on a STOQS development system
 
 --
+
 Mike McCann
 27 March 2020
