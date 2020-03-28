@@ -15,6 +15,7 @@ last 20 years or so.
 
 The goals of this are:
 
+* Able to use for any Dorado class vehicle: Gulper, i2map, mapping
 * Enable ship-based local file based execution and production MBARI network
 * Decouple quick-look plot generation -- this code does only data processing
 * All available metadata written to netCDF attributes, including new XML cals
