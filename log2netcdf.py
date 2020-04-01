@@ -2,11 +2,10 @@
 '''
 Parse logged data from AUV MVC .log files and translate to NetCDF including
 all of the available metadata from associated .cfg and .xml files.
-
---
-Mike McCann
-30 March 2020
 '''
+
+__author__ = "Mike McCann"
+__copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
 import os
 import sys
@@ -43,7 +42,7 @@ class AUV_NetCDF(AUV):
 
     def _download_file(self, url):
         local_filename = url.split('/')[-1]
-        self.logger.info(f"Dowloading {url}...")
+        self.logger.info(f"Downloading {url}...")
         with requests.get(url, stream=True) as r:
             with open(local_filename, 'wb') as f:
                 shutil.copyfileobj(r.raw, f)
@@ -51,23 +50,39 @@ class AUV_NetCDF(AUV):
         return local_filename
 
     def _url_from_mission(self, auv_name, mission):
-        '''Folling MBARI's conventions return url for the missionlogs directory
+        '''Following conventions return url (on MBARI's network) for the missionlogs directory
         '''
-        if auv_name == 'Dorado':
-            # aka Gulper, e.g.: http://dods.mbari.org/data/auvctd/missionlogs/2020/2020064/2020.064.10/
+        if auv_name.lower() == 'dorado' or auv_name.lower() == 'gulper':
+            # E.g.: http://dods.mbari.org/data/auvctd/missionlogs/2020/2020064/2020.064.10/
             url = 'http://dods.mbari.org/data/auvctd/missionlogs/'
             url += f"{mission.split('.')[0]}/{mission.split('.')[0]}{mission.split('.')[1]}/"
             url += mission
+        if auv_name.lower() == 'i2map':
+            # E.g.: /mbari/M3_Staging/i2MAP/20200224/2020.055.01
+            self.logger.warning(f"url generation not implemented for auv_name = {auv_name}")
+            url = ''
+        if auv_name.lower() == 'mapping' or auv_name.lower() == 'dallanb':
+            self.logger.warning(f"url generation not implemented for auv_name = {auv_name}")
+            url = ''
 
         return url
 
-    def _read_logs(self):
+    def process_logs(self):
         base_url = self._url_from_mission('Dorado', self.args.mission)
-        for log_file_name in LOG_FILES:
-            local_filename = self._download_file(os.path.join(base_url, log_file_name))
-            print(log_file_name)
+        for log_filename in LOG_FILES:
+            if not self.args.local:
+                local_filename = self._download_file(os.path.join(base_url, log_filename))
+            else:
+                local_filename = os.path.join(self.args.mission, log_filename)
+            self.logger.info(f"Reading local_filename {local_filename}")
             log_data = readauvlog.read(local_filename)
+            self.write_netcdf(log_data)
             breakpoint()
+
+    def write_netcdf(self, log_data):
+        pass
+
+
 
     def createNetCDFfromFile(self):
         '''Read data from log file and write to netCDf file with minimal
@@ -76,7 +91,7 @@ class AUV_NetCDF(AUV):
         if self.args.trajectory and self.args.beg_depth and self.args.end_depth:
             self.readTrajectory(self.args.beg_depth, self.args.end_depth)
 
-        for file_name in LOG_FILES:
+        for filename in LOG_FILES:
             self._download_file(log_url)
             # Make sure input file is openable
             try:
@@ -469,14 +484,16 @@ class AUV_NetCDF(AUV):
                                          description='Convert BED event file(s) to a NetCDF file',
                                          epilog=examples)
 
+        parser.add_argument('--auv_name', action='store', default='dorado', help="dorado (default), i2map, or mapping")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
-        parser.add_argument('--output_dir', action='store', required=True, help="Location to write netCDF files, e.g.: missionnetcdfs")
+        parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
+        parser.add_argument('--output_dir', action='store', default='missionnetcdfs', help="Default is missionnetcdfs/MISSION")
 
         parser.add_argument('--title', action='store', help='A short description of the dataset')
         parser.add_argument('--summary', action='store', help='Additional information about the dataset')
         
-        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, 
-                            help="verbosity level: " + ','.join([f"{i}: {v}" for i, v, in enumerate(self._log_levels)]))
+        parser.add_argument('-v', '--verbose', type=int, choices=range(4), action='store', default=0, 
+                            help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('ERROR', 'WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
@@ -489,7 +506,7 @@ if __name__ == '__main__':
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
 
-    auv_netcdf._read_logs()
+    auv_netcdf.process_logs()
 
     auv_netcdf.createNetCDFfromFile()
 
