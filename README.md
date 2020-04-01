@@ -26,7 +26,7 @@ The goals of this are:
 
 ### How do I use this  ###
 
-This requires Python 3.8 and is developed on a STOQS development system
+This requires Python 3.8 and is initially being developed on a STOQS development system.
 
 --
 
