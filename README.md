@@ -1,8 +1,4 @@
-# README #
-
-Python code for processing MBARI Dorado-class AUV instrument data
-
-### Purpose of this repository ###
+# Python code for processing MBARI Dorado-class AUV instrument data
 
 The code here is used to process Dorado-class AUV data from the original
 log files recorded by the vehicle's main vehicle computer into more
@@ -23,6 +19,8 @@ The goals of this are:
 * Enable easy reprocessing of segments of the archive
 * Create derived products suitable for loading into STOQS
 
+This [slide deck](https://docs.google.com/presentation/d/1pYqrfa3pJw4KtgGbZMKW7zjr9cESR3GjoSUNJWJh2UY/edit?usp=sharing)
+gives some background on the motivation for these goals.
 
 ### How do I use this  ###
 
