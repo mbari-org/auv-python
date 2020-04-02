@@ -20,12 +20,17 @@ import readauvlog
 import requests
 import shutil
 from AUV import AUV
+from pathlib import Path
 from scipy.interpolate import interp1d
 from seawater import eos80
 from netCDF4 import Dataset
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
              'navigation.log', 'isuslog.log', )
+
+MISSIONLOGS = 'missionlogs'
+MISSIONNETCDFS = 'missionnetcdfs'
+DEPLOYMENTS_URL = 'http://portal.shore.mbari.org:8080/auvdata/v1/deployments'
 
 class AUV_NetCDF(AUV):
 
@@ -49,10 +54,10 @@ class AUV_NetCDF(AUV):
 
         return local_filename
 
-    def _url_from_mission(self, auv_name, mission):
+    def _url_from_mission(self):
         '''Following conventions return url (on MBARI's network) for the missionlogs directory
         '''
-        if auv_name.lower() == 'dorado' or auv_name.lower() == 'gulper':
+        if self.args.auv_name.lower() == 'dorado389':
             # E.g.: http://dods.mbari.org/data/auvctd/missionlogs/2020/2020064/2020.064.10/
             url = 'http://dods.mbari.org/data/auvctd/missionlogs/'
             url += f"{mission.split('.')[0]}/{mission.split('.')[0]}{mission.split('.')[1]}/"
@@ -61,13 +66,60 @@ class AUV_NetCDF(AUV):
             # E.g.: /mbari/M3_Staging/i2MAP/20200224/2020.055.01
             self.logger.warning(f"url generation not implemented for auv_name = {auv_name}")
             url = ''
-        if auv_name.lower() == 'mapping' or auv_name.lower() == 'dallanb':
+        if auv_name.lower() == 'multibeam':
             self.logger.warning(f"url generation not implemented for auv_name = {auv_name}")
             url = ''
 
         return url
 
+    def _unique_vehicle_names(self):
+        self.logger.debug(f"Getting deplolments from {DEPLOYMENTS_URL}")
+        with requests.get(DEPLOYMENTS_URL) as resp:
+            if resp.status_code != 200:
+                self.logger.error(f"Cannot read {DEPLOYMENTS_URL}, status_code = {resp.status_code}")
+                return
+
+            return set([d['vehicle'] for d in resp.json()])
+
+    def _files_from_mission(self):
+        name = self.args.mission
+        vehicle = self.args.auv_name
+        files_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/list/{name}/{vehicle}"
+        self.logger.debug(f"Getting files list from {files_url}")
+        with requests.get(files_url) as resp:
+            if resp.status_code != 200:
+                self.logger.error(f"Cannot read {files_url}, status_code = {resp.status_code}")
+                return
+
+            return resp.json()['names']
+
+    def _download_files(self):
+        from tqdm import tqdm
+        name = self.args.mission
+        vehicle = self.args.auv_name
+        logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
+        for ffm in self._files_from_mission():
+            download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
+            self.logger.debug(f"Getting file contents from {download_url}")
+            Path(logs_dir).mkdir(parents=True, exist_ok=True)
+            local_filename = os.path.join(logs_dir, ffm)
+            with requests.get(download_url, stream=True) as resp:
+                if resp.status_code != 200:
+                    self.logger.error(f"Cannot read {download_url}, status_code = {resp.status_code}")
+                else:
+                    self.logger.info(f"Downloading to {local_filename}...")
+                    with open(local_filename, 'wb') as handle:
+                        for data in tqdm(resp.iter_content()):
+                            handle.write(data)
+
     def process_logs(self):
+        if not self.args.local:
+            self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()}")
+            self._download_files()
+            breakpoint()
+                
+            
+
         base_url = self._url_from_mission('Dorado', self.args.mission)
         for log_filename in LOG_FILES:
             if not self.args.local:
@@ -478,16 +530,19 @@ class AUV_NetCDF(AUV):
 
         examples = 'Examples:' + '\n\n'
         examples += '  Write to local missionnetcdfs direcory:\n'
-        examples += '    ' + sys.argv[0] + " --mission 2020.064.10 --output_dir missionnetcdfs\n"
+        examples += '    ' + sys.argv[0] + " --mission 2020.064.10 \n"
 
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                                          description='Convert BED event file(s) to a NetCDF file',
                                          epilog=examples)
 
-        parser.add_argument('--auv_name', action='store', default='dorado', help="dorado (default), i2map, or mapping")
+        parser.add_argument('--base_dir', action='store', default='.', help="Base directory for missionlogs and missionnetcdfs, default: .")
+        ##parser.add_argument('--missionlogs', action='store', default='missionlogs', help="Directory for the missionlog directories, default: missionlogs")
+        ##parser.add_argument('--missionnetcdfs', action='store', default='missionnetcdfs', help="Directory where netCDFs are written, default: missionnetcdfs")
+
+        parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
-        parser.add_argument('--output_dir', action='store', default='missionnetcdfs', help="Default is missionnetcdfs/MISSION")
 
         parser.add_argument('--title', action='store', help='A short description of the dataset')
         parser.add_argument('--summary', action='store', help='Additional information about the dataset')
