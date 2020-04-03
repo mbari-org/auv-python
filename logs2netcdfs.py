@@ -46,15 +46,6 @@ class AUV_NetCDF(AUV):
     def __init__(self):
         return super(AUV_NetCDF, self).__init__()
 
-    def _download_file(self, url):
-        local_filename = url.split('/')[-1]
-        self.logger.info(f"Downloading {url}...")
-        with requests.get(url, stream=True) as r:
-            with open(local_filename, 'wb') as f:
-                shutil.copyfileobj(r.raw, f)
-
-        return local_filename
-
     def _unique_vehicle_names(self):
         self.logger.debug(f"Getting deplolments from {DEPLOYMENTS_URL}")
         with requests.get(DEPLOYMENTS_URL) as resp:
@@ -188,13 +179,10 @@ class AUV_NetCDF(AUV):
         examples += '    ' + sys.argv[0] + " --mission 2020.064.10 \n"
 
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
-                                         description='Convert BED event file(s) to a NetCDF file',
+                                         description='Convert AUV log file to a NetCDF files',
                                          epilog=examples)
 
         parser.add_argument('--base_dir', action='store', default='.', help="Base directory for missionlogs and missionnetcdfs, default: .")
-        ##parser.add_argument('--missionlogs', action='store', default='missionlogs', help="Directory for the missionlog directories, default: missionlogs")
-        ##parser.add_argument('--missionnetcdfs', action='store', default='missionnetcdfs', help="Directory where netCDFs are written, default: missionnetcdfs")
-
         parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
@@ -216,6 +204,5 @@ if __name__ == '__main__':
 
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
-
     auv_netcdf.process_logs()
 
