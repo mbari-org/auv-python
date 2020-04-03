@@ -18,6 +18,7 @@ The goals of this are:
 * Decouple plumbing lag settings from the code
 * Enable easy reprocessing of segments of the archive
 * Create derived products suitable for loading into STOQS
+* Make data quality issues visible so that they can be quickly fixed
 
 This [slide deck](https://docs.google.com/presentation/d/1pYqrfa3pJw4KtgGbZMKW7zjr9cESR3GjoSUNJWJh2UY/edit?usp=sharing)
 gives some background on the motivation for these goals.
