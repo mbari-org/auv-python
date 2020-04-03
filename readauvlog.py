@@ -70,8 +70,8 @@ def _read_header(file: str):
                 short_name = ssv[2]
 
                 csv = line.split(",")
-                long_name = csv[1]
-                units = csv[2]
+                long_name = csv[1].strip()
+                units = csv[2].strip()
                 if short_name == 'time':
                     units = 'seconds since 1970-01-01 00:00:00Z'
                 r = log_record(data_type, short_name, long_name,
