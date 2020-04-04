@@ -7,26 +7,22 @@ all of the available metadata from associated .cfg and .xml files.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import asyncio
+import concurrent
 import os
 import sys
-import csv
-import math
-import coards
-import datetime
 import logging
-import numpy as np
-import numpy.ma as ma
 import readauvlog
 import requests
-import shutil
+import time
+from aiohttp import ClientSession
+from aiohttp.client_exceptions import ClientConnectorError
 from AUV import AUV
 from pathlib import Path
-from scipy.interpolate import interp1d
-from seawater import eos80
 from netCDF4 import Dataset
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
-             'navigation.log', 'isuslog.log', )
+             'navigation.log', 'isuslog.log', 'parosci.log')
 
 MISSIONLOGS = 'missionlogs'
 MISSIONNETCDFS = 'missionnetcdfs'
@@ -41,19 +37,10 @@ class AUV_NetCDF(AUV):
                                   '%(funcName)s():%(lineno)d %(message)s')
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
-    _log_levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
+    _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     def __init__(self):
         return super(AUV_NetCDF, self).__init__()
-
-    def _download_file(self, url):
-        local_filename = url.split('/')[-1]
-        self.logger.info(f"Downloading {url}...")
-        with requests.get(url, stream=True) as r:
-            with open(local_filename, 'wb') as f:
-                shutil.copyfileobj(r.raw, f)
-
-        return local_filename
 
     def _unique_vehicle_names(self):
         self.logger.debug(f"Getting deplolments from {DEPLOYMENTS_URL}")
@@ -76,28 +63,38 @@ class AUV_NetCDF(AUV):
 
             return resp.json()['names']
 
-    def _download_files(self):
+    async def _get_file(self, download_url, local_filename, session):
+        try:
+            async with session.get(download_url, timeout=60) as resp:
+                if resp.status != 200:
+                    self.logger.warning(f"Cannot read {download_url}, status = {resp.status}")
+                else:
+                    self.logger.info(f"Started download to {local_filename}...")
+                    with open(local_filename, 'wb') as handle:
+                        async for chunk in resp.content.iter_chunked(1024):
+                            handle.write(chunk)
+                        if self.args.verbose > 1:
+                            print(f"{os.path.basename(local_filename)}(done) ", end='', flush=True)
+
+        except (ClientConnectorError, concurrent.futures._base.TimeoutError) as e:
+            self.logger.error(f"{e}")
+
+    async def _download_files(self, logs_dir):
         name = self.args.mission
         vehicle = self.args.auv_name
-        logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
-        if os.path.exists(logs_dir) and not self.args.noinput:
-            yn = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ")
-            if not yn.upper().startswith('Y'):
-                return
+        tasks = []
+        async with ClientSession() as session:
+            for ffm in self._files_from_mission():
+                if 'syslog' in ffm:
+                    continue
+                download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
+                self.logger.debug(f"Getting file contents from {download_url}")
+                Path(logs_dir).mkdir(parents=True, exist_ok=True)
+                local_filename = os.path.join(logs_dir, ffm)
+                task = asyncio.ensure_future(self._get_file(download_url, local_filename, session))
+                tasks.append(task)
 
-        for ffm in self._files_from_mission():
-            download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
-            self.logger.debug(f"Getting file contents from {download_url}")
-            Path(logs_dir).mkdir(parents=True, exist_ok=True)
-            local_filename = os.path.join(logs_dir, ffm)
-            with requests.get(download_url, stream=True) as resp:
-                if resp.status_code != 200:
-                    self.logger.error(f"Cannot read {download_url}, status_code = {resp.status_code}")
-                else:
-                    self.logger.info(f"Downloading {local_filename}...")
-                    with open(local_filename, 'wb') as handle:
-                        for chunk in resp.iter_content(chunk_size=512):
-                            handle.write(chunk)
+            await asyncio.gather(*tasks)
 
     def _correct_dup_short_names(self, log_data):
         short_names = [v.short_name for v in log_data]
@@ -143,19 +140,47 @@ class AUV_NetCDF(AUV):
         getattr(self, short_name)[:] = data
 
     def write_variables(self, log_data, netcdf_filename):
+        name = self.args.mission
+        vehicle = self.args.auv_name
         log_data = self._correct_dup_short_names(log_data)
         for variable in log_data:
             self.logger.debug(f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})")
             self._create_variable(variable.data_type, variable.short_name, 
                                   variable.long_name, variable.units, variable.data)
-            
-    def process_logs(self):
-        if not self.args.local:
-            self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()}")
-            self._download_files()
 
+    def _process_log_file(self, log_filename, netcdf_filename):
+        log_data = readauvlog.read(log_filename)
+        self.nc_file = Dataset(netcdf_filename, 'w')
+        self.nc_file.createDimension(TIME, len(log_data[0].data))
+        self.write_variables(log_data, netcdf_filename)
+
+        # Add the global metadata, overriding with command line options provided
+        self.add_global_metadata()
+        vehicle = self.args.auv_name
+        self.nc_file.title = f"Original AUV {vehicle} data converted straight from the .log file"
+        if self.args.title:
+            self.nc_file.title = self.args.title
+        if self.args.summary:
+            self.nc_file.summary = self.args.summary
+
+        self.nc_file.close()
+
+    def process_logs(self):
         name = self.args.mission
         vehicle = self.args.auv_name
+        logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
+
+        if not self.args.local:
+            self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()} seconds")
+            if os.path.exists(logs_dir) and not self.args.noinput:
+                yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or 'Y'
+                if yes_no.upper().startswith('Y'):
+                    d_start = time.time()
+                    loop = asyncio.get_event_loop()
+                    future = asyncio.ensure_future(self._download_files(logs_dir))
+                    loop.run_until_complete(future)
+                    self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
+
         logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
         netcdfs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
@@ -163,20 +188,7 @@ class AUV_NetCDF(AUV):
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace('.log', '.nc'))
             self.logger.info(f"Processing {log_filename}")
-            log_data = readauvlog.read(log_filename)
-            self.nc_file = Dataset(netcdf_filename, 'w')
-            self.nc_file.createDimension(TIME, len(log_data[0].data))
-            self.write_variables(log_data, netcdf_filename)
-
-            # Add the global metadata, overriding with command line options provided
-            self.add_global_metadata()
-            self.nc_file.title = f"Original AUV {vehicle} data converted straight from the .log file"
-            if self.args.title:
-                self.nc_file.title = self.args.title
-            if self.args.summary:
-                self.nc_file.summary = self.args.summary
-
-            self.nc_file.close()
+            self._process_log_file(log_filename, netcdf_filename)
 
     def process_command_line(self):
 
@@ -188,13 +200,10 @@ class AUV_NetCDF(AUV):
         examples += '    ' + sys.argv[0] + " --mission 2020.064.10 \n"
 
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
-                                         description='Convert BED event file(s) to a NetCDF file',
+                                         description='Convert AUV log file to a NetCDF files',
                                          epilog=examples)
 
         parser.add_argument('--base_dir', action='store', default='.', help="Base directory for missionlogs and missionnetcdfs, default: .")
-        ##parser.add_argument('--missionlogs', action='store', default='missionlogs', help="Directory for the missionlog directories, default: missionlogs")
-        ##parser.add_argument('--missionnetcdfs', action='store', default='missionnetcdfs', help="Directory where netCDFs are written, default: missionnetcdfs")
-
         parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
@@ -203,8 +212,8 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--summary', action='store', help='Additional information about the dataset')
 
         parser.add_argument('--noinput', action='store_true', help='Execute without asking for a response, e.g. to not ask to re-download file')        
-        parser.add_argument('-v', '--verbose', type=int, choices=range(4), action='store', default=0, 
-                            help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('ERROR', 'WARN', 'INFO', 'DEBUG'))]))
+        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, 
+                            help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
@@ -216,6 +225,6 @@ if __name__ == '__main__':
 
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
-
+    p_start = time.time()
     auv_netcdf.process_logs()
-
+    auv_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
