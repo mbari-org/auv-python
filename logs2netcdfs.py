@@ -7,26 +7,21 @@ all of the available metadata from associated .cfg and .xml files.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import asyncio
+import concurrent
 import os
 import sys
-import csv
-import math
-import coards
-import datetime
 import logging
-import numpy as np
-import numpy.ma as ma
 import readauvlog
 import requests
-import shutil
+from aiohttp import ClientSession
+from aiohttp.client_exceptions import ClientConnectorError
 from AUV import AUV
 from pathlib import Path
-from scipy.interpolate import interp1d
-from seawater import eos80
 from netCDF4 import Dataset
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
-             'navigation.log', 'isuslog.log', )
+             'navigation.log', 'isuslog.log', 'parosci.log')
 
 MISSIONLOGS = 'missionlogs'
 MISSIONNETCDFS = 'missionnetcdfs'
@@ -67,7 +62,21 @@ class AUV_NetCDF(AUV):
 
             return resp.json()['names']
 
-    def _download_files(self):
+    async def _get_file(self, download_url, local_filename, session):
+        try:
+            async with session.get(download_url, timeout=60) as resp:
+                if resp.status != 200:
+                    self.logger.error(f"Cannot read {download_url}, status = {resp.status}")
+                else:
+                    self.logger.info(f"Started download to {local_filename}...")
+                    with open(local_filename, 'wb') as handle:
+                        async for chunk in resp.content.iter_chunked(1024):
+                            handle.write(chunk)
+
+        except (ClientConnectorError, concurrent.futures._base.TimeoutError) as e:
+            self.logger.error(f"{e}")
+
+    async def _download_files(self):
         name = self.args.mission
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
@@ -76,19 +85,17 @@ class AUV_NetCDF(AUV):
             if not yn.upper().startswith('Y'):
                 return
 
-        for ffm in self._files_from_mission():
-            download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
-            self.logger.debug(f"Getting file contents from {download_url}")
-            Path(logs_dir).mkdir(parents=True, exist_ok=True)
-            local_filename = os.path.join(logs_dir, ffm)
-            with requests.get(download_url, stream=True) as resp:
-                if resp.status_code != 200:
-                    self.logger.error(f"Cannot read {download_url}, status_code = {resp.status_code}")
-                else:
-                    self.logger.info(f"Downloading {local_filename}...")
-                    with open(local_filename, 'wb') as handle:
-                        for chunk in resp.iter_content(chunk_size=512):
-                            handle.write(chunk)
+        tasks = []
+        async with ClientSession() as session:
+            for ffm in self._files_from_mission():
+                download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
+                self.logger.debug(f"Getting file contents from {download_url}")
+                Path(logs_dir).mkdir(parents=True, exist_ok=True)
+                local_filename = os.path.join(logs_dir, ffm)
+                task = asyncio.ensure_future(self._get_file(download_url, local_filename, session))
+                tasks.append(task)
+
+            await asyncio.gather(*tasks)
 
     def _correct_dup_short_names(self, log_data):
         short_names = [v.short_name for v in log_data]
@@ -143,7 +150,13 @@ class AUV_NetCDF(AUV):
     def process_logs(self):
         if not self.args.local:
             self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()}")
-            self._download_files()
+            import time
+            tstart = time.time()
+            loop = asyncio.get_event_loop()
+            future = asyncio.ensure_future(self._download_files())
+            loop.run_until_complete(future)
+            self.logger.error(f"Seconds to download all: {time.time() - tstart}")
+
 
         name = self.args.mission
         vehicle = self.args.auv_name
