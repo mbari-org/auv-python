@@ -23,6 +23,7 @@ from netCDF4 import Dataset
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
              'navigation.log', 'isuslog.log', 'parosci.log')
+BASE_PATH = 'auv_data'
 
 MISSIONLOGS = 'missionlogs'
 MISSIONNETCDFS = 'missionnetcdfs'
@@ -43,7 +44,7 @@ class AUV_NetCDF(AUV):
         return super(AUV_NetCDF, self).__init__()
 
     def _unique_vehicle_names(self):
-        self.logger.debug(f"Getting deplolments from {DEPLOYMENTS_URL}")
+        self.logger.debug(f"Getting deployments from {DEPLOYMENTS_URL}")
         with requests.get(DEPLOYMENTS_URL) as resp:
             if resp.status_code != 200:
                 self.logger.error(f"Cannot read {DEPLOYMENTS_URL}, status_code = {resp.status_code}")
@@ -60,8 +61,11 @@ class AUV_NetCDF(AUV):
             if resp.status_code != 200:
                 self.logger.error(f"Cannot read {files_url}, status_code = {resp.status_code}")
                 return
-
-            return resp.json()['names']
+            if names := resp.json()['names']:
+                return names
+            else:
+                self.logger.warning(f"Nothing in names from {files_url}")
+                raise LookupError(f"Nothing in names from {files_url}")
 
     async def _get_file(self, download_url, local_filename, session):
         try:
@@ -168,12 +172,15 @@ class AUV_NetCDF(AUV):
     def process_logs(self):
         name = self.args.mission
         vehicle = self.args.auv_name
-        logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
+        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
+        Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
         if not self.args.local:
             self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()} seconds")
-            if os.path.exists(logs_dir) and not self.args.noinput:
-                yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or 'Y'
+            if os.path.exists(os.path.join(logs_dir, 'vehicle.cfg')):
+                yes_no = 'Y'
+                if not self.args.noinput:
+                    yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or 'Y'
                 if yes_no.upper().startswith('Y'):
                     d_start = time.time()
                     loop = asyncio.get_event_loop()
@@ -181,8 +188,8 @@ class AUV_NetCDF(AUV):
                     loop.run_until_complete(future)
                     self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
 
-        logs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONLOGS, name)
-        netcdfs_dir = os.path.join(self.args.base_dir, vehicle, MISSIONNETCDFS, name)
+        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
+        netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         for log in LOG_FILES:
             log_filename = os.path.join(logs_dir, log)
@@ -203,7 +210,7 @@ class AUV_NetCDF(AUV):
                                          description='Convert AUV log file to a NetCDF files',
                                          epilog=examples)
 
-        parser.add_argument('--base_dir', action='store', default='.', help="Base directory for missionlogs and missionnetcdfs, default: .")
+        parser.add_argument('--base_path', action='store', default=BASE_PATH, help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
         parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
@@ -212,7 +219,7 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--summary', action='store', help='Additional information about the dataset')
 
         parser.add_argument('--noinput', action='store_true', help='Execute without asking for a response, e.g. to not ask to re-download file')        
-        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, 
+        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
