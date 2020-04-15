@@ -177,16 +177,17 @@ class AUV_NetCDF(AUV):
 
         if not self.args.local:
             self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()} seconds")
+            yes_no = 'Y'
             if os.path.exists(os.path.join(logs_dir, 'vehicle.cfg')):
-                yes_no = 'Y'
                 if not self.args.noinput:
                     yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or 'Y'
-                if yes_no.upper().startswith('Y'):
-                    d_start = time.time()
-                    loop = asyncio.get_event_loop()
-                    future = asyncio.ensure_future(self._download_files(logs_dir))
-                    loop.run_until_complete(future)
-                    self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
+
+            if yes_no.upper().startswith('Y'):
+                d_start = time.time()
+                loop = asyncio.get_event_loop()
+                future = asyncio.ensure_future(self._download_files(logs_dir))
+                loop.run_until_complete(future)
+                self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
 
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
