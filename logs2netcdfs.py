@@ -176,7 +176,7 @@ class AUV_NetCDF(AUV):
         Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
         if not self.args.local:
-            # Download logs vie portal service
+            # Download logs via portal service
             self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()} seconds")
             yes_no = 'Y'
             if os.path.exists(os.path.join(logs_dir, 'vehicle.cfg')):
@@ -189,7 +189,6 @@ class AUV_NetCDF(AUV):
                 loop.run_until_complete(future)
                 self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
 
-        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         for log in LOG_FILES:
