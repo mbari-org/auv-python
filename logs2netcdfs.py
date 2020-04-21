@@ -22,7 +22,7 @@ from pathlib import Path
 from netCDF4 import Dataset
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
-             'navigation.log', 'isuslog.log', 'parosci.log')
+             'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log')
 BASE_PATH = 'auv_data'
 
 MISSIONLOGS = 'missionlogs'
@@ -194,8 +194,12 @@ class AUV_NetCDF(AUV):
         for log in LOG_FILES:
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace('.log', '.nc'))
-            self.logger.info(f"Processing {log_filename}")
-            self._process_log_file(log_filename, netcdf_filename)
+            try:
+                self._process_log_file(log_filename, netcdf_filename)
+            except FileNotFoundError as e:
+                self.logger.debug(f"{e}")
+            else:
+                self.logger.info(f"Processing {log_filename}")
 
     def process_command_line(self):
 
