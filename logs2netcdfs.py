@@ -22,7 +22,7 @@ from pathlib import Path
 from netCDF4 import Dataset
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
-             'navigation.log', 'isuslog.log', 'parosci.log')
+             'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log')
 BASE_PATH = 'auv_data'
 
 MISSIONLOGS = 'missionlogs'
@@ -176,26 +176,30 @@ class AUV_NetCDF(AUV):
         Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
         if not self.args.local:
+            # Download logs via portal service
             self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()} seconds")
+            yes_no = 'Y'
             if os.path.exists(os.path.join(logs_dir, 'vehicle.cfg')):
-                yes_no = 'Y'
                 if not self.args.noinput:
                     yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or 'Y'
-                if yes_no.upper().startswith('Y'):
-                    d_start = time.time()
-                    loop = asyncio.get_event_loop()
-                    future = asyncio.ensure_future(self._download_files(logs_dir))
-                    loop.run_until_complete(future)
-                    self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
+            if yes_no.upper().startswith('Y'):
+                d_start = time.time()
+                loop = asyncio.get_event_loop()
+                future = asyncio.ensure_future(self._download_files(logs_dir))
+                loop.run_until_complete(future)
+                self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
 
-        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         for log in LOG_FILES:
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace('.log', '.nc'))
-            self.logger.info(f"Processing {log_filename}")
-            self._process_log_file(log_filename, netcdf_filename)
+            try:
+                self._process_log_file(log_filename, netcdf_filename)
+            except FileNotFoundError as e:
+                self.logger.debug(f"{e}")
+            else:
+                self.logger.info(f"Processing {log_filename}")
 
     def process_command_line(self):
 
@@ -204,10 +208,11 @@ class AUV_NetCDF(AUV):
 
         examples = 'Examples:' + '\n\n'
         examples += '  Write to local missionnetcdfs direcory:\n'
-        examples += '    ' + sys.argv[0] + " --mission 2020.064.10 \n"
+        examples += '    ' + sys.argv[0] + " --mission 2020.064.10\n"
+        examples += '    ' + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
 
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
-                                         description='Convert AUV log file to a NetCDF files',
+                                         description='Convert AUV log files to NetCDF files',
                                          epilog=examples)
 
         parser.add_argument('--base_path', action='store', default=BASE_PATH, help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
