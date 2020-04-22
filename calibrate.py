@@ -44,7 +44,7 @@ class Calibrated_NetCDF(AUV):
                 else:
                     self.logger.info(f"Started download to {local_filename}...")
                     with open(local_filename, 'wb') as handle:
-                        async for chunk in resp.content.iter_chunked(1024):
+                        for chunk in resp.content.iter_chunked(1024):
                             handle.write(chunk)
                         if self.args.verbose > 1:
                             print(f"{os.path.basename(local_filename)}(done) ", end='', flush=True)
@@ -82,11 +82,31 @@ class Calibrated_NetCDF(AUV):
             self._create_variable(variable.data_type, variable.short_name, 
                                   variable.long_name, variable.units, variable.data)
 
+    def _read_cfg(self, cfg_filename):
+        self.logger.debug(f"Opening {cfg_filename}")
+        with open(cfg_filename) as f:
+            line = f.readline()
+            while line:
+                self.logger.debug(line)
+                if line[:2] in ('t_','c_','ep','SO','BO','Vo','TC','PC','Sc','Da'):
+                    breakpoint()
+                    pass
+                line = f.readline()
+
+
     def _apply_calibration(self, base_filename):
         orig_netcdf_filename = f"{base_filename}.nc"
         cfg_filename = f"{base_filename}.cfg"
         xml_filename = f"{base_filename}.xml"
 
+        try:
+            coeffs = self._read_cfg(cfg_filename)
+        except FileNotFoundError as e:
+            self.logger.debug(f"{e}")
+        else:
+            self.logger.info(f"Applying calibrations for {base_filename}")
+
+    def _write_netcdf(self):
         self.nc_file = Dataset(netcdf_filename, 'w')
         self.nc_file.createDimension(f"{TIME}_{base_filename}", len(log_data[0].data))
         self.write_variables(log_data, netcdf_filename)
@@ -112,7 +132,6 @@ class Calibrated_NetCDF(AUV):
             log_filename = os.path.join(logs_dir, log)
             base_filename = log_filename.replace('.log', '')
 
-            self.logger.info(f"Applying calibrations for {orig_netcdf_filename}")
             self._apply_calibration(base_filename)
 
     def process_command_line(self):
@@ -148,7 +167,8 @@ class Calibrated_NetCDF(AUV):
     
 if __name__ == '__main__':
 
-    cal_netcdf = Calibrate_NetCDF()
+    cal_netcdf = Calibrated_NetCDF()
     cal_netcdf.process_command_line()
+    p_start = time.time()
     cal_netcdf.calibrate_and_write()
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
