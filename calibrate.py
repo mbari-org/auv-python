@@ -13,14 +13,20 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import os
 import sys
 import logging
+import math
 import requests
 import time
+import xarray as xr
 from AUV import AUV
 from pathlib import Path
 from netCDF4 import Dataset
 from logs2netcdfs import LOG_FILES, BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = 'time'
+
+class Coeffs():
+    pass
+
 
 class Calibrated_NetCDF(AUV):
 
@@ -82,27 +88,45 @@ class Calibrated_NetCDF(AUV):
             self._create_variable(variable.data_type, variable.short_name, 
                                   variable.long_name, variable.units, variable.data)
 
-    def _read_cfg(self, cfg_filename):
+    def _read_cfg(self, base_filename):
+        '''Emulate what get_auv_cal.m and processCTD.m do in the Matlab doradosdp toolbox
+        '''
+        cfg_filename = f"{base_filename}.cfg"
         self.logger.debug(f"Opening {cfg_filename}")
-        with open(cfg_filename) as f:
-            for line in f:
+        coeffs = Coeffs()
+        with open(cfg_filename) as fh:
+            for line in fh:
                 self.logger.debug(line)
+                # From get_auv_cal.m
                 if line[:2] in ('t_','c_','ep','SO','BO','Vo','TC','PC','Sc','Da'):
-                    breakpoint()
-                    pass
+                    coeff, value = [s.strip() for s in line.split('=')]
+                    try:
+                        setattr(coeffs, coeff, float(value.replace(';','')))
+                    except ValueError as e:
+                        self.logger.debug(f"{e}")
 
+        return coeffs
+
+    def _ctd_calibrate(self, cf):
+        # From processCTD.m:
+        # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
+        K2C = 273.15
+        breakpoint()
+        pass
+        TC = 1.0 / (cf.t_a + cf.t_b * (math.log(cf.t_f0./temp_frequency)) + cf.t_c*((math.log(cf.t_f0./temp_frequency)).^2) + cf.t_d*((math.log(cf.t_f0./temp_frequency)).^3)) - 273.15;
 
     def _apply_calibration(self, base_filename):
         orig_netcdf_filename = f"{base_filename}.nc"
-        cfg_filename = f"{base_filename}.cfg"
         xml_filename = f"{base_filename}.xml"
 
         try:
-            coeffs = self._read_cfg(cfg_filename)
+            coeffs = self._read_cfg(base_filename)
         except FileNotFoundError as e:
             self.logger.debug(f"{e}")
         else:
             self.logger.info(f"Applying calibrations for {base_filename}")
+            if os.path.basename(base_filename) in ('ctdDriver', 'seabird25p'):
+                self._ctd_calibrate(coeffs)
 
     def _write_netcdf(self):
         self.nc_file = Dataset(netcdf_filename, 'w')
