@@ -13,9 +13,9 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import os
 import sys
 import logging
-import math
 import requests
 import time
+import numpy as np
 import xarray as xr
 from AUV import AUV
 from pathlib import Path
@@ -40,7 +40,6 @@ class Calibrated_NetCDF(AUV):
 
     def __init__(self):
         return super(Calibrated_NetCDF, self).__init__()
-
 
     def _get_file(self, download_url, local_filename, session):
         try:
@@ -107,16 +106,22 @@ class Calibrated_NetCDF(AUV):
 
         return coeffs
 
-    def _ctd_calibrate(self, cf):
+    def _ctd_calibrate(self, base_filename, netcdfs_dir, cf):
+        orig_netcdf_filename = os.path.join(netcdfs_dir, f"{os.path.basename(base_filename)}.nc")
         # From processCTD.m:
         # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
         K2C = 273.15
+        try:
+            nc = xr.open_dataset(orig_netcdf_filename)
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+
+        TC = 1.0 / (cf.t_a + cf.t_b * (np.log(cf.t_f0 / nc['temp_frequency'].values)) + cf.t_c * np.power(np.log(cf.t_f0 / nc['temp_frequency']),2) + cf.t_d * np.power(np.log(cf.t_f0 / nc['temp_frequency']),3)) - K2C
         breakpoint()
         pass
-        TC = 1.0 / (cf.t_a + cf.t_b * (math.log(cf.t_f0./temp_frequency)) + cf.t_c*((math.log(cf.t_f0./temp_frequency)).^2) + cf.t_d*((math.log(cf.t_f0./temp_frequency)).^3)) - 273.15;
 
-    def _apply_calibration(self, base_filename):
-        orig_netcdf_filename = f"{base_filename}.nc"
+    def _apply_calibration(self, base_filename, netcdfs_dir):
         xml_filename = f"{base_filename}.xml"
 
         try:
@@ -126,7 +131,7 @@ class Calibrated_NetCDF(AUV):
         else:
             self.logger.info(f"Applying calibrations for {base_filename}")
             if os.path.basename(base_filename) in ('ctdDriver', 'seabird25p'):
-                self._ctd_calibrate(coeffs)
+                self._ctd_calibrate(base_filename, netcdfs_dir, coeffs)
 
     def _write_netcdf(self):
         self.nc_file = Dataset(netcdf_filename, 'w')
@@ -148,13 +153,11 @@ class Calibrated_NetCDF(AUV):
         name = self.args.mission
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
-
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         for log in LOG_FILES:
             log_filename = os.path.join(logs_dir, log)
             base_filename = log_filename.replace('.log', '')
-
-            self._apply_calibration(base_filename)
+            self._apply_calibration(base_filename, netcdfs_dir)
 
     def process_command_line(self):
 
