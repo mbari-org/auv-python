@@ -85,13 +85,11 @@ class Calibrated_NetCDF(AUV):
     def _read_cfg(self, cfg_filename):
         self.logger.debug(f"Opening {cfg_filename}")
         with open(cfg_filename) as f:
-            line = f.readline()
-            while line:
+            for line in f:
                 self.logger.debug(line)
                 if line[:2] in ('t_','c_','ep','SO','BO','Vo','TC','PC','Sc','Da'):
                     breakpoint()
                     pass
-                line = f.readline()
 
 
     def _apply_calibration(self, base_filename):
