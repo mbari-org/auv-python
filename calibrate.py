@@ -5,6 +5,9 @@ calibration information in .cfg and .xml files assiaciated with the
 original .log files and write out a single netCDF file with the 
 variables at original sampling intervals.  The file will be analogous
 to the original netCDF4 files produced by MBARI's LRAUVs.
+
+Note: The name "sensor" is used here, but it's really more aligned 
+      with the concept of "instrument" in SSDS parlance
 '''
 
 __author__ = "Mike McCann"
@@ -29,6 +32,9 @@ TIME = 'time'
 class Coeffs():
     pass
 
+
+class SensorInfo():
+    pass
 
 class Calibrated_NetCDF(AUV):
 
@@ -128,7 +134,7 @@ class Calibrated_NetCDF(AUV):
         SensorOffset = namedtuple('SensorOffset', 'x y')
 
         # Original configuration of Dorado389 - Modify below with changes over time
-        sensor_info = {'navigation': {'data_filename': 'navigation.nc',
+        self.sinfo =  {'navigation': {'data_filename': 'navigation.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
                                       'sensor_offset': None},
@@ -146,6 +152,10 @@ class Calibrated_NetCDF(AUV):
                                       'sensor_offset': SensorOffset(1.003, 0.0001)},
                        'ctd2':       {'data_filename': 'ctdDriver2.nc',
                                       'cal_filename':  'ctdDriver2.cfg',
+                                      'lag_secs':      None,
+                                      'sensor_offset': SensorOffset(1.003, 0.0001)},
+                       'seabird25p': {'data_filename': 'seabird25p.nc',
+                                      'cal_filename':  'seabird25p.cfg',
                                       'lag_secs':      None,
                                       'sensor_offset': SensorOffset(1.003, 0.0001)},
                        'isus':       {'data_filename': 'isuslog.nc',
@@ -168,18 +178,34 @@ class Calibrated_NetCDF(AUV):
 
         # Changes over time
         if start_datetime.year >= 2003:
-            sensor_info['biolume']['sensor_offset'] = SensorOffset(1.003, 0.0001)
+            self.sinfo['biolume']['sensor_offset'] = SensorOffset(1.003, 0.0001)
 
-        breakpoint()
-        pass
+    def _read_data(self, logs_dir, netcdfs_dir):
+        '''Read in all the instrument data into member variables named by "sensor"
+        Access xarray.Dataset like: self.ctd.data, self.navigation.data
+        Access calibration coeeficients like: self.ctd.cals.t_f0
+        '''
+        for sensor, info in self.sinfo.items():
+            sensor_info = SensorInfo()
+            orig_netcdf_filename = os.path.join(netcdfs_dir, info['data_filename'])
+            self.logger.debug(f"Reading data from {orig_netcdf_filename} into self.{sensor}.data")
+            try:
+                setattr(sensor_info, 'data', xr.open_dataset(orig_netcdf_filename))
+            except FileNotFoundError as e:
+                self.logger.debug(f"{e}")
+            if info['cal_filename']:
+                cal_filename = os.path.join(logs_dir, info['cal_filename'])
+                self.logger.debug(f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals")
+                try:
+                    setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
+                except FileNotFoundError as e:
+                    self.logger.debug(f"{e}")
 
-        
-
+            setattr(self, sensor, sensor_info)
     
-    def _read_cfg(self, base_filename):
+    def _read_cfg(self, cfg_filename):
         '''Emulate what get_auv_cal.m and processCTD.m do in the Matlab doradosdp toolbox
         '''
-        cfg_filename = f"{base_filename}.cfg"
         self.logger.debug(f"Opening {cfg_filename}")
         coeffs = Coeffs()
         with open(cfg_filename) as fh:
@@ -195,12 +221,11 @@ class Calibrated_NetCDF(AUV):
 
         return coeffs
 
-    def _ctd_calibrate(self, base_filename, netcdfs_dir, cf):
-        orig_netcdf_filename = os.path.join(netcdfs_dir, f"{os.path.basename(base_filename)}.nc")
+    def _ctd_calibrate(self, sensor, cf):
         # From processCTD.m:
         # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
         try:
-            nc = xr.open_dataset(orig_netcdf_filename)
+            nc = getattr(self, sensor).data
         except FileNotFoundError as e:
             self.logger.error(f"{e}")
             return
@@ -217,17 +242,15 @@ class Calibrated_NetCDF(AUV):
         breakpoint()
         pass
 
-    def _apply_calibration(self, base_filename, netcdfs_dir):
-        xml_filename = f"{base_filename}.xml"
-
+    def _apply_calibration(self, sensor, netcdfs_dir):
         try:
-            coeffs = self._read_cfg(base_filename)
-        except FileNotFoundError as e:
-            self.logger.debug(f"{e}")
+            coeffs = getattr(self, sensor).cals
+        except AttributeError as e:
+            self.logger.debug(f"{sensor}: {e}")
         else:
-            self.logger.info(f"Applying calibrations for {base_filename}")
-            if os.path.basename(base_filename) in ('ctdDriver', 'seabird25p'):
-                self._ctd_calibrate(base_filename, netcdfs_dir, coeffs)
+            self.logger.info(f"Applying calibrations for {sensor}")
+            if sensor in ('ctdDriver', 'seabird25p'):
+                self._ctd_calibrate(sensor, coeffs)
 
     def _write_netcdf(self):
         self.nc_file = Dataset(netcdf_filename, 'w')
@@ -252,10 +275,9 @@ class Calibrated_NetCDF(AUV):
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         start_datetime = datetime.strptime('.'.join(name.split('.')[:2]), "%Y.%j")
         self._define_sensor_info(start_datetime)
-        for log in LOG_FILES:
-            log_filename = os.path.join(logs_dir, log)
-            base_filename = log_filename.replace('.log', '')
-            self._apply_calibration(base_filename, netcdfs_dir)
+        self._read_data(logs_dir, netcdfs_dir)
+        for sensor in self.sinfo.keys():
+            self._apply_calibration(sensor, netcdfs_dir)
 
     def process_command_line(self):
 
