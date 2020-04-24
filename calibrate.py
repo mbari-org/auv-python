@@ -18,6 +18,8 @@ import time
 import numpy as np
 import xarray as xr
 from AUV import AUV
+from collections import namedtuple
+from datetime import datetime
 from pathlib import Path
 from netCDF4 import Dataset
 from logs2netcdfs import LOG_FILES, BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
@@ -87,6 +89,93 @@ class Calibrated_NetCDF(AUV):
             self._create_variable(variable.data_type, variable.short_name, 
                                   variable.long_name, variable.units, variable.data)
 
+    def _define_sensor_info(self, start_datetime):
+        '''
+        % From defineAUVsensorinfo.m
+        if strcmp(sensorname,'navigation');
+            data_filename = 'navigation.nc'; cal_filename=[]; sensor_offsets=[]; return
+        elseif strcmp(sensorname,'depth');
+            data_filename = 'parosci.nc'; cal_filename=[]; sensor_offsets=[-0.927,-0.076]; return
+        elseif strcmp(sensorname,'hs2');
+            data_filename='hydroscatlog.nc'; sensor_offsets=[.1397,-.2794];
+            cal_filename='hs2Calibration.dat';      % Read from missionlogs dir
+        elseif strcmp(sensorname,'ctd');
+            data_filename=('ctdDriver.nc'); cal_filename='ctdDriver.cfg';
+            sensor_offsets=[1.003,0.0001]; %% Serves the purpose for T and OBS
+            %% O2 and Nitrate (on CTD 1 circuit) are aligned to temperature by plumbing lag only
+        elseif strcmp(sensorname,'ctd2');
+            data_filename=('ctdDriver2.nc'); cal_filename='ctdDriver2.cfg';
+            sensor_offsets=[1.003,0.0001];
+        elseif strcmp(sensorname,'isus');
+            data_filename = ('isuslog.nc'); cal_filename=[];
+            sensor_offsets=[6];   % Estimated plumbing lag in seconds; needs improvement to use flow
+        elseif strcmp(sensorname,'gps');
+            data_filename='gps.nc'; cal_filename=[]; sensor_offsets=[];
+        elseif strcmp(sensorname,'biolume');
+            data_filename = ('biolume.nc');
+            cal_filename=[];
+            if (yr < 2003)
+                disp(['Using sensor offsets for SPOKES 2002']);
+            sensor_offsets = [-.889, -.0508];   % SPOKES 2002 (X = -35 in?, Y = -2 in)
+            else
+            sensor_offsets = [-.1778, -.0889];  % AOSNII, SPED, SPES (X = -7 in, Y = -3.5 in);
+            end
+        elseif strcmp(sensorname,'lopc');
+            data_filename = ('lopc.nc'); cal_filename=[]; sensor_offsets=[]; return
+        end
+        '''
+        # Horizontal and vertical distance from origin in meters
+        SensorOffset = namedtuple('SensorOffset', 'x y')
+
+        # Original configuration of Dorado389 - Modify below with changes over time
+        sensor_info = {'navigation': {'data_filename': 'navigation.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': None},
+                       'depth':      {'data_filename': 'parosci.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': SensorOffset(-0.927, -0.076)},
+                       'hs2':        {'data_filename': 'hydroscatlog.nc',
+                                      'cal_filename':  'hs2Calibration.dat',
+                                      'lag_secs':      None,
+                                      'sensor_offset': SensorOffset(.1397, -.2794)},
+                       'ctd':        {'data_filename': 'ctdDriver.nc',
+                                      'cal_filename':  'ctdDriver.cfg',
+                                      'lag_secs':      None,
+                                      'sensor_offset': SensorOffset(1.003, 0.0001)},
+                       'ctd2':       {'data_filename': 'ctdDriver2.nc',
+                                      'cal_filename':  'ctdDriver2.cfg',
+                                      'lag_secs':      None,
+                                      'sensor_offset': SensorOffset(1.003, 0.0001)},
+                       'isus':       {'data_filename': 'isuslog.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      6,
+                                      'sensor_offset': None},
+                       'gps':        {'data_filename': 'gps.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': None},
+                       'biolume':    {'data_filename': 'biolume.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': SensorOffset(-.889, -.0508)},
+                       'lopc':       {'data_filename': 'lopc.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': None}
+                      }
+
+        # Changes over time
+        if start_datetime.year >= 2003:
+            sensor_info['biolume']['sensor_offset'] = SensorOffset(1.003, 0.0001)
+
+        breakpoint()
+        pass
+
+        
+
+    
     def _read_cfg(self, base_filename):
         '''Emulate what get_auv_cal.m and processCTD.m do in the Matlab doradosdp toolbox
         '''
@@ -110,14 +199,21 @@ class Calibrated_NetCDF(AUV):
         orig_netcdf_filename = os.path.join(netcdfs_dir, f"{os.path.basename(base_filename)}.nc")
         # From processCTD.m:
         # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
-        K2C = 273.15
         try:
             nc = xr.open_dataset(orig_netcdf_filename)
         except FileNotFoundError as e:
             self.logger.error(f"{e}")
             return
 
-        TC = 1.0 / (cf.t_a + cf.t_b * (np.log(cf.t_f0 / nc['temp_frequency'].values)) + cf.t_c * np.power(np.log(cf.t_f0 / nc['temp_frequency']),2) + cf.t_d * np.power(np.log(cf.t_f0 / nc['temp_frequency']),3)) - K2C
+        # Seabird specific calibration
+        nc['temp_frequency'][nc['temp_frequency'] == 0.0] = np.nan
+        K2C = 273.15
+        TC = (1.0 / 
+                (cf.t_a + 
+                 cf.t_b * np.log(cf.t_f0 / nc['temp_frequency'].values) + 
+                 cf.t_c * np.power(np.log(cf.t_f0 / nc['temp_frequency']),2) + 
+                 cf.t_d * np.power(np.log(cf.t_f0 / nc['temp_frequency']),3)
+                ) - K2C)
         breakpoint()
         pass
 
@@ -154,6 +250,8 @@ class Calibrated_NetCDF(AUV):
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
+        start_datetime = datetime.strptime('.'.join(name.split('.')[:2]), "%Y.%j")
+        self._define_sensor_info(start_datetime)
         for log in LOG_FILES:
             log_filename = os.path.join(logs_dir, log)
             base_filename = log_filename.replace('.log', '')
