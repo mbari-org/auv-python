@@ -27,6 +27,20 @@ gives some background on the motivation for these goals.
 
 This requires Python 3.8 and is initially being developed on a STOQS development system.
 
+To develop on a Workstation:
+Install Anaconda 3.7 on your system
+mkdir ~/dev
+cd ~/dev
+git clone git@bitbucket.org:mbari/auv-python.git
+cd auv-python
+conda create --name auv-python python=3.8
+conda activate auv-python
+conda install requests aiohttp 
+pip install coards
+conda install -y numpy scipy
+conda install -y -c conda-forge seawater netCDF4 xarray 
+
+
 --
 
 Mike McCann
