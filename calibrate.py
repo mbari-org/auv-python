@@ -13,6 +13,7 @@ Note: The name "sensor" is used here, but it's really more aligned
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import coards
 import os
 import sys
 import logging
@@ -20,7 +21,6 @@ import requests
 import time
 import numpy as np
 import xarray as xr
-from AUV import AUV
 from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
@@ -36,7 +36,7 @@ class Coeffs():
 class SensorInfo():
     pass
 
-class Calibrated_NetCDF(AUV):
+class Calibrated_NetCDF():
 
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -46,8 +46,28 @@ class Calibrated_NetCDF(AUV):
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self):
-        return super(Calibrated_NetCDF, self).__init__()
+    def add_global_metadata(self):
+        '''Use instance variables to write metadata specific for the data that are written
+        '''
+        iso_now = datetime.utcnow().isoformat() + 'Z'
+
+        self.nc_file.netcdf_version = '4'
+        self.nc_file.Conventions = 'CF-1.6'
+        self.nc_file.date_created = iso_now
+        self.nc_file.date_update = iso_now
+        self.nc_file.date_modified = iso_now
+        self.nc_file.featureType = 'trajectory'
+
+        self.nc_file.comment = ('Autonomous Underwater Vehicle data....'
+                                'https://bitbucket.org/mbari/auv-python')
+
+        self.nc_file.time_coverage_start = coards.from_udunits(self.time[0], self.time.units).isoformat() + 'Z'
+        self.nc_file.time_coverage_end = coards.from_udunits(self.time[-1], self.time.units).isoformat() + 'Z'
+
+        self.nc_file.distribution_statement = 'Any use requires prior approval from MBARI'
+        self.nc_file.license = self.nc_file.distribution_statement
+        self.nc_file.useconst = 'Not intended for legal use. Data may contain inaccuracies.'
+        self.nc_file.history = 'Created by "%s" on %s' % (' '.join(sys.argv), iso_now,)
 
     def _get_file(self, download_url, local_filename, session):
         try:
