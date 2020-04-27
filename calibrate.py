@@ -242,6 +242,21 @@ class Calibrated_NetCDF(AUV):
         breakpoint()
         pass
 
+        '''
+        %% Compute depth for temperature sensor with geometric correction
+        cpitch=interp1(Nav.time,Nav.pitch,time);    %find the pitch(time)
+        cdepth=interp1(Dep.time,Dep.data,time);     %find reference depth(time)
+        zoffset=align_geom(sensor_offsets,cpitch);  %calculate offset from 0,0
+        depth=cdepth-zoffset;                       %Find True depth of sensor
+
+        % Output structured array
+        CTD.temperature=TC;
+        CTD.time=time;
+        CTD.Tdepth=depth;  % depth of temperature sensor
+        '''
+
+
+
     def _apply_calibration(self, sensor, netcdfs_dir):
         try:
             coeffs = getattr(self, sensor).cals
