@@ -17,7 +17,6 @@ import numpy as np
 import numpy.ma as ma
 from collections import namedtuple
 from datetime import datetime
-from pupynere import netcdf_file
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 from seawater import eos80
