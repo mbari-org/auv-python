@@ -36,6 +36,7 @@ class Coeffs():
 class SensorInfo():
     pass
 
+
 class Calibrated_NetCDF():
 
     logger = logging.getLogger(__name__)
@@ -116,40 +117,6 @@ class Calibrated_NetCDF():
                                   variable.long_name, variable.units, variable.data)
 
     def _define_sensor_info(self, start_datetime):
-        '''
-        % From defineAUVsensorinfo.m
-        if strcmp(sensorname,'navigation');
-            data_filename = 'navigation.nc'; cal_filename=[]; sensor_offsets=[]; return
-        elseif strcmp(sensorname,'depth');
-            data_filename = 'parosci.nc'; cal_filename=[]; sensor_offsets=[-0.927,-0.076]; return
-        elseif strcmp(sensorname,'hs2');
-            data_filename='hydroscatlog.nc'; sensor_offsets=[.1397,-.2794];
-            cal_filename='hs2Calibration.dat';      % Read from missionlogs dir
-        elseif strcmp(sensorname,'ctd');
-            data_filename=('ctdDriver.nc'); cal_filename='ctdDriver.cfg';
-            sensor_offsets=[1.003,0.0001]; %% Serves the purpose for T and OBS
-            %% O2 and Nitrate (on CTD 1 circuit) are aligned to temperature by plumbing lag only
-        elseif strcmp(sensorname,'ctd2');
-            data_filename=('ctdDriver2.nc'); cal_filename='ctdDriver2.cfg';
-            sensor_offsets=[1.003,0.0001];
-        elseif strcmp(sensorname,'isus');
-            data_filename = ('isuslog.nc'); cal_filename=[];
-            sensor_offsets=[6];   % Estimated plumbing lag in seconds; needs improvement to use flow
-        elseif strcmp(sensorname,'gps');
-            data_filename='gps.nc'; cal_filename=[]; sensor_offsets=[];
-        elseif strcmp(sensorname,'biolume');
-            data_filename = ('biolume.nc');
-            cal_filename=[];
-            if (yr < 2003)
-                disp(['Using sensor offsets for SPOKES 2002']);
-            sensor_offsets = [-.889, -.0508];   % SPOKES 2002 (X = -35 in?, Y = -2 in)
-            else
-            sensor_offsets = [-.1778, -.0889];  % AOSNII, SPED, SPES (X = -7 in, Y = -3.5 in);
-            end
-        elseif strcmp(sensorname,'lopc');
-            data_filename = ('lopc.nc'); cal_filename=[]; sensor_offsets=[]; return
-        end
-        '''
         # Horizontal and vertical distance from origin in meters
         SensorOffset = namedtuple('SensorOffset', 'x y')
 
@@ -210,7 +177,7 @@ class Calibrated_NetCDF():
             orig_netcdf_filename = os.path.join(netcdfs_dir, info['data_filename'])
             self.logger.debug(f"Reading data from {orig_netcdf_filename} into self.{sensor}.data")
             try:
-                setattr(sensor_info, 'data', xr.open_dataset(orig_netcdf_filename))
+                setattr(sensor_info, 'orig_data', xr.open_dataset(orig_netcdf_filename))
             except FileNotFoundError as e:
                 self.logger.debug(f"{e}")
             if info['cal_filename']:
@@ -222,6 +189,8 @@ class Calibrated_NetCDF():
                     self.logger.debug(f"{e}")
 
             setattr(self, sensor, sensor_info)
+
+        # TODO: Warn if no data found and if logs2netcdfs.py should be run
     
     def _read_cfg(self, cfg_filename):
         '''Emulate what get_auv_cal.m and processCTD.m do in the Matlab doradosdp toolbox
@@ -230,39 +199,89 @@ class Calibrated_NetCDF():
         coeffs = Coeffs()
         with open(cfg_filename) as fh:
             for line in fh:
-                self.logger.debug(line)
+                ##self.logger.debug(line)
                 # From get_auv_cal.m
                 if line[:2] in ('t_','c_','ep','SO','BO','Vo','TC','PC','Sc','Da'):
                     coeff, value = [s.strip() for s in line.split('=')]
                     try:
+                        self.logger.debug(f"Saving {line}")
                         setattr(coeffs, coeff, float(value.replace(';','')))
                     except ValueError as e:
                         self.logger.debug(f"{e}")
 
         return coeffs
 
-    def _ctd_calibrate(self, sensor, cf):
-        # From processCTD.m:
-        # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
-        try:
-            nc = getattr(self, sensor).data
-        except FileNotFoundError as e:
-            self.logger.error(f"{e}")
-            return
-
-        # Seabird specific calibration
-        nc['temp_frequency'][nc['temp_frequency'] == 0.0] = np.nan
+    def _temp_from_frequency(self, cf, nc):
         K2C = 273.15
-        TC = (1.0 / 
+        calibrated_temp = (1.0 / 
                 (cf.t_a + 
                  cf.t_b * np.log(cf.t_f0 / nc['temp_frequency'].values) + 
                  cf.t_c * np.power(np.log(cf.t_f0 / nc['temp_frequency']),2) + 
                  cf.t_d * np.power(np.log(cf.t_f0 / nc['temp_frequency']),3)
                 ) - K2C)
-        breakpoint()
-        pass
 
+        return calibrated_temp
+
+    def _ctd_calibrate(self, sensor, cf):
+        # From processCTD.m:
+        # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+
+        # Seabird specific calibrations
+        # Temperature
+        orig_nc['temp_frequency'][orig_nc['temp_frequency'] == 0.0] = np.nan
+        getattr(self, sensor).cal_align_data['temperatue'] = self._temp_from_frequency(cf, orig_nc)
+        
+        # Other variables that may be in the original data
+        breakpoint()
+
+        # Salinity
         '''
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Salinity
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% Note that recalculation of conductivity and correction for thermal mass
+        %% are possible, however, their magnitude results in salinity differences
+        %% of less than 10^-4.  
+        %% In other regions where these corrections are more significant, the
+        %% corrections can be turned on.
+        p1=10*(interp1(Dep.time,Dep.fltpres,time));  %% pressure in db
+
+        % Always calculate conductivity from cond_frequency
+        do_thermal_mass_calc=0;		% Has a negligable effect
+        if do_thermal_mass_calc;
+            %% Conductivity Calculation
+            cfreq=cond_frequency/1000;
+            Cuncorrected = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
+            
+            % correct conductivity for cell thermal mass (see Seabird documentation for explanation of equations)
+            sampint  = 0.25;  % Sampling interval for CT sensors
+            Tmp.data = TC;
+            alphac = 0.04;   % constant for conductivity thermal mass calculation
+            betac  = 1/8.0;  % constant for conductivity thermal mass calculation
+            ctm1(1) = 0;
+            for i = 1:(length(Cuncorrected)-1)
+                ctm1(i+1) = (-1.0*(1-(2*(2*alphac/(sampint*betac+2))/alphac))*ctm1(i)) + ...
+                    (2*(alphac/(sampint*betac+2))*(0.1*(1+0.006*(Tmp.data(i)-20)))*(Tmp.data(i+1)-Tmp.data(i)));
+            end
+            c1 = Cuncorrected + ctm1'; % very, very small correction. +/-0.0005
+        else
+            %% Conductivity Calculation
+            cfreq=cond_frequency/1000;
+            c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
+
+            %%c1=conductivity;		% This uses conductivity as calculated on the vehicle with the cal
+                        % params that were in the .cfg file at the time.  Not what we want.
+        end
+
+        % Calculate Salinty
+        cratio = c1*10/sw_c3515; % sw_C is conductivity value at 35,15,0
+        CTD.salinity = sw_salt(cratio,CTD.temperature,p1); % (psu)
+
         %% Compute depth for temperature sensor with geometric correction
         cpitch=interp1(Nav.time,Nav.pitch,time);    %find the pitch(time)
         cdepth=interp1(Dep.time,Dep.data,time);     %find reference depth(time)
@@ -311,7 +330,9 @@ class Calibrated_NetCDF():
         start_datetime = datetime.strptime('.'.join(name.split('.')[:2]), "%Y.%j")
         self._define_sensor_info(start_datetime)
         self._read_data(logs_dir, netcdfs_dir)
+
         for sensor in self.sinfo.keys():
+            setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
             self._apply_calibration(sensor, netcdfs_dir)
 
     def process_command_line(self):
