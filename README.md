@@ -36,10 +36,7 @@ To develop on a Workstation:
 * cd auv-python
 * conda create --name auv-python python=3.8
 * conda activate auv-python
-* conda install requests aiohttp 
-* pip install coards
-* conda install -y numpy scipy
-* conda install -y -c conda-forge seawater netCDF4 xarray 
+* pip install -r requirements.txt
 
 
 --
