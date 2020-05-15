@@ -13,18 +13,22 @@ Note: The name "sensor" is used here, but it's really more aligned
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import altair as ar
 import coards
 import os
 import sys
 import logging
 import requests
 import time
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from datetime import datetime
 from pathlib import Path
 from netCDF4 import Dataset
+from scipy.signal import filtfilt
+from seawater import eos80
 from logs2netcdfs import LOG_FILES, BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = 'time'
@@ -121,47 +125,48 @@ class Calibrated_NetCDF():
         SensorOffset = namedtuple('SensorOffset', 'x y')
 
         # Original configuration of Dorado389 - Modify below with changes over time
-        self.sinfo =  {'navigation': {'data_filename': 'navigation.nc',
+        self.sinfo =  OrderedDict([
+                       ('navigation', {'data_filename': 'navigation.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': None},
-                       'depth':      {'data_filename': 'parosci.nc',
+                                      'sensor_offset': None}),
+                       ('depth',      {'data_filename': 'parosci.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': SensorOffset(-0.927, -0.076)},
-                       'hs2':        {'data_filename': 'hydroscatlog.nc',
+                                      'sensor_offset': SensorOffset(-0.927, -0.076)}),
+                       ('hs2',        {'data_filename': 'hydroscatlog.nc',
                                       'cal_filename':  'hs2Calibration.dat',
                                       'lag_secs':      None,
-                                      'sensor_offset': SensorOffset(.1397, -.2794)},
-                       'ctd':        {'data_filename': 'ctdDriver.nc',
+                                      'sensor_offset': SensorOffset(.1397, -.2794)}),
+                       ('ctd',        {'data_filename': 'ctdDriver.nc',
                                       'cal_filename':  'ctdDriver.cfg',
                                       'lag_secs':      None,
-                                      'sensor_offset': SensorOffset(1.003, 0.0001)},
-                       'ctd2':       {'data_filename': 'ctdDriver2.nc',
+                                      'sensor_offset': SensorOffset(1.003, 0.0001)}),
+                       ('ctd2',       {'data_filename': 'ctdDriver2.nc',
                                       'cal_filename':  'ctdDriver2.cfg',
                                       'lag_secs':      None,
-                                      'sensor_offset': SensorOffset(1.003, 0.0001)},
-                       'seabird25p': {'data_filename': 'seabird25p.nc',
+                                      'sensor_offset': SensorOffset(1.003, 0.0001)}),
+                       ('seabird25p', {'data_filename': 'seabird25p.nc',
                                       'cal_filename':  'seabird25p.cfg',
                                       'lag_secs':      None,
-                                      'sensor_offset': SensorOffset(1.003, 0.0001)},
-                       'isus':       {'data_filename': 'isuslog.nc',
+                                      'sensor_offset': SensorOffset(1.003, 0.0001)}),
+                       ('isus',       {'data_filename': 'isuslog.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      6,
-                                      'sensor_offset': None},
-                       'gps':        {'data_filename': 'gps.nc',
+                                      'sensor_offset': None}),
+                       ('gps',        {'data_filename': 'gps.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': None},
-                       'biolume':    {'data_filename': 'biolume.nc',
+                                      'sensor_offset': None}),
+                       ('biolume',    {'data_filename': 'biolume.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': SensorOffset(-.889, -.0508)},
-                       'lopc':       {'data_filename': 'lopc.nc',
+                                      'sensor_offset': SensorOffset(-.889, -.0508)}),
+                       ('lopc',       {'data_filename': 'lopc.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': None}
-                      }
+                                      'sensor_offset': None})
+        ])
 
         # Changes over time
         if start_datetime.year >= 2003:
@@ -175,7 +180,7 @@ class Calibrated_NetCDF():
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
             orig_netcdf_filename = os.path.join(netcdfs_dir, info['data_filename'])
-            self.logger.debug(f"Reading data from {orig_netcdf_filename} into self.{sensor}.data")
+            self.logger.debug(f"Reading data from {orig_netcdf_filename} into self.{sensor}.orig_data")
             try:
                 setattr(sensor_info, 'orig_data', xr.open_dataset(orig_netcdf_filename))
             except FileNotFoundError as e:
@@ -222,6 +227,29 @@ class Calibrated_NetCDF():
 
         return calibrated_temp
 
+    def _sal_from_cond_frequency(self, cf, nc, temp, depth):
+        # Note that recalculation of conductivity and correction for thermal mass
+        # are possible, however, their magnitude results in salinity differences
+        # of less than 10^-4.  
+        # In other regions where these corrections are more significant, the
+        # corrections can be turned on.
+        # conductivity at S=35 psu , T=15 C [ITPS 68] and P=0 db) ==> 42.914
+        sw_c3515 = 42.914
+        eps = np.spacing(1)
+
+        p1 = 10 * (interp1(Dep.time,Dep.fltpres,time))    # pressure in db
+        cfreq = nc['cond_frequency'] / 1000
+        c1 = (cf.c_a * np.power(cfreq, cf.c_m) +
+              cf.c_b * np.power(cfreq, 2) +
+              cf.c_c + 
+              np.divide(cf.c_d * temp, (10 * (1 + eps * p1))))
+
+        cratio = c1 * 10 / sw_c3515
+        calibrated_salinity = eos80.salt(cratio, temp, p1)
+
+        return calibrated_salinity
+
+
     def _ctd_calibrate(self, sensor, cf):
         # From processCTD.m:
         # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
@@ -232,9 +260,12 @@ class Calibrated_NetCDF():
             return
 
         # Seabird specific calibrations
-        # Temperature
         orig_nc['temp_frequency'][orig_nc['temp_frequency'] == 0.0] = np.nan
-        getattr(self, sensor).cal_align_data['temperatue'] = self._temp_from_frequency(cf, orig_nc)
+
+        temp = self._temp_from_frequency(cf, orig_nc)
+        depth = self.depth.cal_align_data.depth
+        getattr(self, sensor).cal_align_data['temperatue'] = temp
+        getattr(self, sensor).cal_align_data['salinity'] = self._sal_from_cond_frequency(cf, orig_nc, temp)
         
         # Other variables that may be in the original data
         breakpoint()
@@ -294,17 +325,37 @@ class Calibrated_NetCDF():
         CTD.Tdepth=depth;  % depth of temperature sensor
         '''
 
+    def _filter_depth(self, sensor, latitude=36):
+        '''Depth data (from the Parosci) is 10 Hz - do a simple boxcar average
+        bringing it down to 1 Hz
+        '''
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+
+        self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
+        pres = eos80.pres(orig_nc['depth'], latitude)
+        filt_pres = filtfilt(np.ones(10)/10, 1, pres)
+        filt_depth = filtfilt(np.ones(10)/10, 1, orig_nc['depth'])
+        ##orig_nc['depth'].plot()
+        plt.plot(filt_depth)
+        plt.show()
+        getattr(self, sensor).cal_align_data['depth'] = orig_nc['depth']
 
 
     def _apply_calibration(self, sensor, netcdfs_dir):
+        coeffs = None
         try:
             coeffs = getattr(self, sensor).cals
         except AttributeError as e:
-            self.logger.debug(f"{sensor}: {e}")
-        else:
-            self.logger.info(f"Applying calibrations for {sensor}")
-            if sensor in ('ctdDriver', 'seabird25p'):
-                self._ctd_calibrate(sensor, coeffs)
+            self.logger.debug(f"No calibration information for {sensor}: {e}")
+
+        if sensor in ('depth',):
+            self._filter_depth(sensor)
+        if sensor in ('ctdDriver', 'seabird25p') and coeffs:
+            self._ctd_calibrate(sensor, coeffs)
 
     def _write_netcdf(self):
         self.nc_file = Dataset(netcdf_filename, 'w')
