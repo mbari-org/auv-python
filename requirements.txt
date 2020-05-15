@@ -1,8 +1,8 @@
-aiohttp
-coards
-netCDF4
-numpy
-requests
-scipy
-seawater
-xarray
+aiohttp==3.6.2
+coards==1.0.5
+netCDF4==1.5.3
+numpy==1.18.4
+requests==2.23.0
+scipy==1.4.1
+seawater==3.3.4
+xarray==0.15.1
