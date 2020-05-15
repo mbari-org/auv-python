@@ -1,0 +1,8 @@
+aiohttp
+coards
+netCDF4
+numpy
+requests
+scipy
+seawater
+xarray
