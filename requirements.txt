@@ -1,5 +1,7 @@
 aiohttp==3.6.2
+altair==4.1.0
 coards==1.0.5
+matplotlib==3.2.1
 netCDF4==1.5.3
 numpy==1.18.4
 requests==2.23.0
