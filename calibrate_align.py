@@ -15,14 +15,15 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
 import altair as ar
 import coards
-import os
-import sys
 import logging
 import requests
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import os
 import scipy
+import sys
 import xarray as xr
 from collections import namedtuple, OrderedDict
 from datetime import datetime
@@ -324,30 +325,50 @@ class Calibrated_NetCDF():
         CTD.Tdepth=depth;  % depth of temperature sensor
         '''
 
-    def _filter_depth(self, sensor, latitude=36):
-        '''Depth data (from the Parosci) is 10 Hz - do a simple boxcar average
-        bringing it down to 1 Hz
+    def _filter_depth(self, sensor, latitude=36, cutoff_freq=1):
+        '''Depth data (from the Parosci) is 10 Hz - Use a butterworth window
+        to filter recorded pressure to values that are appropriately sampled
+        at 1 Hz (when matched with other sensor data).  cutoff_freq is in
+        units of Hz.
         '''
         try:
             orig_nc = getattr(self, sensor).orig_data
-        except FileNotFoundError as e:
+        except (FileNotFoundError, AttributeError) as e:
             self.logger.error(f"{e}")
             return
 
+        # From initial CVS commit in 2004 the processDepth.m file computed
+        # pres from depth this way.  I don't know what is done on the vehicle 
+        # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
         self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
         pres = eos80.pres(orig_nc['depth'], latitude)
+        
         # See https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.filtfilt.html#scipy.signal.filtfilt
-        b, a = scipy.signal.butter(8, 0.2)
+        # and https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.butter.html#scipy.signal.butter
+        # Sample rate should be 10 - calcuate it to be sure
+        sample_rate = 1. / \
+            np.round(
+                np.mean(np.diff(orig_nc['time'])) / np.timedelta64(1, 's'), decimals=2)
+        # The Wn parameter for butter() is fraction of the Nyquist frequency
+        Wn = cutoff_freq / (sample_rate / 2.)
+        b, a = scipy.signal.butter(8, Wn)
         filt_pres = scipy.signal.filtfilt(b, a, pres)
         if self.args.plots:
+            ##time_sample = orig_nc['time'][:npts]
+            ##pres_sample = pres[:npts]
+            ##plt.plot(time_sample, pres_sample, color='red', label='Original pressure')
+            ##plt.plot(time_sample, filt_pres[:npts], color='black', label='Filtered pressure')
+            ##plt.legend()
+            ##plt.title((f"First {npts} points from"
+            ##           f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}"))
+            # Use Pandas to plot multiple columns of a subset (npts) of data
+            # to validate that the filtering works as expected
             npts = 200
-            time_sample = orig_nc['time'][:npts]
-            pres_sample = pres[:npts]
-            plt.plot(time_sample, pres_sample, color='red', label='Original pressure')
-            plt.plot(time_sample, filt_pres[:npts], color='black', label='Filtered pressure')
-            plt.legend()
-            plt.title((f"First {npts} points from"
-                       f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}"))
+            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[:npts])
+            df_plot['pres'] = pres[:npts]
+            df_plot['filt_pres'] = filt_pres[:npts]
+            ax = df_plot.plot()
+            ax.grid('on')
             plt.show()
 
         getattr(self, sensor).cal_align_data['depth'] = orig_nc['depth']
