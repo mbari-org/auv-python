@@ -40,9 +40,6 @@ class AUV_NetCDF(AUV):
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self):
-        return super(AUV_NetCDF, self).__init__()
-
     def _unique_vehicle_names(self):
         self.logger.debug(f"Getting deployments from {DEPLOYMENTS_URL}")
         with requests.get(DEPLOYMENTS_URL) as resp:
@@ -144,8 +141,6 @@ class AUV_NetCDF(AUV):
         getattr(self, short_name)[:] = data
 
     def write_variables(self, log_data, netcdf_filename):
-        name = self.args.mission
-        vehicle = self.args.auv_name
         log_data = self._correct_dup_short_names(log_data)
         for variable in log_data:
             self.logger.debug(f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})")
@@ -216,7 +211,7 @@ class AUV_NetCDF(AUV):
                                          epilog=examples)
 
         parser.add_argument('--base_path', action='store', default=BASE_PATH, help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
-        parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
+        parser.add_argument('--auv_name', action='store', default='dorado', help="dorado (default), i2map, or multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
 
