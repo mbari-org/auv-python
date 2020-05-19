@@ -352,22 +352,22 @@ class Calibrated_NetCDF():
         # The Wn parameter for butter() is fraction of the Nyquist frequency
         Wn = cutoff_freq / (sample_rate / 2.)
         b, a = scipy.signal.butter(8, Wn)
-        filt_pres = scipy.signal.filtfilt(b, a, pres)
+        filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
+        # Use 10 points in boxcar as in processDepth.m
+        a = 10
+        b = scipy.signal.boxcar(a)
+        filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
         if self.args.plots:
-            ##time_sample = orig_nc['time'][:npts]
-            ##pres_sample = pres[:npts]
-            ##plt.plot(time_sample, pres_sample, color='red', label='Original pressure')
-            ##plt.plot(time_sample, filt_pres[:npts], color='black', label='Filtered pressure')
-            ##plt.legend()
-            ##plt.title((f"First {npts} points from"
-            ##           f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}"))
             # Use Pandas to plot multiple columns of a subset (npts) of data
             # to validate that the filtering works as expected
-            npts = 200
+            npts = 2000
             df_plot = pd.DataFrame(index=orig_nc.get_index('time')[:npts])
             df_plot['pres'] = pres[:npts]
-            df_plot['filt_pres'] = filt_pres[:npts]
-            ax = df_plot.plot()
+            df_plot['filt_pres_butter'] = filt_pres_butter[:npts]
+            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[:npts]
+            title = (f"First {npts} points from"
+                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
+            ax = df_plot.plot(title=title)
             ax.grid('on')
             plt.show()
 
