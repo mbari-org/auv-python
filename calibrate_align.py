@@ -341,10 +341,15 @@ class Calibrated_NetCDF():
         sample_rate = 1. / \
             np.round(
                 np.mean(np.diff(orig_nc['time'])) / np.timedelta64(1, 's'), decimals=2)
+        if sample_rate != 10:
+            self.logger.warning(f"Expected sample_rate to be 10 Hz, instead it's {sample_rate} Hz")
+
         # The Wn parameter for butter() is fraction of the Nyquist frequency
         Wn = cutoff_freq / (sample_rate / 2.)
         b, a = scipy.signal.butter(8, Wn)
         filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
+        filt_depth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
+
         # Use 10 points in boxcar as in processDepth.m
         a = 10
         b = scipy.signal.boxcar(a)
@@ -363,8 +368,13 @@ class Calibrated_NetCDF():
             ax.grid('on')
             plt.show()
 
-        getattr(self, sensor).cal_align_data['depth'] = orig_nc['depth']
+        da = xr.DataArray(filt_depth_butter, 
+                          coords=[orig_nc.get_index('time')], 
+                          dims={'time_depth'},
+                          name="filt_depth")
+        getattr(self, sensor).cal_align_data['filt_depth'] = da
 
+        return da
 
     def _apply_calibration(self, sensor, netcdfs_dir):
         coeffs = None
@@ -374,7 +384,8 @@ class Calibrated_NetCDF():
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
         if sensor in ('depth',):
-            self._filter_depth(sensor)
+            filt_depth = self._filter_depth(sensor)
+            self.combined_nc['filt_depth'] = filt_depth
         if sensor in ('ctdDriver', 'seabird25p') and coeffs:
             ##self._ctd_calibrate(sensor, coeffs)
             pass
@@ -408,6 +419,10 @@ class Calibrated_NetCDF():
         for sensor in self.sinfo.keys():
             setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
             self._apply_calibration(sensor, netcdfs_dir)
+
+        self.combined_nc.attrs['Conventions'] = "CF-1.7"
+        self.combined_nc.to_netcdf(f"{self.args.auv_name}_{self.args.mission}.nc")
+        ##self._write_netcdf()
 
     def process_command_line(self):
 
