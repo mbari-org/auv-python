@@ -30,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from netCDF4 import Dataset
 from seawater import eos80
+from socket import gethostname
 from logs2netcdfs import LOG_FILES, BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = 'time'
@@ -52,28 +53,43 @@ class Calibrated_NetCDF():
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def add_global_metadata(self):
-        '''Use instance variables to write metadata specific for the data that are written
+    def global_metadata(self):
+        '''Use instance variables to return a dictionary of 
+        metadata specific for the data that are written
         '''
         iso_now = datetime.utcnow().isoformat() + 'Z'
 
-        self.nc_file.netcdf_version = '4'
-        self.nc_file.Conventions = 'CF-1.6'
-        self.nc_file.date_created = iso_now
-        self.nc_file.date_update = iso_now
-        self.nc_file.date_modified = iso_now
-        self.nc_file.featureType = 'trajectory'
+        metadata = {}
+        metadata['netcdf_version'] = '4'
+        metadata['Conventions'] = 'CF-1.6'
+        metadata['date_created'] = iso_now
+        metadata['date_update'] = iso_now
+        metadata['date_modified'] = iso_now
+        metadata['featureType'] = 'trajectory'
 
-        self.nc_file.comment = ('Autonomous Underwater Vehicle data....'
-                                'https://bitbucket.org/mbari/auv-python')
+        metadata['distribution_statement'] = 'Any use requires prior approval from MBARI'
+        metadata['license'] = metadata['distribution_statement']
+        metadata['useconst'] = "Not intended for legal use. Data may contain inaccuracies."
+        metadata['history'] = f"Created by {self.commandline} on {iso_now}"
 
+        '''
         self.nc_file.time_coverage_start = coards.from_udunits(self.time[0], self.time.units).isoformat() + 'Z'
         self.nc_file.time_coverage_end = coards.from_udunits(self.time[-1], self.time.units).isoformat() + 'Z'
 
-        self.nc_file.distribution_statement = 'Any use requires prior approval from MBARI'
-        self.nc_file.license = self.nc_file.distribution_statement
-        self.nc_file.useconst = 'Not intended for legal use. Data may contain inaccuracies.'
-        self.nc_file.history = 'Created by "%s" on %s' % (' '.join(sys.argv), iso_now,)
+        '''
+        # Add the global metadata, overriding with command line options provided
+        metadata['title'] = (f"Calibrated and aligned AUV sensor data from"
+                             f" {self.args.auv_name} mission {self.args.mission}")
+        metadata['summary'] = (f"Observational oceanographic data obtained from an Autonomous"
+                               f" Underwater Vehicle mission with measurements at"
+                               f" original sampling intervals. The data have been calibrated "
+                               f" and aligned by MBARI's auv-python software.")
+        metadata['comment'] = (f"MBARI Dorado-class AUV data produced from original data"
+                               f" with execution of '{self.commandline}'' at {iso_now} on"
+                               f" host {gethostname()}. Software available at"
+                               f" 'https://bitbucket.org/mbari/auv-python'")
+
+        return metadata
 
     def _get_file(self, download_url, local_filename, session):
         with session.get(download_url, timeout=60) as resp:
@@ -86,32 +102,6 @@ class Calibrated_NetCDF():
                         handle.write(chunk)
                     if self.args.verbose > 1:
                         print(f"{os.path.basename(local_filename)}(done) ", end='', flush=True)
-
-    def _create_variable(self, data_type, short_name, long_name, units, data):
-        if data_type == 'short':
-            nc_data_type = 'h'
-        elif data_type == 'integer':
-            nc_data_type = 'i'
-        elif (data_type == 'float' or data_type == 'timeTag' or data_type == 'double' or
-              data_type == 'angle'):
-            nc_data_type = 'f8'
-        else:
-            raise ValueError(f"No conversion for data_type = {data_type}")
-
-        self.logger.debug(f"createVariable {short_name}")
-        setattr(self, short_name, self.nc_file.createVariable(short_name, nc_data_type, (TIME,)))
-        if (standard_name := self._get_standard_name(short_name, long_name)):
-            setattr(getattr(self, short_name), 'standard_name', standard_name)
-        setattr(getattr(self, short_name), 'long_name', long_name)
-        setattr(getattr(self, short_name), 'units', units)
-        getattr(self, short_name)[:] = data
-
-    def write_variables(self, log_data, netcdf_filename):
-        log_data = self._correct_dup_short_names(log_data)
-        for variable in log_data:
-            self.logger.debug(f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})")
-            self._create_variable(variable.data_type, variable.short_name, 
-                                  variable.long_name, variable.units, variable.data)
 
     def _define_sensor_info(self, start_datetime):
         # Horizontal and vertical distance from origin in meters
@@ -390,21 +380,11 @@ class Calibrated_NetCDF():
             ##self._ctd_calibrate(sensor, coeffs)
             pass
 
-    def _write_netcdf(self):
-        self.nc_file = Dataset(netcdf_filename, 'w')
-        self.nc_file.createDimension(f"{TIME}_{base_filename}", len(log_data[0].data))
-        self.write_variables(log_data, netcdf_filename)
-
-        # Add the global metadata, overriding with command line options provided
-        self.add_global_metadata()
-        vehicle = self.args.auv_name
-        self.nc_file.title = f"Original AUV {vehicle} data converted straight from the .log file"
-        if self.args.title:
-            self.nc_file.title = self.args.title
-        if self.args.summary:
-            self.nc_file.summary = self.args.summary
-
-        self.nc_file.close()
+    def _write_netcdf(self, netcdfs_dir):
+        self.combined_nc.attrs = self.global_metadata()
+        out_fn = os.path.join(netcdfs_dir, f"{self.args.auv_name}_{self.args.mission}.nc")
+        self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
+        self.combined_nc.to_netcdf(out_fn)
 
     def calibrate_and_write(self):
         name = self.args.mission
@@ -420,9 +400,7 @@ class Calibrated_NetCDF():
             setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
             self._apply_calibration(sensor, netcdfs_dir)
 
-        self.combined_nc.attrs['Conventions'] = "CF-1.7"
-        self.combined_nc.to_netcdf(f"{self.args.auv_name}_{self.args.mission}.nc")
-        ##self._write_netcdf()
+        self._write_netcdf(netcdfs_dir)
 
     def process_command_line(self):
 
@@ -441,10 +419,6 @@ class Calibrated_NetCDF():
         parser.add_argument('--base_path', action='store', default=BASE_PATH, help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
         parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
-
-        parser.add_argument('--title', action='store', help='A short description of the dataset to be written to the netCDF file')
-        parser.add_argument('--summary', action='store', help='Additional information about the dataset to be written to the netCDF file')
-
         parser.add_argument('--noinput', action='store_true', help='Execute without asking for a response, e.g. to not ask to re-download file')        
         parser.add_argument('--plots', action='store_true', help='Create intermediate plots to validate data opaerations - program blocks upon show')        
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
