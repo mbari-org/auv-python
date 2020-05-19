@@ -67,17 +67,15 @@ class Calibrated_NetCDF():
         metadata['date_modified'] = iso_now
         metadata['featureType'] = 'trajectory'
 
+        metadata['time_coverage_start'] = str(self.combined_nc['time_depth']
+                                                  .to_pandas()[0].isoformat())
+        metadata['time_coverage_end'] = str(self.combined_nc['time_depth']
+                                                .to_pandas()[-1].isoformat())
         metadata['distribution_statement'] = 'Any use requires prior approval from MBARI'
         metadata['license'] = metadata['distribution_statement']
         metadata['useconst'] = "Not intended for legal use. Data may contain inaccuracies."
         metadata['history'] = f"Created by {self.commandline} on {iso_now}"
 
-        '''
-        self.nc_file.time_coverage_start = coards.from_udunits(self.time[0], self.time.units).isoformat() + 'Z'
-        self.nc_file.time_coverage_end = coards.from_udunits(self.time[-1], self.time.units).isoformat() + 'Z'
-
-        '''
-        # Add the global metadata, overriding with command line options provided
         metadata['title'] = (f"Calibrated and aligned AUV sensor data from"
                              f" {self.args.auv_name} mission {self.args.mission}")
         metadata['summary'] = (f"Observational oceanographic data obtained from an Autonomous"
