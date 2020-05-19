@@ -76,22 +76,16 @@ class Calibrated_NetCDF():
         self.nc_file.history = 'Created by "%s" on %s' % (' '.join(sys.argv), iso_now,)
 
     def _get_file(self, download_url, local_filename, session):
-        try:
-            with session.get(download_url, timeout=60) as resp:
-                if resp.status != 200:
-                    self.logger.warning(f"Cannot read {download_url}, status = {resp.status}")
-                else:
-                    self.logger.info(f"Started download to {local_filename}...")
-                    with open(local_filename, 'wb') as handle:
-                        for chunk in resp.content.iter_chunked(1024):
-                            handle.write(chunk)
-                        if self.args.verbose > 1:
-                            print(f"{os.path.basename(local_filename)}(done) ", end='', flush=True)
-
-        except (ClientConnectorError, concurrent.futures._base.TimeoutError) as e:
-            self.logger.error(f"{e}")
-
-
+        with session.get(download_url, timeout=60) as resp:
+            if resp.status != 200:
+                self.logger.warning(f"Cannot read {download_url}, status = {resp.status}")
+            else:
+                self.logger.info(f"Started download to {local_filename}...")
+                with open(local_filename, 'wb') as handle:
+                    for chunk in resp.content.iter_chunked(1024):
+                        handle.write(chunk)
+                    if self.args.verbose > 1:
+                        print(f"{os.path.basename(local_filename)}(done) ", end='', flush=True)
 
     def _create_variable(self, data_type, short_name, long_name, units, data):
         if data_type == 'short':
@@ -113,8 +107,6 @@ class Calibrated_NetCDF():
         getattr(self, short_name)[:] = data
 
     def write_variables(self, log_data, netcdf_filename):
-        name = self.args.mission
-        vehicle = self.args.auv_name
         log_data = self._correct_dup_short_names(log_data)
         for variable in log_data:
             self.logger.debug(f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})")
