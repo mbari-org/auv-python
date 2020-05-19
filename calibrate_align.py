@@ -67,9 +67,9 @@ class Calibrated_NetCDF():
         metadata['date_modified'] = iso_now
         metadata['featureType'] = 'trajectory'
 
-        metadata['time_coverage_start'] = str(self.combined_nc['time_depth']
+        metadata['time_coverage_start'] = str(self.combined_nc['depth_time']
                                                   .to_pandas()[0].isoformat())
-        metadata['time_coverage_end'] = str(self.combined_nc['time_depth']
+        metadata['time_coverage_end'] = str(self.combined_nc['depth_time']
                                                 .to_pandas()[-1].isoformat())
         metadata['distribution_statement'] = 'Any use requires prior approval from MBARI'
         metadata['license'] = metadata['distribution_statement']
@@ -197,7 +197,7 @@ class Calibrated_NetCDF():
 
         return coeffs
 
-    def _temp_from_frequency(self, cf, nc):
+    def _calibrated_temp_from_frequency(self, cf, nc):
         K2C = 273.15
         calibrated_temp = (1.0 / 
                 (cf.t_a + 
@@ -208,7 +208,7 @@ class Calibrated_NetCDF():
 
         return calibrated_temp
 
-    def _sal_from_cond_frequency(self, cf, nc, temp, depth):
+    def _calibrated_sal_from_cond_frequency(self, cf, nc, temp, depth):
         # Note that recalculation of conductivity and correction for thermal mass
         # are possible, however, their magnitude results in salinity differences
         # of less than 10^-4.  
@@ -219,6 +219,7 @@ class Calibrated_NetCDF():
         eps = np.spacing(1)
 
         ##p1 = 10 * (interp1(Dep.time,Dep.fltpres,time))    # pressure in db
+        p1 = 10 * (interp1(Dep.time,self.combined_nc['filt_pres'],time))    # pressure in db
         cfreq = nc['cond_frequency'] / 1000
         c1 = (cf.c_a * np.power(cfreq, cf.c_m) +
               cf.c_b * np.power(cfreq, 2) +
@@ -240,13 +241,23 @@ class Calibrated_NetCDF():
             self.logger.error(f"{e}")
             return
 
-        # Seabird specific calibrations
+        # Need to do this zeroth-level QC to calibrate temperature
         orig_nc['temp_frequency'][orig_nc['temp_frequency'] == 0.0] = np.nan
 
-        temp = self._temp_from_frequency(cf, orig_nc)
-        depth = self.depth.cal_align_data.depth
-        getattr(self, sensor).cal_align_data['temperatue'] = temp
-        getattr(self, sensor).cal_align_data['salinity'] = self._sal_from_cond_frequency(cf, orig_nc, temp, depth)
+        # Seabird specific calibrations
+        temperature = xr.DataArray(self._calibrated_temp_from_frequency(cf, orig_nc),
+                                  coords=[orig_nc.get_index('time')],
+                                  dims={f"{sensor}_time"},
+                                  name="temperature")
+
+        salinity = xr.DataArray(self._calibrated_sal_from_cond_frequency(cf, orig_nc,
+                                temperature, self.combined_nc['filt_depth']),
+                                coords=[orig_nc.get_index('time')],
+                                dims={f"{sensor}_time"},
+                                name="salinity")
+
+        self.combined_nc['temperatue'] = temperature
+        self.combined_nc['salinity'] = salinity
         
         # Other variables that may be in the original data
 
@@ -356,13 +367,17 @@ class Calibrated_NetCDF():
             ax.grid('on')
             plt.show()
 
-        da = xr.DataArray(filt_depth_butter, 
-                          coords=[orig_nc.get_index('time')], 
-                          dims={'time_depth'},
-                          name="filt_depth")
-        getattr(self, sensor).cal_align_data['filt_depth'] = da
+        filt_depth = xr.DataArray(filt_depth_butter,
+                                  coords=[orig_nc.get_index('time')],
+                                  dims={f"{sensor}_time"},
+                                  name="filt_depth")
+        filt_pres = xr.DataArray(filt_pres_butter,
+                                 coords=[orig_nc.get_index('time')],
+                                 dims={f"{sensor}_time"},
+                                 name="filt_pres")
 
-        return da
+        self.combined_nc['filt_depth'] = filt_depth
+        self.combined_nc['filt_pres'] = filt_pres
 
     def _apply_calibration(self, sensor, netcdfs_dir):
         coeffs = None
@@ -372,10 +387,9 @@ class Calibrated_NetCDF():
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
         if sensor in ('depth',):
-            filt_depth = self._filter_depth(sensor)
-            self.combined_nc['filt_depth'] = filt_depth
-        if sensor in ('ctdDriver', 'seabird25p') and coeffs:
-            ##self._ctd_calibrate(sensor, coeffs)
+            self._filter_depth(sensor)
+        if sensor in ('ctd',) and coeffs:
+            self._ctd_calibrate(sensor, coeffs)
             pass
 
     def _write_netcdf(self, netcdfs_dir):
