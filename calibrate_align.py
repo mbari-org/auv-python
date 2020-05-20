@@ -29,9 +29,10 @@ from collections import namedtuple, OrderedDict
 from datetime import datetime
 from pathlib import Path
 from netCDF4 import Dataset
+from scipy.interpolate import interp1d
 from seawater import eos80
 from socket import gethostname
-from logs2netcdfs import LOG_FILES, BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = 'time'
 
@@ -219,12 +220,17 @@ class Calibrated_NetCDF():
         eps = np.spacing(1)
 
         ##p1 = 10 * (interp1(Dep.time,Dep.fltpres,time))    # pressure in db
-        p1 = 10 * (interp1(Dep.time,self.combined_nc['filt_pres'],time))    # pressure in db
-        cfreq = nc['cond_frequency'] / 1000
+        f_interp = interp1d(self.combined_nc['depth_time'].values.tolist(), 
+                            self.combined_nc['filt_pres'].values,
+                            fill_value="extrapolate")
+        p1 = f_interp(nc['time'].values.tolist())
+                    
+        cfreq = nc['cond_frequency'].values / 1000.0
+
         c1 = (cf.c_a * np.power(cfreq, cf.c_m) +
               cf.c_b * np.power(cfreq, 2) +
               cf.c_c + 
-              np.divide(cf.c_d * temp, (10 * (1 + eps * p1))))
+              cf.c_d * temp.values) / (10 * (1 + eps * p1))
 
         cratio = c1 * 10 / sw_c3515
         calibrated_salinity = eos80.salt(cratio, temp, p1)
