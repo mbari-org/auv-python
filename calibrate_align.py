@@ -251,16 +251,22 @@ class Calibrated_NetCDF():
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="posy")
-        self.combined_nc['latitude'] = xr.DataArray(orig_nc['latitude'].values
-                                                    * 180 / np.pi. 
-                                    coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
-                                    name="latitude")
-        self.combined_nc['longitude'] = xr.DataArray(orig_nc['longitude'].values
-                                                    * 180 / np.pi. 
-                                    coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
-                                    name="longitude")
+        try:
+            self.combined_nc['latitude'] = xr.DataArray(orig_nc['latitude'].values
+                                                        * 180 / np.pi, 
+                                        coords=[orig_nc.get_index('time')],
+                                        dims={f"{sensor}_time"},
+                                        name="latitude")
+        except KeyError:
+            pass
+        try:
+            self.combined_nc['longitude'] = xr.DataArray(orig_nc['longitude'].values
+                                                        * 180 / np.pi, 
+                                        coords=[orig_nc.get_index('time')],
+                                        dims={f"{sensor}_time"},
+                                        name="longitude")
+        except KeyError:
+            pass
 
         # % Remove obvious outliers that later disrupt the section plots.
         # % (First seen on mission 2008.281.03)
@@ -270,7 +276,19 @@ class Calibrated_NetCDF():
         # % median.
         # pdIndx = find(Nav.depth > 1);
         # posDepths = Nav.depth(pdIndx);
-        
+        pos_depths = np.where(self.combined_nc['nav_depth'].values > 1)
+        if self.args.mission == '2013.301.02' or self.args.mission == '2009.111.00':
+            print('Bypassing Nav QC depth check')
+            maxGoodDepth = 1250;
+        else:
+            maxGoodDepth = 7 * np.median(pos_depths)
+            if maxGoodDepth < 0:
+                maxGoodDepth = 100 # Fudge for the 2009.272.00 mission where median was -0.1347!
+            if self.args.mission == '2010.153.01':
+                maxGoodDepth = 1250	# Fudge for 2010.153.01 where the depth was bogus, about 1.3
+
+        self.logger.debug(f"median of positive valued depths = {np.median(pos_depths)}")
+        self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
 
     def _calibrated_temp_from_frequency(self, cf, nc):
         # From processCTD.m:
