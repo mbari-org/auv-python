@@ -198,7 +198,83 @@ class Calibrated_NetCDF():
 
         return coeffs
 
+    def _navigation_process(self, sensor):
+        # AUV navigation data, which comes from a process on the vehicle that
+        # integrates data from several instruments.  We use it to grab the DVL data to help determine
+        # vehicle position when it is below the surface.
+        # 
+        #  Nav.depth is used to compute pressure for salinity and oxygen computations
+        #  Nav.latitude and Nav.longitude converted to degrees were added to the log file at end of 2004
+        #  Nav.roll, Nav.pitch, Nav.yaw, Nav.Xpos and Nav.Ypos are extracted for 3-D mission visualization
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+
+        # Nav.time  = time;
+        # Nav.roll = mPhi;
+        # Nav.pitch = mTheta;
+        # Nav.yaw = mPsi;
+        # Nav.depth = mDepth;
+        # Nav.posx  = mPos_x-mPos_x(1);
+        # Nav.posy  = mPos_y-mPos_y(1);
+        # if ( exist('latitude') )
+        #     Nav.latitude = latitude * 180 / pi;
+        # end
+        # if ( exist('longitude') )
+        #     Nav.longitude = longitude * 180 / pi;
+        # end
+        self.combined_nc['roll'] = xr.DataArray(orig_nc['mPhi'].values,
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="roll")
+        self.combined_nc['pitch'] = xr.DataArray(orig_nc['mTheta'].values,
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="pitch")
+        self.combined_nc['yaw'] = xr.DataArray(orig_nc['mPsi'].values,
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="yaw")
+        self.combined_nc['nav_depth'] = xr.DataArray(orig_nc['mDepth'].values,
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="nav_depth")
+        self.combined_nc['posx'] = xr.DataArray(orig_nc['mPos_x'].values
+                                                - orig_nc['mPos_x'].values[0],
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="posx")
+        self.combined_nc['posy'] = xr.DataArray(orig_nc['mPos_y'].values
+                                                - orig_nc['mPos_y'].values[0],
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="posy")
+        self.combined_nc['latitude'] = xr.DataArray(orig_nc['latitude'].values
+                                                    * 180 / np.pi. 
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="latitude")
+        self.combined_nc['longitude'] = xr.DataArray(orig_nc['longitude'].values
+                                                    * 180 / np.pi. 
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="longitude")
+
+        # % Remove obvious outliers that later disrupt the section plots.
+        # % (First seen on mission 2008.281.03)
+        # % In case we ever use this software for the D Allan B mapping vehicle determine
+        # % the good depth range from the median of the depths
+        # % From mission 2011.250.11 we need to first eliminate the near surface values before taking the
+        # % median.
+        # pdIndx = find(Nav.depth > 1);
+        # posDepths = Nav.depth(pdIndx);
+        
+
     def _calibrated_temp_from_frequency(self, cf, nc):
+        # From processCTD.m:
+        # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
         K2C = 273.15
         calibrated_temp = (1.0 / 
                 (cf.t_a + 
@@ -210,6 +286,7 @@ class Calibrated_NetCDF():
         return calibrated_temp
 
     def _calibrated_sal_from_cond_frequency(self, cf, nc, temp, depth):
+        # Comments carried over from doradosdp's processCTD.m:
         # Note that recalculation of conductivity and correction for thermal mass
         # are possible, however, their magnitude results in salinity differences
         # of less than 10^-4.  
@@ -219,28 +296,35 @@ class Calibrated_NetCDF():
         sw_c3515 = 42.914
         eps = np.spacing(1)
 
-        ##p1 = 10 * (interp1(Dep.time,Dep.fltpres,time))    # pressure in db
         f_interp = interp1d(self.combined_nc['depth_time'].values.tolist(), 
                             self.combined_nc['filt_pres'].values,
                             fill_value="extrapolate")
         p1 = f_interp(nc['time'].values.tolist())
-                    
-        cfreq = nc['cond_frequency'].values / 1000.0
+        if self.args.plots:
+            plt.plot(self.combined_nc['depth_time'], self.combined_nc['filt_pres'], ':o',
+                     nc['time'], p1, 'o')
+            plt.legend(('Pressure from parosci', 'Interpolated to ctd time'))
+            plt.grid()
+            plt.show()
 
+        # %% Conductivity Calculation
+        # cfreq=cond_frequency/1000;
+        # c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));            
+        cfreq = nc['cond_frequency'].values / 1000.0
         c1 = (cf.c_a * np.power(cfreq, cf.c_m) +
               cf.c_b * np.power(cfreq, 2) +
               cf.c_c + 
               cf.c_d * temp.values) / (10 * (1 + eps * p1))
 
+        # % Calculate Salinty
+        # cratio = c1*10/sw_c3515; % sw_C is conductivity value at 35,15,0
+        # CTD.salinity = sw_salt(cratio,CTD.temperature,p1); % (psu)
         cratio = c1 * 10 / sw_c3515
         calibrated_salinity = eos80.salt(cratio, temp, p1)
 
         return calibrated_salinity
 
-
-    def _ctd_calibrate(self, sensor, cf):
-        # From processCTD.m:
-        # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
+    def _ctd_process(self, sensor, cf):
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
@@ -264,7 +348,9 @@ class Calibrated_NetCDF():
 
         self.combined_nc['temperatue'] = temperature
         self.combined_nc['salinity'] = salinity
-        
+
+        self._ctd_depth_geometric_correction(sensor, cf)
+
         # Other variables that may be in the original data
 
         # Salinity
@@ -321,8 +407,17 @@ class Calibrated_NetCDF():
         CTD.time=time;
         CTD.Tdepth=depth;  % depth of temperature sensor
         '''
+    def _ctd_depth_geometric_correction(self, sensor, cf):
+        # %% Compute depth for temperature sensor with geometric correction
+        # cpitch=interp1(Nav.time,Nav.pitch,time);    %find the pitch(time)
+        # cdepth=interp1(Dep.time,Dep.data,time);     %find reference depth(time)
+        # zoffset=align_geom(sensor_offsets,cpitch);  %calculate offset from 0,0
+        # depth=cdepth-zoffset;                       %Find True depth of sensor
 
-    def _filter_depth(self, sensor, latitude=36, cutoff_freq=1):
+        ## f_interp = interp1d(self.combined_nc['filt_depth'
+        pass
+
+    def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
         '''Depth data (from the Parosci) is 10 Hz - Use a butterworth window
         to filter recorded pressure to values that are appropriately sampled
         at 1 Hz (when matched with other sensor data).  cutoff_freq is in
@@ -385,18 +480,20 @@ class Calibrated_NetCDF():
         self.combined_nc['filt_depth'] = filt_depth
         self.combined_nc['filt_pres'] = filt_pres
 
-    def _apply_calibration(self, sensor, netcdfs_dir):
+    def _process(self, sensor, netcdfs_dir):
         coeffs = None
         try:
             coeffs = getattr(self, sensor).cals
         except AttributeError as e:
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
-        if sensor in ('depth',):
-            self._filter_depth(sensor)
-        if sensor in ('ctd',) and coeffs:
-            self._ctd_calibrate(sensor, coeffs)
-            pass
+        # Order is importatnt: ctd depends on depth and navigation data
+        if sensor == 'depth':
+            self._depth_process(sensor)
+        if sensor == 'navigation':
+            self._navigation_process(sensor)
+        if sensor == 'ctd' and coeffs:
+            self._ctd_process(sensor, coeffs)
 
     def _write_netcdf(self, netcdfs_dir):
         self.combined_nc.attrs = self.global_metadata()
@@ -416,7 +513,7 @@ class Calibrated_NetCDF():
 
         for sensor in self.sinfo.keys():
             setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
-            self._apply_calibration(sensor, netcdfs_dir)
+            self._process(sensor, netcdfs_dir)
 
         self._write_netcdf(netcdfs_dir)
 
