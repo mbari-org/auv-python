@@ -225,38 +225,72 @@ class Calibrated_NetCDF():
         # if ( exist('longitude') )
         #     Nav.longitude = longitude * 180 / pi;
         # end
+        source = self.sinfo[sensor]['data_filename']
         self.combined_nc['roll'] = xr.DataArray(orig_nc['mPhi'].values,
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="roll")
+        self.combined_nc['roll'].attrs = {'long_name': 'Vehicle roll',
+                                          'standard_name': 'platform_roll_angle',
+                                          'units': 'degree',
+                                          'comment': f"mPhi from {source}"}
+
         self.combined_nc['pitch'] = xr.DataArray(orig_nc['mTheta'].values,
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="pitch")
+        self.combined_nc['pitch'].attrs = {'long_name': 'Vehicle pitch',
+                                           'standard_name': 'platform_pitch_angle',
+                                           'units': 'degree',
+                                           'comment': f"mTheta from {source}"}
+
         self.combined_nc['yaw'] = xr.DataArray(orig_nc['mPsi'].values,
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="yaw")
+        self.combined_nc['yaw'].attrs = {'long_name': 'Vehicle yaw',
+                                         'standard_name': 'platform_yaw_angle',
+                                         'units': 'degree',
+                                         'comment': f"mPsi from {source}"}
+
         self.combined_nc['nav_depth'] = xr.DataArray(orig_nc['mDepth'].values,
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="nav_depth")
+        self.combined_nc['nav_depth'].attrs = {'long_name': 'Depth from Nav',
+                                         'standard_name': 'depth',
+                                         'units': 'm',
+                                         'comment': f"mDepth from {source}"}
+
         self.combined_nc['posx'] = xr.DataArray(orig_nc['mPos_x'].values
                                                 - orig_nc['mPos_x'].values[0],
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="posx")
+        self.combined_nc['posx'].attrs = {'long_name': 'Relative lateral easting',
+                         'units': 'm',
+                         'comment': f"mPos_x (minus first position) from {source}"}
+
         self.combined_nc['posy'] = xr.DataArray(orig_nc['mPos_y'].values
                                                 - orig_nc['mPos_y'].values[0],
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
                                     name="posy")
+        self.combined_nc['posy'].attrs = {'long_name': 'Relative lateral northing',
+                         'units': 'm',
+                         'comment': f"mPos_y (minus first position) from {source}"}
+
         try:
             self.combined_nc['latitude'] = xr.DataArray(orig_nc['latitude'].values
                                                         * 180 / np.pi, 
                                         coords=[orig_nc.get_index('time')],
                                         dims={f"{sensor}_time"},
                                         name="latitude")
+            self.combined_nc['latitude'].attrs = {'long_name': 'latitude',
+                             'standard_name': 'latitude',
+                             'units': 'degrees_north',
+                             'comment': f"latitude (converted from radians) from {source}"}
+
         except KeyError:
             pass
         try:
@@ -265,6 +299,10 @@ class Calibrated_NetCDF():
                                         coords=[orig_nc.get_index('time')],
                                         dims={f"{sensor}_time"},
                                         name="longitude")
+            self.combined_nc['longitude'].attrs = {'long_name': 'longitude',
+                             'standard_name': 'longitude',
+                             'units': 'degrees_east',
+                             'comment': f"longitude (converted from radians) from {source}"}
         except KeyError:
             pass
 
@@ -351,18 +389,31 @@ class Calibrated_NetCDF():
 
         # Need to do this zeroth-level QC to calibrate temperature
         orig_nc['temp_frequency'][orig_nc['temp_frequency'] == 0.0] = np.nan
+        source = self.sinfo[sensor]['data_filename']
 
         # Seabird specific calibrations
         temperature = xr.DataArray(self._calibrated_temp_from_frequency(cf, orig_nc),
                                   coords=[orig_nc.get_index('time')],
                                   dims={f"{sensor}_time"},
                                   name="temperature")
+        temperature.attrs = {'long_name': 'Temperature',
+                            'standard_name': 'sea_water_temperature',
+                            'units': 'degree_Celsius',
+                            'comment': (f"Derived from temp_frequency from"
+                                        f" {source} via calibration parms:"
+                                        f" {cf.__dict__}")}
 
         salinity = xr.DataArray(self._calibrated_sal_from_cond_frequency(cf, orig_nc,
                                 temperature, self.combined_nc['filt_depth']),
                                 coords=[orig_nc.get_index('time')],
                                 dims={f"{sensor}_time"},
                                 name="salinity")
+        salinity.attrs = {'long_name': 'Salinity',
+                            'standard_name': 'sea_water_salinity',
+                            'units': '',
+                            'comment': (f"Derived from cond_frequency from"
+                                        f" {source} via calibration parms:"
+                                        f" {cf.__dict__}")}
 
         self.combined_nc['temperatue'] = temperature
         self.combined_nc['salinity'] = salinity
@@ -490,10 +541,17 @@ class Calibrated_NetCDF():
                                   coords=[orig_nc.get_index('time')],
                                   dims={f"{sensor}_time"},
                                   name="filt_depth")
+        filt_depth.attrs = {'long_name': 'Filtered Depth',
+                            'standard_name': 'depth',
+                            'units': 'm'}
+
         filt_pres = xr.DataArray(filt_pres_butter,
                                  coords=[orig_nc.get_index('time')],
                                  dims={f"{sensor}_time"},
                                  name="filt_pres")
+        filt_pres.attrs = {'long_name': 'Filtered Pressure',
+                            'standard_name': 'sea_water_pressure',
+                            'units': 'dbar'}
 
         self.combined_nc['filt_depth'] = filt_depth
         self.combined_nc['filt_pres'] = filt_pres
