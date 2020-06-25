@@ -12,14 +12,17 @@ import concurrent
 import os
 import sys
 import logging
-import readauvlog
 import requests
+import struct
 import time
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from AUV import AUV
-from pathlib import Path
+from dataclasses import dataclass
 from netCDF4 import Dataset
+from pathlib import Path
+from readauvlog import log_record
+from typing import List
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
              'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log')
@@ -39,6 +42,77 @@ class AUV_NetCDF(AUV):
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
+
+    def read(self, file: str) -> List[log_record]:
+        """Reads and parses an AUV log and returns a list of `log_records`
+        """
+        byte_offset = 0
+        records = []
+        (byte_offset, records) = self._read_header(file)
+        self._read_data(file, records, byte_offset)
+
+        return records
+
+    def _read_header(self, file: str):
+        """Parses the ASCII header of the log file
+        """
+        with open(file, 'r', encoding="ISO-8859-15") as f:
+            byte_offset = 0
+            records = []
+            instrument_name = os.path.basename(f.name)
+
+            # Yes, read 2 lines here.
+            ##breakpoint()
+            print(f"Reading 2 lines from file {file}")
+            line = f.readline()
+            line = f.readline()
+            while line:
+                if "begin" in line:
+                    break
+                else:
+                    # parse line
+                    ssv = line.split(" ")
+                    data_type = ssv[1]
+                    short_name = ssv[2]
+
+                    csv = line.split(",")
+                    long_name = csv[1].strip()
+                    units = csv[2].strip()
+                    if short_name == 'time':
+                        units = 'seconds since 1970-01-01 00:00:00Z'
+                    r = log_record(data_type, short_name, long_name,
+                                units, instrument_name, [])
+                    records.append(r)
+
+                line = f.readline()
+                byte_offset = f.tell()
+
+            return (byte_offset, records)
+
+    def _read_data(self, file: str, records: List[log_record], byte_offset: int):
+        """Parse the binary section of the log file
+        """
+        ok = True
+        with open(file, 'rb') as f:
+            f.seek(byte_offset)
+            while ok:
+                for r in records:
+                    b = f.read(r.length())
+                    if not b:
+                        ok = False
+                        break
+                    s = "<d"
+                    if r.data_type == "float":
+                        s = "<f"
+                    elif r.data_type == "integer":
+                        s = "<i"
+                    elif r.data_type == "short":
+                        s = "<h"
+                    v = struct.unpack(s, b)[0]
+                    r.data.append(v)
+
+
+
 
     def _unique_vehicle_names(self):
         self.logger.debug(f"Getting deployments from {DEPLOYMENTS_URL}")
@@ -162,7 +236,7 @@ class AUV_NetCDF(AUV):
                                   variable.long_name, variable.units, variable.data)
 
     def _process_log_file(self, log_filename, netcdf_filename):
-        log_data = readauvlog.read(log_filename)
+        log_data = self.read(log_filename)
         self.nc_file = Dataset(netcdf_filename, 'w')
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         self.write_variables(log_data, netcdf_filename)
@@ -205,12 +279,11 @@ class AUV_NetCDF(AUV):
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace('.log', '.nc'))
             try:
+                self.logger.info(f"Processing {log_filename}")
                 self._process_log_file(log_filename, netcdf_filename)
             except FileNotFoundError as e:
                 self.logger.debug(f"{e}")
-            else:
-                self.logger.info(f"Processing {log_filename}")
-
+                
     def process_command_line(self):
 
         import argparse
