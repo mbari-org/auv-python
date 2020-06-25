@@ -49,9 +49,23 @@ class AUV_NetCDF(AUV):
 
             return set([d['vehicle'] for d in resp.json()])
 
-    def _files_from_mission(self):
-        name = self.args.mission
-        vehicle = self.args.auv_name
+    def _deployments_between(self):
+        start = f"{self.args.start}T000000Z"
+        end = f"{self.args.end}T235959Z"
+        url = f"{DEPLOYMENTS_URL}?from={start}&to={end}"
+        with requests.get(url) as resp:
+            if resp.status_code != 200:
+                self.logger.error(f"Cannot read {url}, status_code = {resp.status_code}")
+                return
+            for item in resp.json():
+                self.process_logs(item['name'], item['vehicle'])
+            else:
+                self.logger.warning(f"No missions from {url}")
+                raise LookupError(f"No mission from {url}")
+
+    def _files_from_mission(self, name=None, vehicle=None):
+        name = name or self.args.mission
+        vehicle = vehicle or self.args.auv_name
         files_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/list/{name}/{vehicle}"
         self.logger.debug(f"Getting files list from {files_url}")
         with requests.get(files_url) as resp:
@@ -80,12 +94,12 @@ class AUV_NetCDF(AUV):
         except (ClientConnectorError, concurrent.futures._base.TimeoutError) as e:
             self.logger.error(f"{e}")
 
-    async def _download_files(self, logs_dir):
-        name = self.args.mission
-        vehicle = self.args.auv_name
+    async def _download_files(self, logs_dir, name=None, vehicle=None):
+        name = name or self.args.mission
+        vehicle = vehicle or self.args.auv_name
         tasks = []
         async with ClientSession() as session:
-            for ffm in self._files_from_mission():
+            for ffm in self._files_from_mission(name, vehicle):
                 if 'syslog' in ffm:
                     continue
                 download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
@@ -164,9 +178,9 @@ class AUV_NetCDF(AUV):
 
         self.nc_file.close()
 
-    def process_logs(self):
-        name = self.args.mission
-        vehicle = self.args.auv_name
+    def process_logs(self, name= None, vehicle=None):
+        name = name or self.args.mission
+        vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
         Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
@@ -180,9 +194,10 @@ class AUV_NetCDF(AUV):
             if yes_no.upper().startswith('Y'):
                 d_start = time.time()
                 loop = asyncio.get_event_loop()
-                future = asyncio.ensure_future(self._download_files(logs_dir))
+                future = asyncio.ensure_future(self._download_files(logs_dir,
+                                                                name, vehicle))
                 loop.run_until_complete(future)
-                self.logger.info(f"Time to download: {(time.time() - d_start):.2f}")
+                self.logger.info(f"Time to download: {(time.time() - d_start):.2f} s")
 
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
@@ -210,16 +225,27 @@ class AUV_NetCDF(AUV):
                                          description='Convert AUV log files to NetCDF files',
                                          epilog=examples)
 
-        parser.add_argument('--base_path', action='store', default=BASE_PATH, help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
-        parser.add_argument('--auv_name', action='store', default='dorado', help="dorado (default), i2map, or multibeam")
-        parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
-        parser.add_argument('--local', action='store_true', help="Specify if files are local in the MISSION directory")
+        parser.add_argument('--base_path', action='store', default=BASE_PATH, 
+                            help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
+        parser.add_argument('--auv_name', action='store', default='dorado', 
+                            help="dorado (default), i2map, or multibeam")
+        parser.add_argument('--mission', action='store', 
+                            help="Mission directory, e.g.: 2020.064.10")
+        parser.add_argument('--local', action='store_true', 
+                            help="Specify if files are local in the MISSION directory")
 
         parser.add_argument('--title', action='store', help='A short description of the dataset')
-        parser.add_argument('--summary', action='store', help='Additional information about the dataset')
+        parser.add_argument('--summary', action='store', 
+                            help='Additional information about the dataset')
 
-        parser.add_argument('--noinput', action='store_true', help='Execute without asking for a response, e.g. to not ask to re-download file')        
-        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
+        parser.add_argument('--noinput', action='store_true', 
+                            help='Execute without asking for a response, e.g. to not ask to re-download file')        
+        parser.add_argument('--start', action='store', 
+                            help='Convert a range of missions wth start time in YYYYMMDD format')
+        parser.add_argument('--end', action='store', 
+                            help='Convert a range of missions wth end time in YYYYMMDD format')
+        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', 
+                            default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
@@ -233,5 +259,7 @@ if __name__ == '__main__':
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
     p_start = time.time()
+    if auv_netcdf.args.start and auv_netcdf.args.end:
+        auv_netcdf._deployments_between()
     auv_netcdf.process_logs()
     auv_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
