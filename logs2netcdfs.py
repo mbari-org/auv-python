@@ -62,8 +62,6 @@ class AUV_NetCDF(AUV):
             instrument_name = os.path.basename(f.name)
 
             # Yes, read 2 lines here.
-            ##breakpoint()
-            print(f"Reading 2 lines from file {file}")
             line = f.readline()
             line = f.readline()
             while line:
@@ -92,6 +90,9 @@ class AUV_NetCDF(AUV):
     def _read_data(self, file: str, records: List[log_record], byte_offset: int):
         """Parse the binary section of the log file
         """
+        if byte_offset == 0:
+            raise EOFError(f"{file}: 0 sized file")
+
         ok = True
         with open(file, 'rb') as f:
             f.seek(byte_offset)
@@ -281,7 +282,7 @@ class AUV_NetCDF(AUV):
             try:
                 self.logger.info(f"Processing {log_filename}")
                 self._process_log_file(log_filename, netcdf_filename)
-            except FileNotFoundError as e:
+            except (FileNotFoundError, EOFError) as e:
                 self.logger.debug(f"{e}")
                 
     def process_command_line(self):
