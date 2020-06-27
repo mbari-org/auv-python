@@ -7,6 +7,7 @@ all of the available metadata from associated .cfg and .xml files.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import argparse
 import asyncio
 import concurrent
 import os
@@ -30,7 +31,8 @@ BASE_PATH = 'auv_data'
 
 MISSIONLOGS = 'missionlogs'
 MISSIONNETCDFS = 'missionnetcdfs'
-DEPLOYMENTS_URL = 'http://portal.shore.mbari.org:8080/auvdata/v1/deployments'
+PORTAL_BASE = 'http://portal.shore.mbari.org:8080/auvdata/v1'
+DEPLOYMENTS_URL = os.path.join(PORTAL_BASE, 'deployments')
 TIME = 'time'
 
 class AUV_NetCDF(AUV):
@@ -112,9 +114,6 @@ class AUV_NetCDF(AUV):
                     v = struct.unpack(s, b)[0]
                     r.data.append(v)
 
-
-
-
     def _unique_vehicle_names(self):
         self.logger.debug(f"Getting deployments from {DEPLOYMENTS_URL}")
         with requests.get(DEPLOYMENTS_URL) as resp:
@@ -128,20 +127,21 @@ class AUV_NetCDF(AUV):
         start = f"{self.args.start}T000000Z"
         end = f"{self.args.end}T235959Z"
         url = f"{DEPLOYMENTS_URL}?from={start}&to={end}"
+        self.logger.debug(f"Getting missions from {url}")
         with requests.get(url) as resp:
             if resp.status_code != 200:
-                self.logger.error(f"Cannot read {url}, status_code = {resp.status_code}")
-                return
+                raise Exception(f"Cannot read {url}, status_code = {resp.status_code}")
+            if not resp.json():
+                raise LookupError(f"No missions from {url}")
             for item in resp.json():
-                self.process_logs(item['name'], item['vehicle'])
-            else:
-                self.logger.warning(f"No missions from {url}")
-                raise LookupError(f"No mission from {url}")
+                self.logger.info(f"Processing: {item['name']} {item['vehicle']}")
+                if not self.args.preview:
+                    self.process_logs(item['name'], item['vehicle'])
 
     def _files_from_mission(self, name=None, vehicle=None):
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
-        files_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/list/{name}/{vehicle}"
+        files_url = f"{PORTAL_BASE}/files/list/{name}/{vehicle}"
         self.logger.debug(f"Getting files list from {files_url}")
         with requests.get(files_url) as resp:
             if resp.status_code != 200:
@@ -177,7 +177,7 @@ class AUV_NetCDF(AUV):
             for ffm in self._files_from_mission(name, vehicle):
                 if 'syslog' in ffm:
                     continue
-                download_url = f"http://portal.shore.mbari.org:8080/auvdata/v1/files/download/{name}/{vehicle}/{ffm}"
+                download_url = f"{PORTAL_BASE}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
                 local_filename = os.path.join(logs_dir, ffm)
@@ -272,7 +272,7 @@ class AUV_NetCDF(AUV):
                 future = asyncio.ensure_future(self._download_files(logs_dir,
                                                                 name, vehicle))
                 loop.run_until_complete(future)
-                self.logger.info(f"Time to download: {(time.time() - d_start):.2f} s")
+                self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
 
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
@@ -286,16 +286,12 @@ class AUV_NetCDF(AUV):
                 self.logger.debug(f"{e}")
                 
     def process_command_line(self):
-
-        import argparse
-        from argparse import RawTextHelpFormatter
-
         examples = 'Examples:' + '\n\n'
         examples += '  Write to local missionnetcdfs direcory:\n'
         examples += '    ' + sys.argv[0] + " --mission 2020.064.10\n"
         examples += '    ' + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
 
-        parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
+        parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                          description='Convert AUV log files to NetCDF files',
                                          epilog=examples)
 
@@ -318,9 +314,12 @@ class AUV_NetCDF(AUV):
                             help='Convert a range of missions wth start time in YYYYMMDD format')
         parser.add_argument('--end', action='store', 
                             help='Convert a range of missions wth end time in YYYYMMDD format')
+        parser.add_argument('--preview', action='store_true', 
+                            help='List missions that will be downloaded and precessed with --start and --end')        
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', 
                             default=0, const=1, nargs='?',
-                            help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
+                            help="verbosity level: " + ', '.join(
+                                [f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
@@ -333,7 +332,11 @@ if __name__ == '__main__':
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
     p_start = time.time()
-    if auv_netcdf.args.start and auv_netcdf.args.end:
+    if auv_netcdf.args.auv_name and auv_netcdf.args.mission:
+        auv_netcdf.process_logs()
+    elif auv_netcdf.args.start and auv_netcdf.args.end:
         auv_netcdf._deployments_between()
-    auv_netcdf.process_logs()
+    else:
+        raise argparse.ArgumentError(None, "Must provide either (--auv_name & --mission) OR (--start & --end)")
+
     auv_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
