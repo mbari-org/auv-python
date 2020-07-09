@@ -40,7 +40,7 @@ class AUV_NetCDF(AUV):
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
-                                  '%(funcName)s():%(lineno)d %(message)s')
+                                   '%(funcName)s():%(lineno)d %(message)s')
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
@@ -81,7 +81,7 @@ class AUV_NetCDF(AUV):
                     if short_name == 'time':
                         units = 'seconds since 1970-01-01 00:00:00Z'
                     r = log_record(data_type, short_name, long_name,
-                                units, instrument_name, [])
+                                   units, instrument_name, [])
                     records.append(r)
 
                 line = f.readline()
@@ -94,15 +94,20 @@ class AUV_NetCDF(AUV):
         """
         if byte_offset == 0:
             raise EOFError(f"{file}: 0 sized file")
+        file_size = os.path.getsize(file)
 
         ok = True
+        rec_count = 0
+        len_sum = 0
         with open(file, 'rb') as f:
             f.seek(byte_offset)
             while ok:
                 for r in records:
                     b = f.read(r.length())
+                    len_sum += r.length()
                     if not b:
                         ok = False
+                        len_sum -= r.length()
                         break
                     s = "<d"
                     if r.data_type == "float":
@@ -111,14 +116,29 @@ class AUV_NetCDF(AUV):
                         s = "<i"
                     elif r.data_type == "short":
                         s = "<h"
-                    v = struct.unpack(s, b)[0]
+                    try:
+                        v = struct.unpack(s, b)[0]
+                    except struct.error as e:
+                        self.logger.warning(f"{e}, b = {b} at record {rec_count},"
+                                            f" for {r.short_name} in file {file}")
+                        self.logger.info(f"bytes read = {byte_offset + len_sum}"
+                                         f" file size = {file_size}")
+                        self.logger.info(f"Tried to read {r.length()} bytes, but"
+                                         f" only {byte_offset+len_sum-file_size}"
+                                         f" bytes remaining")
+                        raise
                     r.data.append(v)
+                rec_count += 1
+
+        self.logger.debug(f"bytes read = {byte_offset + len_sum}"
+                         f" file size = {file_size}")
 
     def _unique_vehicle_names(self):
         self.logger.debug(f"Getting deployments from {DEPLOYMENTS_URL}")
         with requests.get(DEPLOYMENTS_URL) as resp:
             if resp.status_code != 200:
-                self.logger.error(f"Cannot read {DEPLOYMENTS_URL}, status_code = {resp.status_code}")
+                self.logger.error(f"Cannot read {DEPLOYMENTS_URL},"
+                                  f" status_code = {resp.status_code}")
                 return
 
             return set([d['vehicle'] for d in resp.json()])
@@ -282,7 +302,7 @@ class AUV_NetCDF(AUV):
             try:
                 self.logger.info(f"Processing {log_filename}")
                 self._process_log_file(log_filename, netcdf_filename)
-            except (FileNotFoundError, EOFError) as e:
+            except (FileNotFoundError, EOFError, struct.error) as e:
                 self.logger.debug(f"{e}")
                 
     def process_command_line(self):
