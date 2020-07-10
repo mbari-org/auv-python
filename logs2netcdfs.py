@@ -170,7 +170,6 @@ class AUV_NetCDF(AUV):
             if names := resp.json()['names']:
                 return names
             else:
-                self.logger.warning(f"Nothing in names from {files_url}")
                 raise LookupError(f"Nothing in names from {files_url}")
 
     async def _get_file(self, download_url, local_filename, session):
@@ -305,7 +304,10 @@ class AUV_NetCDF(AUV):
                 loop = asyncio.get_event_loop()
                 future = asyncio.ensure_future(self._download_files(logs_dir,
                                                                 name, vehicle))
-                loop.run_until_complete(future)
+                try:
+                    loop.run_until_complete(future)
+                except LookupError as e:
+                    self.logger.warning(f"{e}")
                 self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
 
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
