@@ -247,7 +247,21 @@ class AUV_NetCDF(AUV):
             setattr(getattr(self, short_name), 'standard_name', standard_name)
         setattr(getattr(self, short_name), 'long_name', long_name)
         setattr(getattr(self, short_name), 'units', units)
-        getattr(self, short_name)[:] = data
+        try:
+            self.logger.debug(f"{short_name}.shape[0] ({getattr(self, short_name).shape[0]})"
+                              f" should equal len(data) ({len(data)})")
+            getattr(self, short_name)[:] = data
+        except ValueError as e:
+            self.logger.warning(f"{e}")
+            self.logger.info(f"len(data) ({len(data)}) does not match shape of"
+                             f" {short_name}.shape[0] ({getattr(self, short_name).shape[0]})")
+            if getattr(self, short_name).shape[0] - len(data) == 1:
+                self.logger.warning(f"{short_name} data is short by one, appending the last value: {data[-1]}")
+                data.append(data[-1])
+                getattr(self, short_name)[:] = data
+            else:
+                self.logger.error("data seriously does not match shape")
+                raise
 
     def write_variables(self, log_data, netcdf_filename):
         log_data = self._correct_dup_short_names(log_data)
@@ -296,6 +310,7 @@ class AUV_NetCDF(AUV):
 
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
+        p_start = time.time()
         for log in LOG_FILES:
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace('.log', '.nc'))
@@ -304,6 +319,7 @@ class AUV_NetCDF(AUV):
                 self._process_log_file(log_filename, netcdf_filename)
             except (FileNotFoundError, EOFError, struct.error) as e:
                 self.logger.debug(f"{e}")
+        self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
                 
     def process_command_line(self):
         examples = 'Examples:' + '\n\n'
