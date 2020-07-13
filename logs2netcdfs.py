@@ -154,9 +154,17 @@ class AUV_NetCDF(AUV):
             if not resp.json():
                 raise LookupError(f"No missions from {url}")
             for item in resp.json():
-                self.logger.info(f"Processing: {item['name']} {item['vehicle']}")
                 if not self.args.preview:
-                    self.process_logs(item['name'], item['vehicle'])
+                    try:
+                        self.download_process_logs(item['vehicle'], item['name'])
+                    except asyncio.exceptions.TimeoutError:
+                        self.logger.warning(f"TimeoutError for self.download_process_logs("
+                                            f"'{item['vehicle']}'', '{item['name']}')")
+                        self.logger.info("Sleeping for 60 seconds...")
+                        time.sleep(60)
+                        self.logger.info(f"Trying to download_process_logs("
+                                         f"'{item['vehicle']}'', '{item['name']}') again...")
+                        self.download_process_logs(item['vehicle'], item['name'])
 
     def _files_from_mission(self, name=None, vehicle=None):
         name = name or self.args.mission
@@ -183,7 +191,8 @@ class AUV_NetCDF(AUV):
                         async for chunk in resp.content.iter_chunked(1024):
                             handle.write(chunk)
                         if self.args.verbose > 1:
-                            print(f"{os.path.basename(local_filename)}(done) ", end='', flush=True)
+                            print(f"{os.path.basename(local_filename)}(done) ",
+                                  end='', flush=True)
 
         except (ClientConnectorError, concurrent.futures._base.TimeoutError) as e:
             self.logger.error(f"{e}")
@@ -200,7 +209,8 @@ class AUV_NetCDF(AUV):
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
                 local_filename = os.path.join(logs_dir, ffm)
-                task = asyncio.ensure_future(self._get_file(download_url, local_filename, session))
+                task = asyncio.ensure_future(self._get_file(download_url, 
+                                             local_filename, session))
                 tasks.append(task)
 
             await asyncio.gather(*tasks)
@@ -255,7 +265,8 @@ class AUV_NetCDF(AUV):
             self.logger.info(f"len(data) ({len(data)}) does not match shape of"
                              f" {short_name}.shape[0] ({getattr(self, short_name).shape[0]})")
             if getattr(self, short_name).shape[0] - len(data) == 1:
-                self.logger.warning(f"{short_name} data is short by one, appending the last value: {data[-1]}")
+                self.logger.warning(f"{short_name} data is short by one,"
+                                    f" appending the last value: {data[-1]}")
                 data.append(data[-1])
                 getattr(self, short_name)[:] = data
             else:
@@ -265,7 +276,8 @@ class AUV_NetCDF(AUV):
     def write_variables(self, log_data, netcdf_filename):
         log_data = self._correct_dup_short_names(log_data)
         for variable in log_data:
-            self.logger.debug(f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})")
+            self.logger.debug(f"Creating Variable {variable.short_name}:"
+                              f" {variable.long_name} ({variable.units})")
             self._create_variable(variable.data_type, variable.short_name, 
                                   variable.long_name, variable.units, variable.data)
 
@@ -286,7 +298,7 @@ class AUV_NetCDF(AUV):
 
         self.nc_file.close()
 
-    def process_logs(self, name= None, vehicle=None):
+    def download_process_logs(self, vehicle= None, name=None):
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
@@ -297,9 +309,19 @@ class AUV_NetCDF(AUV):
             self.logger.debug(f"Unique vehicle names: {self._unique_vehicle_names()} seconds")
             yes_no = 'Y'
             if os.path.exists(os.path.join(logs_dir, 'vehicle.cfg')):
-                if not self.args.noinput:
+                if self.args.noinput:
+                    if self.args.clobber:
+                        self.logger.info(f"Clobbering existing {logs_dir} files")
+                    else:
+                        self.logger.info(f"{logs_dir} exists")
+                        yes_no = 'N'
+                        if self.args.noreprocess:
+                            self.logger.info(f"Not reprocessing {logs_dir}")
+                            return
+                else:
                     yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or 'Y'
             if yes_no.upper().startswith('Y'):
+                self.logger.info(f"Downloading mission: {vehicle} {name}")
                 d_start = time.time()
                 loop = asyncio.get_event_loop()
                 future = asyncio.ensure_future(self._download_files(logs_dir,
@@ -310,6 +332,7 @@ class AUV_NetCDF(AUV):
                     self.logger.warning(f"{e}")
                 self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
 
+        self.logger.info(f"Processing mission: {vehicle} {name}")
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         p_start = time.time()
@@ -317,7 +340,7 @@ class AUV_NetCDF(AUV):
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace('.log', '.nc'))
             try:
-                self.logger.info(f"Processing {log_filename}")
+                self.logger.info(f"Processing file {log_filename}")
                 self._process_log_file(log_filename, netcdf_filename)
             except (FileNotFoundError, EOFError, struct.error) as e:
                 self.logger.debug(f"{e}")
@@ -334,7 +357,8 @@ class AUV_NetCDF(AUV):
                                          epilog=examples)
 
         parser.add_argument('--base_path', action='store', default=BASE_PATH, 
-                            help="Base directory for missionlogs and missionnetcdfs, default: auv_data")
+                            help="Base directory for missionlogs and"
+                                 " missionnetcdfs, default: auv_data")
         parser.add_argument('--auv_name', action='store', default='dorado', 
                             help="dorado (default), i2map, or multibeam")
         parser.add_argument('--mission', action='store', 
@@ -342,20 +366,31 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--local', action='store_true', 
                             help="Specify if files are local in the MISSION directory")
 
-        parser.add_argument('--title', action='store', help='A short description of the dataset')
+        parser.add_argument('--title', action='store', help='A short description'
+                                                            ' of the dataset')
         parser.add_argument('--summary', action='store', 
                             help='Additional information about the dataset')
 
         parser.add_argument('--noinput', action='store_true', 
-                            help='Execute without asking for a response, e.g. to not ask to re-download file')        
+                            help='Execute without asking for a response, e.g. '
+                                  ' to not ask to re-download file')        
+        parser.add_argument('--clobber', action='store_true', 
+                            help='Use with --noinput to overwrite existing'
+                                 ' downloaded log files')        
+        parser.add_argument('--noreprocess', action='store_true', 
+                            help='Use with --noinput to not re-process existing'
+                                 ' downloaded log files')        
         parser.add_argument('--start', action='store', 
-                            help='Convert a range of missions wth start time in YYYYMMDD format')
+                            help='Convert a range of missions wth start time in'
+                                 ' YYYYMMDD format')
         parser.add_argument('--end', action='store', 
-                            help='Convert a range of missions wth end time in YYYYMMDD format')
+                            help='Convert a range of missions wth end time in'
+                                 ' YYYYMMDD format')
         parser.add_argument('--preview', action='store_true', 
-                            help='List missions that will be downloaded and precessed with --start and --end')        
-        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', 
-                            default=0, const=1, nargs='?',
+                            help='List missions that will be downloaded and'
+                                 ' processed with --start and --end')        
+        parser.add_argument('-v', '--verbose', type=int, choices=range(3), 
+                            action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join(
                                 [f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
@@ -371,10 +406,11 @@ if __name__ == '__main__':
     auv_netcdf.process_command_line()
     p_start = time.time()
     if auv_netcdf.args.auv_name and auv_netcdf.args.mission:
-        auv_netcdf.process_logs()
+        auv_netcdf.download_process_logs()
     elif auv_netcdf.args.start and auv_netcdf.args.end:
         auv_netcdf._deployments_between()
     else:
-        raise argparse.ArgumentError(None, "Must provide either (--auv_name & --mission) OR (--start & --end)")
+        raise argparse.ArgumentError(None, "Must provide either (--auv_name &"
+                                           " --mission) OR (--start & --end)")
 
     auv_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
