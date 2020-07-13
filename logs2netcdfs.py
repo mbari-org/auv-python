@@ -155,6 +155,10 @@ class AUV_NetCDF(AUV):
                 raise LookupError(f"No missions from {url}")
             for item in resp.json():
                 if not self.args.preview:
+                    if self.args.auv_name:
+                        if item['vehicle'].upper() != self.args.auv_name.upper():
+                            self.logger.debug(f"{item['vehicle']} != {self.args.auv_name}")
+                            continue
                     try:
                         self.download_process_logs(item['vehicle'], item['name'])
                     except asyncio.exceptions.TimeoutError:
@@ -329,7 +333,8 @@ class AUV_NetCDF(AUV):
                 try:
                     loop.run_until_complete(future)
                 except LookupError as e:
-                    self.logger.warning(f"{e}")
+                    self.logger.error(f"{e}")
+                    return
                 self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
