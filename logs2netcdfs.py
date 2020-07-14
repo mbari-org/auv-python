@@ -306,7 +306,6 @@ class AUV_NetCDF(AUV):
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
-        Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
         if not self.args.local:
             # Download logs via portal service
@@ -364,7 +363,7 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--base_path', action='store', default=BASE_PATH, 
                             help="Base directory for missionlogs and"
                                  " missionnetcdfs, default: auv_data")
-        parser.add_argument('--auv_name', action='store', default='dorado', 
+        parser.add_argument('--auv_name', action='store',
                             help="dorado (default), i2map, or multibeam")
         parser.add_argument('--mission', action='store', 
                             help="Mission directory, e.g.: 2020.064.10")
