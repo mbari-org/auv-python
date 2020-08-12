@@ -155,6 +155,7 @@ class AUV_NetCDF(AUV):
                 raise LookupError(f"No missions from {url}")
             for item in resp.json():
                 if self.args.preview:
+                    self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
                     self.logger.info(f"{item['vehicle']} {item['name']}")
                 else:
                     if self.args.auv_name:
@@ -351,7 +352,16 @@ class AUV_NetCDF(AUV):
             except (FileNotFoundError, EOFError, struct.error) as e:
                 self.logger.debug(f"{e}")
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
-                
+
+    def update(self):
+        self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
+        url = 'http://portal.shore.mbari.org:8080/auvdata/v1/deployments/update'
+        auv_netcdf.logger.info(f"Sending an 'update' request: {url}")
+        resp = requests.post(url)
+        if resp.status_code != 200:
+            self.logger.error(f"Update failed for url = {url},"
+                              f" status_code = {resp.status_code}")
+
     def process_command_line(self):
         examples = 'Examples:' + '\n\n'
         examples += '  Write to local missionnetcdfs direcory:\n'
@@ -395,6 +405,9 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--preview', action='store_true', 
                             help='List missions that will be downloaded and'
                                  ' processed with --start and --end')        
+        parser.add_argument('--update', action='store_true',
+                            help='Send an "update" POST request to the '
+                                 ' auv-portal data service')
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), 
                             action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join(
@@ -402,8 +415,6 @@ class AUV_NetCDF(AUV):
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
-        if self.args.preview:
-            self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
 
         self.commandline = ' '.join(sys.argv)
 
@@ -412,8 +423,11 @@ if __name__ == '__main__':
 
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
+
     p_start = time.time()
-    if auv_netcdf.args.auv_name and auv_netcdf.args.mission:
+    if auv_netcdf.args.update:
+        auv_netcdf.update()
+    elif auv_netcdf.args.auv_name and auv_netcdf.args.mission:
         auv_netcdf.download_process_logs()
     elif auv_netcdf.args.start and auv_netcdf.args.end:
         auv_netcdf._deployments_between()
