@@ -154,7 +154,9 @@ class AUV_NetCDF(AUV):
             if not resp.json():
                 raise LookupError(f"No missions from {url}")
             for item in resp.json():
-                if not self.args.preview:
+                if self.args.preview:
+                    self.logger.info(f"{item['vehicle']} {item['name']}")
+                else:
                     if self.args.auv_name:
                         if item['vehicle'].upper() != self.args.auv_name.upper():
                             self.logger.debug(f"{item['vehicle']} != {self.args.auv_name}")
@@ -400,6 +402,8 @@ class AUV_NetCDF(AUV):
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
+        if self.args.preview:
+            self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
 
         self.commandline = ' '.join(sys.argv)
 
