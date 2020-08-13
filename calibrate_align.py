@@ -357,10 +357,15 @@ class Calibrated_NetCDF():
                             fill_value="extrapolate")
         p1 = f_interp(nc['time'].values.tolist())
         if self.args.plots:
+            plt.figure(figsize=(18,6))
             plt.plot(self.combined_nc['depth_time'], self.combined_nc['filt_pres'], ':o',
                      nc['time'], p1, 'o')
             plt.legend(('Pressure from parosci', 'Interpolated to ctd time'))
+            title = "Comparing Interpolation of Pressure to CTD Time"
+            plt.title(title)
             plt.grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
             plt.show()
 
         # %% Conductivity Calculation
@@ -533,8 +538,10 @@ class Calibrated_NetCDF():
             df_plot['filt_pres_boxcar'] = filt_pres_boxcar[:npts]
             title = (f"First {npts} points from"
                      f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
-            ax = df_plot.plot(title=title)
+            ax = df_plot.plot(title=title, figsize=(18,6))
             ax.grid('on')
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
             plt.show()
 
         filt_depth = xr.DataArray(filt_depth_butter,
