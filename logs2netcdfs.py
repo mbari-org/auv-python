@@ -361,6 +361,8 @@ class AUV_NetCDF(AUV):
         if resp.status_code != 200:
             self.logger.error(f"Update failed for url = {url},"
                               f" status_code = {resp.status_code}")
+        else:
+            self.logger.info("Wait a few minutes for new missions to appear")
 
     def process_command_line(self):
         examples = 'Examples:' + '\n\n'
