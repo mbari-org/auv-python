@@ -3,8 +3,10 @@
 Read original data from netCDF files created by logs2netcdfs.py, apply
 calibration information in .cfg and .xml files associated with the 
 original .log files and write out a single netCDF file with the important
-variables at original sampling intervals.  The file will be analogous
-to the original netCDF4 files produced by MBARI's LRAUVs.
+variables at original sampling intervals. Alignment and plumbing lag
+corrections are also done during this step. The file will contain combined
+variables (the combined_nc member variable) and be analogous to the original
+netCDF4 files produced by MBARI's LRAUVs.
 
 Note: The name "sensor" is used here, but it's really more aligned 
       with the concept of "instrument" in SSDS parlance
@@ -13,8 +15,6 @@ Note: The name "sensor" is used here, but it's really more aligned
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
-import altair as ar
-import coards
 import logging
 import requests
 import time
@@ -153,6 +153,8 @@ class Calibrated_NetCDF():
         # Changes over time
         if start_datetime.year >= 2003:
             self.sinfo['biolume']['sensor_offset'] = SensorOffset(1.003, 0.0001)
+        # ...
+
 
     def _read_data(self, logs_dir, netcdfs_dir):
         '''Read in all the instrument data into member variables named by "sensor"
@@ -200,12 +202,14 @@ class Calibrated_NetCDF():
 
     def _navigation_process(self, sensor):
         # AUV navigation data, which comes from a process on the vehicle that
-        # integrates data from several instruments.  We use it to grab the DVL data to help determine
-        # vehicle position when it is below the surface.
+        # integrates data from several instruments.  We use it to grab the DVL
+        # data to help determine vehicle position when it is below the surface.
         # 
         #  Nav.depth is used to compute pressure for salinity and oxygen computations
-        #  Nav.latitude and Nav.longitude converted to degrees were added to the log file at end of 2004
-        #  Nav.roll, Nav.pitch, Nav.yaw, Nav.Xpos and Nav.Ypos are extracted for 3-D mission visualization
+        #  Nav.latitude and Nav.longitude converted to degrees were added to
+        #                                 the log file at end of 2004
+        #  Nav.roll, Nav.pitch, Nav.yaw, Nav.Xpos and Nav.Ypos are extracted for
+        #                                 3-D mission visualization
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
@@ -356,12 +360,17 @@ class Calibrated_NetCDF():
                             self.combined_nc['filt_pres'].values,
                             fill_value="extrapolate")
         p1 = f_interp(nc['time'].values.tolist())
-        if self.args.plots:
+        if self.args.plot:
+            if self.args.plot.startswith('first'):
+                pbeg = 0
+                pend = int(self.args.plot.split('first')[1])
             plt.figure(figsize=(18,6))
-            plt.plot(self.combined_nc['depth_time'], self.combined_nc['filt_pres'], ':o',
-                     nc['time'], p1, 'o')
+            plt.plot(self.combined_nc['depth_time'][pbeg:pend],
+                     self.combined_nc['filt_pres'][pbeg:pend], ':o',
+                     nc['time'][pbeg:pend], p1[pbeg:pend], 'o')
             plt.legend(('Pressure from parosci', 'Interpolated to ctd time'))
             title = "Comparing Interpolation of Pressure to CTD Time"
+            title += f" - First {pend} Points"
             plt.title(title)
             plt.grid()
             self.logger.debug(f"Pausing with plot entitled: {title}."
@@ -528,15 +537,17 @@ class Calibrated_NetCDF():
         a = 10
         b = scipy.signal.boxcar(a)
         filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
-        if self.args.plots:
-            # Use Pandas to plot multiple columns of a subset (npts) of data
+        if self.args.plot:
+            # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
-            npts = 2000
-            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[:npts])
-            df_plot['pres'] = pres[:npts]
-            df_plot['filt_pres_butter'] = filt_pres_butter[:npts]
-            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[:npts]
-            title = (f"First {npts} points from"
+            if self.args.plot.startswith('first'):
+                pbeg = 0
+                pend = int(self.args.plot.split('first')[1])
+            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
+            df_plot['pres'] = pres[pbeg:pend]
+            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
+            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
+            title = (f"First {pend} points from"
                      f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
             ax = df_plot.plot(title=title, figsize=(18,6))
             ax.grid('on')
@@ -618,7 +629,9 @@ class Calibrated_NetCDF():
         parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--noinput', action='store_true', help='Execute without asking for a response, e.g. to not ask to re-download file')        
-        parser.add_argument('--plots', action='store_true', help='Create intermediate plots to validate data opaerations - program blocks upon show')        
+        parser.add_argument('--plot', action='store', help='Create intermediate plots'
+                            ' to validate data operations. Use first<n> to plot <n>'
+                            ' points, e.g. first2000. Program blocks upon show.')        
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
