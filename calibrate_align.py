@@ -44,7 +44,7 @@ class SensorInfo():
     pass
 
 
-class Calibrated_NetCDF():
+class CalAligned_NetCDF():
 
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -112,6 +112,10 @@ class Calibrated_NetCDF():
                                       'cal_filename':  None,
                                       'lag_secs':      None,
                                       'sensor_offset': None}),
+                       ('gps',        {'data_filename': 'gps.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': None}),
                        ('depth',      {'data_filename': 'parosci.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
@@ -135,10 +139,6 @@ class Calibrated_NetCDF():
                        ('isus',       {'data_filename': 'isuslog.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      6,
-                                      'sensor_offset': None}),
-                       ('gps',        {'data_filename': 'gps.nc',
-                                      'cal_filename':  None,
-                                      'lag_secs':      None,
                                       'sensor_offset': None}),
                        ('biolume',    {'data_filename': 'biolume.nc',
                                       'cal_filename':  None,
@@ -321,16 +321,39 @@ class Calibrated_NetCDF():
         pos_depths = np.where(self.combined_nc['nav_depth'].values > 1)
         if self.args.mission == '2013.301.02' or self.args.mission == '2009.111.00':
             print('Bypassing Nav QC depth check')
-            maxGoodDepth = 1250;
+            maxGoodDepth = 1250
         else:
             maxGoodDepth = 7 * np.median(pos_depths)
             if maxGoodDepth < 0:
                 maxGoodDepth = 100 # Fudge for the 2009.272.00 mission where median was -0.1347!
             if self.args.mission == '2010.153.01':
-                maxGoodDepth = 1250	# Fudge for 2010.153.01 where the depth was bogus, about 1.3
+                maxGoodDepth = 1250    # Fudge for 2010.153.01 where the depth was bogus, about 1.3
 
         self.logger.debug(f"median of positive valued depths = {np.median(pos_depths)}")
         self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
+
+    def _gps_process(self, sensor):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+
+        if self.args.mission == '2010.151.04':
+            # Gulf of Mexico mission - read from usbl.dat files
+            self.logger.info('Cannot read latitude data using load command.  Just for the GoMx mission use USBL instead...');
+            #-data_filename = 'usbl.nc'
+            #-loaddata
+            #-time = time(1:10:end);
+            #-lat = latitude(1:10:end);	% Subsample usbl so that iit is like our gps data
+            #-lon = longitude(1:10:end);
+
+        lat = orig_nc['latitude'] * 180.0 / np.pi; 
+        if orig_nc['longitude'][0] > 0:
+            lon = -1 * orig_nc['longitude'] * 180.0 / np.pi;
+        else:
+            lon = orig_nc['longitude'] * 180.0 / np.pi;
+
 
     def _calibrated_temp_from_frequency(self, cf, nc):
         # From processCTD.m:
@@ -449,7 +472,7 @@ class Calibrated_NetCDF():
         p1=10*(interp1(Dep.time,Dep.fltpres,time));  %% pressure in db
 
         % Always calculate conductivity from cond_frequency
-        do_thermal_mass_calc=0;		% Has a negligable effect
+        do_thermal_mass_calc=0;    % Has a negligable effect
         if do_thermal_mass_calc;
             %% Conductivity Calculation
             cfreq=cond_frequency/1000;
@@ -471,7 +494,7 @@ class Calibrated_NetCDF():
             cfreq=cond_frequency/1000;
             c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
 
-            %%c1=conductivity;		% This uses conductivity as calculated on the vehicle with the cal
+            %%c1=conductivity;    % This uses conductivity as calculated on the vehicle with the cal
                         % params that were in the .cfg file at the time.  Not what we want.
         end
 
@@ -581,11 +604,13 @@ class Calibrated_NetCDF():
         except AttributeError as e:
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
-        # Order is importatnt: ctd depends on depth and navigation data
-        if sensor == 'depth':
-            self._depth_process(sensor)
+        # Order is important: 
         if sensor == 'navigation':
             self._navigation_process(sensor)
+        if sensor == 'gps':
+            self._gps_process(sensor)
+        if sensor == 'depth':
+            self._depth_process(sensor)
         if sensor == 'ctd' and coeffs:
             self._ctd_process(sensor, coeffs)
 
@@ -595,7 +620,7 @@ class Calibrated_NetCDF():
         self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
         self.combined_nc.to_netcdf(out_fn)
 
-    def calibrate_and_write(self):
+    def process_and_write(self):
         name = self.args.mission
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
@@ -643,8 +668,8 @@ class Calibrated_NetCDF():
     
 if __name__ == '__main__':
 
-    cal_netcdf = Calibrated_NetCDF()
+    cal_netcdf = CalAligned_NetCDF()
     cal_netcdf.process_command_line()
     p_start = time.time()
-    cal_netcdf.calibrate_and_write()
+    cal_netcdf.process_and_write()
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
