@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
 from readauvlog import log_record
+from shutil import copyfile
 from typing import List
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
@@ -200,14 +201,19 @@ class TimeCorrect(AUV):
         new_logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS,
                                     new_basename)
         Path(new_logs_dir).mkdir(parents=True, exist_ok=True)
-        for log_filename in glob(os.path.join(logs_dir, '*.log')):
-            try:
-                self.logger.info(f"Reading file {log_filename}")
-                log_data, header_text = self.read(log_filename)
-                self._add_and_write(log_data, header_text, new_logs_dir,
-                                   os.path.basename(log_filename))
-            except (FileNotFoundError, EOFError, struct.error) as e:
-                self.logger.debug(f"{e}")
+        for log_filename in glob(os.path.join(logs_dir, '*')):
+            if log_filename.endswith('.log'):
+                try:
+                    self.logger.info(f"Reading file {log_filename}")
+                    log_data, header_text = self.read(log_filename)
+                    self._add_and_write(log_data, header_text, new_logs_dir,
+                                    os.path.basename(log_filename))
+                except (FileNotFoundError, EOFError, struct.error) as e:
+                    self.logger.debug(f"{e}")
+            else:
+                self.logger.info(f"Copying file {log_filename}")
+                copyfile(log_filename, os.path.join(new_logs_dir, 
+                                       os.path.basename(log_filename)))
 
     def process_command_line(self):
         examples = 'Example:' + '\n\n'
