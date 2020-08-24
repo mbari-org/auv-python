@@ -18,6 +18,7 @@ import sys
 import logging
 import struct
 import time
+from array import array
 from AUV import AUV
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -51,10 +52,10 @@ class TimeCorrect(AUV):
         """
         byte_offset = 0
         records = []
-        (byte_offset, records) = self._read_header(file)
+        (byte_offset, records, header_text) = self._read_header(file)
         self._read_data(file, records, byte_offset)
 
-        return records
+        return records, header_text
 
     def _read_header(self, file: str):
         """Parses the ASCII header of the log file
@@ -66,8 +67,10 @@ class TimeCorrect(AUV):
 
             # Yes, read 2 lines here.
             line = f.readline()
+            text = line
             line = f.readline()
             while line:
+                text += line
                 if "begin" in line:
                     break
                 else:
@@ -88,7 +91,7 @@ class TimeCorrect(AUV):
                 line = f.readline()
                 byte_offset = f.tell()
 
-            return (byte_offset, records)
+            return (byte_offset, records, text)
 
     def _read_data(self, file: str, records: List[log_record], byte_offset: int):
         """Parse the binary section of the log file
@@ -155,19 +158,39 @@ class TimeCorrect(AUV):
 
         return nbf
 
-    def _write_log_var(self, new_logs_dir, variable):
-        self.logger.debug(f"Writing variable {variable.shot_name}")
+    def _write_log(self, log_filename, log_data, header_text):
+        self.logger.debug(f"Writing log file {log_filename}")
+        with open(log_filename, 'wb') as fh:
+            fh.write(bytes(header_text, encoding='utf8'))
+            for var in log_data:
+                self.logger.debug(f"Writing variable {var.short_name}")
+                if (var.data_type == 'double' or var.data_type == 'angle'
+                    or var.data_type == 'timeTag'):
+                    fh.write(array('d', var.data))
+                elif var.data_type == 'float':
+                    fh.write(array('f', var.data))
+                elif var.data_type == 'short':
+                    fh.write(array('h', var.data))
+                elif var.data_type == 'integer':
+                    fh.write(array('i', var.data))
+                else:
+                    raise(ValueError('No handler for data_type {var.data_type'))
 
-    def write_new_log(self, log_data, new_logs_dir):
+    def _add_and_write(self, log_data, header_text, new_logs_dir, filename):
         log_data = self._correct_dup_short_names(log_data)
         for variable in log_data:
             if variable.short_name == TIME:
                 self.logger.debug(f"Adding {self.args.add_seconds} seconds to"
-                                f" Variable {variable.short_name}:"
-                                f" {variable.long_name} ({variable.units})")
-                for item in variable.data:
+                                  f" Variable {variable.short_name}:"
+                                  f" {variable.long_name} ({variable.units})")
+                new_times = []
+                for datum in variable.data:
+                    datum += self.args.add_seconds
+                    new_times.append(datum)
+                variable.data = new_times
                     
-        self._write_log_var(new_logs_dir, variable)
+        self._write_log(os.path.join(new_logs_dir, filename),
+                        log_data, header_text)
 
     def correct_times(self):
         vehicle = self.args.auv_name
@@ -176,12 +199,13 @@ class TimeCorrect(AUV):
         new_basename = self._new_base_filename()
         new_logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS,
                                     new_basename)
+        Path(new_logs_dir).mkdir(parents=True, exist_ok=True)
         for log_filename in glob(os.path.join(logs_dir, '*.log')):
-            self.logger.debug(f"Reading data from {log_filename}")
-            log_data = self.read(log_filename)
             try:
                 self.logger.info(f"Reading file {log_filename}")
-                self.write_new_log(log_data, new_logs_dir)
+                log_data, header_text = self.read(log_filename)
+                self._add_and_write(log_data, header_text, new_logs_dir,
+                                   os.path.basename(log_filename))
             except (FileNotFoundError, EOFError, struct.error) as e:
                 self.logger.debug(f"{e}")
 
