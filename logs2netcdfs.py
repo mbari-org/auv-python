@@ -19,7 +19,6 @@ import time
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from AUV import AUV
-from dataclasses import dataclass
 from netCDF4 import Dataset
 from pathlib import Path
 from readauvlog import log_record
@@ -290,6 +289,9 @@ class AUV_NetCDF(AUV):
 
     def _process_log_file(self, log_filename, netcdf_filename):
         log_data = self.read(log_filename)
+        if os.path.exists(netcdf_filename):
+            # xarray's Dataset raises permission denied error if file exists
+            os.remove(netcdf_filename)
         self.nc_file = Dataset(netcdf_filename, 'w')
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         self.write_variables(log_data, netcdf_filename)
