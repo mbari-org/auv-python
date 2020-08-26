@@ -167,6 +167,7 @@ class TimeCorrect(AUV):
             fh.write(bytes(header_text, encoding='utf8'))
             ok = True
             while(ok):
+                sdata = b''
                 for var in log_data:
                     try:
                         datum = var.data.pop(0)
@@ -182,7 +183,9 @@ class TimeCorrect(AUV):
                         sf = '<h'
                     elif var.data_type == 'integer':
                         sf = '<i'
-                    fh.write(struct.pack(sf, datum))
+                    sdata += struct.pack(sf, datum)
+
+                fh.write(sdata)
 
         fh.close()
         self.logger.info(f"Wrote log file {log_filename}")
@@ -202,7 +205,11 @@ class TimeCorrect(AUV):
         Path(new_logs_dir).mkdir(parents=True, exist_ok=True)
         for log_filename in glob(os.path.join(logs_dir, '*')):
             nlfn = os.path.join(new_logs_dir, os.path.basename(log_filename))
-            if log_filename.endswith('.log'):
+            if (os.path.getsize(log_filename) == 0 or 
+                not log_filename.endswith('.log')):
+                self.logger.info(f"Copying file {log_filename}")
+                copyfile(log_filename, nlfn)
+            else:
                 try:
                     self.logger.info(f"Reading file {log_filename}")
                     log_data, header_text = self.read(log_filename)
@@ -211,9 +218,6 @@ class TimeCorrect(AUV):
 
                 self._add_and_write(log_data, header_text, new_logs_dir,
                                     os.path.basename(log_filename))
-            else:
-                self.logger.info(f"Copying file {log_filename}")
-                copyfile(log_filename, nlfn)
 
             # Uncomment to verify correct writing - use with debugger
             ##self._verify(nlfn)
