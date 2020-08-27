@@ -209,8 +209,6 @@ class AUV_NetCDF(AUV):
         tasks = []
         async with ClientSession() as session:
             for ffm in self._files_from_mission(name, vehicle):
-                if 'syslog' in ffm:
-                    continue
                 download_url = f"{PORTAL_BASE}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
