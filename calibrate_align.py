@@ -353,6 +353,54 @@ class CalAligned_NetCDF():
             lon = -1 * orig_nc['longitude'] * 180.0 / np.pi;
         else:
             lon = orig_nc['longitude'] * 180.0 / np.pi;
+        
+        # Filter out positions outside of operational box
+        if (self.args.mission == '2010.151.04' or 
+            self.args.mission == '2010.153.01' or 
+            self.args.mission == '2010.154.01'):
+            lat_min = 26
+            lat_max = 40
+            lon_min = -124
+            lon_max = -70
+        else:
+            lat_min = 30            
+            lat_max = 40
+            lon_min = -124
+            lon_max = -114
+
+        pm = np.ma.masked_outside(lat, lat_min, lat_max)
+        pm = np.ma.masked_outside(lon, lon_min, lon_max)
+        bad_pos = [f"{lo}, {la}" for lo, la in zip(lon.values[:][pm.mask],
+                                                   lat.values[:][pm.mask])]
+        if bad_pos:
+            self.logger.info(f"Removing bad {sensor} positions (lon, lat):"
+                             f" {np.where(pm.mask)[0]}, {bad_pos}")
+
+            self.combined_nc['gps_time'] = orig_nc['time'][:][~pm.mask]
+            self.combined_nc['gps_latitude'] = lat[:][~pm.mask]
+            self.combined_nc['gps_longitude'] = lon[:][~pm.mask]
+        else:
+            self.combined_nc['gps_time'] = orig_nc['time']
+            self.combined_nc['gps_latitude'] = lat
+            self.combined_nc['gps_longitude'] = lon
+
+        if self.args.plot:
+            if self.args.plot.startswith('first'):
+                pbeg = 0
+                pend = int(self.args.plot.split('first')[1])
+            fig, axes = plt.subplots(nrows=2, figsize=(18,6))            
+            axes[0].plot(self.combined_nc['gps_latitude'][pbeg:pend], '-o')
+            axes[0].set_ylabel('gps_latitude')
+            axes[1].plot(self.combined_nc['gps_longitude'][pbeg:pend], '-o')
+            axes[1].set_ylabel('gps_longitude')
+            title = "GPS Positions"
+            title += f" - First {pend} Points"
+            fig.suptitle(title)
+            axes[0].grid()
+            axes[1].grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
 
 
     def _calibrated_temp_from_frequency(self, cf, nc):
@@ -607,12 +655,16 @@ class CalAligned_NetCDF():
         # Order is important: 
         if sensor == 'navigation':
             self._navigation_process(sensor)
-        if sensor == 'gps':
+        elif sensor == 'gps':
             self._gps_process(sensor)
-        if sensor == 'depth':
+        elif sensor == 'depth':
             self._depth_process(sensor)
-        if sensor == 'ctd' and coeffs:
+        elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
+        else:
+            self.logger.warning(f"No method to process {sensor}")
+
+        return
 
     def _write_netcdf(self, netcdfs_dir):
         self.combined_nc.attrs = self.global_metadata()
