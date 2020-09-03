@@ -19,14 +19,14 @@ import time
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from AUV import AUV
-from dataclasses import dataclass
 from netCDF4 import Dataset
 from pathlib import Path
 from readauvlog import log_record
 from typing import List
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
-             'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log')
+             'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log',
+             'FLBBCD2K.log')
 BASE_PATH = 'auv_data'
 
 MISSIONLOGS = 'missionlogs'
@@ -210,8 +210,6 @@ class AUV_NetCDF(AUV):
         tasks = []
         async with ClientSession() as session:
             for ffm in self._files_from_mission(name, vehicle):
-                if 'syslog' in ffm:
-                    continue
                 download_url = f"{PORTAL_BASE}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
@@ -290,6 +288,9 @@ class AUV_NetCDF(AUV):
 
     def _process_log_file(self, log_filename, netcdf_filename):
         log_data = self.read(log_filename)
+        if os.path.exists(netcdf_filename):
+            # xarray's Dataset raises permission denied error if file exists
+            os.remove(netcdf_filename)
         self.nc_file = Dataset(netcdf_filename, 'w')
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         self.write_variables(log_data, netcdf_filename)
@@ -361,6 +362,8 @@ class AUV_NetCDF(AUV):
         if resp.status_code != 200:
             self.logger.error(f"Update failed for url = {url},"
                               f" status_code = {resp.status_code}")
+        else:
+            self.logger.info("Wait a few minutes for new missions to appear")
 
     def process_command_line(self):
         examples = 'Examples:' + '\n\n'

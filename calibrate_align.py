@@ -3,8 +3,10 @@
 Read original data from netCDF files created by logs2netcdfs.py, apply
 calibration information in .cfg and .xml files associated with the 
 original .log files and write out a single netCDF file with the important
-variables at original sampling intervals.  The file will be analogous
-to the original netCDF4 files produced by MBARI's LRAUVs.
+variables at original sampling intervals. Alignment and plumbing lag
+corrections are also done during this step. The file will contain combined
+variables (the combined_nc member variable) and be analogous to the original
+netCDF4 files produced by MBARI's LRAUVs.
 
 Note: The name "sensor" is used here, but it's really more aligned 
       with the concept of "instrument" in SSDS parlance
@@ -13,8 +15,6 @@ Note: The name "sensor" is used here, but it's really more aligned
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
-import altair as ar
-import coards
 import logging
 import requests
 import time
@@ -44,7 +44,7 @@ class SensorInfo():
     pass
 
 
-class Calibrated_NetCDF():
+class CalAligned_NetCDF():
 
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -112,6 +112,10 @@ class Calibrated_NetCDF():
                                       'cal_filename':  None,
                                       'lag_secs':      None,
                                       'sensor_offset': None}),
+                       ('gps',        {'data_filename': 'gps.nc',
+                                      'cal_filename':  None,
+                                      'lag_secs':      None,
+                                      'sensor_offset': None}),
                        ('depth',      {'data_filename': 'parosci.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
@@ -136,10 +140,6 @@ class Calibrated_NetCDF():
                                       'cal_filename':  None,
                                       'lag_secs':      6,
                                       'sensor_offset': None}),
-                       ('gps',        {'data_filename': 'gps.nc',
-                                      'cal_filename':  None,
-                                      'lag_secs':      None,
-                                      'sensor_offset': None}),
                        ('biolume',    {'data_filename': 'biolume.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
@@ -153,6 +153,8 @@ class Calibrated_NetCDF():
         # Changes over time
         if start_datetime.year >= 2003:
             self.sinfo['biolume']['sensor_offset'] = SensorOffset(1.003, 0.0001)
+        # ...
+
 
     def _read_data(self, logs_dir, netcdfs_dir):
         '''Read in all the instrument data into member variables named by "sensor"
@@ -200,12 +202,14 @@ class Calibrated_NetCDF():
 
     def _navigation_process(self, sensor):
         # AUV navigation data, which comes from a process on the vehicle that
-        # integrates data from several instruments.  We use it to grab the DVL data to help determine
-        # vehicle position when it is below the surface.
+        # integrates data from several instruments.  We use it to grab the DVL
+        # data to help determine vehicle position when it is below the surface.
         # 
         #  Nav.depth is used to compute pressure for salinity and oxygen computations
-        #  Nav.latitude and Nav.longitude converted to degrees were added to the log file at end of 2004
-        #  Nav.roll, Nav.pitch, Nav.yaw, Nav.Xpos and Nav.Ypos are extracted for 3-D mission visualization
+        #  Nav.latitude and Nav.longitude converted to degrees were added to
+        #                                 the log file at end of 2004
+        #  Nav.roll, Nav.pitch, Nav.yaw, Nav.Xpos and Nav.Ypos are extracted for
+        #                                 3-D mission visualization
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
@@ -317,16 +321,87 @@ class Calibrated_NetCDF():
         pos_depths = np.where(self.combined_nc['nav_depth'].values > 1)
         if self.args.mission == '2013.301.02' or self.args.mission == '2009.111.00':
             print('Bypassing Nav QC depth check')
-            maxGoodDepth = 1250;
+            maxGoodDepth = 1250
         else:
             maxGoodDepth = 7 * np.median(pos_depths)
             if maxGoodDepth < 0:
                 maxGoodDepth = 100 # Fudge for the 2009.272.00 mission where median was -0.1347!
             if self.args.mission == '2010.153.01':
-                maxGoodDepth = 1250	# Fudge for 2010.153.01 where the depth was bogus, about 1.3
+                maxGoodDepth = 1250    # Fudge for 2010.153.01 where the depth was bogus, about 1.3
 
         self.logger.debug(f"median of positive valued depths = {np.median(pos_depths)}")
         self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
+
+    def _gps_process(self, sensor):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+
+        if self.args.mission == '2010.151.04':
+            # Gulf of Mexico mission - read from usbl.dat files
+            self.logger.info('Cannot read latitude data using load command.  Just for the GoMx mission use USBL instead...');
+            #-data_filename = 'usbl.nc'
+            #-loaddata
+            #-time = time(1:10:end);
+            #-lat = latitude(1:10:end);	% Subsample usbl so that iit is like our gps data
+            #-lon = longitude(1:10:end);
+
+        lat = orig_nc['latitude'] * 180.0 / np.pi; 
+        if orig_nc['longitude'][0] > 0:
+            lon = -1 * orig_nc['longitude'] * 180.0 / np.pi;
+        else:
+            lon = orig_nc['longitude'] * 180.0 / np.pi;
+        
+        # Filter out positions outside of operational box
+        if (self.args.mission == '2010.151.04' or 
+            self.args.mission == '2010.153.01' or 
+            self.args.mission == '2010.154.01'):
+            lat_min = 26
+            lat_max = 40
+            lon_min = -124
+            lon_max = -70
+        else:
+            lat_min = 30            
+            lat_max = 40
+            lon_min = -124
+            lon_max = -114
+
+        pm = np.ma.masked_outside(lat, lat_min, lat_max)
+        pm = np.ma.masked_outside(lon, lon_min, lon_max)
+        bad_pos = [f"{lo}, {la}" for lo, la in zip(lon.values[:][pm.mask],
+                                                   lat.values[:][pm.mask])]
+        if bad_pos:
+            self.logger.info(f"Removing bad {sensor} positions (lon, lat):"
+                             f" {np.where(pm.mask)[0]}, {bad_pos}")
+
+            self.combined_nc['gps_time'] = orig_nc['time'][:][~pm.mask]
+            self.combined_nc['gps_latitude'] = lat[:][~pm.mask]
+            self.combined_nc['gps_longitude'] = lon[:][~pm.mask]
+        else:
+            self.combined_nc['gps_time'] = orig_nc['time']
+            self.combined_nc['gps_latitude'] = lat
+            self.combined_nc['gps_longitude'] = lon
+
+        if self.args.plot:
+            if self.args.plot.startswith('first'):
+                pbeg = 0
+                pend = int(self.args.plot.split('first')[1])
+            fig, axes = plt.subplots(nrows=2, figsize=(18,6))            
+            axes[0].plot(self.combined_nc['gps_latitude'][pbeg:pend], '-o')
+            axes[0].set_ylabel('gps_latitude')
+            axes[1].plot(self.combined_nc['gps_longitude'][pbeg:pend], '-o')
+            axes[1].set_ylabel('gps_longitude')
+            title = "GPS Positions"
+            title += f" - First {pend} Points"
+            fig.suptitle(title)
+            axes[0].grid()
+            axes[1].grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
 
     def _calibrated_temp_from_frequency(self, cf, nc):
         # From processCTD.m:
@@ -356,11 +431,21 @@ class Calibrated_NetCDF():
                             self.combined_nc['filt_pres'].values,
                             fill_value="extrapolate")
         p1 = f_interp(nc['time'].values.tolist())
-        if self.args.plots:
-            plt.plot(self.combined_nc['depth_time'], self.combined_nc['filt_pres'], ':o',
-                     nc['time'], p1, 'o')
+        if self.args.plot:
+            if self.args.plot.startswith('first'):
+                pbeg = 0
+                pend = int(self.args.plot.split('first')[1])
+            plt.figure(figsize=(18,6))
+            plt.plot(self.combined_nc['depth_time'][pbeg:pend],
+                     self.combined_nc['filt_pres'][pbeg:pend], ':o',
+                     nc['time'][pbeg:pend], p1[pbeg:pend], 'o')
             plt.legend(('Pressure from parosci', 'Interpolated to ctd time'))
+            title = "Comparing Interpolation of Pressure to CTD Time"
+            title += f" - First {pend} Points"
+            plt.title(title)
             plt.grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
             plt.show()
 
         # %% Conductivity Calculation
@@ -435,7 +520,7 @@ class Calibrated_NetCDF():
         p1=10*(interp1(Dep.time,Dep.fltpres,time));  %% pressure in db
 
         % Always calculate conductivity from cond_frequency
-        do_thermal_mass_calc=0;		% Has a negligable effect
+        do_thermal_mass_calc=0;    % Has a negligable effect
         if do_thermal_mass_calc;
             %% Conductivity Calculation
             cfreq=cond_frequency/1000;
@@ -457,7 +542,7 @@ class Calibrated_NetCDF():
             cfreq=cond_frequency/1000;
             c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
 
-            %%c1=conductivity;		% This uses conductivity as calculated on the vehicle with the cal
+            %%c1=conductivity;    % This uses conductivity as calculated on the vehicle with the cal
                         % params that were in the .cfg file at the time.  Not what we want.
         end
 
@@ -523,18 +608,22 @@ class Calibrated_NetCDF():
         a = 10
         b = scipy.signal.boxcar(a)
         filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
-        if self.args.plots:
-            # Use Pandas to plot multiple columns of a subset (npts) of data
+        if self.args.plot:
+            # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
-            npts = 2000
-            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[:npts])
-            df_plot['pres'] = pres[:npts]
-            df_plot['filt_pres_butter'] = filt_pres_butter[:npts]
-            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[:npts]
-            title = (f"First {npts} points from"
+            if self.args.plot.startswith('first'):
+                pbeg = 0
+                pend = int(self.args.plot.split('first')[1])
+            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
+            df_plot['pres'] = pres[pbeg:pend]
+            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
+            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
+            title = (f"First {pend} points from"
                      f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
-            ax = df_plot.plot(title=title)
+            ax = df_plot.plot(title=title, figsize=(18,6))
             ax.grid('on')
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
             plt.show()
 
         filt_depth = xr.DataArray(filt_depth_butter,
@@ -563,13 +652,19 @@ class Calibrated_NetCDF():
         except AttributeError as e:
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
-        # Order is importatnt: ctd depends on depth and navigation data
-        if sensor == 'depth':
-            self._depth_process(sensor)
+        # Order is important: 
         if sensor == 'navigation':
             self._navigation_process(sensor)
-        if sensor == 'ctd' and coeffs:
+        elif sensor == 'gps':
+            self._gps_process(sensor)
+        elif sensor == 'depth':
+            self._depth_process(sensor)
+        elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
+        else:
+            self.logger.warning(f"No method to process {sensor}")
+
+        return
 
     def _write_netcdf(self, netcdfs_dir):
         self.combined_nc.attrs = self.global_metadata()
@@ -577,7 +672,7 @@ class Calibrated_NetCDF():
         self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
         self.combined_nc.to_netcdf(out_fn)
 
-    def calibrate_and_write(self):
+    def process_and_write(self):
         name = self.args.mission
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
@@ -611,7 +706,9 @@ class Calibrated_NetCDF():
         parser.add_argument('--auv_name', action='store', default='Dorado389', help="Dorado389 (default), i2MAP, or Multibeam")
         parser.add_argument('--mission', action='store', required=True, help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--noinput', action='store_true', help='Execute without asking for a response, e.g. to not ask to re-download file')        
-        parser.add_argument('--plots', action='store_true', help='Create intermediate plots to validate data opaerations - program blocks upon show')        
+        parser.add_argument('--plot', action='store', help='Create intermediate plots'
+                            ' to validate data operations. Use first<n> to plot <n>'
+                            ' points, e.g. first2000. Program blocks upon show.')        
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
@@ -623,8 +720,8 @@ class Calibrated_NetCDF():
     
 if __name__ == '__main__':
 
-    cal_netcdf = Calibrated_NetCDF()
+    cal_netcdf = CalAligned_NetCDF()
     cal_netcdf.process_command_line()
     p_start = time.time()
-    cal_netcdf.calibrate_and_write()
+    cal_netcdf.process_and_write()
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
