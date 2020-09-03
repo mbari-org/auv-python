@@ -368,14 +368,20 @@ class CalAligned_NetCDF():
             lon_min = -124
             lon_max = -114
 
-        pm = np.ma.masked_outside(lat, lat_min, lat_max)
-        pm = np.ma.masked_outside(lon, lon_min, lon_max)
+        self.logger.debug(f"Finding positions outside of longitude: {lon_min},"
+                          f" {lon_max} and latitide: {lat_min}, {lat_max}")
+        mlat = np.ma.masked_invalid(lat)
+        mlat = np.ma.masked_outside(mlat, lat_min, lat_max)
+        mlon = np.ma.masked_invalid(lon)
+        mlon = np.ma.masked_outside(mlon, lon_min, lon_max)
+        pm = np.logical_and(mlat, mlon)
         bad_pos = [f"{lo}, {la}" for lo, la in zip(lon.values[:][pm.mask],
                                                    lat.values[:][pm.mask])]
         if bad_pos:
-            self.logger.info(f"Removing bad {sensor} positions (lon, lat):"
-                             f" {np.where(pm.mask)[0]}, {bad_pos}")
-
+            self.logger.info(f"Number of bad {sensor} positions:"
+                             f" {len(lat.values[:][pm.mask])}")
+            self.logger.debug(f"Removing bad {sensor} positions (indices,"
+                             f" (lon, lat)): {np.where(pm.mask)[0]}, {bad_pos}")
             self.combined_nc['gps_time'] = orig_nc['time'][:][~pm.mask]
             self.combined_nc['gps_latitude'] = lat[:][~pm.mask]
             self.combined_nc['gps_longitude'] = lon[:][~pm.mask]
@@ -385,8 +391,9 @@ class CalAligned_NetCDF():
             self.combined_nc['gps_longitude'] = lon
 
         if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['gps_latitude'])
             if self.args.plot.startswith('first'):
-                pbeg = 0
                 pend = int(self.args.plot.split('first')[1])
             fig, axes = plt.subplots(nrows=2, figsize=(18,6))            
             axes[0].plot(self.combined_nc['gps_latitude'][pbeg:pend], '-o')
@@ -432,8 +439,9 @@ class CalAligned_NetCDF():
                             fill_value="extrapolate")
         p1 = f_interp(nc['time'].values.tolist())
         if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['depth_time'])
             if self.args.plot.startswith('first'):
-                pbeg = 0
                 pend = int(self.args.plot.split('first')[1])
             plt.figure(figsize=(18,6))
             plt.plot(self.combined_nc['depth_time'][pbeg:pend],
@@ -611,8 +619,9 @@ class CalAligned_NetCDF():
         if self.args.plot:
             # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
+            pbeg = 0
+            pend = len(orig_nc.get_index('time'))
             if self.args.plot.startswith('first'):
-                pbeg = 0
                 pend = int(self.args.plot.split('first')[1])
             df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
             df_plot['pres'] = pres[pbeg:pend]
