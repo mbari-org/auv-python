@@ -25,7 +25,8 @@ from readauvlog import log_record
 from typing import List
 
 LOG_FILES = ('ctdDriver.log', 'ctdDriver2.log', 'gps.log', 'hydroscatlog.log', 
-             'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log')
+             'navigation.log', 'isuslog.log', 'parosci.log', 'seabird25p.log',
+             'FLBBCD2K.log')
 BASE_PATH = 'auv_data'
 
 MISSIONLOGS = 'missionlogs'
