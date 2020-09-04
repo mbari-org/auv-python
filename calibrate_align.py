@@ -147,7 +147,11 @@ class CalAligned_NetCDF():
                        ('lopc',       {'data_filename': 'lopc.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': None})
+                                      'sensor_offset': None}),
+                       ('ecopuck',    {'data_filename': 'FLBBCD2K.nc',
+                                      'cal_filename':  'FLBBCD2K-3695.dev',
+                                      'lag_secs':      None,
+                                      'sensor_offset': None}),
         ])
 
         # Changes over time
@@ -158,7 +162,7 @@ class CalAligned_NetCDF():
 
     def _read_data(self, logs_dir, netcdfs_dir):
         '''Read in all the instrument data into member variables named by "sensor"
-        Access xarray.Dataset like: self.ctd.data, self.navigation.data
+        Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
         Access calibration coeeficients like: self.ctd.cals.t_f0
         '''
         for sensor, info in self.sinfo.items():
@@ -409,6 +413,144 @@ class CalAligned_NetCDF():
                                " Close window to continue.")
             plt.show()
 
+    def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
+        '''Depth data (from the Parosci) is 10 Hz - Use a butterworth window
+        to filter recorded pressure to values that are appropriately sampled
+        at 1 Hz (when matched with other sensor data).  cutoff_freq is in
+        units of Hz.
+        '''
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except (FileNotFoundError, AttributeError) as e:
+            self.logger.error(f"{e}")
+            return
+
+        # From initial CVS commit in 2004 the processDepth.m file computed
+        # pres from depth this way.  I don't know what is done on the vehicle 
+        # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
+        self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
+        pres = eos80.pres(orig_nc['depth'], latitude)
+        
+        # See https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.filtfilt.html#scipy.signal.filtfilt
+        # and https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.butter.html#scipy.signal.butter
+        # Sample rate should be 10 - calcuate it to be sure
+        sample_rate = 1. / \
+            np.round(
+                np.mean(np.diff(orig_nc['time'])) / np.timedelta64(1, 's'), decimals=2)
+        if sample_rate != 10:
+            self.logger.warning(f"Expected sample_rate to be 10 Hz, instead it's {sample_rate} Hz")
+
+        # The Wn parameter for butter() is fraction of the Nyquist frequency
+        Wn = cutoff_freq / (sample_rate / 2.)
+        b, a = scipy.signal.butter(8, Wn)
+        filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
+        filt_depth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
+
+        # Use 10 points in boxcar as in processDepth.m
+        a = 10
+        b = scipy.signal.boxcar(a)
+        filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
+        if self.args.plot:
+            # Use Pandas to plot multiple columns of data
+            # to validate that the filtering works as expected
+            pbeg = 0
+            pend = len(orig_nc.get_index('time'))
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
+            df_plot['pres'] = pres[pbeg:pend]
+            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
+            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
+            title = (f"First {pend} points from"
+                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
+            ax = df_plot.plot(title=title, figsize=(18,6))
+            ax.grid('on')
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
+        filt_depth = xr.DataArray(filt_depth_butter,
+                                  coords=[orig_nc.get_index('time')],
+                                  dims={f"{sensor}_time"},
+                                  name="filt_depth")
+        filt_depth.attrs = {'long_name': 'Filtered Depth',
+                            'standard_name': 'depth',
+                            'units': 'm'}
+
+        filt_pres = xr.DataArray(filt_pres_butter,
+                                 coords=[orig_nc.get_index('time')],
+                                 dims={f"{sensor}_time"},
+                                 name="filt_pres")
+        filt_pres.attrs = {'long_name': 'Filtered Pressure',
+                            'standard_name': 'sea_water_pressure',
+                            'units': 'dbar'}
+
+        self.combined_nc['filt_depth'] = filt_depth
+        self.combined_nc['filt_pres'] = filt_pres
+
+    def _hs2_process(self, cf, nc):
+
+        hs2.time   = time;
+        % hs2.time   = (hs{'time'}(:))/60/60/24 + 719529;	%sdn
+        hs2.Snorm1 = int_signer(Snorm1);	%signed
+        hs2.Snorm2 = int_signer(Snorm2);	%signed
+        hs2.Snorm3 = int_signer(Snorm3);	%signed
+        hs2.Gain1  = Gain_Status_1;		%nibble
+        hs2.Gain2  = Gain_Status_2;		%nibble
+        hs2.Gain3  = Gain_Status_3;		%nibble
+        hs2.Depth  = int_signer(RawDepthValue);	%signed
+        hs2.Temp   = ((int_signer(RawTempValue))/5)-10;%signed|count to actual
+        
+        cal_filename    = [CALIBRATION_PATH cal_filename];
+        hs2.CALIBRATION = hs2_read_cal_file(cal_filename); 
+        hs2             = hs2_calc_bb(hs2,hs2.CALIBRATION); %calculate the backscatter and fluorescence
+
+        %
+        % For missions before 2009.055.05 hs2 will have members like bb470, bb676, and fl676
+        % Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
+        % apparently giving a better measurement of chlorophyl.
+        %
+        % Detect the difference in this code and keep the mamber names descriptive in the survey data so 
+        % the the end user knows the difference.
+        %
+
+
+        % Align Geometry, correct for pitch
+        hs2.pitch    = interp1(Nav.time,Nav.pitch,hs2.time);       	%find the pitch(time)
+        hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
+        hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
+        hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
+
+        % 0th order Quality control, just set to NaN any unreasonable values
+        % These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
+
+        % Blue
+        if isfield(hs2, 'bb470'),
+            ibad470 = (find(hs2.bbp470 > 0.1));
+            hs2.bbp470(ibad470) = NaN;
+        elseif isfield(hs2, 'bb420'),
+            ibad420 = (find(hs2.bbp420 > 0.1));
+            hs2.bbp420(ibad420) = NaN;
+        end
+
+        % Red
+        if isfield(hs2, 'bb676'),
+            ibad676 = (find(hs2.bbp676 > 0.1));
+            hs2.bbp676(ibad676) = NaN;
+        elseif isfield(hs2, 'bb700'),
+            ibad700 = (find(hs2.bbp700 > 0.1));
+            hs2.bbp700(ibad700) = NaN;
+        end
+
+        % Fl
+        if isfield(hs2, 'bb676'),
+            ibadfl= (find(hs2.fl676_uncorr > 0.02));
+            hs2.fl676_uncorr(ibadfl) = NaN;
+        elseif isfield(hs2, 'bb700'),
+            ibadfl= (find(hs2.fl700_uncorr > 0.02));
+            hs2.fl700_uncorr(ibadfl) = NaN;
+        end
+
 
     def _calibrated_temp_from_frequency(self, cf, nc):
         # From processCTD.m:
@@ -579,81 +721,6 @@ class CalAligned_NetCDF():
         ## f_interp = interp1d(self.combined_nc['filt_depth'
         pass
 
-    def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
-        '''Depth data (from the Parosci) is 10 Hz - Use a butterworth window
-        to filter recorded pressure to values that are appropriately sampled
-        at 1 Hz (when matched with other sensor data).  cutoff_freq is in
-        units of Hz.
-        '''
-        try:
-            orig_nc = getattr(self, sensor).orig_data
-        except (FileNotFoundError, AttributeError) as e:
-            self.logger.error(f"{e}")
-            return
-
-        # From initial CVS commit in 2004 the processDepth.m file computed
-        # pres from depth this way.  I don't know what is done on the vehicle 
-        # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
-        self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
-        pres = eos80.pres(orig_nc['depth'], latitude)
-        
-        # See https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.filtfilt.html#scipy.signal.filtfilt
-        # and https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.butter.html#scipy.signal.butter
-        # Sample rate should be 10 - calcuate it to be sure
-        sample_rate = 1. / \
-            np.round(
-                np.mean(np.diff(orig_nc['time'])) / np.timedelta64(1, 's'), decimals=2)
-        if sample_rate != 10:
-            self.logger.warning(f"Expected sample_rate to be 10 Hz, instead it's {sample_rate} Hz")
-
-        # The Wn parameter for butter() is fraction of the Nyquist frequency
-        Wn = cutoff_freq / (sample_rate / 2.)
-        b, a = scipy.signal.butter(8, Wn)
-        filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
-        filt_depth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
-
-        # Use 10 points in boxcar as in processDepth.m
-        a = 10
-        b = scipy.signal.boxcar(a)
-        filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
-        if self.args.plot:
-            # Use Pandas to plot multiple columns of data
-            # to validate that the filtering works as expected
-            pbeg = 0
-            pend = len(orig_nc.get_index('time'))
-            if self.args.plot.startswith('first'):
-                pend = int(self.args.plot.split('first')[1])
-            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
-            df_plot['pres'] = pres[pbeg:pend]
-            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
-            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
-            title = (f"First {pend} points from"
-                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
-            ax = df_plot.plot(title=title, figsize=(18,6))
-            ax.grid('on')
-            self.logger.debug(f"Pausing with plot entitled: {title}."
-                               " Close window to continue.")
-            plt.show()
-
-        filt_depth = xr.DataArray(filt_depth_butter,
-                                  coords=[orig_nc.get_index('time')],
-                                  dims={f"{sensor}_time"},
-                                  name="filt_depth")
-        filt_depth.attrs = {'long_name': 'Filtered Depth',
-                            'standard_name': 'depth',
-                            'units': 'm'}
-
-        filt_pres = xr.DataArray(filt_pres_butter,
-                                 coords=[orig_nc.get_index('time')],
-                                 dims={f"{sensor}_time"},
-                                 name="filt_pres")
-        filt_pres.attrs = {'long_name': 'Filtered Pressure',
-                            'standard_name': 'sea_water_pressure',
-                            'units': 'dbar'}
-
-        self.combined_nc['filt_depth'] = filt_depth
-        self.combined_nc['filt_pres'] = filt_pres
-
     def _process(self, sensor, netcdfs_dir):
         coeffs = None
         try:
@@ -661,13 +728,17 @@ class CalAligned_NetCDF():
         except AttributeError as e:
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
-        # Order is important: 
         if sensor == 'navigation':
-            self._navigation_process(sensor)
+            ##self._navigation_process(sensor)
+            pass
         elif sensor == 'gps':
-            self._gps_process(sensor)
+            ##self._gps_process(sensor)
+            pass
         elif sensor == 'depth':
-            self._depth_process(sensor)
+            ##self._depth_process(sensor)
+            pass
+        elif sensor == 'hs2':
+            self._hs2_process(sensor)
         elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
         else:
