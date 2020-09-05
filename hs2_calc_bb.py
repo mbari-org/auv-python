@@ -1,4 +1,4 @@
-function hs2 = hs2_calc_bb(hs2,CAL);
+function CAL = hs2_read_cal_file(cal_filename);
 
 % Date Created:  June 21, 2007
 % Date Modified: June 26, 2007
@@ -13,17 +13,89 @@ function hs2 = hs2_calc_bb(hs2,CAL);
 % Fax: (831) 775-1620
 % Email: sackmann@mbari.org
 
-% FIND REAL GAIN NUMBER FROM CAL FILE AND HS2 POINTERS
-for channel = 1:3
-    for gain = 1:5
-        eval(['ind=find(hs2.Gain' num2str(channel) '==' num2str(gain) ');']);
-        if channel <= 2
-            eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel) ').Gain' num2str(gain) ');']);
-        elseif channel == 3
-            eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel-1) ').Gain' num2str(gain) ');']);
-        end
+
+% Open either a URL or a file
+try
+        url = java.net.URL(cal_filename);
+catch
+        file = java.io.File(cal_filename);
+        url = file.toURL;
+end
+
+is = url.openStream;
+isr = java.io.InputStreamReader(is);
+br = java.io.BufferedReader(isr);
+
+CAL = [];
+channel = 0;
+while 1
+    
+    str = br.readLine;
+
+    % Convert java String to matlab String
+    S = deblank(char(str));
+ 
+    if ~isempty(strfind(S,'General'))
+        category = 'General';
+    	str = br.readLine; S = deblank(char(str));
+    elseif ~isempty(strfind(S,'Channel'))
+        channel = channel+1;
+        category = ['Ch(' num2str(channel) ')'];
+    	str = br.readLine; S = deblank(char(str));
+    elseif ~isempty(strfind(S,'End'))
+        break
+    end
+    
+    if ~isempty(S)
+        CAL = calparse(CAL,S,category);
     end
 end
+
+
+% NB:  The range of values for SigmaExp is relatively small and the error
+%      in the final output that results from our choice of SigmaExp (when a
+%      value is not provided in the calibration file) is likely to be <1%
+%      Value needs to be a string as hs2_calc_bb calls str2num() on it.
+if ~isfield(CAL.Ch,'SigmaExp') & strcmp(CAL.General.Serial,'H2000325')
+    CAL.Ch(1).SigmaExp = '0.1460';     % value obtained from subsequent calibrations of this instrument
+    CAL.Ch(2).SigmaExp = '0.1600';     % value obtained from subsequent calibrations of this instrument
+elseif ~isfield(CAL.Ch,'SigmaExp')
+    CAL.Ch(1).SigmaExp = '0.1486';     % average SigmaExp value for sensors H2000325 and H2D021004 from 2001-2007 [(0.153+0.145+0.153+0.146+0.146)/5]
+    CAL.Ch(2).SigmaExp = '0.1522';     % average SigmaExp value for sensors H2000325 and H2D021004 from 2001-2007 [(0.150+0.142+0.150+0.159+0.160)/5]
+end
+
+function CAL = calparse(CAL,S,category);
+    [T,R] = strtok(S,'=');
+    eval(['CAL.' category '.' T '= char(R(2:end));'])
+
+
+def _hs2_calc_bb(hs2,CAL) {
+
+    # Translated from hs2_calc_bb.m - preserving original comments 
+    # % Date Created:  June 21, 2007
+    # % Date Modified: June 26, 2007
+    # %
+    # % Brandon Sackmann
+    # % Postdoctoral Fellow
+    # % Monterey Bay Aquarium Research Institute
+    # % 7700 Sandholdt Road
+    # % Moss Landing, California  95039
+    # %
+    # % Tel: (831) 775-1958
+    # % Fax: (831) 775-1620
+    # % Email: sackmann@mbari.org
+    # 
+    # % FIND REAL GAIN NUMBER FROM CAL FILE AND HS2 POINTERS
+    for channel in (1, 2, 3):
+        for gain in (1, 2, 3, 4, 5):
+            eval(['ind=find(hs2.Gain' num2str(channel) '==' num2str(gain) ');']);
+            if channel <= 2
+                eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel) ').Gain' num2str(gain) ');']);
+            elseif channel == 3
+                eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel-1) ').Gain' num2str(gain) ');']);
+            end
+        end
+    end
 
 % RAW SIGNAL CONVERSION
 eval(['hs2.beta' CAL.Ch(1).Name(3:end) '_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'])
