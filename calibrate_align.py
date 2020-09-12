@@ -27,6 +27,7 @@ import sys
 import xarray as xr
 from collections import namedtuple, OrderedDict
 from datetime import datetime
+from hs2_proc import hs2_read_cal_file, hs2_calc_bb
 from pathlib import Path
 from netCDF4 import Dataset
 from scipy.interpolate import interp1d
@@ -163,7 +164,8 @@ class CalAligned_NetCDF():
     def _read_data(self, logs_dir, netcdfs_dir):
         '''Read in all the instrument data into member variables named by "sensor"
         Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
-        Access calibration coeeficients like: self.ctd.cals.t_f0
+        Access calibration coefficients like: self.ctd.cals.t_f0, or as a
+        dictionary for hs2 data.
         '''
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
@@ -176,10 +178,11 @@ class CalAligned_NetCDF():
             if info['cal_filename']:
                 cal_filename = os.path.join(logs_dir, info['cal_filename'])
                 self.logger.debug(f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals")
-                try:
-                    setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
-                except FileNotFoundError as e:
-                    self.logger.debug(f"{e}")
+                if cal_filename.endswith('.cfg'):
+                    try:
+                        setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
+                    except FileNotFoundError as e:
+                        self.logger.debug(f"{e}")
 
             setattr(self, sensor, sensor_info)
 
@@ -193,7 +196,7 @@ class CalAligned_NetCDF():
         with open(cfg_filename) as fh:
             for line in fh:
                 ##self.logger.debug(line)
-                # From get_auv_cal.m
+                # From get_auv_cal.m - Handle CTD calibration parameters
                 if line[:2] in ('t_','c_','ep','SO','BO','Vo','TC','PC','Sc','Da'):
                     coeff, value = [s.strip() for s in line.split('=')]
                     try:
@@ -488,68 +491,109 @@ class CalAligned_NetCDF():
         self.combined_nc['filt_depth'] = filt_depth
         self.combined_nc['filt_pres'] = filt_pres
 
-    def _hs2_process(self, cf, nc):
+    def _hs2_process(self, sensor, logs_dir):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except (FileNotFoundError, AttributeError) as e:
+            self.logger.error(f"{e}")
+            return
 
-        hs2.time   = time;
-        % hs2.time   = (hs{'time'}(:))/60/60/24 + 719529;	%sdn
-        hs2.Snorm1 = int_signer(Snorm1);	%signed
-        hs2.Snorm2 = int_signer(Snorm2);	%signed
-        hs2.Snorm3 = int_signer(Snorm3);	%signed
-        hs2.Gain1  = Gain_Status_1;		%nibble
-        hs2.Gain2  = Gain_Status_2;		%nibble
-        hs2.Gain3  = Gain_Status_3;		%nibble
-        hs2.Depth  = int_signer(RawDepthValue);	%signed
-        hs2.Temp   = ((int_signer(RawTempValue))/5)-10;%signed|count to actual
+        try:
+            cal_fn = os.path.join(logs_dir, self.sinfo['hs2']['cal_filename'])
+            cals = hs2_read_cal_file(cal_fn)
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            raise()
+
+        source = self.sinfo[sensor]['data_filename']
+        self.combined_nc['Snorm1'] = xr.DataArray(orig_nc['Snorm1'].values,
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"{sensor}_time"},
+                                    name="Snorm1")
+        self.combined_nc['Snorm1'].attrs = {'long_name': '',
+                                          'units': '',
+                                          'comment': f"Snorm1 from {source}"}
+
+        if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['hs2_time'])
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            plt.figure(figsize=(18,6))
+            plt.plot(self.combined_nc['hs2_time'][pbeg:pend],
+                     self.combined_nc['Snorm1'][pbeg:pend])
+            title = f"{sensor} Data"
+            title += f" - First {pend} Points"
+            plt.title(title)
+            plt.grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
+        hs2_ret = hs2_calc_bb(orig_nc, cals) # calculate the backscatter and fluorescence
+
+        #-hs2.time   = time;
+        #-% hs2.time   = (hs{'time'}(:))/60/60/24 + 719529;	%sdn
+        #-hs2.Snorm1 = int_signer(Snorm1);	%signed
+        #-hs2.Snorm2 = int_signer(Snorm2);	%signed
+        #-hs2.Snorm3 = int_signer(Snorm3);	%signed
+        #-hs2.Gain1  = Gain_Status_1;		%nibble
+        #-hs2.Gain2  = Gain_Status_2;		%nibble
+        #-hs2.Gain3  = Gain_Status_3;		%nibble
+        #-hs2.Depth  = int_signer(RawDepthValue);	%signed
+        #-hs2.Temp   = ((int_signer(RawTempValue))/5)-10;%signed|count to actual
         
-        cal_filename    = [CALIBRATION_PATH cal_filename];
-        hs2.CALIBRATION = hs2_read_cal_file(cal_filename); 
-        hs2             = hs2_calc_bb(hs2,hs2.CALIBRATION); %calculate the backscatter and fluorescence
+        #-cal_filename    = [CALIBRATION_PATH cal_filename];
+        #-hs2.CALIBRATION = hs2_read_cal_file(cal_filename); 
+        #-hs2             = hs2_calc_bb(hs2,hs2.CALIBRATION); %calculate the backscatter and fluorescence
 
-        %
-        % For missions before 2009.055.05 hs2 will have members like bb470, bb676, and fl676
-        % Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
-        % apparently giving a better measurement of chlorophyl.
-        %
-        % Detect the difference in this code and keep the mamber names descriptive in the survey data so 
-        % the the end user knows the difference.
-        %
+        #-%
+        #-% For missions before 2009.055.05 hs2 will have members like bb470, bb676, and fl676
+        #-% Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
+        #-% apparently giving a better measurement of chlorophyl.
+       #- %
+        #-% Detect the difference in this code and keep the mamber names descriptive in the survey data so 
+        #-% the the end user knows the difference.
+        #-%
 
 
-        % Align Geometry, correct for pitch
-        hs2.pitch    = interp1(Nav.time,Nav.pitch,hs2.time);       	%find the pitch(time)
-        hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
-        hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
-        hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
+        #-% Align Geometry, correct for pitch
+        #-hs2.pitch    = interp1(Nav.time,Nav.pitch,hs2.time);       	%find the pitch(time)
+        #-hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
+        #-hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
+        #-hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
 
-        % 0th order Quality control, just set to NaN any unreasonable values
-        % These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
+        #-% 0th order Quality control, just set to NaN any unreasonable values
+        #-% These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
 
-        % Blue
-        if isfield(hs2, 'bb470'),
-            ibad470 = (find(hs2.bbp470 > 0.1));
-            hs2.bbp470(ibad470) = NaN;
-        elseif isfield(hs2, 'bb420'),
-            ibad420 = (find(hs2.bbp420 > 0.1));
-            hs2.bbp420(ibad420) = NaN;
-        end
+        #-% Blue
+        #-if isfield(hs2, 'bb470'),
+        #-    ibad470 = (find(hs2.bbp470 > 0.1));
+        #-    hs2.bbp470(ibad470) = NaN;
+        #-elseif isfield(hs2, 'bb420'),
+        #-    ibad420 = (find(hs2.bbp420 > 0.1));
+        #-    hs2.bbp420(ibad420) = NaN;
+        #-end
 
-        % Red
-        if isfield(hs2, 'bb676'),
-            ibad676 = (find(hs2.bbp676 > 0.1));
-            hs2.bbp676(ibad676) = NaN;
-        elseif isfield(hs2, 'bb700'),
-            ibad700 = (find(hs2.bbp700 > 0.1));
-            hs2.bbp700(ibad700) = NaN;
-        end
+        #-% Red
+        #-if isfield(hs2, 'bb676'),
+        #-    ibad676 = (find(hs2.bbp676 > 0.1));
+        #-    hs2.bbp676(ibad676) = NaN;
+        #-elseif isfield(hs2, 'bb700'),
+        #-    ibad700 = (find(hs2.bbp700 > 0.1));
+        #-    hs2.bbp700(ibad700) = NaN;
+        #-end
 
-        % Fl
-        if isfield(hs2, 'bb676'),
-            ibadfl= (find(hs2.fl676_uncorr > 0.02));
-            hs2.fl676_uncorr(ibadfl) = NaN;
-        elseif isfield(hs2, 'bb700'),
-            ibadfl= (find(hs2.fl700_uncorr > 0.02));
-            hs2.fl700_uncorr(ibadfl) = NaN;
-        end
+        #-% Fl
+        #-if isfield(hs2, 'bb676'),
+        #-    ibadfl= (find(hs2.fl676_uncorr > 0.02));
+        #-    hs2.fl676_uncorr(ibadfl) = NaN;
+        #-elseif isfield(hs2, 'bb700'),
+        #-    ibadfl= (find(hs2.fl700_uncorr > 0.02));
+        #-    hs2.fl700_uncorr(ibadfl) = NaN;
+        #-end
+
+        return
 
 
     def _calibrated_temp_from_frequency(self, cf, nc):
@@ -721,7 +765,7 @@ class CalAligned_NetCDF():
         ## f_interp = interp1d(self.combined_nc['filt_depth'
         pass
 
-    def _process(self, sensor, netcdfs_dir):
+    def _process(self, sensor, logs_dir, netcdfs_dir):
         coeffs = None
         try:
             coeffs = getattr(self, sensor).cals
@@ -729,16 +773,13 @@ class CalAligned_NetCDF():
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
         if sensor == 'navigation':
-            ##self._navigation_process(sensor)
-            pass
+            self._navigation_process(sensor)
         elif sensor == 'gps':
-            ##self._gps_process(sensor)
-            pass
+            self._gps_process(sensor)
         elif sensor == 'depth':
-            ##self._depth_process(sensor)
-            pass
+            self._depth_process(sensor)
         elif sensor == 'hs2':
-            self._hs2_process(sensor)
+            self._hs2_process(sensor, logs_dir)
         elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
         else:
@@ -764,7 +805,7 @@ class CalAligned_NetCDF():
 
         for sensor in self.sinfo.keys():
             setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
-            self._process(sensor, netcdfs_dir)
+            self._process(sensor, logs_dir, netcdfs_dir)
 
         self._write_netcdf(netcdfs_dir)
 
