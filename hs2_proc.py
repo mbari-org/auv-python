@@ -1,9 +1,13 @@
+import numpy as np
 from collections import defaultdict
-from math import pi
+from math import pi, exp
+from scipy.interpolate import interp1d
 
 class SensorInfo():
     pass
 
+class HS2():
+    pass
 
 def hs2_read_cal_file(cal_filename):
     sensor_info = SensorInfo()
@@ -56,6 +60,9 @@ def hs2_calc_bb(orig_nc, cals):
     # % Fax: (831) 775-1620
     # % Email: sackmann@mbari.org
     # 
+
+    hs2 = HS2()
+
     # % FIND REAL GAIN NUMBER FROM CAL FILE AND HS2 POINTERS
     for channel in (1, 2, 3):
         for gain in (1, 2, 3, 4, 5):
@@ -79,70 +86,52 @@ def hs2_calc_bb(orig_nc, cals):
 #-eval(['hs2.fl' CAL.Ch(3).Name(3:end) '_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'])
 #-hs2.caldepth = (str2num(CAL.General.DepthCal).*hs2.Depth) - str2num(CAL.General.DepthOff);
 
-    beta420_uncorr = ( (orig_nc['Snorm1'] * float(cals['Ch1']['Mu'])) 
-                        / ( (1 + float(cals['Ch1']['TempCoeff']) 
-                             * ( (orig_nc['RawTempValue'] / 5 - 10) 
-                                  - float(cals['General']['CalTemp']) ) ) 
-                            * orig_nc['Gain_Status_1'] * float(cals['Ch1']['RNominal'])) )
-    beta700_uncorr = ( (orig_nc['Snorm2'] * float(cals['Ch2']['Mu'])) 
-                        / ( (1 + float(cals['Ch2']['TempCoeff'])
-                             * ( (orig_nc['RawTempValue'] / 5 - 10) 
-                                  - float(cals['General']['CalTemp']) ) )
-                            * orig_nc['Gain_Status_2'] * float(cals['Ch2']['RNominal']) ) )
+    # BACKSCATTERING COEFFICIENT CALCULATION
+    # Ch1 is blue backscatter, either beta420 or beta470
+    # Ch2 is red backscatter, either beta676 or beta700
+    # Ch3 is fluoresence, either fl676 or fl700
+    # Item cals[f'Ch{channel}']['Name'] identifies which one
+    for chan in (1, 2):
+        beta_uncorr = ( (orig_nc[f'Snorm{chan}'] * float(cals[f'Ch{chan}']['Mu'])) 
+                        / ( (1 + float(cals[f'Ch{chan}']['TempCoeff']) 
+                                * ( (orig_nc['RawTempValue'] / 5 - 10) 
+                                    - float(cals['General']['CalTemp']) ) ) 
+                            * orig_nc[f'Gain_Status_{chan}'] 
+                            * float(cals[f'Ch{chan}']['RNominal'])) )
+        wavelength = int(cals[f'Ch{chan}']['Name'][2:])
+        beta_w, b_bw  = purewater_scatter(wavelength)
 
-    fl700_uncorr = ((orig_nc['Snorm3'] * 50) / 
-                    ( ( 1 + float(cals['Ch3']['TempCoeff']) 
-                        * ((orig_nc['RawTempValue'] / 5 - 10) 
-                           - float(cals['General']['CalTemp'])) )
-                      * orig_nc['Gain_Status_3'] * float(cals['Ch3']['RNominal'])) )
-
-
-#-for channel = 1:2
-    for channel in (1, 2):
-      # Like: 'beta_uncorr = hs2.beta420_uncorr;'
-      #       'beta_uncorr = hs2.beta700_uncorr;'
-#-    eval(['beta_uncorr = hs2.beta' CAL.Ch(channel).Name(3:end) '_uncorr;']) 
-
-        # BACKSCATTERING COEFFICIENT CALCULATION
-        if cals[f'Ch{channel}']['Name'] == 'bb420':
-            beta_uncorr = beta420_uncorr 
-            beta_w, b_bw  = purewater_scatter(420);
-        elif cals[f'Ch{channel}']['Name'] == 'bb470':
-            beta_uncorr = beta470_uncorr 
-            beta_w, b_bw  = purewater_scatter(470);
-#-    
-#-    % BACKSCATTERING COEFFICIENT CALCULATION
-#-    [beta_w, b_bw]  = purewater_scatter(str2num(CAL.Ch(channel).Name(3:end)));
-#-    chi             = 1.08;
         chi = 1.08
-
-#-    b_b_uncorr      = ((2*pi*chi).*(beta_uncorr - beta_w)) + b_bw;
         b_b_uncorr = ((2 * pi * chi) * (beta_uncorr - beta_w)) + b_bw
 
-      # Like: 'hs2.bb420_uncorr = b_b_uncorr;'
-#-    eval(['hs2.bb' CAL.Ch(channel).Name(3:end) '_uncorr = b_b_uncorr;']) 
-      # Like: 'hs2.bbp420_uncorr = b_b_uncorr - b_bw;'
-#-    eval(['hs2.bbp' CAL.Ch(channel).Name(3:end) '_uncorr = b_b_uncorr - b_bw;']) 
-#-
-#-    % ESTIMATION OF KBB AND SIGMA FUNCTION
-#-    a           =   typ_absorption(str2num(CAL.Ch(channel).Name(3:end)));
-#-    b_b_tilde   =   0.015;
-#-    b           =   (b_b_uncorr - b_bw)./b_b_tilde;
-#-
-#-    K_bb        =   a + 0.4.*b;
-#-    k_1         =   1.0;
-#-    k_exp       =   str2num(CAL.Ch(channel).SigmaExp);
-#-    sigma       =   k_1.*exp(k_exp.*K_bb);
+        globals()[f'bb{wavelength}_uncorr'] = b_b_uncorr
+        globals()[f'bbp{wavelength}_uncorr'] = b_b_uncorr - b_bw
 
-#-    b_b_corr    =   sigma.*b_b_uncorr;
+        # ESTIMATION OF KBB AND SIGMA FUNCTION
+        a           =   typ_absorption(wavelength)
+        b_b_tilde   =   0.015
+        b           =   (b_b_uncorr - b_bw) / b_b_tilde
 
-      # Like: 'hs2.bb420 = b_b_corr;'
-#-    eval(['hs2.bb' CAL.Ch(channel).Name(3:end) ' = b_b_corr;']) 
-      # Like: 'hs2.bbp420 = b_b_corr - b_bw;'
-#-    eval(['hs2.bbp' CAL.Ch(channel).Name(3:end) ' = b_b_corr - b_bw;']) 
-#-end
+        K_bb        =   a + 0.4 * b
+        k_1         =   1.0
+        k_exp       =   float(cals[f'Ch{chan}']['SigmaExp'])
+        sigma       =   k_1 * np.exp(k_exp * K_bb)
 
-    return fl700_uncorr
+        b_b_corr    =   sigma * b_b_uncorr
+
+        setattr(hs2, f'bb{wavelength}', b_b_corr)
+        setattr(hs2, f'bbp{wavelength}', b_b_corr - b_bw)
+
+
+    setattr(hs2, f'fl{wavelength}', 
+            ((orig_nc['Snorm3'] * 50) / 
+                ( ( 1 + float(cals['Ch3']['TempCoeff']) 
+                    * ((orig_nc['RawTempValue'] / 5 - 10) 
+                        - float(cals['General']['CalTemp'])) )
+                    * orig_nc['Gain_Status_3'] * float(cals['Ch3']['RNominal']))
+            ))
+
+    return hs2
 
     
 #-% ***********************************
@@ -168,52 +157,64 @@ def purewater_scatter(lamda):
 #-% **********************************
 #-% SUBFUNCTION:  'TYPICAL' ABSORPTION
 #-% **********************************
-#-function [a] = typ_absorption(lamda);
+def typ_absorption(lamda):
 
-#-% assumes lamda is a scalar
+    #-% assumes lamda is a scalar
 
-#-C           =   0.1;
-#-gamma_y     =   0.014;
-#-a_d_400     =   0.01;
-#-gamma_d     =   0.011;
+    C           =   0.1
+    gamma_y     =   0.014
+    a_d_400     =   0.01
+    gamma_d     =   0.011
 
 
-#-% Embed the lookup table from the AStar.CSV file here
-#-%%a_star    =   load('AStar.csv');
-#-a_star      = [ 400,0.687;...
-#-		410,0.828;...
-#-		420,0.913;...
-#-		430,0.973;...
-#-		440,1;...
-#-		450,0.944;...
-#-		460,0.917;...
-#-		470,0.87;...
-#-		480,0.798;...
-#-		490,0.75;...
-#-		500,0.668;...
-#-		510,0.618;...
-#-		520,0.528;...
-#-		530,0.474;...
-#-		540,0.416;...
-#-		550,0.357;...
-#-		560,0.294;...
-#-		570,0.276;...
-#-		580,0.291;...
-#-		590,0.282;...
-#-		600,0.236;...
-#-		610,0.252;...
-#-		620,0.276;...
-#-		630,0.317;...
-#-		640,0.334;...
-#-		650,0.356;...
-#-		660,0.441;...
-#-		670,0.595;...
-#-		680,0.502;...
-#-		690,0.329;...
-#-		700,0.215;...
-#-              ];
+    #-% Embed the lookup table from the AStar.CSV file here
+    #-%%a_star    =   load('AStar.csv');
+    a_star_values = np.array([ [400,0.687],
+                                [410,0.828],
+                                [420,0.913],
+                                [430,0.973],
+                                [440,1.000],
+                                [450,0.944],
+                                [460,0.917],
+                                [470,0.870],
+                                [480,0.798],
+                                [490,0.750],
+                                [500,0.668],
+                                [510,0.618],
+                                [520,0.528],
+                                [530,0.474],
+                                [540,0.416],
+                                [550,0.357],
+                                [560,0.294],
+                                [570,0.276],
+                                [580,0.291],
+                                [590,0.282],
+                                [600,0.236],
+                                [610,0.252],
+                                [620,0.276],
+                                [630,0.317],
+                                [640,0.334],
+                                [650,0.356],
+                                [660,0.441],
+                                [670,0.595],
+                                [680,0.502],
+                                [690,0.329],
+                                [700,0.215],
+                              ])
 
-#-a_star      =   interp1(a_star(:,1),a_star(:,2),lamda);
+    a_interp = interp1d(a_star_values[:,0], a_star_values[:,1])
+    a_star = a_interp(lamda)
 
-#-a           =   (0.06*a_star*(C^0.65))*(1+0.2*exp(-gamma_y*(lamda-440))) + ...
-#-                (a_d_400*exp(-gamma_d*(lamda-400)));
+    a = ( (0.06 * a_star * (C ** 0.65)) * (1 + 0.2 * exp(-gamma_y*(lamda-440)))
+             + (a_d_400 * exp(-gamma_d * (lamda - 400))) )
+
+    return a
+
+def test_typ_absorption():
+    assert(round(typ_absorption(420), 4) == 0.0235)
+
+if __name__ == '__main__':
+    # Some unit tests
+    assert(round(typ_absorption(420), 4) == 0.0235)
+    print('Tests finished')
+    pass
