@@ -530,35 +530,21 @@ class CalAligned_NetCDF():
                                " Close window to continue.")
             plt.show()
 
-        hs2_ret = hs2_calc_bb(orig_nc, cals) # calculate the backscatter and fluorescence
+        hs2 = hs2_calc_bb(orig_nc, cals) # calculate the backscatter and fluorescence
 
-        #-hs2.time   = time;
-        #-% hs2.time   = (hs{'time'}(:))/60/60/24 + 719529;	%sdn
-        #-hs2.Snorm1 = int_signer(Snorm1);	%signed
-        #-hs2.Snorm2 = int_signer(Snorm2);	%signed
-        #-hs2.Snorm3 = int_signer(Snorm3);	%signed
-        #-hs2.Gain1  = Gain_Status_1;		%nibble
-        #-hs2.Gain2  = Gain_Status_2;		%nibble
-        #-hs2.Gain3  = Gain_Status_3;		%nibble
-        #-hs2.Depth  = int_signer(RawDepthValue);	%signed
-        #-hs2.Temp   = ((int_signer(RawTempValue))/5)-10;%signed|count to actual
-        
-        #-cal_filename    = [CALIBRATION_PATH cal_filename];
-        #-hs2.CALIBRATION = hs2_read_cal_file(cal_filename); 
-        #-hs2             = hs2_calc_bb(hs2,hs2.CALIBRATION); %calculate the backscatter and fluorescence
-
-        #-%
-        #-% For missions before 2009.055.05 hs2 will have members like bb470, bb676, and fl676
-        #-% Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
-        #-% apparently giving a better measurement of chlorophyl.
-       #- %
-        #-% Detect the difference in this code and keep the mamber names descriptive in the survey data so 
-        #-% the the end user knows the difference.
-        #-%
+        # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
+        # Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
+        # apparently giving a better measurement of chlorophyl.
+        #
+        # Detect the difference in this code and keep the mamber names descriptive in the survey data so 
+        # the the end user knows the difference.
 
 
         #-% Align Geometry, correct for pitch
-        #-hs2.pitch    = interp1(Nav.time,Nav.pitch,hs2.time);       	%find the pitch(time)
+        p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
+                            self.combined_nc['pitch'].values, 
+                            fill_value="extrapolate")
+        hs2.pitch    = p_interp(orig_nc['time'].values.tolist())
         #-hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
         #-hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
         #-hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
