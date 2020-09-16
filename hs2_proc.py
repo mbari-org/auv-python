@@ -46,7 +46,7 @@ def hs2_read_cal_file(cal_filename):
     return cals        
 
 def hs2_calc_bb(orig_nc, cals):
-    # Translated from hs2_calc_bb.m - preserving original comments 
+    # Some original comments from hs2_calc_bb.m
     # % Date Created:  June 21, 2007
     # % Date Modified: June 26, 2007
     # %
@@ -67,6 +67,7 @@ def hs2_calc_bb(orig_nc, cals):
     for channel in (1, 2, 3):
         for gain in (1, 2, 3, 4, 5):
             pass
+            # A bit of a mystery as to what these lines really do... ???
             # Like: 'ind=find(hs2.Gain3==5);'
             #-eval(['ind=find(hs2.Gain' num2str(channel) '==' num2str(gain) ');']);
             #-if channel <= 2
@@ -77,21 +78,13 @@ def hs2_calc_bb(orig_nc, cals):
             #-    eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel-1) ').Gain' num2str(gain) ');']);
             #-end
 
-#-% RAW SIGNAL CONVERSION
-# Like: 'hs2.beta420_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'
-#-eval(['hs2.beta' CAL.Ch(1).Name(3:end) '_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'])
-# Like: 'hs2.beta700_uncorr = (hs2.Snorm2.*str2num(CAL.Ch(2).Mu))./((1 + str2num(CAL.Ch(2).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain2.*str2num(CAL.Ch(2).RNominal));'
-#-eval(['hs2.beta' CAL.Ch(2).Name(3:end) '_uncorr = (hs2.Snorm2.*str2num(CAL.Ch(2).Mu))./((1 + str2num(CAL.Ch(2).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain2.*str2num(CAL.Ch(2).RNominal));'])
-# Like: 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'
-#-eval(['hs2.fl' CAL.Ch(3).Name(3:end) '_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'])
-#-hs2.caldepth = (str2num(CAL.General.DepthCal).*hs2.Depth) - str2num(CAL.General.DepthOff);
-
     # BACKSCATTERING COEFFICIENT CALCULATION
     # Ch1 is blue backscatter, either beta420 or beta470
     # Ch2 is red backscatter, either beta676 or beta700
     # Ch3 is fluoresence, either fl676 or fl700
     # Item cals[f'Ch{channel}']['Name'] identifies which one
     for chan in (1, 2):
+        #-% RAW SIGNAL CONVERSION
         beta_uncorr = ( (orig_nc[f'Snorm{chan}'] * float(cals[f'Ch{chan}']['Mu'])) 
                         / ( (1 + float(cals[f'Ch{chan}']['TempCoeff']) 
                                 * ( (orig_nc['RawTempValue'] / 5 - 10) 
@@ -131,16 +124,13 @@ def hs2_calc_bb(orig_nc, cals):
                     * orig_nc['Gain_Status_3'] * float(cals['Ch3']['RNominal']))
             ))
 
+    setattr(hs2, 'caldepth', float(cals['General']['DepthCal']) 
+                                * orig_nc['RawDepthValue'] 
+                                - float(cals['General']['DepthOff']))
+
     return hs2
 
-    
-#-% ***********************************
-#-% SUBFUNCTION:  PURE-WATER SCATTERING
-#-% ***********************************
-#-function [beta_w, b_bw] = purewater_scatter(lamda);
 def purewater_scatter(lamda):
-    #-% assumes lamda is a scalar
-
     beta_w_ref  =   2.18E-04   # for seawater
     b_bw_ref    =   1.17E-03   # for seawater
     #beta_w_ref  =   1.67E-04   # for freshwater
@@ -153,19 +143,11 @@ def purewater_scatter(lamda):
 
     return beta_w, b_bw
 
-
-#-% **********************************
-#-% SUBFUNCTION:  'TYPICAL' ABSORPTION
-#-% **********************************
 def typ_absorption(lamda):
-
-    #-% assumes lamda is a scalar
-
     C           =   0.1
     gamma_y     =   0.014
     a_d_400     =   0.01
     gamma_d     =   0.011
-
 
     #-% Embed the lookup table from the AStar.CSV file here
     #-%%a_star    =   load('AStar.csv');
@@ -209,12 +191,3 @@ def typ_absorption(lamda):
              + (a_d_400 * exp(-gamma_d * (lamda - 400))) )
 
     return a
-
-def test_typ_absorption():
-    assert(round(typ_absorption(420), 4) == 0.0235)
-
-if __name__ == '__main__':
-    # Some unit tests
-    assert(round(typ_absorption(420), 4) == 0.0235)
-    print('Tests finished')
-    pass
