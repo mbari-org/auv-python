@@ -505,32 +505,119 @@ class CalAligned_NetCDF():
             self.logger.error(f"{e}")
             raise()
 
+        hs2 = hs2_calc_bb(orig_nc, cals)
+
         source = self.sinfo[sensor]['data_filename']
-        self.combined_nc['Snorm1'] = xr.DataArray(orig_nc['Snorm1'].values,
-                                    coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
-                                    name="Snorm1")
-        self.combined_nc['Snorm1'].attrs = {'long_name': '',
-                                          'units': '',
-                                          'comment': f"Snorm1 from {source}"}
+
+        # Blue backscatter
+        if hasattr(hs2, 'bb420'):
+            blue_bs = xr.DataArray(hs2.bb420.values,
+                                   coords=[hs2.bb420.get_index('time')],
+                                   dims={"hs2_time"},
+                                   name="hs2_bb420")
+            blue_bs.attrs = {'long_name': 'Backscatter at 420 nm',
+                             'comment': (f"Computed by hs2_calc_bb()"
+                                         f" from data in {source}")}
+        if hasattr(hs2, 'bb470'):
+            blue_bs = xr.DataArray(hs2.bb470.values,
+                                   coords=[hs2.bb470.get_index('time')],
+                                   dims={"hs2_time"},
+                                   name="hs2_bb470")
+            blue_bs.attrs = {'long_name': 'Backscatter at 470 nm',
+                             'comment': (f"Computed by hs2_calc_bb()"
+                                         f" from data in {source}")}
+
+        # Red backscatter
+        if hasattr(hs2, 'bb676'):
+            red_bs = xr.DataArray(hs2.bb676.values,
+                                  coords=[hs2.bb676.get_index('time')],
+                                  dims={"hs2_time"},
+                                  name="hs2_bb676")
+            red_bs.attrs = {'long_name': 'Backscatter at 676 nm',
+                            'comment': (f"Computed by hs2_calc_bb()"
+                                        f" from data in {source}")}
+        if hasattr(hs2, 'bb700'):
+            red_bs = xr.DataArray(hs2.bb700.values,
+                                  coords=[hs2.bb700.get_index('time')],
+                                  dims={"hs2_time"},
+                                  name="hs2_bb700")
+            red_bs.attrs = {'long_name': 'Backscatter at 700 nm',
+                            'comment': (f"Computed by hs2_calc_bb()"
+                                        f" from data in {source}")}
+
+        # Fluoresence
+        if hasattr(hs2, 'bb676'):
+            fl = xr.DataArray(hs2.bb676.values,
+                                 coords=[hs2.bb676.get_index('time')],
+                                 dims={"hs2_time"},
+                                 name="hs2_bb676")
+            fl.attrs = {'long_name': 'Fluoresence at 676 nm',
+                           'comment': (f"Computed by hs2_calc_bb()"
+                                       f" from data in {source}")}
+            self.combined_nc['hs2_bb676'] = bb676
+            fl = bb676
+        if hasattr(hs2, 'fl700'):
+            fl700 = xr.DataArray(hs2.fl700.values,
+                                 coords=[hs2.fl700.get_index('time')],
+                                 dims={"hs2_time"},
+                                 name="hs2_fl700")
+            fl700.attrs = {'long_name': 'Fluoresence at 700 nm',
+                           'comment': (f"Computed by hs2_calc_bb()"
+                                       f" from data in {source}")}
+            fl = fl700
+
+        # Zeroeth level quality control
+        mblue = np.ma.masked_invalid(blue_bs)
+        mblue = np.ma.masked_greater(mblue, 0.1)
+        mred = np.ma.masked_invalid(red_bs)
+        mred = np.ma.masked_greater(mred, 0.1)
+        mfl = np.ma.masked_invalid(fl)
+        mfl = np.ma.masked_greater(mfl, 0.02)
+        mhs2 = np.logical_and(mblue, np.logical_and(mred, mfl))
+
+        bad_hs2 = [f"{b}, {r}, {f}" for b, r, f in zip(blue_bs.values[:][mhs2.mask],
+                                                   red_bs.values[:][mhs2.mask],
+                                                   fl.values[:][mhs2.mask])]
+
+        if bad_hs2:
+            self.logger.info(f"Number of bad {sensor} points:"
+                             f" {len(blue_bs.values[:][mhs2.mask])}")
+            self.logger.debug(f"Removing bad {sensor} points (indices,"
+                             f" (b, r, f)): {np.where(mhs2.mask)[0]}, {bad_hs2}")
+            blue_bs = blue_bs[:][~mhs2.mask]
+            red_bs = red_bs[:][~mhs2.mask]
 
         if self.args.plot:
+            # Use Pandas to more easiily plot multiple columns of data
             pbeg = 0
-            pend = len(self.combined_nc['hs2_time'])
+            pend = len(blue_bs.get_index('hs2_time'))
             if self.args.plot.startswith('first'):
                 pend = int(self.args.plot.split('first')[1])
-            plt.figure(figsize=(18,6))
-            plt.plot(self.combined_nc['hs2_time'][pbeg:pend],
-                     self.combined_nc['Snorm1'][pbeg:pend])
-            title = f"{sensor} Data"
-            title += f" - First {pend} Points"
-            plt.title(title)
-            plt.grid()
+            df_plot = pd.DataFrame(index=blue_bs.get_index('hs2_time')[pbeg:pend])
+            df_plot['blue_bs'] = blue_bs[pbeg:pend]
+            df_plot['red_bs'] = red_bs[pbeg:pend]
+            df_plot['fl'] = fl[pbeg:pend]
+            title = (f"First {pend} points from"
+                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
+            ax = df_plot.plot(title=title, figsize=(18,6))
+            ax.grid('on')
             self.logger.debug(f"Pausing with plot entitled: {title}."
                                " Close window to continue.")
             plt.show()
 
-        hs2 = hs2_calc_bb(orig_nc, cals) # calculate the backscatter and fluorescence
+        if hasattr(hs2, 'bb420'):
+            self.combined_nc['hs2_bb420'] = blue_bs
+        if hasattr(hs2, 'bb470'):
+            self.combined_nc['hs2_bb470'] = blue_bs
+        if hasattr(hs2, 'bb676'):
+            self.rombined_nc['hs2_bb676'] = red_bs
+        if hasattr(hs2, 'bb700'):
+            self.combined_nc['hs2_bb700'] = red_bs
+        if hasattr(hs2, 'fl676'):
+            self.combined_nc['hs2_fl676'] = fl
+        if hasattr(hs2, 'fl700'):
+            self.combined_nc['hs2_fl700'] = fl
+
 
         # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
         # Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
@@ -773,13 +860,13 @@ class CalAligned_NetCDF():
 
         return
 
-    def _write_netcdf(self, netcdfs_dir):
+    def write_netcdf(self, netcdfs_dir):
         self.combined_nc.attrs = self.global_metadata()
         out_fn = os.path.join(netcdfs_dir, f"{self.args.auv_name}_{self.args.mission}.nc")
         self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
         self.combined_nc.to_netcdf(out_fn)
 
-    def process_and_write(self):
+    def process_logs(self):
         name = self.args.mission
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
@@ -793,7 +880,8 @@ class CalAligned_NetCDF():
             setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
             self._process(sensor, logs_dir, netcdfs_dir)
 
-        self._write_netcdf(netcdfs_dir)
+        return netcdfs_dir
+        self.write_netcdf(netcdfs_dir)
 
     def process_command_line(self):
 
@@ -830,5 +918,6 @@ if __name__ == '__main__':
     cal_netcdf = CalAligned_NetCDF()
     cal_netcdf.process_command_line()
     p_start = time.time()
-    cal_netcdf.process_and_write()
+    netcdf_dir = cal_netcdf.process_logs()
+    cal_netcdf.write_netcdf(netcdf_dir)
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
