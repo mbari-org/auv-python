@@ -28,19 +28,24 @@ def hs2_read_cal_file(cal_filename):
             else:
                 raise(ValueError(f'Unexpected line: {line}'))
 
+    # From the CVS log: revision 1.3
+    # date: 2007/07/13 17:59:06;  author: ssdsadmin;  state: Exp;  lines: +11 -0
+    # Added approximate values for SigmaExp for those Cals that don't have it.
+    #
     # NB:  The range of values for SigmaExp is relatively small and the error
     #      in the final output that results from our choice of SigmaExp (when a
     #      value is not provided in the calibration file) is likely to be <1%
-    #      Value needs to be a string as hs2_calc_bb calls int() on it.
-    if cals['General']['Serial'] == 'H2000325':
-        # value obtained from subsequent calibrations of this instrument
-        cals['Ch1']['SigmaExp'] = '0.1460'
-        cals['Ch2']['SigmaExp'] = '0.1600'
-    else:
-        # Average SigmaExp value for sensors H2000325 and H2D021004 
-        # from 2001-2007: [(0.153+0.145+0.153+0.146+0.146)/5]
-        cals['Ch1']['SigmaExp'] = '0.1486'
-        cals['Ch2']['SigmaExp'] = '0.1522'
+    #      Value needs to be a string as hs2_calc_bb calls float() on it.
+    if 'SigmaExp' not in cals['Ch1'] and 'SigmaExp' not in cals['Ch2']:
+        if cals['General']['Serial'] == 'H2000325':
+            # value obtained from subsequent calibrations of this instrument
+            cals['Ch1']['SigmaExp'] = '0.1460'
+            cals['Ch2']['SigmaExp'] = '0.1600'
+        else:
+            # Average SigmaExp value for sensors H2000325 and H2D021004 
+            # from 2001-2007: [(0.153+0.145+0.153+0.146+0.146)/5]
+            cals['Ch1']['SigmaExp'] = '0.1486'
+            cals['Ch2']['SigmaExp'] = '0.1522'
     
     return cals
 
@@ -99,7 +104,7 @@ def hs2_calc_bb(orig_nc, cals):
     # Item cals[f'Ch{chan}']['Name'] identifies which one
     for chan in (1, 2):
         #-% RAW SIGNAL CONVERSION
-        #%hs2.beta420_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'
+        #-% hs2.beta420_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'
         denom =  np.multiply( (1 + float(cals[f'Ch{chan}']['TempCoeff']) 
                                 * ( (orig_nc['RawTempValue'] / 5 - 10) 
                                     - float(cals['General']['CalTemp']) ) ),
