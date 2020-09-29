@@ -438,4 +438,5 @@ if __name__ == '__main__':
         raise argparse.ArgumentError(None, "Must provide either (--auv_name &"
                                            " --mission) OR (--start & --end)")
 
-    auv_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    auv_netcdf.logger.info(f"Time to download and process:"
+                           f" {(time.time() - p_start):.2f} seconds")
