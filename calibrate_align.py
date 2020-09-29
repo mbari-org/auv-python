@@ -355,11 +355,11 @@ class CalAligned_NetCDF():
             #-lat = latitude(1:10:end);	% Subsample usbl so that iit is like our gps data
             #-lon = longitude(1:10:end);
 
-        lat = orig_nc['latitude'] * 180.0 / np.pi; 
+        lat = orig_nc['latitude'] * 180.0 / np.pi
         if orig_nc['longitude'][0] > 0:
-            lon = -1 * orig_nc['longitude'] * 180.0 / np.pi;
+            lon = -1 * orig_nc['longitude'] * 180.0 / np.pi
         else:
-            lon = orig_nc['longitude'] * 180.0 / np.pi;
+            lon = orig_nc['longitude'] * 180.0 / np.pi
         
         # Filter out positions outside of operational box
         if (self.args.mission == '2010.151.04' or 
