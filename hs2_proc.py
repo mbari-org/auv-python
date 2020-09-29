@@ -10,7 +10,6 @@ class HS2():
     pass
 
 def hs2_read_cal_file(cal_filename):
-    sensor_info = SensorInfo()
     cals = defaultdict(dict)
     channels = []
 
@@ -35,15 +34,43 @@ def hs2_read_cal_file(cal_filename):
     #      Value needs to be a string as hs2_calc_bb calls int() on it.
     if cals['General']['Serial'] == 'H2000325':
         # value obtained from subsequent calibrations of this instrument
-        cals['Ch1']['SigmaExp'] = '0.1460';
-        cals['Ch2']['SigmaExp'] = '0.1600';
+        cals['Ch1']['SigmaExp'] = '0.1460'
+        cals['Ch2']['SigmaExp'] = '0.1600'
     else:
         # Average SigmaExp value for sensors H2000325 and H2D021004 
         # from 2001-2007: [(0.153+0.145+0.153+0.146+0.146)/5]
-        cals['Ch1']['SigmaExp'] = '0.1486';
-        cals['Ch2']['SigmaExp'] = '0.1522';
+        cals['Ch1']['SigmaExp'] = '0.1486'
+        cals['Ch2']['SigmaExp'] = '0.1522'
     
-    return cals        
+    return cals
+
+def _get_gains(orig_nc, cals, hs2):
+    # % FIND REAL GAIN NUMBER FROM CAL FILE AND HS2 POINTERS
+    # See section 9.2.7 in HS2ManualRevI-2011-12.pdf (between >> << below):
+    # ---------------------------------------------------------------------
+    # There is one 4-bit gain/status value for each of the optical data channels. 
+    # The three LSB’s comprise a gain setting, and the MSB indicates status.
+    # A gain setting of zero indicates that the channel is disabled and its 
+    # data should be ignored. >> Gains of 1 to 5 are used to select one of five 
+    # coefficients to be applied to Snorm. Gains 6 and 7 are undefined. <<
+    # The status bit is zero under normal conditions. The status bit for a 
+    # channel may be set to 1 if the HydroScat detects a condition that may 
+    # affect the quality of the data on that channel. However a status value 
+    # of 1 does not necessarily indicate invalid data.
+    for chan, gs in (((1, 'Gain_Status_1'), 
+                      (2, 'Gain_Status_2'),
+                      (3, 'Gain_Status_3'))):
+        gv = orig_nc[gs]
+        for gnum in range(1, 6):
+            if chan <= 2:
+                gc = float(cals[f'Ch{chan}'][f'Gain{gnum}'])
+            elif chan == 3:
+                gc = float(cals[f'Ch{chan - 1}'][f'Gain{gnum}'])
+
+            gv = np.where(orig_nc[gs] == gnum, gc, gv)
+            setattr(hs2, f'Gain{chan}', gv)
+
+    return hs2
 
 def hs2_calc_bb(orig_nc, cals):
     # Some original comments from hs2_calc_bb.m
@@ -63,34 +90,23 @@ def hs2_calc_bb(orig_nc, cals):
 
     hs2 = HS2()
 
-    # % FIND REAL GAIN NUMBER FROM CAL FILE AND HS2 POINTERS
-    for channel in (1, 2, 3):
-        for gain in (1, 2, 3, 4, 5):
-            pass
-            # A bit of a mystery as to what these lines really do... ???
-            # Like: 'ind=find(hs2.Gain3==5);'
-            #-eval(['ind=find(hs2.Gain' num2str(channel) '==' num2str(gain) ');']);
-            #-if channel <= 2
-                # Like: 'hs2.Gain3(ind)=str2num(CAL.Ch(3).Gain5);'
-            #-    eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel) ').Gain' num2str(gain) ');']);
-            #-elseif channel == 3
-                # Like: 'hs2.Gain3(ind)=str2num(CAL.Ch(2).Gain5);'
-            #-    eval(['hs2.Gain' num2str(channel) '(ind)=str2num(CAL.Ch(' num2str(channel-1) ').Gain' num2str(gain) ');']);
-            #-end
+    hs2 = _get_gains(orig_nc, cals, hs2)
 
     # BACKSCATTERING COEFFICIENT CALCULATION
     # Ch1 is blue backscatter, either beta420 or beta470
     # Ch2 is red backscatter, either beta676 or beta700
     # Ch3 is fluoresence, either fl676 or fl700
-    # Item cals[f'Ch{channel}']['Name'] identifies which one
+    # Item cals[f'Ch{chan}']['Name'] identifies which one
     for chan in (1, 2):
         #-% RAW SIGNAL CONVERSION
-        beta_uncorr = ( (orig_nc[f'Snorm{chan}'] * float(cals[f'Ch{chan}']['Mu'])) 
-                        / ( (1 + float(cals[f'Ch{chan}']['TempCoeff']) 
+        #%hs2.beta420_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'
+        denom =  np.multiply( (1 + float(cals[f'Ch{chan}']['TempCoeff']) 
                                 * ( (orig_nc['RawTempValue'] / 5 - 10) 
-                                    - float(cals['General']['CalTemp']) ) ) 
-                            * orig_nc[f'Gain_Status_{chan}'] 
-                            * float(cals[f'Ch{chan}']['RNominal'])) )
+                                    - float(cals['General']['CalTemp']) ) ),
+                            (getattr(hs2, f'Gain{chan}')
+                            * float(cals[f'Ch{chan}']['RNominal']) ) )
+        beta_uncorr = np.divide((orig_nc[f'Snorm{chan}'] * 
+                                 float(cals[f'Ch{chan}']['Mu'])), denom)
         wavelength = int(cals[f'Ch{chan}']['Name'][2:])
         beta_w, b_bw  = purewater_scatter(wavelength)
 
@@ -114,7 +130,6 @@ def hs2_calc_bb(orig_nc, cals):
 
         setattr(hs2, f'bb{wavelength}', b_b_corr)
         setattr(hs2, f'bbp{wavelength}', b_b_corr - b_bw)
-
 
     setattr(hs2, f'fl{wavelength}', 
             ((orig_nc['Snorm3'] * 50) / 
