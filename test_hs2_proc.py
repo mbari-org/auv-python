@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import os
 import pytest
@@ -18,6 +19,7 @@ def mission_data():
     ns.mission = '2020.245.00'
     ns.plot = None
     cal_netcdf.args = ns
+    cal_netcdf.logger.setLevel(logging.ERROR)
     cal_netcdf.process_logs()
     return cal_netcdf
 
