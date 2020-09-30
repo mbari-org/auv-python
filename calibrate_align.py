@@ -904,8 +904,10 @@ class CalAligned_NetCDF():
         parser.add_argument('--plot', action='store', help='Create intermediate plots'
                             ' to validate data operations. Use first<n> to plot <n>'
                             ' points, e.g. first2000. Program blocks upon show.')        
-        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
-                            help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
+        parser.add_argument('-v', '--verbose', type=int, choices=range(3), 
+                            action='store', default=0, const=1, nargs='?',
+                            help="verbosity level: " + ', '.join([f"{i}: {v}"
+                            for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
