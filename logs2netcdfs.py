@@ -32,7 +32,6 @@ BASE_PATH = 'auv_data'
 MISSIONLOGS = 'missionlogs'
 MISSIONNETCDFS = 'missionnetcdfs'
 PORTAL_BASE = 'http://portal.shore.mbari.org:8080/auvdata/v1'
-DEPLOYMENTS_URL = os.path.join(PORTAL_BASE, 'deployments')
 TIME = 'time'
 
 class AUV_NetCDF(AUV):
@@ -134,10 +133,10 @@ class AUV_NetCDF(AUV):
                          f" file size = {file_size}")
 
     def _unique_vehicle_names(self):
-        self.logger.debug(f"Getting deployments from {DEPLOYMENTS_URL}")
-        with requests.get(DEPLOYMENTS_URL) as resp:
+        self.logger.debug(f"Getting deployments from {self.deployments_url}")
+        with requests.get(self.deployments_url) as resp:
             if resp.status_code != 200:
-                self.logger.error(f"Cannot read {DEPLOYMENTS_URL},"
+                self.logger.error(f"Cannot read {self.deployments_url},"
                                   f" status_code = {resp.status_code}")
                 return
 
@@ -146,7 +145,7 @@ class AUV_NetCDF(AUV):
     def _deployments_between(self):
         start = f"{self.args.start}T000000Z"
         end = f"{self.args.end}T235959Z"
-        url = f"{DEPLOYMENTS_URL}?from={start}&to={end}"
+        url = f"{self.deployments_url}?from={start}&to={end}"
         self.logger.debug(f"Getting missions from {url}")
         with requests.get(url) as resp:
             if resp.status_code != 200:
@@ -176,7 +175,7 @@ class AUV_NetCDF(AUV):
     def _files_from_mission(self, name=None, vehicle=None):
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
-        files_url = f"{PORTAL_BASE}/files/list/{name}/{vehicle}"
+        files_url = f"{self.portal_base}/files/list/{name}/{vehicle}"
         self.logger.debug(f"Getting files list from {files_url}")
         with requests.get(files_url) as resp:
             if resp.status_code != 200:
@@ -210,7 +209,7 @@ class AUV_NetCDF(AUV):
         tasks = []
         async with ClientSession() as session:
             for ffm in self._files_from_mission(name, vehicle):
-                download_url = f"{PORTAL_BASE}/files/download/{name}/{vehicle}/{ffm}"
+                download_url = f"{self.portal_base}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
                 local_filename = os.path.join(logs_dir, ffm)
@@ -411,6 +410,10 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--update', action='store_true',
                             help='Send an "update" POST request to the '
                                  ' auv-portal data service')
+        parser.add_argument('--portal', action='store',
+                            help='Specify the base url for the auv-portal data'
+                                  ' service, e.g.:'
+                                  ' https://stoqs.mbari.org:8080/auvdata/v1')
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), 
                             action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join(
@@ -418,6 +421,13 @@ class AUV_NetCDF(AUV):
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
+
+        if self.args.portal:
+            self.portal_base = self.args.portal
+            self.deployments_url = os.path.join(self.args.portal, 'deployments')
+        else:
+            self.portal_base = PORTAL_BASE
+            self.deployments_url = os.path.join(self.portal_base, 'deployments')
 
         self.commandline = ' '.join(sys.argv)
 
@@ -438,4 +448,5 @@ if __name__ == '__main__':
         raise argparse.ArgumentError(None, "Must provide either (--auv_name &"
                                            " --mission) OR (--start & --end)")
 
-    auv_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    auv_netcdf.logger.info(f"Time to download and process:"
+                           f" {(time.time() - p_start):.2f} seconds")

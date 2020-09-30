@@ -27,6 +27,7 @@ import sys
 import xarray as xr
 from collections import namedtuple, OrderedDict
 from datetime import datetime
+from hs2_proc import hs2_read_cal_file, hs2_calc_bb
 from pathlib import Path
 from netCDF4 import Dataset
 from scipy.interpolate import interp1d
@@ -147,7 +148,11 @@ class CalAligned_NetCDF():
                        ('lopc',       {'data_filename': 'lopc.nc',
                                       'cal_filename':  None,
                                       'lag_secs':      None,
-                                      'sensor_offset': None})
+                                      'sensor_offset': None}),
+                       ('ecopuck',    {'data_filename': 'FLBBCD2K.nc',
+                                      'cal_filename':  'FLBBCD2K-3695.dev',
+                                      'lag_secs':      None,
+                                      'sensor_offset': None}),
         ])
 
         # Changes over time
@@ -158,8 +163,9 @@ class CalAligned_NetCDF():
 
     def _read_data(self, logs_dir, netcdfs_dir):
         '''Read in all the instrument data into member variables named by "sensor"
-        Access xarray.Dataset like: self.ctd.data, self.navigation.data
-        Access calibration coeeficients like: self.ctd.cals.t_f0
+        Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
+        Access calibration coefficients like: self.ctd.cals.t_f0, or as a
+        dictionary for hs2 data.
         '''
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
@@ -172,10 +178,11 @@ class CalAligned_NetCDF():
             if info['cal_filename']:
                 cal_filename = os.path.join(logs_dir, info['cal_filename'])
                 self.logger.debug(f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals")
-                try:
-                    setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
-                except FileNotFoundError as e:
-                    self.logger.debug(f"{e}")
+                if cal_filename.endswith('.cfg'):
+                    try:
+                        setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
+                    except FileNotFoundError as e:
+                        self.logger.debug(f"{e}")
 
             setattr(self, sensor, sensor_info)
 
@@ -189,7 +196,7 @@ class CalAligned_NetCDF():
         with open(cfg_filename) as fh:
             for line in fh:
                 ##self.logger.debug(line)
-                # From get_auv_cal.m
+                # From get_auv_cal.m - Handle CTD calibration parameters
                 if line[:2] in ('t_','c_','ep','SO','BO','Vo','TC','PC','Sc','Da'):
                     coeff, value = [s.strip() for s in line.split('=')]
                     try:
@@ -348,11 +355,11 @@ class CalAligned_NetCDF():
             #-lat = latitude(1:10:end);	% Subsample usbl so that iit is like our gps data
             #-lon = longitude(1:10:end);
 
-        lat = orig_nc['latitude'] * 180.0 / np.pi; 
+        lat = orig_nc['latitude'] * 180.0 / np.pi
         if orig_nc['longitude'][0] > 0:
-            lon = -1 * orig_nc['longitude'] * 180.0 / np.pi;
+            lon = -1 * orig_nc['longitude'] * 180.0 / np.pi
         else:
-            lon = orig_nc['longitude'] * 180.0 / np.pi;
+            lon = orig_nc['longitude'] * 180.0 / np.pi
         
         # Filter out positions outside of operational box
         if (self.args.mission == '2010.151.04' or 
@@ -368,14 +375,20 @@ class CalAligned_NetCDF():
             lon_min = -124
             lon_max = -114
 
-        pm = np.ma.masked_outside(lat, lat_min, lat_max)
-        pm = np.ma.masked_outside(lon, lon_min, lon_max)
+        self.logger.debug(f"Finding positions outside of longitude: {lon_min},"
+                          f" {lon_max} and latitide: {lat_min}, {lat_max}")
+        mlat = np.ma.masked_invalid(lat)
+        mlat = np.ma.masked_outside(mlat, lat_min, lat_max)
+        mlon = np.ma.masked_invalid(lon)
+        mlon = np.ma.masked_outside(mlon, lon_min, lon_max)
+        pm = np.logical_and(mlat, mlon)
         bad_pos = [f"{lo}, {la}" for lo, la in zip(lon.values[:][pm.mask],
                                                    lat.values[:][pm.mask])]
         if bad_pos:
-            self.logger.info(f"Removing bad {sensor} positions (lon, lat):"
-                             f" {np.where(pm.mask)[0]}, {bad_pos}")
-
+            self.logger.info(f"Number of bad {sensor} positions:"
+                             f" {len(lat.values[:][pm.mask])}")
+            self.logger.debug(f"Removing bad {sensor} positions (indices,"
+                             f" (lon, lat)): {np.where(pm.mask)[0]}, {bad_pos}")
             self.combined_nc['gps_time'] = orig_nc['time'][:][~pm.mask]
             self.combined_nc['gps_latitude'] = lat[:][~pm.mask]
             self.combined_nc['gps_longitude'] = lon[:][~pm.mask]
@@ -385,8 +398,9 @@ class CalAligned_NetCDF():
             self.combined_nc['gps_longitude'] = lon
 
         if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['gps_latitude'])
             if self.args.plot.startswith('first'):
-                pbeg = 0
                 pend = int(self.args.plot.split('first')[1])
             fig, axes = plt.subplots(nrows=2, figsize=(18,6))            
             axes[0].plot(self.combined_nc['gps_latitude'][pbeg:pend], '-o')
@@ -401,6 +415,258 @@ class CalAligned_NetCDF():
             self.logger.debug(f"Pausing with plot entitled: {title}."
                                " Close window to continue.")
             plt.show()
+
+    def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
+        '''Depth data (from the Parosci) is 10 Hz - Use a butterworth window
+        to filter recorded pressure to values that are appropriately sampled
+        at 1 Hz (when matched with other sensor data).  cutoff_freq is in
+        units of Hz.
+        '''
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except (FileNotFoundError, AttributeError) as e:
+            self.logger.error(f"{e}")
+            return
+
+        # From initial CVS commit in 2004 the processDepth.m file computed
+        # pres from depth this way.  I don't know what is done on the vehicle 
+        # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
+        self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
+        pres = eos80.pres(orig_nc['depth'], latitude)
+        
+        # See https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.filtfilt.html#scipy.signal.filtfilt
+        # and https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.butter.html#scipy.signal.butter
+        # Sample rate should be 10 - calcuate it to be sure
+        sample_rate = 1. / \
+            np.round(
+                np.mean(np.diff(orig_nc['time'])) / np.timedelta64(1, 's'), decimals=2)
+        if sample_rate != 10:
+            self.logger.warning(f"Expected sample_rate to be 10 Hz, instead it's {sample_rate} Hz")
+
+        # The Wn parameter for butter() is fraction of the Nyquist frequency
+        Wn = cutoff_freq / (sample_rate / 2.)
+        b, a = scipy.signal.butter(8, Wn)
+        filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
+        filt_depth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
+
+        # Use 10 points in boxcar as in processDepth.m
+        a = 10
+        b = scipy.signal.boxcar(a)
+        filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
+        if self.args.plot:
+            # Use Pandas to plot multiple columns of data
+            # to validate that the filtering works as expected
+            pbeg = 0
+            pend = len(orig_nc.get_index('time'))
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
+            df_plot['pres'] = pres[pbeg:pend]
+            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
+            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
+            title = (f"First {pend} points from"
+                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
+            ax = df_plot.plot(title=title, figsize=(18,6))
+            ax.grid('on')
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
+        filt_depth = xr.DataArray(filt_depth_butter,
+                                  coords=[orig_nc.get_index('time')],
+                                  dims={f"{sensor}_time"},
+                                  name="filt_depth")
+        filt_depth.attrs = {'long_name': 'Filtered Depth',
+                            'standard_name': 'depth',
+                            'units': 'm'}
+
+        filt_pres = xr.DataArray(filt_pres_butter,
+                                 coords=[orig_nc.get_index('time')],
+                                 dims={f"{sensor}_time"},
+                                 name="filt_pres")
+        filt_pres.attrs = {'long_name': 'Filtered Pressure',
+                            'standard_name': 'sea_water_pressure',
+                            'units': 'dbar'}
+
+        self.combined_nc['filt_depth'] = filt_depth
+        self.combined_nc['filt_pres'] = filt_pres
+
+    def _hs2_process(self, sensor, logs_dir):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except (FileNotFoundError, AttributeError) as e:
+            self.logger.error(f"{e}")
+            return
+
+        try:
+            cal_fn = os.path.join(logs_dir, self.sinfo['hs2']['cal_filename'])
+            cals = hs2_read_cal_file(cal_fn)
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            raise()
+
+        hs2 = hs2_calc_bb(orig_nc, cals)
+
+        source = self.sinfo[sensor]['data_filename']
+
+        # Blue backscatter
+        if hasattr(hs2, 'bb420'):
+            blue_bs = xr.DataArray(hs2.bb420.values,
+                                   coords=[hs2.bb420.get_index('time')],
+                                   dims={"hs2_time"},
+                                   name="hs2_bb420")
+            blue_bs.attrs = {'long_name': 'Backscatter at 420 nm',
+                             'comment': (f"Computed by hs2_calc_bb()"
+                                         f" from data in {source}")}
+        if hasattr(hs2, 'bb470'):
+            blue_bs = xr.DataArray(hs2.bb470.values,
+                                   coords=[hs2.bb470.get_index('time')],
+                                   dims={"hs2_time"},
+                                   name="hs2_bb470")
+            blue_bs.attrs = {'long_name': 'Backscatter at 470 nm',
+                             'comment': (f"Computed by hs2_calc_bb()"
+                                         f" from data in {source}")}
+
+        # Red backscatter
+        if hasattr(hs2, 'bb676'):
+            red_bs = xr.DataArray(hs2.bb676.values,
+                                  coords=[hs2.bb676.get_index('time')],
+                                  dims={"hs2_time"},
+                                  name="hs2_bb676")
+            red_bs.attrs = {'long_name': 'Backscatter at 676 nm',
+                            'comment': (f"Computed by hs2_calc_bb()"
+                                        f" from data in {source}")}
+        if hasattr(hs2, 'bb700'):
+            red_bs = xr.DataArray(hs2.bb700.values,
+                                  coords=[hs2.bb700.get_index('time')],
+                                  dims={"hs2_time"},
+                                  name="hs2_bb700")
+            red_bs.attrs = {'long_name': 'Backscatter at 700 nm',
+                            'comment': (f"Computed by hs2_calc_bb()"
+                                        f" from data in {source}")}
+
+        # Fluoresence
+        if hasattr(hs2, 'bb676'):
+            fl = xr.DataArray(hs2.bb676.values,
+                                 coords=[hs2.bb676.get_index('time')],
+                                 dims={"hs2_time"},
+                                 name="hs2_bb676")
+            fl.attrs = {'long_name': 'Fluoresence at 676 nm',
+                           'comment': (f"Computed by hs2_calc_bb()"
+                                       f" from data in {source}")}
+            self.combined_nc['hs2_bb676'] = bb676
+            fl = bb676
+        if hasattr(hs2, 'fl700'):
+            fl700 = xr.DataArray(hs2.fl700.values,
+                                 coords=[hs2.fl700.get_index('time')],
+                                 dims={"hs2_time"},
+                                 name="hs2_fl700")
+            fl700.attrs = {'long_name': 'Fluoresence at 700 nm',
+                           'comment': (f"Computed by hs2_calc_bb()"
+                                       f" from data in {source}")}
+            fl = fl700
+
+        # Zeroeth level quality control
+        mblue = np.ma.masked_invalid(blue_bs)
+        mblue = np.ma.masked_greater(mblue, 0.1)
+        mred = np.ma.masked_invalid(red_bs)
+        mred = np.ma.masked_greater(mred, 0.1)
+        mfl = np.ma.masked_invalid(fl)
+        mfl = np.ma.masked_greater(mfl, 0.02)
+        mhs2 = np.logical_and(mblue, np.logical_and(mred, mfl))
+
+        bad_hs2 = [f"{b}, {r}, {f}" for b, r, f in zip(blue_bs.values[:][mhs2.mask],
+                                                   red_bs.values[:][mhs2.mask],
+                                                   fl.values[:][mhs2.mask])]
+
+        if bad_hs2:
+            self.logger.info(f"Number of bad {sensor} points:"
+                             f" {len(blue_bs.values[:][mhs2.mask])}")
+            self.logger.debug(f"Removing bad {sensor} points (indices,"
+                             f" (b, r, f)): {np.where(mhs2.mask)[0]}, {bad_hs2}")
+            blue_bs = blue_bs[:][~mhs2.mask]
+            red_bs = red_bs[:][~mhs2.mask]
+
+        if self.args.plot:
+            # Use Pandas to more easiily plot multiple columns of data
+            pbeg = 0
+            pend = len(blue_bs.get_index('hs2_time'))
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            df_plot = pd.DataFrame(index=blue_bs.get_index('hs2_time')[pbeg:pend])
+            df_plot['blue_bs'] = blue_bs[pbeg:pend]
+            df_plot['red_bs'] = red_bs[pbeg:pend]
+            df_plot['fl'] = fl[pbeg:pend]
+            title = (f"First {pend} points from"
+                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
+            ax = df_plot.plot(title=title, figsize=(18,6))
+            ax.grid('on')
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
+        if hasattr(hs2, 'bb420'):
+            self.combined_nc['hs2_bb420'] = blue_bs
+        if hasattr(hs2, 'bb470'):
+            self.combined_nc['hs2_bb470'] = blue_bs
+        if hasattr(hs2, 'bb676'):
+            self.rombined_nc['hs2_bb676'] = red_bs
+        if hasattr(hs2, 'bb700'):
+            self.combined_nc['hs2_bb700'] = red_bs
+        if hasattr(hs2, 'fl676'):
+            self.combined_nc['hs2_fl676'] = fl
+        if hasattr(hs2, 'fl700'):
+            self.combined_nc['hs2_fl700'] = fl
+
+
+        # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
+        # Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
+        # apparently giving a better measurement of chlorophyl.
+        #
+        # Detect the difference in this code and keep the mamber names descriptive in the survey data so 
+        # the the end user knows the difference.
+
+
+        #-% Align Geometry, correct for pitch
+        p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
+                            self.combined_nc['pitch'].values, 
+                            fill_value="extrapolate")
+        hs2.pitch    = p_interp(orig_nc['time'].values.tolist())
+        #-hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
+        #-hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
+        #-hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
+
+        #-% 0th order Quality control, just set to NaN any unreasonable values
+        #-% These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
+
+        #-% Blue
+        #-if isfield(hs2, 'bb470'),
+        #-    ibad470 = (find(hs2.bbp470 > 0.1));
+        #-    hs2.bbp470(ibad470) = NaN;
+        #-elseif isfield(hs2, 'bb420'),
+        #-    ibad420 = (find(hs2.bbp420 > 0.1));
+        #-    hs2.bbp420(ibad420) = NaN;
+        #-end
+
+        #-% Red
+        #-if isfield(hs2, 'bb676'),
+        #-    ibad676 = (find(hs2.bbp676 > 0.1));
+        #-    hs2.bbp676(ibad676) = NaN;
+        #-elseif isfield(hs2, 'bb700'),
+        #-    ibad700 = (find(hs2.bbp700 > 0.1));
+        #-    hs2.bbp700(ibad700) = NaN;
+        #-end
+
+        #-% Fl
+        #-if isfield(hs2, 'bb676'),
+        #-    ibadfl= (find(hs2.fl676_uncorr > 0.02));
+        #-    hs2.fl676_uncorr(ibadfl) = NaN;
+        #-elseif isfield(hs2, 'bb700'),
+        #-    ibadfl= (find(hs2.fl700_uncorr > 0.02));
+        #-    hs2.fl700_uncorr(ibadfl) = NaN;
+        #-end
+
+        return
 
 
     def _calibrated_temp_from_frequency(self, cf, nc):
@@ -432,8 +698,9 @@ class CalAligned_NetCDF():
                             fill_value="extrapolate")
         p1 = f_interp(nc['time'].values.tolist())
         if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['depth_time'])
             if self.args.plot.startswith('first'):
-                pbeg = 0
                 pend = int(self.args.plot.split('first')[1])
             plt.figure(figsize=(18,6))
             plt.plot(self.combined_nc['depth_time'][pbeg:pend],
@@ -571,94 +838,21 @@ class CalAligned_NetCDF():
         ## f_interp = interp1d(self.combined_nc['filt_depth'
         pass
 
-    def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
-        '''Depth data (from the Parosci) is 10 Hz - Use a butterworth window
-        to filter recorded pressure to values that are appropriately sampled
-        at 1 Hz (when matched with other sensor data).  cutoff_freq is in
-        units of Hz.
-        '''
-        try:
-            orig_nc = getattr(self, sensor).orig_data
-        except (FileNotFoundError, AttributeError) as e:
-            self.logger.error(f"{e}")
-            return
-
-        # From initial CVS commit in 2004 the processDepth.m file computed
-        # pres from depth this way.  I don't know what is done on the vehicle 
-        # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
-        self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
-        pres = eos80.pres(orig_nc['depth'], latitude)
-        
-        # See https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.filtfilt.html#scipy.signal.filtfilt
-        # and https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.butter.html#scipy.signal.butter
-        # Sample rate should be 10 - calcuate it to be sure
-        sample_rate = 1. / \
-            np.round(
-                np.mean(np.diff(orig_nc['time'])) / np.timedelta64(1, 's'), decimals=2)
-        if sample_rate != 10:
-            self.logger.warning(f"Expected sample_rate to be 10 Hz, instead it's {sample_rate} Hz")
-
-        # The Wn parameter for butter() is fraction of the Nyquist frequency
-        Wn = cutoff_freq / (sample_rate / 2.)
-        b, a = scipy.signal.butter(8, Wn)
-        filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
-        filt_depth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
-
-        # Use 10 points in boxcar as in processDepth.m
-        a = 10
-        b = scipy.signal.boxcar(a)
-        filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
-        if self.args.plot:
-            # Use Pandas to plot multiple columns of data
-            # to validate that the filtering works as expected
-            if self.args.plot.startswith('first'):
-                pbeg = 0
-                pend = int(self.args.plot.split('first')[1])
-            df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
-            df_plot['pres'] = pres[pbeg:pend]
-            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
-            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
-            title = (f"First {pend} points from"
-                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
-            ax = df_plot.plot(title=title, figsize=(18,6))
-            ax.grid('on')
-            self.logger.debug(f"Pausing with plot entitled: {title}."
-                               " Close window to continue.")
-            plt.show()
-
-        filt_depth = xr.DataArray(filt_depth_butter,
-                                  coords=[orig_nc.get_index('time')],
-                                  dims={f"{sensor}_time"},
-                                  name="filt_depth")
-        filt_depth.attrs = {'long_name': 'Filtered Depth',
-                            'standard_name': 'depth',
-                            'units': 'm'}
-
-        filt_pres = xr.DataArray(filt_pres_butter,
-                                 coords=[orig_nc.get_index('time')],
-                                 dims={f"{sensor}_time"},
-                                 name="filt_pres")
-        filt_pres.attrs = {'long_name': 'Filtered Pressure',
-                            'standard_name': 'sea_water_pressure',
-                            'units': 'dbar'}
-
-        self.combined_nc['filt_depth'] = filt_depth
-        self.combined_nc['filt_pres'] = filt_pres
-
-    def _process(self, sensor, netcdfs_dir):
+    def _process(self, sensor, logs_dir, netcdfs_dir):
         coeffs = None
         try:
             coeffs = getattr(self, sensor).cals
         except AttributeError as e:
             self.logger.debug(f"No calibration information for {sensor}: {e}")
 
-        # Order is important: 
         if sensor == 'navigation':
             self._navigation_process(sensor)
         elif sensor == 'gps':
             self._gps_process(sensor)
         elif sensor == 'depth':
             self._depth_process(sensor)
+        elif sensor == 'hs2':
+            self._hs2_process(sensor, logs_dir)
         elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
         else:
@@ -666,13 +860,13 @@ class CalAligned_NetCDF():
 
         return
 
-    def _write_netcdf(self, netcdfs_dir):
+    def write_netcdf(self, netcdfs_dir):
         self.combined_nc.attrs = self.global_metadata()
         out_fn = os.path.join(netcdfs_dir, f"{self.args.auv_name}_{self.args.mission}.nc")
         self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
         self.combined_nc.to_netcdf(out_fn)
 
-    def process_and_write(self):
+    def process_logs(self):
         name = self.args.mission
         vehicle = self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
@@ -684,9 +878,10 @@ class CalAligned_NetCDF():
 
         for sensor in self.sinfo.keys():
             setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
-            self._process(sensor, netcdfs_dir)
+            self._process(sensor, logs_dir, netcdfs_dir)
 
-        self._write_netcdf(netcdfs_dir)
+        return netcdfs_dir
+        self.write_netcdf(netcdfs_dir)
 
     def process_command_line(self):
 
@@ -709,8 +904,10 @@ class CalAligned_NetCDF():
         parser.add_argument('--plot', action='store', help='Create intermediate plots'
                             ' to validate data operations. Use first<n> to plot <n>'
                             ' points, e.g. first2000. Program blocks upon show.')        
-        parser.add_argument('-v', '--verbose', type=int, choices=range(3), action='store', default=0, const=1, nargs='?',
-                            help="verbosity level: " + ', '.join([f"{i}: {v}" for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
+        parser.add_argument('-v', '--verbose', type=int, choices=range(3), 
+                            action='store', default=0, const=1, nargs='?',
+                            help="verbosity level: " + ', '.join([f"{i}: {v}"
+                            for i, v, in enumerate(('WARN', 'INFO', 'DEBUG'))]))
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
@@ -723,5 +920,6 @@ if __name__ == '__main__':
     cal_netcdf = CalAligned_NetCDF()
     cal_netcdf.process_command_line()
     p_start = time.time()
-    cal_netcdf.process_and_write()
+    netcdf_dir = cal_netcdf.process_logs()
+    cal_netcdf.write_netcdf(netcdf_dir)
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
