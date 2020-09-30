@@ -77,6 +77,16 @@ def _get_gains(orig_nc, cals, hs2):
 
     return hs2
 
+def _int_signer(ints_in):
+    #-% signed_int = int_in - 65536*(int_in > 32767);
+    signed_ints = []
+    for int_in in ints_in.values:
+        if int_in > 32767:
+            signed_ints.append(int_in - 65536)
+        else:
+            signed_ints.append(int_in)
+    return np.array(signed_ints)
+
 def hs2_calc_bb(orig_nc, cals):
     # Some original comments from hs2_calc_bb.m
     # % Date Created:  June 21, 2007
@@ -110,7 +120,7 @@ def hs2_calc_bb(orig_nc, cals):
                                     - float(cals['General']['CalTemp']) ) ),
                             (getattr(hs2, f'Gain{chan}')
                             * float(cals[f'Ch{chan}']['RNominal']) ) )
-        beta_uncorr = np.divide((orig_nc[f'Snorm{chan}'] * 
+        beta_uncorr = np.divide((_int_signer(orig_nc[f'Snorm{chan}']) * 
                                  float(cals[f'Ch{chan}']['Mu'])), denom)
         wavelength = int(cals[f'Ch{chan}']['Name'][2:])
         beta_w, b_bw  = purewater_scatter(wavelength)
@@ -136,13 +146,13 @@ def hs2_calc_bb(orig_nc, cals):
         setattr(hs2, f'bb{wavelength}', b_b_corr)
         setattr(hs2, f'bbp{wavelength}', b_b_corr - b_bw)
 
-    setattr(hs2, f'fl{wavelength}', 
-            ((orig_nc['Snorm3'] * 50) / 
-                ( ( 1 + float(cals['Ch3']['TempCoeff']) 
+    #-% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'
+    denom = ( ( 1 + float(cals['Ch3']['TempCoeff']) 
                     * ((orig_nc['RawTempValue'] / 5 - 10) 
                         - float(cals['General']['CalTemp'])) )
-                    * orig_nc['Gain_Status_3'] * float(cals['Ch3']['RNominal']))
-            ))
+                    * hs2.Gain3 * float(cals['Ch3']['RNominal']) )
+    snorm3 = _int_signer(orig_nc['Snorm3'])
+    setattr(hs2, f'fl{wavelength}', np.divide(snorm3 * 50, denom))
 
     setattr(hs2, 'caldepth', float(cals['General']['DepthCal']) 
                                 * orig_nc['RawDepthValue'] 
