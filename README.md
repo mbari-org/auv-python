@@ -25,11 +25,12 @@ gives some background on the motivation for these goals.
 
 ### How do I use this  ###
 
-This requires Python 3.8 and is initially being developed on a STOQS development system.
+Cloning the source code requires an MBARI bitbucket account and SSH keys
+configured for your system. See https://bitbucket.org/account/settings/ssh-keys
 
-To develop on a Workstation:
+To install on a Workstation:
 
-* Install Anaconda 3.7 on your system
+* Install Anaconda 3.8 on your system
 * mkdir ~/dev
 * cd ~/dev
 * git clone git@bitbucket.org:mbari/auv-python.git
@@ -38,8 +39,14 @@ To develop on a Workstation:
 * conda activate auv-python
 * pip install -r requirements.txt
 
+The above steps need to be done just once on a system. Afterwards and whenever 
+opening a new terminal execute these commands before executing the programs or
+running the Jupyter Notebooks:
+
+* cd ~/dev/auv-python
+* conda activate auv-python
 
 --
 
 Mike McCann
-27 March 2020
+2 October 2020
