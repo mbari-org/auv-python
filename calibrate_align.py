@@ -587,9 +587,11 @@ class CalAligned_NetCDF():
 
         if bad_hs2:
             self.logger.info(f"Number of bad {sensor} points:"
-                             f" {len(blue_bs.values[:][mhs2.mask])}")
+                             f" {len(blue_bs.values[:][mhs2.mask])}"
+                             f" of {len(blue_bs)}")
             self.logger.debug(f"Removing bad {sensor} points (indices,"
-                             f" (b, r, f)): {np.where(mhs2.mask)[0]}, {bad_hs2}")
+                             f" (blue, red, fl)): {np.where(mhs2.mask)[0]},"
+                             f" {bad_hs2}")
             blue_bs = blue_bs[:][~mhs2.mask]
             red_bs = red_bs[:][~mhs2.mask]
 
@@ -673,7 +675,6 @@ class CalAligned_NetCDF():
         #-end
 
         return
-
 
     def _ctd_process(self, sensor, cf):
         try:
