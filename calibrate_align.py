@@ -174,7 +174,7 @@ class CalAligned_NetCDF():
             try:
                 setattr(sensor_info, 'orig_data', xr.open_dataset(orig_netcdf_filename))
             except FileNotFoundError as e:
-                self.logger.debug(f"{e}")
+                self.logger.warning(f"{sensor}: {e}")
             if info['cal_filename']:
                 cal_filename = os.path.join(logs_dir, info['cal_filename'])
                 self.logger.debug(f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals")
@@ -876,9 +876,15 @@ class CalAligned_NetCDF():
         self._read_data(logs_dir, netcdfs_dir)
         self.combined_nc = xr.Dataset()
 
-        for sensor in self.sinfo.keys():
-            setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
-            self._process(sensor, logs_dir, netcdfs_dir)
+        try:
+            for sensor in self.sinfo.keys():
+                setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
+                self._process(sensor, logs_dir, netcdfs_dir)
+        except AttributeError as e:
+            # Likely: 'SensorInfo' object has no attribute 'orig_data'
+            # - meaning netCDF file not loaded
+            raise FileNotFoundError(f"orig_data not found for {sensor}:"
+                                    f" refer to previous WARNING messages.")
 
         return netcdfs_dir
         self.write_netcdf(netcdfs_dir)
