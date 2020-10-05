@@ -13,7 +13,7 @@ def mission_data():
     cal_netcdf = CalAligned_NetCDF()
     ns = Namespace()
     ns.base_path = 'auv_data'
-    ns.auv_name = 'dorado389'
+    ns.auv_name = 'Dorado389'
     ns.mission = '2020.245.00'
     ns.plot = None
     cal_netcdf.args = ns
