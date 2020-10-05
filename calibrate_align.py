@@ -170,14 +170,17 @@ class CalAligned_NetCDF():
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
             orig_netcdf_filename = os.path.join(netcdfs_dir, info['data_filename'])
-            self.logger.debug(f"Reading data from {orig_netcdf_filename} into self.{sensor}.orig_data")
+            self.logger.debug(f"Reading data from {orig_netcdf_filename}"
+                              f" into self.{sensor}.orig_data")
             try:
                 setattr(sensor_info, 'orig_data', xr.open_dataset(orig_netcdf_filename))
             except FileNotFoundError as e:
-                self.logger.warning(f"{sensor}: {e}")
+                self.logger.warning(f"{sensor:10}: Cannot open file"
+                                    f" {orig_netcdf_filename}")
             if info['cal_filename']:
                 cal_filename = os.path.join(logs_dir, info['cal_filename'])
-                self.logger.debug(f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals")
+                self.logger.debug(f"Reading calibrations from {orig_netcdf_filename}"
+                                  f" into self.{sensor}.cals")
                 if cal_filename.endswith('.cfg'):
                     try:
                         setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
@@ -189,7 +192,8 @@ class CalAligned_NetCDF():
         # TODO: Warn if no data found and if logs2netcdfs.py should be run
     
     def _read_cfg(self, cfg_filename):
-        '''Emulate what get_auv_cal.m and processCTD.m do in the Matlab doradosdp toolbox
+        '''Emulate what get_auv_cal.m and processCTD.m do in the 
+           Matlab doradosdp toolbox
         '''
         self.logger.debug(f"Opening {cfg_filename}")
         coeffs = Coeffs()
