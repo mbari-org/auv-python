@@ -245,7 +245,7 @@ class CalAligned_NetCDF():
         source = self.sinfo[sensor]['data_filename']
         self.combined_nc['roll'] = xr.DataArray(orig_nc['mPhi'].values,
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="roll")
         self.combined_nc['roll'].attrs = {'long_name': 'Vehicle roll',
                                           'standard_name': 'platform_roll_angle',
@@ -254,7 +254,7 @@ class CalAligned_NetCDF():
 
         self.combined_nc['pitch'] = xr.DataArray(orig_nc['mTheta'].values,
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="pitch")
         self.combined_nc['pitch'].attrs = {'long_name': 'Vehicle pitch',
                                            'standard_name': 'platform_pitch_angle',
@@ -263,7 +263,7 @@ class CalAligned_NetCDF():
 
         self.combined_nc['yaw'] = xr.DataArray(orig_nc['mPsi'].values,
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="yaw")
         self.combined_nc['yaw'].attrs = {'long_name': 'Vehicle yaw',
                                          'standard_name': 'platform_yaw_angle',
@@ -272,7 +272,7 @@ class CalAligned_NetCDF():
 
         self.combined_nc['nav_depth'] = xr.DataArray(orig_nc['mDepth'].values,
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="nav_depth")
         self.combined_nc['nav_depth'].attrs = {'long_name': 'Depth from Nav',
                                          'standard_name': 'depth',
@@ -282,7 +282,7 @@ class CalAligned_NetCDF():
         self.combined_nc['posx'] = xr.DataArray(orig_nc['mPos_x'].values
                                                 - orig_nc['mPos_x'].values[0],
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="posx")
         self.combined_nc['posx'].attrs = {'long_name': 'Relative lateral easting',
                          'units': 'm',
@@ -291,7 +291,7 @@ class CalAligned_NetCDF():
         self.combined_nc['posy'] = xr.DataArray(orig_nc['mPos_y'].values
                                                 - orig_nc['mPos_y'].values[0],
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="posy")
         self.combined_nc['posy'].attrs = {'long_name': 'Relative lateral northing',
                          'units': 'm',
@@ -301,7 +301,7 @@ class CalAligned_NetCDF():
             self.combined_nc['latitude'] = xr.DataArray(orig_nc['latitude'].values
                                                         * 180 / np.pi, 
                                         coords=[orig_nc.get_index('time')],
-                                        dims={f"{sensor}_time"},
+                                        dims={f"navigation_time"},
                                         name="latitude")
             self.combined_nc['latitude'].attrs = {'long_name': 'latitude',
                              'standard_name': 'latitude',
@@ -314,7 +314,7 @@ class CalAligned_NetCDF():
             self.combined_nc['longitude'] = xr.DataArray(orig_nc['longitude'].values
                                                         * 180 / np.pi, 
                                         coords=[orig_nc.get_index('time')],
-                                        dims={f"{sensor}_time"},
+                                        dims={f"navigation_time"},
                                         name="longitude")
             self.combined_nc['longitude'].attrs = {'long_name': 'longitude',
                              'standard_name': 'longitude',
@@ -390,18 +390,37 @@ class CalAligned_NetCDF():
         pm = np.logical_and(mlat, mlon)
         bad_pos = [f"{lo}, {la}" for lo, la in zip(lon.values[:][pm.mask],
                                                    lat.values[:][pm.mask])]
+
+        gps_time_to_save = orig_nc.get_index('time')
+        lat_to_save = lat
+        lon_to_save = lon
         if bad_pos:
             self.logger.info(f"Number of bad {sensor} positions:"
                              f" {len(lat.values[:][pm.mask])}")
             self.logger.debug(f"Removing bad {sensor} positions (indices,"
                              f" (lon, lat)): {np.where(pm.mask)[0]}, {bad_pos}")
-            self.combined_nc['gps_time'] = orig_nc['time'][:][~pm.mask]
-            self.combined_nc['gps_latitude'] = lat[:][~pm.mask]
-            self.combined_nc['gps_longitude'] = lon[:][~pm.mask]
-        else:
-            self.combined_nc['gps_time'] = orig_nc['time']
-            self.combined_nc['gps_latitude'] = lat
-            self.combined_nc['gps_longitude'] = lon
+            gps_time_to_save = orig_nc.get_index('time')[:][~pm.mask]
+            lat_to_save = lat[:][~pm.mask]
+            lon_to_save = lon[:][~pm.mask]
+
+        source = self.sinfo[sensor]['data_filename']
+        self.combined_nc['gps_latitude'] = xr.DataArray(lat_to_save.values,
+                                    coords=[gps_time_to_save],
+                                    dims={f"gps_time"},
+                                    name="gps_latitude")
+        self.combined_nc['gps_latitude'].attrs = {'long_name': 'GPS Latitude',
+                                        'standard_name': 'latitude',
+                                        'units': 'degrees_north',
+                                        'comment': f"latitude from {source}"}
+
+        self.combined_nc['gps_longitude'] = xr.DataArray(lon_to_save.values,
+                                    coords=[gps_time_to_save],
+                                    dims={f"gps_time"},
+                                    name="gps_longitude")
+        self.combined_nc['gps_longitude'].attrs = {'long_name': 'GPS Longitude',
+                                        'standard_name': 'longitude',
+                                        'units': 'degrees_east',
+                                        'comment': f"longitude from {source}"}
 
         if self.args.plot:
             pbeg = 0
@@ -480,7 +499,7 @@ class CalAligned_NetCDF():
 
         filt_depth = xr.DataArray(filt_depth_butter,
                                   coords=[orig_nc.get_index('time')],
-                                  dims={f"{sensor}_time"},
+                                  dims={f"depth_time"},
                                   name="filt_depth")
         filt_depth.attrs = {'long_name': 'Filtered Depth',
                             'standard_name': 'depth',
@@ -488,7 +507,7 @@ class CalAligned_NetCDF():
 
         filt_pres = xr.DataArray(filt_pres_butter,
                                  coords=[orig_nc.get_index('time')],
-                                 dims={f"{sensor}_time"},
+                                 dims={f"depth_time"},
                                  name="filt_pres")
         filt_pres.attrs = {'long_name': 'Filtered Pressure',
                             'standard_name': 'sea_water_pressure',
@@ -690,7 +709,7 @@ class CalAligned_NetCDF():
         # Seabird specific calibrations
         temperature = xr.DataArray(_calibrated_temp_from_frequency(cf, orig_nc),
                                   coords=[orig_nc.get_index('time')],
-                                  dims={f"{sensor}_time"},
+                                  dims={f"ctd_time"},
                                   name="temperature")
         temperature.attrs = {'long_name': 'Temperature',
                             'standard_name': 'sea_water_temperature',
@@ -703,7 +722,7 @@ class CalAligned_NetCDF():
                                 self.combined_nc, self.logger, cf, orig_nc,
                                 temperature, self.combined_nc['filt_depth']),
                                 coords=[orig_nc.get_index('time')],
-                                dims={f"{sensor}_time"},
+                                dims={f"ctd_time"},
                                 name="salinity")
         salinity.attrs = {'long_name': 'Salinity',
                             'standard_name': 'sea_water_salinity',
@@ -809,6 +828,8 @@ class CalAligned_NetCDF():
         self.combined_nc.attrs = self.global_metadata()
         out_fn = os.path.join(netcdfs_dir, f"{self.args.auv_name}_{self.args.mission}.nc")
         self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
+        if os.path.exists(out_fn):
+            os.remove(out_fn)
         self.combined_nc.to_netcdf(out_fn)
 
     def process_logs(self):
