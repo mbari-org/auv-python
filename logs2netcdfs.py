@@ -336,6 +336,7 @@ class AUV_NetCDF(AUV):
                     loop.run_until_complete(future)
                 except LookupError as e:
                     self.logger.error(f"{e}")
+                    self.logger.info(f"Perhaps use '--update' option?")
                     return
                 self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
 
@@ -378,7 +379,8 @@ class AUV_NetCDF(AUV):
                             help="Base directory for missionlogs and"
                                  " missionnetcdfs, default: auv_data")
         parser.add_argument('--auv_name', action='store',
-                            help="dorado (default), i2map, or multibeam")
+                            help=("Dorado389, i2map, or multibeam. Will be saved in "
+                                  "directory with this name no matter its portal entry"))
         parser.add_argument('--mission', action='store', 
                             help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument('--local', action='store_true', 
