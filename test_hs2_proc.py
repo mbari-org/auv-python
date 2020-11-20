@@ -28,6 +28,8 @@ def test_purewater_scatter():
     assert np.allclose(purewater_scatter(700), (6.2910e-05, 3.3764e-04), atol=1e-4)
 
 def test_get_gains(mission_data, calibration):
+    # mission_data and calibration are fixtures from the conftest.py module;
+    # they are automatically loaded by pytest
     md = mission_data
     cals = calibration
     hs2 = _get_gains(md.hs2.orig_data, cals, md.hs2)
@@ -66,6 +68,8 @@ def test_get_gains(mission_data, calibration):
     assert np.all(hs2.Gain3[:5] == np.array([9743.9 ,  932.46,  932.46,  932.46,  932.46]))
 
 def test_hs2_calc_bb(mission_data, calibration):
+    # mission_data and calibration are fixtures from the conftest.py module;
+    # they are automatically loaded by pytest
     md = mission_data
     cals = calibration
     hs2 = hs2_calc_bb(md.hs2.orig_data, cals)
