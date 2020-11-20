@@ -1,5 +1,6 @@
 aiohttp==3.6.2
 altair==4.1.0
+cf-xarray==0.3.0
 coards==1.0.5
 hvplot==0.5.2
 ipywidgets==7.5.1
