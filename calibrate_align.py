@@ -9,7 +9,7 @@ variables (the combined_nc member variable) and be analogous to the original
 netCDF4 files produced by MBARI's LRAUVs.
 
 Note: The name "sensor" is used here, but it's really more aligned 
-      with the concept of "instrument" in SSDS parlance
+with the concept of "instrument" in SSDS parlance.
 '''
 
 __author__ = "Mike McCann"
@@ -38,6 +38,115 @@ from socket import gethostname
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = 'time'
+
+def align_geom(sensor_offset, pitches):
+    '''Use x & y sensor_offset values in meters from sensor_info and 
+    pitch in degrees to compute and return actual depths of the sensor
+    based on the geometry relative to the vehicle's depth sensor.
+    '''
+    # Original Matlab function comments:
+    #
+    # % function to correct for the altitude offset caused
+    # % by vehical tilt.
+    # %
+    # % $Id: align_geom.m,v 1.2 2003/12/23 22:44:04 mccann Exp $
+    # %
+    # % inputs are
+    # %   x = horizontal distance from origin.
+    # %   y = vertical distance from origin
+    # %   Theta = Crossbow output vector from AUV (Radians)
+    # %  
+    # % Origin is where the center line of the vehical intersects the first joining ring (nose) 
+    # % Positive y is up, Positive x is tward the nose.
+    # %
+    # % Angles are calculated internaly in Degrees
+    # % (if you can think in radians feel free to clean up the code) 
+    # %
+    # % Output is the vertical offset from the point of origin.
+    # % 
+    # % Erich Rienecker 
+
+    # See https://en.wikipedia.org/wiki/Rotation_matrix
+    #
+    #                        * instrument location with pitch applied
+    #                      / |
+    #                     /  |
+    #                    /   |
+    #                   /    |
+    #                  /     |
+    #                 /      |
+    #                /       |
+    #               /        |
+    #              /         |
+    #             /           
+    #            /            
+    #           /            y
+    #          /             _
+    #         /              o
+    #        /               f
+    #       /                f
+    #      /                                 *  instrument location
+    #     /                                  |
+    #    / \                 |               |
+    #   /   \                |               y
+    #  / pitch (theta)       |               |
+    # /        \             |               |
+    # --------------------x------------------+    --> nose
+    #
+    # [ cos(pitch) -sin(pitch) ]    [x]   [x']
+    #                             X     =     
+    # [ sin(pitch)  cos(pitch) ]    [y]   [y']
+    offsets = []
+    for pitch in pitches:
+        theta = pitch * np.pi / 180.0
+        R = np.array([[np.cos(theta), -np.sin(theta)], 
+                        [np.sin(theta),  np.cos(theta)]])
+        y_off, x_off = np.cross(R, sensor_offset)
+        offsets.append(y_off)
+
+    return offsets
+
+    #-%test variables
+    #-%x=4; y=4; Theta=-45;
+
+    #-x=xy(1);
+    #-y=xy(2);
+
+    #-%convert Rad to Deg
+    #-Theta=Theta*180/pi;
+
+    #-%one cannot divide by zero so...
+    #-if y==0 
+    #-y=0.00001;
+    #-end
+    #-if x==0
+    #-x=0.00001
+    #-end
+
+    #-%determine which quadrant the point is in so as to get the signs right. 
+    #-%then calculate the angle from zero.
+    #-if y>0 & x>0  		% QI
+    #-phi=atan(y/x)*180/pi;
+    #-elseif y>0 & x<0	% QII
+    #-phi=atan(y/x)*180/pi;
+    #-phi=phi+180;
+    #-elseif y<0 & x<0	% QIII
+    #-phi=atan(y/x)*180/pi;
+    #-phi=phi-180;
+    #-elseif y<0 & x>0	% QIV
+    #-phi=atan(y/x)*180/pi;
+    #-phi=phi+360;
+    #-end
+
+    #-%calculate Hypotenuse
+    #-H=(x^2+y^2)^.5;
+
+    #-%add in the tilt.
+    #-Phi=Theta+phi;
+
+    #-%calculate y componant as offset
+    #-off=sin(Phi*pi/180)*H;
+
 
 class Coeffs():
     pass
@@ -422,7 +531,8 @@ class CalAligned_NetCDF():
                                         'units': 'degrees_east',
                                         'comment': f"longitude from {source}"}
 
-        if self.args.plot:
+        gps_plot = False        # Set to False for debugging other plots
+        if self.args.plot and gps_plot:
             pbeg = 0
             pend = len(self.combined_nc['gps_latitude'])
             if self.args.plot.startswith('first'):
@@ -478,7 +588,8 @@ class CalAligned_NetCDF():
         a = 10
         b = scipy.signal.boxcar(a)
         filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
-        if self.args.plot:
+        pres_plot = False       # Set to False for debugging other plots
+        if self.args.plot and pres_plot:
             # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
             pbeg = 0
@@ -614,7 +725,8 @@ class CalAligned_NetCDF():
             blue_bs = blue_bs[:][~mhs2.mask]
             red_bs = red_bs[:][~mhs2.mask]
 
-        if self.args.plot:
+        red_blue_plot = False       # Set to False for debugging other plots
+        if self.args.plot and red_blue_plot:
             # Use Pandas to more easiily plot multiple columns of data
             pbeg = 0
             pend = len(blue_bs.get_index('hs2_time'))
@@ -658,10 +770,36 @@ class CalAligned_NetCDF():
         p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
                             self.combined_nc['pitch'].values, 
                             fill_value="extrapolate")
-        hs2.pitch    = p_interp(orig_nc['time'].values.tolist())
+        hs2.pitch = p_interp(orig_nc['time'].values.tolist())
+
+        d_interp = interp1d(self.combined_nc['depth_time'].values.tolist(),
+                            self.combined_nc['filt_depth'].values, 
+                            fill_value="extrapolate")
+        hs2.RefDepth = d_interp(orig_nc['time'].values.tolist())
+        hs2.offs = align_geom(self.sinfo[sensor]['sensor_offset'], hs2.pitch)
+        hs2.depth = hs2.RefDepth - hs2.offs
         #-hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
         #-hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
         #-hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
+
+        if self.args.plot:
+            # Use Pandas to more easily plot multiple columns of data: 
+            pbeg = 0
+            pend = len(blue_bs.get_index('hs2_time'))
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            df_plot = pd.DataFrame(index=blue_bs.get_index('hs2_time')[pbeg:pend])
+            df_plot['pitch'] = hs2.pitch[pbeg:pend]
+            df_plot['RefDepth'] = hs2.RefDepth[pbeg:pend]
+            df_plot['offs'] = hs2.offs[pbeg:pend]
+            df_plot['depth'] = hs2.depth[pbeg:pend]
+            title = (f"First {pend} points from"
+                     f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
+            ax = df_plot.plot(title=title, figsize=(18,6))
+            ax.grid('on')
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
 
         #-% 0th order Quality control, just set to NaN any unreasonable values
         #-% These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
