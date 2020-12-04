@@ -6,7 +6,7 @@ from argparse import Namespace
 from hs2_proc import hs2_read_cal_file
 from logs2netcdfs import MISSIONLOGS
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(scope='session', autouse=False)
 def mission_data():
     '''Load a short recent mission to have some real data to work with
     '''
@@ -21,7 +21,7 @@ def mission_data():
     cal_netcdf.process_logs()
     return cal_netcdf
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(scope='session', autouse=False)
 def calibration(mission_data):
     md = mission_data
     logs_dir = os.path.join(md.args.base_path, md.args.auv_name, 
