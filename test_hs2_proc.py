@@ -1,4 +1,3 @@
-import logging
 import numpy as np
 import pytest
 from calibrate_align import CalAligned_NetCDF
