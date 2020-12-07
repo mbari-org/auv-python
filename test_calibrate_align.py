@@ -10,14 +10,28 @@ def test_align_geom():
     y60 = np.sqrt(3) / 2.0
     test_angles = [  0,   30,   45,   60,   90,  120,  135,  150, 
                    180,  210,  225,  240,  270,  300,  315,  330,  360]
-    test_off_00 = [  0,    0,    0,    0,    0,    0,    0,    0,
-                     0,    0,    0,    0,    0,    0,    0,    0,    0]
-    test_off_10 = [  0,  y30,  y45,  y60,  1.0,  y60,  y45,  y30,
-                     0, -y30, -y45, -y60, -1.0, -y60, -y45, -y30,    0]
+    test_depth_00 = [  0,    0,    0,    0,    0,    0,    0,    0,
+                       0,    0,    0,    0,    0,    0,    0,    0,    0]
+    test_depth_10 = [  0,  y30,  y45,  y60,  1.0,  y60,  y45,  y30,
+                       0, -y30, -y45, -y60, -1.0, -y60, -y45, -y30,    0]
 
-    offsets_00 = align_geom([0, 0], test_angles)
-    np.testing.assert_allclose(offsets_00, test_off_00, atol=1e-15)
+    depths_00 = align_geom([0, 0], test_angles)
+    np.testing.assert_allclose(depths_00, test_depth_00, atol=1e-15)
 
-    offsets_10 = align_geom([1, 0], test_angles)
-    np.testing.assert_allclose(offsets_10, test_off_10, atol=1e-15)
+    depths_10 = align_geom([1, 0], test_angles)
+    np.testing.assert_allclose(depths_10, test_depth_10, atol=1e-15)
 
+    # From Matlab processHS2.m debugging session:
+    #
+    # K>> align_geom([0.1397, -0.2794], [0.2928, 0.2939, 0.2952])
+    #
+    # ans =
+    #
+    #   -0.2272   -0.2270   -0.2267
+    test_angles_radians = [0.2928, 0.2939, 0.2952]
+    test_angles_degrees = [a * 180 / np.pi for a in test_angles_radians]
+    test_depth_hs2 = [-0.2272, -0.2270, -0.2267]
+
+    test_offset_hs2 = [0.1397, -0.2794]
+    depths_hs2 =  align_geom(test_offset_hs2, test_angles_degrees)
+    np.testing.assert_allclose(depths_hs2, test_depth_hs2, atol=1e-15)
