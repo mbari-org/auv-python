@@ -33,6 +33,7 @@ MISSIONLOGS = 'missionlogs'
 MISSIONNETCDFS = 'missionnetcdfs'
 PORTAL_BASE = 'http://portal.shore.mbari.org:8080/auvdata/v1'
 TIME = 'time'
+TIMEOUT = 240
 
 class AUV_NetCDF(AUV):
 
@@ -188,7 +189,7 @@ class AUV_NetCDF(AUV):
 
     async def _get_file(self, download_url, local_filename, session):
         try:
-            async with session.get(download_url, timeout=60) as resp:
+            async with session.get(download_url, timeout=TIMEOUT) as resp:
                 if resp.status != 200:
                     self.logger.warning(f"Cannot read {download_url}, status = {resp.status}")
                 else:
@@ -207,7 +208,7 @@ class AUV_NetCDF(AUV):
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         tasks = []
-        async with ClientSession() as session:
+        async with ClientSession(timeout=TIMEOUT) as session:
             for ffm in self._files_from_mission(name, vehicle):
                 download_url = f"{self.portal_base}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
@@ -330,8 +331,11 @@ class AUV_NetCDF(AUV):
                 self.logger.info(f"Downloading mission: {vehicle} {name}")
                 d_start = time.time()
                 loop = asyncio.get_event_loop()
-                future = asyncio.ensure_future(self._download_files(logs_dir,
-                                                                name, vehicle))
+                try:
+                    future = asyncio.ensure_future(self._download_files(
+                                                   logs_dir, name, vehicle))
+                except asyncio.exceptions.TimeoutError as e:
+                    self.logger.warning(f"{e}")
                 try:
                     loop.run_until_complete(future)
                 except LookupError as e:
