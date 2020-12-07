@@ -32,6 +32,6 @@ def test_align_geom():
     test_angles_degrees = [a * 180 / np.pi for a in test_angles_radians]
     test_depth_hs2 = [-0.2272, -0.2270, -0.2267]
 
-    test_offset_hs2 = [0.1397, -0.2794]
-    depths_hs2 =  align_geom(test_offset_hs2, test_angles_degrees)
-    np.testing.assert_allclose(depths_hs2, test_depth_hs2, atol=1e-15)
+    offset_hs2 = [0.1397, -0.2794]
+    depths_hs2 =  align_geom(offset_hs2, test_angles_degrees)
+    np.testing.assert_allclose(depths_hs2, test_depth_hs2, atol=1e-4)
