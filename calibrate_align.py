@@ -744,6 +744,7 @@ class CalAligned_NetCDF():
                                " Close window to continue.")
             plt.show()
 
+        # Save blue, red, & fl to combined_nc, alsoe
         if hasattr(hs2, 'bb420'):
             self.combined_nc['hs2_bb420'] = blue_bs
         if hasattr(hs2, 'bb470'):
@@ -757,30 +758,15 @@ class CalAligned_NetCDF():
         if hasattr(hs2, 'fl700'):
             self.combined_nc['hs2_fl700'] = fl
 
-
         # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
-        # Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
+        # Hobilabs modified the instrument in 2009 to now give:         bb420, bb700, and fl700,
         # apparently giving a better measurement of chlorophyl.
         #
         # Detect the difference in this code and keep the mamber names descriptive in the survey data so 
         # the the end user knows the difference.
 
-
-        #-% Align Geometry, correct for pitch
-        p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
-                            self.combined_nc['pitch'].values, 
-                            fill_value="extrapolate")
-        hs2.pitch = p_interp(orig_nc['time'].values.tolist())
-
-        d_interp = interp1d(self.combined_nc['depth_time'].values.tolist(),
-                            self.combined_nc['filt_depth'].values, 
-                            fill_value="extrapolate")
-        hs2.RefDepth = d_interp(orig_nc['time'].values.tolist())
-        hs2.offs = align_geom(self.sinfo[sensor]['sensor_offset'], hs2.pitch)
-        hs2.depth = hs2.RefDepth - hs2.offs
-        #-hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
-        #-hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
-        #-hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
+        # Align Geometry, correct for pitch
+        hs2.depth = self._geometric_depth_correction(sensor, orig_nc)
 
         if self.args.plot:
             # Use Pandas to more easily plot multiple columns of data: 
@@ -789,9 +775,6 @@ class CalAligned_NetCDF():
             if self.args.plot.startswith('first'):
                 pend = int(self.args.plot.split('first')[1])
             df_plot = pd.DataFrame(index=blue_bs.get_index('hs2_time')[pbeg:pend])
-            df_plot['pitch'] = hs2.pitch[pbeg:pend]
-            df_plot['RefDepth'] = hs2.RefDepth[pbeg:pend]
-            df_plot['offs'] = hs2.offs[pbeg:pend]
             df_plot['depth'] = hs2.depth[pbeg:pend]
             title = (f"First {pend} points from"
                      f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
@@ -800,38 +783,6 @@ class CalAligned_NetCDF():
             self.logger.debug(f"Pausing with plot entitled: {title}."
                                " Close window to continue.")
             plt.show()
-
-        #-% 0th order Quality control, just set to NaN any unreasonable values
-        #-% These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
-
-        #-% Blue
-        #-if isfield(hs2, 'bb470'),
-        #-    ibad470 = (find(hs2.bbp470 > 0.1));
-        #-    hs2.bbp470(ibad470) = NaN;
-        #-elseif isfield(hs2, 'bb420'),
-        #-    ibad420 = (find(hs2.bbp420 > 0.1));
-        #-    hs2.bbp420(ibad420) = NaN;
-        #-end
-
-        #-% Red
-        #-if isfield(hs2, 'bb676'),
-        #-    ibad676 = (find(hs2.bbp676 > 0.1));
-        #-    hs2.bbp676(ibad676) = NaN;
-        #-elseif isfield(hs2, 'bb700'),
-        #-    ibad700 = (find(hs2.bbp700 > 0.1));
-        #-    hs2.bbp700(ibad700) = NaN;
-        #-end
-
-        #-% Fl
-        #-if isfield(hs2, 'bb676'),
-        #-    ibadfl= (find(hs2.fl676_uncorr > 0.02));
-        #-    hs2.fl676_uncorr(ibadfl) = NaN;
-        #-elseif isfield(hs2, 'bb700'),
-        #-    ibadfl= (find(hs2.fl700_uncorr > 0.02));
-        #-    hs2.fl700_uncorr(ibadfl) = NaN;
-        #-end
-
-        return
 
     def _ctd_process(self, sensor, cf):
         try:
@@ -847,7 +798,7 @@ class CalAligned_NetCDF():
         # Seabird specific calibrations
         temperature = xr.DataArray(_calibrated_temp_from_frequency(cf, orig_nc),
                                   coords=[orig_nc.get_index('time')],
-                                  dims={f"ctd_time"},
+                                  dims={f"{sensor}_time"},
                                   name="temperature")
         temperature.attrs = {'long_name': 'Temperature',
                             'standard_name': 'sea_water_temperature',
@@ -860,7 +811,7 @@ class CalAligned_NetCDF():
                                 self.combined_nc, self.logger, cf, orig_nc,
                                 temperature, self.combined_nc['filt_depth']),
                                 coords=[orig_nc.get_index('time')],
-                                dims={f"ctd_time"},
+                                dims={f"{sensor}_time"},
                                 name="salinity")
         salinity.attrs = {'long_name': 'Salinity',
                             'standard_name': 'sea_water_salinity',
@@ -869,10 +820,11 @@ class CalAligned_NetCDF():
                                         f" {source} via calibration parms:"
                                         f" {cf.__dict__}")}
 
-        self.combined_nc['temperatue'] = temperature
-        self.combined_nc['salinity'] = salinity
-
-        self._ctd_depth_geometric_correction(sensor, cf)
+        self.combined_nc[f"{sensor}_temperatue"] = temperature
+        self.combined_nc[f"{sensor}_salinity"] = salinity
+        self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
+                                                                sensor, orig_nc)
+        pass
 
         # Other variables that may be in the original data
 
@@ -930,15 +882,24 @@ class CalAligned_NetCDF():
         CTD.time=time;
         CTD.Tdepth=depth;  % depth of temperature sensor
         '''
-    def _ctd_depth_geometric_correction(self, sensor, cf):
-        # %% Compute depth for temperature sensor with geometric correction
-        # cpitch=interp1(Nav.time,Nav.pitch,time);    %find the pitch(time)
-        # cdepth=interp1(Dep.time,Dep.data,time);     %find reference depth(time)
-        # zoffset=align_geom(sensor_offsets,cpitch);  %calculate offset from 0,0
-        # depth=cdepth-zoffset;                       %Find True depth of sensor
+    def _geometric_depth_correction(self, sensor, orig_nc):
+        '''Performs the align_geom() function from the legacy Matlab.
+        Works for any sensor, but requires navigation being processed first
+        as its variables in combined_nc are required. Returns corrected depth
+        array.
+        '''
+        p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
+                            self.combined_nc['pitch'].values, 
+                            fill_value="extrapolate")
+        pitch = p_interp(orig_nc['time'].values.tolist())
 
-        ## f_interp = interp1d(self.combined_nc['filt_depth'
-        pass
+        d_interp = interp1d(self.combined_nc['depth_time'].values.tolist(),
+                            self.combined_nc['filt_depth'].values, 
+                            fill_value="extrapolate")
+        orig_depth = d_interp(orig_nc['time'].values.tolist())
+        offs_depth = align_geom(self.sinfo[sensor]['sensor_offset'], pitch)
+
+        return orig_depth - offs_depth
 
     def _process(self, sensor, logs_dir, netcdfs_dir):
         coeffs = None
@@ -987,6 +948,7 @@ class CalAligned_NetCDF():
         except AttributeError as e:
             # Likely: 'SensorInfo' object has no attribute 'orig_data'
             # - meaning netCDF file not loaded
+            raise
             raise FileNotFoundError(f"orig_data not found for {sensor}:"
                                     f" refer to previous WARNING messages.")
 
