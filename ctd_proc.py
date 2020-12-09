@@ -28,7 +28,7 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp,
     eps = np.spacing(1)
 
     f_interp = interp1d(combined_nc['depth_time'].values.tolist(), 
-                        combined_nc['filt_pres'].values,
+                        combined_nc['depth_filtpres'].values,
                         fill_value="extrapolate")
     p1 = f_interp(nc['time'].values.tolist())
     if args.plot:
@@ -38,7 +38,7 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp,
             pend = int(args.plot.split('first')[1])
         plt.figure(figsize=(18,6))
         plt.plot(combined_nc['depth_time'][pbeg:pend],
-                    combined_nc['filt_pres'][pbeg:pend], ':o',
+                    combined_nc['depth_filtpres'][pbeg:pend], ':o',
                     nc['time'][pbeg:pend], p1[pbeg:pend], 'o')
         plt.legend(('Pressure from parosci', 'Interpolated to ctd time'))
         title = "Comparing Interpolation of Pressure to CTD Time"
