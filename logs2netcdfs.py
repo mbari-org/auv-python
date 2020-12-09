@@ -419,7 +419,7 @@ class AUV_NetCDF(AUV):
         parser.add_argument('--portal', action='store',
                             help='Specify the base url for the auv-portal data'
                                   ' service, e.g.:'
-                                  ' https://stoqs.mbari.org:8080/auvdata/v1')
+                                  ' http://stoqs.mbari.org:8080/auvdata/v1')
         parser.add_argument('-v', '--verbose', type=int, choices=range(3), 
                             action='store', default=0, const=1, nargs='?',
                             help="verbosity level: " + ', '.join(
