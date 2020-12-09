@@ -21,7 +21,11 @@ def test_align_geom():
     depths_10 = align_geom([1, 0], test_angles)
     np.testing.assert_allclose(depths_10, test_depth_10, atol=1e-15)
 
-    # From Matlab processHS2.m debugging session:
+    # Test with an x & y offset
+    depths_11 = align_geom([1 * y45, 1 * y45], [0, 45])
+    np.testing.assert_allclose(depths_11, [y45, 1], atol=1e-15)
+
+    # Test from Matlab processHS2.m debugging session:
     #
     # K>> align_geom([0.1397, -0.2794], [0.2928, 0.2939, 0.2952])
     #
