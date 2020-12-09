@@ -23,15 +23,16 @@ with the concept of "instrument" in SSDS parlance.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import cf_xarray
 import logging
-import requests
-import time
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import os
+import pandas as pd
+import requests
 import scipy
 import sys
+import time
 import xarray as xr
 from collections import namedtuple, OrderedDict
 from ctd_proc import (_calibrated_sal_from_cond_frequency, 
@@ -364,11 +365,17 @@ class CalAligned_NetCDF():
                                         coords=[orig_nc.get_index('time')],
                                         dims={f"navigation_time"},
                                         name="longitude")
+            # Setting standard_name attribute here once sets it for all variables
+            self.combined_nc['navigation_longitude'].coords[
+                            f"{sensor}_time"].attrs = {'standard_name': 'time'}
             self.combined_nc['navigation_longitude'].attrs = {'long_name': 'longitude',
                              'standard_name': 'longitude',
                              'units': 'degrees_east',
                              'comment': f"longitude (converted from radians) from {source}"}
         except KeyError:
+            # Setting standard_name attribute here once sets it for all variables
+            self.combined_nc['navigation_depth'].coords[
+                            f"{sensor}_time"].attrs = {'standard_name': 'time'}
             self.logger.debug("Likely before late 2004 when longitude was added")
 
         # % Remove obvious outliers that later disrupt the section plots.
@@ -392,6 +399,101 @@ class CalAligned_NetCDF():
 
         self.logger.debug(f"median of positive valued depths = {np.median(pos_depths)}")
         self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
+
+    def _nudge_pos(self, max_sec_diff_at_end=10):
+        '''Apply linear nudges to underwater latitudes and longitudes so that
+        the match the surface gps positions.
+        '''
+        self.segment_count = None
+        self.segment_minsum = None
+ 
+        lon = self.combined_nc['navigation_longitude']
+        lat = self.combined_nc['navigation_latitude']
+        lon_fix = self.combined_nc['gps_longitude']
+        lat_fix = self.combined_nc['gps_latitude']
+
+        self.logger.info(f"{'seg#':4s}  {'end_sec_diff':12s} {'end_lon_diff':12s} {'end_lat_diff':12s} {'len(segi)':9s} {'seg_min':>9s} {'u_drift (cm/s)':14s} {'v_drift (cm/s)':14s} {'start datetime of segment':>29}")
+        
+        # Any dead reckoned points before first GPS fix - usually empty as GPS fix happens before dive
+        segi = np.where(lat.cf['T'].data < lat_fix.cf['T'].data[0])[0]
+        if lon[:][segi].any():
+            lon_nudged = lon[segi]
+            lat_nudged = lat[segi]
+            dt_nudged = lon.index[segi]
+            self.logger.debug(f"Filled _nudged arrays with {len(segi)} values starting at {lat.index[0]} which were before the first GPS fix at {lat_fix.index[0]}")
+        else:
+            lon_nudged = np.array([])
+            lat_nudged = np.array([])
+            dt_nudged = np.array([], dtype='datetime64[ns]')
+        if segi.any():
+            seg_min = (lat.index[segi][-1] - lat.index[segi][0]).total_seconds() / 60
+        else:
+            seg_min = 0
+        self.logger.info(f"{' ':4}  {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14} {'-':>29}")
+       
+        seg_count = 0 
+        seg_minsum = 0
+        for i in range(len(lat_fix) - 1):
+            # Segment of dead reckoned (under water) positions, each surrounded by GPS fixes
+            segi = np.where(np.logical_and(lat.cf['T'].data > lat_fix.cf['T'].data[i], 
+                                           lat.cf['T'].data < lat_fix.cf['T'].data[i+1]))[0]
+            if not segi.any():
+                self.logger.debug(f"No dead reckoned values found between GPS times of {lat_fix.cf['T'].data[i]} and {lat_fix.cf['T'].data[i+1]}")
+                continue
+
+            end_sec_diff = float(lat_fix.cf['T'].data[i+1] - lat.cf['T'].data[segi[-1]])
+            if end_sec_diff > max_sec_diff_at_end:
+                self.logger.warning(f"end_sec_diff ({end_sec_diff}) > max_sec_diff_at_end ({max_sec_diff_at_end})")
+
+            end_lon_diff = float(lon_fix[i+1]) - float(lon[segi[-1]])
+            end_lat_diff = float(lat_fix[i+1]) - float(lat[segi[-1]])
+            seg_min = float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]) / 60
+            seg_minsum += seg_min
+            
+            # Compute approximate horizontal drift rate as a sanity check
+            u_drift = (end_lat_diff * float(np.cos(lat_fix[i+1])) * 60 * 185300
+                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]))
+            v_drift = (end_lat_diff * 60 * 185300 
+                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]))
+            self.logger.info(f"{i:4d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f} {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f} {u_drift:14.2f} {v_drift:14.2f} {lat.cf['T'].data[segi][-1]}")
+
+            # Start with zero adjustment at begining and linearly ramp up to the diff at the end
+            lon_nudge = np.interp( lon.cf['T'].data[segi].astype(np.int64), 
+                                  [lon.cf['T'].data[segi].astype(np.int64)[0], lon.cf['T'].data[segi].astype(np.int64)[-1]],
+                                  [0, end_lon_diff] )
+            lat_nudge = np.interp( lat.cf['T'].data[segi].astype(np.int64), 
+                                  [lat.cf['T'].data[segi].astype(np.int64)[0], lat.cf['T'].data[segi].astype(np.int64)[-1]],
+                                  [0, end_lat_diff] )
+
+            # Sanity checks
+            if np.max(np.abs(lon[segi] + lon_nudge)) > 180 or np.max(np.abs(lat[segi] + lon_nudge)) > 90:
+                self.logger.warning(f"Nudged coordinate is way out of reasonable range - segment {seg_count}")
+                self.logger.warning(f" max(abs(lon)) = {np.max(np.abs(lon[segi] + lon_nudge))}")
+                self.logger.warning(f" max(abs(lat)) = {np.max(np.abs(lat[segi] + lat_nudge))}")
+
+            lon_nudged = np.append(lon_nudged, lon[segi] + lon_nudge)
+            lat_nudged = np.append(lat_nudged, lat[segi] + lat_nudge)
+            dt_nudged = np.append(dt_nudged, lon.cf['T'].data[segi])
+            seg_count += 1
+        
+        # Any dead reckoned points after first GPS fix - not possible to nudge, just copy in
+        segi = np.where(lat.cf['T'].data > lat_fix.cf['T'].data[-1])[0]
+        seg_min = 0
+        if segi.any():
+            lon_nudged = np.append(lon_nudged, lon[segi])
+            lat_nudged = np.append(lat_nudged, lat[segi])
+            dt_nudged = np.append(dt_nudged, lon.cf['T'].data[segi])
+            seg_min = (lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]).total_seconds() / 60
+       
+        self.logger.info(f"{seg_count+1:4d}: {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14}")
+        self.segment_count = seg_count
+        self.segment_minsum = seg_minsum
+
+        self.logger.info(f"Points in final series = {len(dt_nudged)}")
+
+        return pd.Series(lon_nudged, index=dt_nudged), pd.Series(lat_nudged, index=dt_nudged)
+
+
 
     def _gps_process(self, sensor):
         try:
@@ -466,10 +568,18 @@ class CalAligned_NetCDF():
                                     coords=[gps_time_to_save],
                                     dims={f"gps_time"},
                                     name="gps_longitude")
+        # Setting standard_name attribute here once sets it for all variables
+        self.combined_nc['gps_longitude'].coords[
+                        f"{sensor}_time"].attrs = {'standard_name': 'time'}
         self.combined_nc['gps_longitude'].attrs = {'long_name': 'GPS Longitude',
                                         'standard_name': 'longitude',
                                         'units': 'degrees_east',
                                         'comment': f"longitude from {source}"}
+
+        # With navigation dead reckoned positions available in self.combined_nc
+        # and the gps positions added we can now match the underwater inertial
+        # (dead reckoned) positions to the surface gps positions.
+        self._nudge_pos()
 
         gps_plot = True        # Set to False for debugging other plots
         if self.args.plot and gps_plot:
@@ -865,7 +975,7 @@ class CalAligned_NetCDF():
         elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
         else:
-            self.logger.warning(f"No method to process {sensor}")
+            self.logger.warning(f"No method (yet) to process {sensor}")
 
         return
 
