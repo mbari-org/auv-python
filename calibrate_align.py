@@ -441,21 +441,26 @@ class CalAligned_NetCDF():
                 self.logger.debug(f"No dead reckoned values found between GPS times of {lat_fix.cf['T'].data[i]} and {lat_fix.cf['T'].data[i+1]}")
                 continue
 
-            end_sec_diff = float(lat_fix.cf['T'].data[i+1] - lat.cf['T'].data[segi[-1]])
-            if end_sec_diff > max_sec_diff_at_end:
-                self.logger.warning(f"end_sec_diff ({end_sec_diff}) > max_sec_diff_at_end ({max_sec_diff_at_end})")
+            end_sec_diff = float(lat_fix.cf['T'].data[i+1] - lat.cf['T'].data[segi[-1]]) / 1.e9
+            if abs(end_sec_diff) > max_sec_diff_at_end:
+                self.logger.warning(f"abs(end_sec_diff) ({end_sec_diff}) > max_sec_diff_at_end ({max_sec_diff_at_end})")
 
             end_lon_diff = float(lon_fix[i+1]) - float(lon[segi[-1]])
             end_lat_diff = float(lat_fix[i+1]) - float(lat[segi[-1]])
-            seg_min = float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]) / 60
+            seg_min = float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]) / 1.e9 / 60
             seg_minsum += seg_min
             
             # Compute approximate horizontal drift rate as a sanity check
             u_drift = (end_lat_diff * float(np.cos(lat_fix[i+1])) * 60 * 185300
-                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]))
+                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0])
+                        / 1.e9 )
             v_drift = (end_lat_diff * 60 * 185300 
-                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]))
-            self.logger.info(f"{i:4d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f} {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f} {u_drift:14.2f} {v_drift:14.2f} {lat.cf['T'].data[segi][-1]}")
+                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0])
+                        / 1.e9)
+            if len(segi) > 10:
+                self.logger.info(f"{i:4d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
+                                 f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
+                                 f" {u_drift:14.2f} {v_drift:14.2f} {lat.cf['T'].data[segi][-1]}")
 
             # Start with zero adjustment at begining and linearly ramp up to the diff at the end
             lon_nudge = np.interp( lon.cf['T'].data[segi].astype(np.int64), 
@@ -483,13 +488,39 @@ class CalAligned_NetCDF():
             lon_nudged = np.append(lon_nudged, lon[segi])
             lat_nudged = np.append(lat_nudged, lat[segi])
             dt_nudged = np.append(dt_nudged, lon.cf['T'].data[segi])
-            seg_min = (lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]).total_seconds() / 60
+            seg_min = float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]) / 1.e9 / 60
        
         self.logger.info(f"{seg_count+1:4d}: {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14}")
         self.segment_count = seg_count
         self.segment_minsum = seg_minsum
 
         self.logger.info(f"Points in final series = {len(dt_nudged)}")
+
+        lon_series = pd.Series(lon_nudged, index=dt_nudged)
+        lat_series = pd.Series(lat_nudged, index=dt_nudged)
+        if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['gps_latitude'])
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            fig, axes = plt.subplots(nrows=2, figsize=(18,6))            
+            ##axes[0].plot(lat_series[pbeg:pend], '-o')
+            axes[0].plot(lat[pbeg:pend], '-')
+            ##axes[0].plot(lat_fix[pbeg:pend], '*')
+            axes[0].set_ylabel('Latitude')
+            ##axes[1].plot(lon_series[pbeg:pend], '-o')
+            axes[1].plot(lon[pbeg:pend], '-')
+            ##axes[1].plot(lon_fix[pbeg:pend], '*')
+            axes[1].set_ylabel('Longitude')
+            title = "Corrected nav from _nudge_pos()"
+            title += f" - First {pend} Points"
+            fig.suptitle(title)
+            axes[0].grid()
+            axes[1].grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
 
         return pd.Series(lon_nudged, index=dt_nudged), pd.Series(lat_nudged, index=dt_nudged)
 
