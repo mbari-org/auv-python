@@ -4,8 +4,8 @@ The code here is used to process Dorado-class AUV data from the original
 log files recorded by the vehicle's main vehicle computer into more
 interoperable netCDF files.
 
-There is a rich collection of Matlab code (e.g. the Science Data Processing
-toolbox) that already does this and the code here will inherit much of the
+There is a rich collection of Matlab code (the [Science Data Processing
+toolbox](https://docs.mbari.org/internal/se-ie-doc/systems/auvctd/auv-science-data-processing/)) that already does this and the code here will inherit much of the
 institutional knowledge that has been baked into that code base over the
 last 20 years or so.
 
