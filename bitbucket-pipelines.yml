@@ -11,5 +11,5 @@ pipelines:
           - pip
         script: # Modify the commands below to build your repository.
           - python -m pip install --upgrade pip
-          - pip install poety
+          - pip install poetry
           - poetry run ./test.sh
