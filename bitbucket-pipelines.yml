@@ -9,7 +9,6 @@ pipelines:
     - step:
         caches:
           - pip
-          - poetry
         script: # Modify the commands below to build your repository.
           - python -m pip install --upgrade pip
           - pip install poety
