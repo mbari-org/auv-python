@@ -1,9 +1,11 @@
 aiohttp==3.6.2
 altair==4.1.0
+cf-xarray==0.3.0
 coards==1.0.5
 hvplot==0.5.2
 ipywidgets==7.5.1
 matplotlib==3.2.1
+nc-time-axis==1.2.0
 netCDF4==1.5.3
 numpy==1.18.4
 pytest==6.0.1

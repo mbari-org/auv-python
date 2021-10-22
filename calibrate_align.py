@@ -6,26 +6,37 @@ original .log files and write out a single netCDF file with the important
 variables at original sampling intervals. Alignment and plumbing lag
 corrections are also done during this step. The file will contain combined
 variables (the combined_nc member variable) and be analogous to the original
-netCDF4 files produced by MBARI's LRAUVs.
-
+netCDF4 files produced by MBARI's LRAUVs. Rather than using groups in netCDF-4
+the data will be written in classic netCDF-4C with a naming syntax that mimics
+the LRAUV group naming convention with the coordinates for each sensor:
+```
+    <sensor>_<variable>
+    <sensor>_time
+    <sensor>_depth
+    <sensor>_latitude
+    <sensor>_longitude
+```
 Note: The name "sensor" is used here, but it's really more aligned 
-      with the concept of "instrument" in SSDS parlance
+with the concept of "instrument" in SSDS parlance.
 '''
 
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
+import cf_xarray
 import logging
-import requests
-import time
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import os
+import pandas as pd
+import requests
 import scipy
 import sys
+import time
 import xarray as xr
 from collections import namedtuple, OrderedDict
+from ctd_proc import (_calibrated_sal_from_cond_frequency, 
+                      _calibrated_temp_from_frequency)
 from datetime import datetime
 from hs2_proc import hs2_read_cal_file, hs2_calc_bb
 from pathlib import Path
@@ -36,6 +47,52 @@ from socket import gethostname
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = 'time'
+
+def align_geom(sensor_offset, pitches):
+    '''Use x & y sensor_offset values in meters from sensor_info and 
+    pitch in degrees to compute and return actual depths of the sensor
+    based on the geometry relative to the vehicle's depth sensor.
+    '''
+    # See https://en.wikipedia.org/wiki/Rotation_matrix
+    #
+    #                        * instrument location with pitch applied
+    #                      / |
+    #                     /  |
+    #                    /   |
+    #                   /    |
+    #                  /     |
+    #                 /      |
+    #                /       |
+    #               /        |
+    #              /         |
+    #             /           
+    #            /            
+    #           /            y
+    #          /             _
+    #         /              o
+    #        /               f
+    #       /                f
+    #      /                                 *  instrument location
+    #     /                                  |
+    #    / \                 |               |
+    #   /   \                |               y
+    #  / pitch (theta)       |               |
+    # /        \             |               |
+    # --------------------x------------------+    --> nose
+    #
+    # [ cos(pitch) -sin(pitch) ]    [x]   [x']
+    #                             X     =     
+    # [ sin(pitch)  cos(pitch) ]    [y]   [y']
+    offsets = []
+    for pitch in pitches:
+        theta = pitch * np.pi / 180.0
+        R = np.array([[np.cos(theta), -np.sin(theta)], 
+                      [np.sin(theta),  np.cos(theta)]])
+        x_off, y_off = np.matmul(R, sensor_offset)
+        offsets.append(y_off)
+
+    return offsets
+
 
 class Coeffs():
     pass
@@ -160,7 +217,6 @@ class CalAligned_NetCDF():
             self.sinfo['biolume']['sensor_offset'] = SensorOffset(1.003, 0.0001)
         # ...
 
-
     def _read_data(self, logs_dir, netcdfs_dir):
         '''Read in all the instrument data into member variables named by "sensor"
         Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
@@ -170,14 +226,17 @@ class CalAligned_NetCDF():
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
             orig_netcdf_filename = os.path.join(netcdfs_dir, info['data_filename'])
-            self.logger.debug(f"Reading data from {orig_netcdf_filename} into self.{sensor}.orig_data")
+            self.logger.debug(f"Reading data from {orig_netcdf_filename}"
+                              f" into self.{sensor}.orig_data")
             try:
                 setattr(sensor_info, 'orig_data', xr.open_dataset(orig_netcdf_filename))
             except FileNotFoundError as e:
-                self.logger.debug(f"{e}")
+                self.logger.warning(f"{sensor:10}: Cannot open file"
+                                    f" {orig_netcdf_filename}")
             if info['cal_filename']:
                 cal_filename = os.path.join(logs_dir, info['cal_filename'])
-                self.logger.debug(f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals")
+                self.logger.debug(f"Reading calibrations from {orig_netcdf_filename}"
+                                  f" into self.{sensor}.cals")
                 if cal_filename.endswith('.cfg'):
                     try:
                         setattr(sensor_info, 'cals', self._read_cfg(cal_filename))
@@ -189,7 +248,8 @@ class CalAligned_NetCDF():
         # TODO: Warn if no data found and if logs2netcdfs.py should be run
     
     def _read_cfg(self, cfg_filename):
-        '''Emulate what get_auv_cal.m and processCTD.m do in the Matlab doradosdp toolbox
+        '''Emulate what get_auv_cal.m and processCTD.m do in the 
+           Matlab doradosdp toolbox
         '''
         self.logger.debug(f"Opening {cfg_filename}")
         coeffs = Coeffs()
@@ -223,99 +283,100 @@ class CalAligned_NetCDF():
             self.logger.error(f"{e}")
             return
 
-        # Nav.time  = time;
-        # Nav.roll = mPhi;
-        # Nav.pitch = mTheta;
-        # Nav.yaw = mPsi;
-        # Nav.depth = mDepth;
-        # Nav.posx  = mPos_x-mPos_x(1);
-        # Nav.posy  = mPos_y-mPos_y(1);
-        # if ( exist('latitude') )
-        #     Nav.latitude = latitude * 180 / pi;
-        # end
-        # if ( exist('longitude') )
-        #     Nav.longitude = longitude * 180 / pi;
-        # end
         source = self.sinfo[sensor]['data_filename']
-        self.combined_nc['roll'] = xr.DataArray(orig_nc['mPhi'].values,
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc['navigation_roll'] = xr.DataArray(orig_nc['mPhi'].values,
                                     coords=[orig_nc.get_index('time')],
                                     dims={f"{sensor}_time"},
-                                    name="roll")
-        self.combined_nc['roll'].attrs = {'long_name': 'Vehicle roll',
+                                    name=f"{sensor}_roll")
+        self.combined_nc['navigation_roll'].attrs = {'long_name': 'Vehicle roll',
                                           'standard_name': 'platform_roll_angle',
                                           'units': 'degree',
+                                          'coordinates': coord_str,
                                           'comment': f"mPhi from {source}"}
 
-        self.combined_nc['pitch'] = xr.DataArray(orig_nc['mTheta'].values,
+        self.combined_nc['navigation_pitch'] = xr.DataArray(orig_nc['mTheta'].values,
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="pitch")
-        self.combined_nc['pitch'].attrs = {'long_name': 'Vehicle pitch',
+        self.combined_nc['navigation_pitch'].attrs = {'long_name': 'Vehicle pitch',
                                            'standard_name': 'platform_pitch_angle',
                                            'units': 'degree',
+                                           'coordinates': coord_str,
                                            'comment': f"mTheta from {source}"}
 
-        self.combined_nc['yaw'] = xr.DataArray(orig_nc['mPsi'].values,
+        self.combined_nc['navigation_yaw'] = xr.DataArray(orig_nc['mPsi'].values,
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
+                                    dims={f"navigation_time"},
                                     name="yaw")
-        self.combined_nc['yaw'].attrs = {'long_name': 'Vehicle yaw',
+        self.combined_nc['navigation_yaw'].attrs = {'long_name': 'Vehicle yaw',
                                          'standard_name': 'platform_yaw_angle',
                                          'units': 'degree',
+                                         'coordinates': coord_str,
                                          'comment': f"mPsi from {source}"}
 
-        self.combined_nc['nav_depth'] = xr.DataArray(orig_nc['mDepth'].values,
+        self.combined_nc['navigation_posx'] = xr.DataArray(orig_nc['mPos_x'].values
+                                                - orig_nc['mPos_x'].values[0],
                                     coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
-                                    name="nav_depth")
-        self.combined_nc['nav_depth'].attrs = {'long_name': 'Depth from Nav',
+                                    dims={f"navigation_time"},
+                                    name="posx")
+        self.combined_nc['navigation_posx'].attrs = {
+                        'long_name': 'Relative lateral easting',
+                        'units': 'm',
+                        'coordinates': coord_str,
+                        'comment': f"mPos_x (minus first position) from {source}"}
+
+        self.combined_nc['navigation_posy'] = xr.DataArray(orig_nc['mPos_y'].values
+                                                - orig_nc['mPos_y'].values[0],
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"navigation_time"},
+                                    name="posy")
+        self.combined_nc['navigation_posy'].attrs = {
+                        'long_name': 'Relative lateral northing',
+                        'units': 'm',
+                        'coordinates': coord_str,
+                        'comment': f"mPos_y (minus first position) from {source}"}
+
+        self.combined_nc['navigation_depth'] = xr.DataArray(orig_nc['mDepth'].values,
+                                    coords=[orig_nc.get_index('time')],
+                                    dims={f"navigation_time"},
+                                    name="navigation_depth")
+        self.combined_nc['navigation_depth'].attrs = {'long_name': 'Depth from Nav',
                                          'standard_name': 'depth',
                                          'units': 'm',
                                          'comment': f"mDepth from {source}"}
 
-        self.combined_nc['posx'] = xr.DataArray(orig_nc['mPos_x'].values
-                                                - orig_nc['mPos_x'].values[0],
-                                    coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
-                                    name="posx")
-        self.combined_nc['posx'].attrs = {'long_name': 'Relative lateral easting',
-                         'units': 'm',
-                         'comment': f"mPos_x (minus first position) from {source}"}
-
-        self.combined_nc['posy'] = xr.DataArray(orig_nc['mPos_y'].values
-                                                - orig_nc['mPos_y'].values[0],
-                                    coords=[orig_nc.get_index('time')],
-                                    dims={f"{sensor}_time"},
-                                    name="posy")
-        self.combined_nc['posy'].attrs = {'long_name': 'Relative lateral northing',
-                         'units': 'm',
-                         'comment': f"mPos_y (minus first position) from {source}"}
-
         try:
-            self.combined_nc['latitude'] = xr.DataArray(orig_nc['latitude'].values
+            self.combined_nc['navigation_latitude'] = xr.DataArray(orig_nc['latitude'].values
                                                         * 180 / np.pi, 
                                         coords=[orig_nc.get_index('time')],
-                                        dims={f"{sensor}_time"},
+                                        dims={f"navigation_time"},
                                         name="latitude")
-            self.combined_nc['latitude'].attrs = {'long_name': 'latitude',
+            self.combined_nc['navigation_latitude'].attrs = {'long_name': 'latitude',
                              'standard_name': 'latitude',
                              'units': 'degrees_north',
                              'comment': f"latitude (converted from radians) from {source}"}
 
         except KeyError:
-            pass
+            self.logger.debug("Likely before late 2004 when latitude was added")
         try:
-            self.combined_nc['longitude'] = xr.DataArray(orig_nc['longitude'].values
+            self.combined_nc['navigation_longitude'] = xr.DataArray(orig_nc['longitude'].values
                                                         * 180 / np.pi, 
                                         coords=[orig_nc.get_index('time')],
-                                        dims={f"{sensor}_time"},
+                                        dims={f"navigation_time"},
                                         name="longitude")
-            self.combined_nc['longitude'].attrs = {'long_name': 'longitude',
+            # Setting standard_name attribute here once sets it for all variables
+            self.combined_nc['navigation_longitude'].coords[
+                            f"{sensor}_time"].attrs = {'standard_name': 'time'}
+            self.combined_nc['navigation_longitude'].attrs = {'long_name': 'longitude',
                              'standard_name': 'longitude',
                              'units': 'degrees_east',
                              'comment': f"longitude (converted from radians) from {source}"}
         except KeyError:
-            pass
+            # Setting standard_name attribute here once sets it for all variables
+            self.combined_nc['navigation_depth'].coords[
+                            f"{sensor}_time"].attrs = {'standard_name': 'time'}
+            self.logger.debug("Likely before late 2004 when longitude was added")
 
         # % Remove obvious outliers that later disrupt the section plots.
         # % (First seen on mission 2008.281.03)
@@ -325,9 +386,9 @@ class CalAligned_NetCDF():
         # % median.
         # pdIndx = find(Nav.depth > 1);
         # posDepths = Nav.depth(pdIndx);
-        pos_depths = np.where(self.combined_nc['nav_depth'].values > 1)
+        pos_depths = np.where(self.combined_nc['navigation_depth'].values > 1)
         if self.args.mission == '2013.301.02' or self.args.mission == '2009.111.00':
-            print('Bypassing Nav QC depth check')
+            self.logger.info('Bypassing Nav QC depth check')
             maxGoodDepth = 1250
         else:
             maxGoodDepth = 7 * np.median(pos_depths)
@@ -339,6 +400,132 @@ class CalAligned_NetCDF():
         self.logger.debug(f"median of positive valued depths = {np.median(pos_depths)}")
         self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
 
+    def _nudge_pos(self, max_sec_diff_at_end=10):
+        '''Apply linear nudges to underwater latitudes and longitudes so that
+        the match the surface gps positions.
+        '''
+        self.segment_count = None
+        self.segment_minsum = None
+ 
+        lon = self.combined_nc['navigation_longitude']
+        lat = self.combined_nc['navigation_latitude']
+        lon_fix = self.combined_nc['gps_longitude']
+        lat_fix = self.combined_nc['gps_latitude']
+
+        self.logger.info(f"{'seg#':4s}  {'end_sec_diff':12s} {'end_lon_diff':12s} {'end_lat_diff':12s} {'len(segi)':9s} {'seg_min':>9s} {'u_drift (cm/s)':14s} {'v_drift (cm/s)':14s} {'start datetime of segment':>29}")
+        
+        # Any dead reckoned points before first GPS fix - usually empty as GPS fix happens before dive
+        segi = np.where(lat.cf['T'].data < lat_fix.cf['T'].data[0])[0]
+        if lon[:][segi].any():
+            lon_nudged = lon[segi]
+            lat_nudged = lat[segi]
+            dt_nudged = lon.index[segi]
+            self.logger.debug(f"Filled _nudged arrays with {len(segi)} values starting at {lat.index[0]} which were before the first GPS fix at {lat_fix.index[0]}")
+        else:
+            lon_nudged = np.array([])
+            lat_nudged = np.array([])
+            dt_nudged = np.array([], dtype='datetime64[ns]')
+        if segi.any():
+            seg_min = (lat.index[segi][-1] - lat.index[segi][0]).total_seconds() / 60
+        else:
+            seg_min = 0
+        self.logger.info(f"{' ':4}  {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14} {'-':>29}")
+       
+        seg_count = 0 
+        seg_minsum = 0
+        for i in range(len(lat_fix) - 1):
+            # Segment of dead reckoned (under water) positions, each surrounded by GPS fixes
+            segi = np.where(np.logical_and(lat.cf['T'].data > lat_fix.cf['T'].data[i], 
+                                           lat.cf['T'].data < lat_fix.cf['T'].data[i+1]))[0]
+            if not segi.any():
+                self.logger.debug(f"No dead reckoned values found between GPS times of {lat_fix.cf['T'].data[i]} and {lat_fix.cf['T'].data[i+1]}")
+                continue
+
+            end_sec_diff = float(lat_fix.cf['T'].data[i+1] - lat.cf['T'].data[segi[-1]]) / 1.e9
+            if abs(end_sec_diff) > max_sec_diff_at_end:
+                self.logger.warning(f"abs(end_sec_diff) ({end_sec_diff}) > max_sec_diff_at_end ({max_sec_diff_at_end})")
+
+            end_lon_diff = float(lon_fix[i+1]) - float(lon[segi[-1]])
+            end_lat_diff = float(lat_fix[i+1]) - float(lat[segi[-1]])
+            seg_min = float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]) / 1.e9 / 60
+            seg_minsum += seg_min
+            
+            # Compute approximate horizontal drift rate as a sanity check
+            u_drift = (end_lat_diff * float(np.cos(lat_fix[i+1])) * 60 * 185300
+                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0])
+                        / 1.e9 )
+            v_drift = (end_lat_diff * 60 * 185300 
+                        / float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0])
+                        / 1.e9)
+            if len(segi) > 10:
+                self.logger.info(f"{i:4d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
+                                 f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
+                                 f" {u_drift:14.2f} {v_drift:14.2f} {lat.cf['T'].data[segi][-1]}")
+
+            # Start with zero adjustment at begining and linearly ramp up to the diff at the end
+            lon_nudge = np.interp( lon.cf['T'].data[segi].astype(np.int64), 
+                                  [lon.cf['T'].data[segi].astype(np.int64)[0], lon.cf['T'].data[segi].astype(np.int64)[-1]],
+                                  [0, end_lon_diff] )
+            lat_nudge = np.interp( lat.cf['T'].data[segi].astype(np.int64), 
+                                  [lat.cf['T'].data[segi].astype(np.int64)[0], lat.cf['T'].data[segi].astype(np.int64)[-1]],
+                                  [0, end_lat_diff] )
+
+            # Sanity checks
+            if np.max(np.abs(lon[segi] + lon_nudge)) > 180 or np.max(np.abs(lat[segi] + lon_nudge)) > 90:
+                self.logger.warning(f"Nudged coordinate is way out of reasonable range - segment {seg_count}")
+                self.logger.warning(f" max(abs(lon)) = {np.max(np.abs(lon[segi] + lon_nudge))}")
+                self.logger.warning(f" max(abs(lat)) = {np.max(np.abs(lat[segi] + lat_nudge))}")
+
+            lon_nudged = np.append(lon_nudged, lon[segi] + lon_nudge)
+            lat_nudged = np.append(lat_nudged, lat[segi] + lat_nudge)
+            dt_nudged = np.append(dt_nudged, lon.cf['T'].data[segi])
+            seg_count += 1
+        
+        # Any dead reckoned points after first GPS fix - not possible to nudge, just copy in
+        segi = np.where(lat.cf['T'].data > lat_fix.cf['T'].data[-1])[0]
+        seg_min = 0
+        if segi.any():
+            lon_nudged = np.append(lon_nudged, lon[segi])
+            lat_nudged = np.append(lat_nudged, lat[segi])
+            dt_nudged = np.append(dt_nudged, lon.cf['T'].data[segi])
+            seg_min = float(lat.cf['T'].data[segi][-1] - lat.cf['T'].data[segi][0]) / 1.e9 / 60
+       
+        self.logger.info(f"{seg_count+1:4d}: {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14}")
+        self.segment_count = seg_count
+        self.segment_minsum = seg_minsum
+
+        self.logger.info(f"Points in final series = {len(dt_nudged)}")
+
+        lon_series = pd.Series(lon_nudged, index=dt_nudged)
+        lat_series = pd.Series(lat_nudged, index=dt_nudged)
+        if self.args.plot:
+            pbeg = 0
+            pend = len(self.combined_nc['gps_latitude'])
+            if self.args.plot.startswith('first'):
+                pend = int(self.args.plot.split('first')[1])
+            fig, axes = plt.subplots(nrows=2, figsize=(18,6))            
+            ##axes[0].plot(lat_series[pbeg:pend], '-o')
+            axes[0].plot(lat[pbeg:pend], '-')
+            ##axes[0].plot(lat_fix[pbeg:pend], '*')
+            axes[0].set_ylabel('Latitude')
+            ##axes[1].plot(lon_series[pbeg:pend], '-o')
+            axes[1].plot(lon[pbeg:pend], '-')
+            ##axes[1].plot(lon_fix[pbeg:pend], '*')
+            axes[1].set_ylabel('Longitude')
+            title = "Corrected nav from _nudge_pos()"
+            title += f" - First {pend} Points"
+            fig.suptitle(title)
+            axes[0].grid()
+            axes[1].grid()
+            self.logger.debug(f"Pausing with plot entitled: {title}."
+                               " Close window to continue.")
+            plt.show()
+
+
+        return pd.Series(lon_nudged, index=dt_nudged), pd.Series(lat_nudged, index=dt_nudged)
+
+
+
     def _gps_process(self, sensor):
         try:
             orig_nc = getattr(self, sensor).orig_data
@@ -349,6 +536,7 @@ class CalAligned_NetCDF():
         if self.args.mission == '2010.151.04':
             # Gulf of Mexico mission - read from usbl.dat files
             self.logger.info('Cannot read latitude data using load command.  Just for the GoMx mission use USBL instead...');
+            self.logger.info('TODO: Implement this fix in auv-python')
             #-data_filename = 'usbl.nc'
             #-loaddata
             #-time = time(1:10:end);
@@ -384,20 +572,48 @@ class CalAligned_NetCDF():
         pm = np.logical_and(mlat, mlon)
         bad_pos = [f"{lo}, {la}" for lo, la in zip(lon.values[:][pm.mask],
                                                    lat.values[:][pm.mask])]
+
+        gps_time_to_save = orig_nc.get_index('time')
+        lat_to_save = lat
+        lon_to_save = lon
         if bad_pos:
             self.logger.info(f"Number of bad {sensor} positions:"
                              f" {len(lat.values[:][pm.mask])}")
             self.logger.debug(f"Removing bad {sensor} positions (indices,"
                              f" (lon, lat)): {np.where(pm.mask)[0]}, {bad_pos}")
-            self.combined_nc['gps_time'] = orig_nc['time'][:][~pm.mask]
-            self.combined_nc['gps_latitude'] = lat[:][~pm.mask]
-            self.combined_nc['gps_longitude'] = lon[:][~pm.mask]
-        else:
-            self.combined_nc['gps_time'] = orig_nc['time']
-            self.combined_nc['gps_latitude'] = lat
-            self.combined_nc['gps_longitude'] = lon
+            gps_time_to_save = orig_nc.get_index('time')[:][~pm.mask]
+            lat_to_save = lat[:][~pm.mask]
+            lon_to_save = lon[:][~pm.mask]
 
-        if self.args.plot:
+        source = self.sinfo[sensor]['data_filename']
+        self.combined_nc['gps_latitude'] = xr.DataArray(lat_to_save.values,
+                                    coords=[gps_time_to_save],
+                                    dims={f"gps_time"},
+                                    name="gps_latitude")
+        self.combined_nc['gps_latitude'].attrs = {'long_name': 'GPS Latitude',
+                                        'standard_name': 'latitude',
+                                        'units': 'degrees_north',
+                                        'comment': f"latitude from {source}"}
+
+        self.combined_nc['gps_longitude'] = xr.DataArray(lon_to_save.values,
+                                    coords=[gps_time_to_save],
+                                    dims={f"gps_time"},
+                                    name="gps_longitude")
+        # Setting standard_name attribute here once sets it for all variables
+        self.combined_nc['gps_longitude'].coords[
+                        f"{sensor}_time"].attrs = {'standard_name': 'time'}
+        self.combined_nc['gps_longitude'].attrs = {'long_name': 'GPS Longitude',
+                                        'standard_name': 'longitude',
+                                        'units': 'degrees_east',
+                                        'comment': f"longitude from {source}"}
+
+        # With navigation dead reckoned positions available in self.combined_nc
+        # and the gps positions added we can now match the underwater inertial
+        # (dead reckoned) positions to the surface gps positions.
+        self._nudge_pos()
+
+        gps_plot = True        # Set to False for debugging other plots
+        if self.args.plot and gps_plot:
             pbeg = 0
             pend = len(self.combined_nc['gps_latitude'])
             if self.args.plot.startswith('first'):
@@ -446,14 +662,15 @@ class CalAligned_NetCDF():
         # The Wn parameter for butter() is fraction of the Nyquist frequency
         Wn = cutoff_freq / (sample_rate / 2.)
         b, a = scipy.signal.butter(8, Wn)
-        filt_pres_butter = scipy.signal.filtfilt(b, a, pres)
-        filt_depth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
+        depth_filtpres_butter = scipy.signal.filtfilt(b, a, pres)
+        depth_filtdepth_butter = scipy.signal.filtfilt(b, a, orig_nc['depth'])
 
         # Use 10 points in boxcar as in processDepth.m
         a = 10
         b = scipy.signal.boxcar(a)
-        filt_pres_boxcar = scipy.signal.filtfilt(b, a, pres)
-        if self.args.plot:
+        depth_filtpres_boxcar = scipy.signal.filtfilt(b, a, pres)
+        pres_plot = True       # Set to False for debugging other plots
+        if self.args.plot and pres_plot:
             # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
             pbeg = 0
@@ -462,8 +679,8 @@ class CalAligned_NetCDF():
                 pend = int(self.args.plot.split('first')[1])
             df_plot = pd.DataFrame(index=orig_nc.get_index('time')[pbeg:pend])
             df_plot['pres'] = pres[pbeg:pend]
-            df_plot['filt_pres_butter'] = filt_pres_butter[pbeg:pend]
-            df_plot['filt_pres_boxcar'] = filt_pres_boxcar[pbeg:pend]
+            df_plot['depth_filtpres_butter'] = depth_filtpres_butter[pbeg:pend]
+            df_plot['depth_filtpres_boxcar'] = depth_filtpres_boxcar[pbeg:pend]
             title = (f"First {pend} points from"
                      f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}")
             ax = df_plot.plot(title=title, figsize=(18,6))
@@ -472,24 +689,24 @@ class CalAligned_NetCDF():
                                " Close window to continue.")
             plt.show()
 
-        filt_depth = xr.DataArray(filt_depth_butter,
+        depth_filtdepth = xr.DataArray(depth_filtdepth_butter,
                                   coords=[orig_nc.get_index('time')],
-                                  dims={f"{sensor}_time"},
-                                  name="filt_depth")
-        filt_depth.attrs = {'long_name': 'Filtered Depth',
+                                  dims={f"depth_time"},
+                                  name="depth_filtdepth")
+        depth_filtdepth.attrs = {'long_name': 'Filtered Depth',
                             'standard_name': 'depth',
                             'units': 'm'}
 
-        filt_pres = xr.DataArray(filt_pres_butter,
+        depth_filtpres = xr.DataArray(depth_filtpres_butter,
                                  coords=[orig_nc.get_index('time')],
-                                 dims={f"{sensor}_time"},
-                                 name="filt_pres")
-        filt_pres.attrs = {'long_name': 'Filtered Pressure',
+                                 dims={f"depth_time"},
+                                 name="depth_filtpres")
+        depth_filtpres.attrs = {'long_name': 'Filtered Pressure',
                             'standard_name': 'sea_water_pressure',
                             'units': 'dbar'}
 
-        self.combined_nc['filt_depth'] = filt_depth
-        self.combined_nc['filt_pres'] = filt_pres
+        self.combined_nc['depth_filtdepth'] = depth_filtdepth
+        self.combined_nc['depth_filtpres'] = depth_filtpres
 
     def _hs2_process(self, sensor, logs_dir):
         try:
@@ -508,6 +725,7 @@ class CalAligned_NetCDF():
         hs2 = hs2_calc_bb(orig_nc, cals)
 
         source = self.sinfo[sensor]['data_filename']
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
 
         # Blue backscatter
         if hasattr(hs2, 'bb420'):
@@ -516,6 +734,7 @@ class CalAligned_NetCDF():
                                    dims={"hs2_time"},
                                    name="hs2_bb420")
             blue_bs.attrs = {'long_name': 'Backscatter at 420 nm',
+                             'coordinates': coord_str,
                              'comment': (f"Computed by hs2_calc_bb()"
                                          f" from data in {source}")}
         if hasattr(hs2, 'bb470'):
@@ -524,6 +743,7 @@ class CalAligned_NetCDF():
                                    dims={"hs2_time"},
                                    name="hs2_bb470")
             blue_bs.attrs = {'long_name': 'Backscatter at 470 nm',
+                             'coordinates': coord_str,
                              'comment': (f"Computed by hs2_calc_bb()"
                                          f" from data in {source}")}
 
@@ -534,6 +754,7 @@ class CalAligned_NetCDF():
                                   dims={"hs2_time"},
                                   name="hs2_bb676")
             red_bs.attrs = {'long_name': 'Backscatter at 676 nm',
+                            'coordinates': coord_str,
                             'comment': (f"Computed by hs2_calc_bb()"
                                         f" from data in {source}")}
         if hasattr(hs2, 'bb700'):
@@ -542,6 +763,7 @@ class CalAligned_NetCDF():
                                   dims={"hs2_time"},
                                   name="hs2_bb700")
             red_bs.attrs = {'long_name': 'Backscatter at 700 nm',
+                            'coordinates': coord_str,
                             'comment': (f"Computed by hs2_calc_bb()"
                                         f" from data in {source}")}
 
@@ -552,8 +774,9 @@ class CalAligned_NetCDF():
                                  dims={"hs2_time"},
                                  name="hs2_bb676")
             fl.attrs = {'long_name': 'Fluoresence at 676 nm',
-                           'comment': (f"Computed by hs2_calc_bb()"
-                                       f" from data in {source}")}
+                        'coordinates': coord_str,
+                        'comment': (f"Computed by hs2_calc_bb()"
+                                    f" from data in {source}")}
             self.combined_nc['hs2_bb676'] = bb676
             fl = bb676
         if hasattr(hs2, 'fl700'):
@@ -562,11 +785,12 @@ class CalAligned_NetCDF():
                                  dims={"hs2_time"},
                                  name="hs2_fl700")
             fl700.attrs = {'long_name': 'Fluoresence at 700 nm',
+                           'coordinates': coord_str,
                            'comment': (f"Computed by hs2_calc_bb()"
                                        f" from data in {source}")}
             fl = fl700
 
-        # Zeroeth level quality control
+        # Zeroth level quality control - same as in legacy Matlab
         mblue = np.ma.masked_invalid(blue_bs)
         mblue = np.ma.masked_greater(mblue, 0.1)
         mred = np.ma.masked_invalid(red_bs)
@@ -581,13 +805,16 @@ class CalAligned_NetCDF():
 
         if bad_hs2:
             self.logger.info(f"Number of bad {sensor} points:"
-                             f" {len(blue_bs.values[:][mhs2.mask])}")
+                             f" {len(blue_bs.values[:][mhs2.mask])}"
+                             f" of {len(blue_bs)}")
             self.logger.debug(f"Removing bad {sensor} points (indices,"
-                             f" (b, r, f)): {np.where(mhs2.mask)[0]}, {bad_hs2}")
+                             f" (blue, red, fl)): {np.where(mhs2.mask)[0]},"
+                             f" {bad_hs2}")
             blue_bs = blue_bs[:][~mhs2.mask]
             red_bs = red_bs[:][~mhs2.mask]
 
-        if self.args.plot:
+        red_blue_plot = True       # Set to False for debugging other plots
+        if self.args.plot and red_blue_plot:
             # Use Pandas to more easiily plot multiple columns of data
             pbeg = 0
             pend = len(blue_bs.get_index('hs2_time'))
@@ -605,6 +832,7 @@ class CalAligned_NetCDF():
                                " Close window to continue.")
             plt.show()
 
+        # Save blue, red, & fl to combined_nc, alsoe
         if hasattr(hs2, 'bb420'):
             self.combined_nc['hs2_bb420'] = blue_bs
         if hasattr(hs2, 'bb470'):
@@ -618,119 +846,19 @@ class CalAligned_NetCDF():
         if hasattr(hs2, 'fl700'):
             self.combined_nc['hs2_fl700'] = fl
 
-
         # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
-        # Hobilabs modified the instrument in 2009 to now give:      bb420, bb700, and fl700,
+        # Hobilabs modified the instrument in 2009 to now give:         bb420, bb700, and fl700,
         # apparently giving a better measurement of chlorophyl.
         #
         # Detect the difference in this code and keep the mamber names descriptive in the survey data so 
         # the the end user knows the difference.
 
-
-        #-% Align Geometry, correct for pitch
-        p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
-                            self.combined_nc['pitch'].values, 
-                            fill_value="extrapolate")
-        hs2.pitch    = p_interp(orig_nc['time'].values.tolist())
-        #-hs2.RefDepth = interp1(Dep.time,Dep.data,hs2.time);     	%find reference depth(time)
-        #-hs2.offs     = align_geom(HS2OffS,hs2.pitch);		      	%calculate offset from 0,0
-        #-hs2.depth    = hs2.RefDepth-hs2.offs;		      		%Find true depth of sensor
-
-        #-% 0th order Quality control, just set to NaN any unreasonable values
-        #-% These limits (0.1 for backscatter & 0.02 for fl676 should be in the metadata for the instrument...)
-
-        #-% Blue
-        #-if isfield(hs2, 'bb470'),
-        #-    ibad470 = (find(hs2.bbp470 > 0.1));
-        #-    hs2.bbp470(ibad470) = NaN;
-        #-elseif isfield(hs2, 'bb420'),
-        #-    ibad420 = (find(hs2.bbp420 > 0.1));
-        #-    hs2.bbp420(ibad420) = NaN;
-        #-end
-
-        #-% Red
-        #-if isfield(hs2, 'bb676'),
-        #-    ibad676 = (find(hs2.bbp676 > 0.1));
-        #-    hs2.bbp676(ibad676) = NaN;
-        #-elseif isfield(hs2, 'bb700'),
-        #-    ibad700 = (find(hs2.bbp700 > 0.1));
-        #-    hs2.bbp700(ibad700) = NaN;
-        #-end
-
-        #-% Fl
-        #-if isfield(hs2, 'bb676'),
-        #-    ibadfl= (find(hs2.fl676_uncorr > 0.02));
-        #-    hs2.fl676_uncorr(ibadfl) = NaN;
-        #-elseif isfield(hs2, 'bb700'),
-        #-    ibadfl= (find(hs2.fl700_uncorr > 0.02));
-        #-    hs2.fl700_uncorr(ibadfl) = NaN;
-        #-end
-
-        return
+        # Align Geometry, correct for pitch
+        self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
+                                                                sensor, orig_nc)
+        # TODO: Add latitude & longitude coordinates
 
 
-    def _calibrated_temp_from_frequency(self, cf, nc):
-        # From processCTD.m:
-        # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
-        K2C = 273.15
-        calibrated_temp = (1.0 / 
-                (cf.t_a + 
-                 cf.t_b * np.log(cf.t_f0 / nc['temp_frequency'].values) + 
-                 cf.t_c * np.power(np.log(cf.t_f0 / nc['temp_frequency']),2) + 
-                 cf.t_d * np.power(np.log(cf.t_f0 / nc['temp_frequency']),3)
-                ) - K2C)
-
-        return calibrated_temp
-
-    def _calibrated_sal_from_cond_frequency(self, cf, nc, temp, depth):
-        # Comments carried over from doradosdp's processCTD.m:
-        # Note that recalculation of conductivity and correction for thermal mass
-        # are possible, however, their magnitude results in salinity differences
-        # of less than 10^-4.  
-        # In other regions where these corrections are more significant, the
-        # corrections can be turned on.
-        # conductivity at S=35 psu , T=15 C [ITPS 68] and P=0 db) ==> 42.914
-        sw_c3515 = 42.914
-        eps = np.spacing(1)
-
-        f_interp = interp1d(self.combined_nc['depth_time'].values.tolist(), 
-                            self.combined_nc['filt_pres'].values,
-                            fill_value="extrapolate")
-        p1 = f_interp(nc['time'].values.tolist())
-        if self.args.plot:
-            pbeg = 0
-            pend = len(self.combined_nc['depth_time'])
-            if self.args.plot.startswith('first'):
-                pend = int(self.args.plot.split('first')[1])
-            plt.figure(figsize=(18,6))
-            plt.plot(self.combined_nc['depth_time'][pbeg:pend],
-                     self.combined_nc['filt_pres'][pbeg:pend], ':o',
-                     nc['time'][pbeg:pend], p1[pbeg:pend], 'o')
-            plt.legend(('Pressure from parosci', 'Interpolated to ctd time'))
-            title = "Comparing Interpolation of Pressure to CTD Time"
-            title += f" - First {pend} Points"
-            plt.title(title)
-            plt.grid()
-            self.logger.debug(f"Pausing with plot entitled: {title}."
-                               " Close window to continue.")
-            plt.show()
-
-        # %% Conductivity Calculation
-        # cfreq=cond_frequency/1000;
-        # c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));            
-        cfreq = nc['cond_frequency'].values / 1000.0
-        c1 = (cf.c_a * np.power(cfreq, cf.c_m) +
-              cf.c_b * np.power(cfreq, 2) +
-              cf.c_c + 
-              cf.c_d * temp.values) / (10 * (1 + eps * p1))
-
-        # % Calculate Salinty
-        # cratio = c1*10/sw_c3515; % sw_C is conductivity value at 35,15,0
-        # CTD.salinity = sw_salt(cratio,CTD.temperature,p1); % (psu)
-        cratio = c1 * 10 / sw_c3515
-        calibrated_salinity = eos80.salt(cratio, temp, p1)
-
-        return calibrated_salinity
 
     def _ctd_process(self, sensor, cf):
         try:
@@ -742,35 +870,48 @@ class CalAligned_NetCDF():
         # Need to do this zeroth-level QC to calibrate temperature
         orig_nc['temp_frequency'][orig_nc['temp_frequency'] == 0.0] = np.nan
         source = self.sinfo[sensor]['data_filename']
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
 
         # Seabird specific calibrations
-        temperature = xr.DataArray(self._calibrated_temp_from_frequency(cf, orig_nc),
+        temperature = xr.DataArray(_calibrated_temp_from_frequency(cf, orig_nc),
                                   coords=[orig_nc.get_index('time')],
                                   dims={f"{sensor}_time"},
                                   name="temperature")
         temperature.attrs = {'long_name': 'Temperature',
                             'standard_name': 'sea_water_temperature',
                             'units': 'degree_Celsius',
+                            'coordinates': coord_str,
                             'comment': (f"Derived from temp_frequency from"
                                         f" {source} via calibration parms:"
                                         f" {cf.__dict__}")}
 
-        salinity = xr.DataArray(self._calibrated_sal_from_cond_frequency(cf, orig_nc,
-                                temperature, self.combined_nc['filt_depth']),
+        salinity = xr.DataArray(_calibrated_sal_from_cond_frequency(self.args, 
+                                self.combined_nc, self.logger, cf, orig_nc,
+                                temperature, self.combined_nc['depth_filtdepth']),
                                 coords=[orig_nc.get_index('time')],
                                 dims={f"{sensor}_time"},
                                 name="salinity")
         salinity.attrs = {'long_name': 'Salinity',
                             'standard_name': 'sea_water_salinity',
                             'units': '',
+                            'coordinates': coord_str,
                             'comment': (f"Derived from cond_frequency from"
                                         f" {source} via calibration parms:"
                                         f" {cf.__dict__}")}
 
-        self.combined_nc['temperatue'] = temperature
-        self.combined_nc['salinity'] = salinity
-
-        self._ctd_depth_geometric_correction(sensor, cf)
+        self.combined_nc[f"{sensor}_temperatue"] = temperature
+        self.combined_nc[f"{sensor}_salinity"] = salinity
+        self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
+                                                                sensor, orig_nc)
+        # TODO: Save nudged latitude & longitude coordinates
+        '''
+        self.combined_nc[f"{sensor}_latitude"] = 
+        la_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
+                            self.combined_nc['navigation_pitch'].values, 
+                            fill_value="extrapolate")
+        pitch = p_interp(orig_nc['time'].values.tolist())
+        ''' 
+        pass
 
         # Other variables that may be in the original data
 
@@ -828,15 +969,24 @@ class CalAligned_NetCDF():
         CTD.time=time;
         CTD.Tdepth=depth;  % depth of temperature sensor
         '''
-    def _ctd_depth_geometric_correction(self, sensor, cf):
-        # %% Compute depth for temperature sensor with geometric correction
-        # cpitch=interp1(Nav.time,Nav.pitch,time);    %find the pitch(time)
-        # cdepth=interp1(Dep.time,Dep.data,time);     %find reference depth(time)
-        # zoffset=align_geom(sensor_offsets,cpitch);  %calculate offset from 0,0
-        # depth=cdepth-zoffset;                       %Find True depth of sensor
+    def _geometric_depth_correction(self, sensor, orig_nc):
+        '''Performs the align_geom() function from the legacy Matlab.
+        Works for any sensor, but requires navigation being processed first
+        as its variables in combined_nc are required. Returns corrected depth
+        array.
+        '''
+        p_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
+                            self.combined_nc['navigation_pitch'].values, 
+                            fill_value="extrapolate")
+        pitch = p_interp(orig_nc['time'].values.tolist())
 
-        ## f_interp = interp1d(self.combined_nc['filt_depth'
-        pass
+        d_interp = interp1d(self.combined_nc['depth_time'].values.tolist(),
+                            self.combined_nc['depth_filtdepth'].values, 
+                            fill_value="extrapolate")
+        orig_depth = d_interp(orig_nc['time'].values.tolist())
+        offs_depth = align_geom(self.sinfo[sensor]['sensor_offset'], pitch)
+
+        return orig_depth - offs_depth
 
     def _process(self, sensor, logs_dir, netcdfs_dir):
         coeffs = None
@@ -856,7 +1006,7 @@ class CalAligned_NetCDF():
         elif (sensor == 'ctd' or sensor == 'ctd2') and coeffs:
             self._ctd_process(sensor, coeffs)
         else:
-            self.logger.warning(f"No method to process {sensor}")
+            self.logger.warning(f"No method (yet) to process {sensor}")
 
         return
 
@@ -864,6 +1014,8 @@ class CalAligned_NetCDF():
         self.combined_nc.attrs = self.global_metadata()
         out_fn = os.path.join(netcdfs_dir, f"{self.args.auv_name}_{self.args.mission}.nc")
         self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
+        if os.path.exists(out_fn):
+            os.remove(out_fn)
         self.combined_nc.to_netcdf(out_fn)
 
     def process_logs(self):
@@ -876,9 +1028,16 @@ class CalAligned_NetCDF():
         self._read_data(logs_dir, netcdfs_dir)
         self.combined_nc = xr.Dataset()
 
-        for sensor in self.sinfo.keys():
-            setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
-            self._process(sensor, logs_dir, netcdfs_dir)
+        try:
+            for sensor in self.sinfo.keys():
+                setattr(getattr(self, sensor), 'cal_align_data', xr.Dataset())
+                self._process(sensor, logs_dir, netcdfs_dir)
+        except AttributeError as e:
+            # Likely: 'SensorInfo' object has no attribute 'orig_data'
+            # - meaning netCDF file not loaded
+            raise
+            raise FileNotFoundError(f"orig_data not found for {sensor}:"
+                                    f" refer to previous WARNING messages.")
 
         return netcdfs_dir
         self.write_netcdf(netcdfs_dir)
