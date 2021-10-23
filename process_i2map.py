@@ -12,6 +12,7 @@ import argparse
 import logging
 import subprocess
 import sys
+
 from logs2netcdfs import AUV_NetCDF
 
 BASE_PATH = "auv_data"
@@ -63,12 +64,16 @@ class Processor:
     def process_command_line(self):
         examples = "Examples:" + "\n\n"
         examples += "  Write to local missionnetcdfs direcory:\n"
-        examples += "    " + sys.argv[0] + " --start 2020.064.10\n"
-        examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
+        examples += (
+            "    poetry run " + sys.argv[0] + " --start_year 2017 --end_year 2017\n"
+        )
 
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
-            description="Scan master/i2MAP directory on cifs://titan.shore.mbari.org/M3",
+            description=(
+                "Scan master/i2MAP directory on cifs://titan.shore.mbari.org/M3"
+                " and process all missions found there."
+            ),
             epilog=examples,
         )
         parser.add_argument(
