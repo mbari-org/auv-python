@@ -358,10 +358,12 @@ class AUV_NetCDF(AUV):
         self.nc_file.title = (
             f"Original AUV {vehicle} data converted straight from the .log file"
         )
-        if self.args.title:
-            self.nc_file.title = self.args.title
-        if self.args.summary:
-            self.nc_file.summary = self.args.summary
+        if hasattr(self.args, "title"):
+            if self.args.title:
+                self.nc_file.title = self.args.title
+        if hasattr(self.args, "summary"):
+            if self.args.summary:
+                self.nc_file.summary = self.args.summary
 
         self.nc_file.close()
 
@@ -436,6 +438,14 @@ class AUV_NetCDF(AUV):
             )
         else:
             self.logger.info("Wait a few minutes for new missions to appear")
+
+    def set_portal(self) -> None:
+        self.portal_base = PORTAL_BASE
+        self.deployments_url = os.path.join(self.portal_base, "deployments")
+        if hasattr(self.args, "portal"):
+            if self.args.portal:
+                self.portal_base = self.args.portal
+                self.deployments_url = os.path.join(self.args.portal, "deployments")
 
     def process_command_line(self):
         examples = "Examples:" + "\n\n"
@@ -542,14 +552,7 @@ class AUV_NetCDF(AUV):
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
-
-        if self.args.portal:
-            self.portal_base = self.args.portal
-            self.deployments_url = os.path.join(self.args.portal, "deployments")
-        else:
-            self.portal_base = PORTAL_BASE
-            self.deployments_url = os.path.join(self.portal_base, "deployments")
-
+        self.set_portal()
         self.commandline = " ".join(sys.argv)
 
 
