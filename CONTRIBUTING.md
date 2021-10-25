@@ -15,7 +15,7 @@ Instructions for contributing to the auv-python project
 
 4. Rename the existing `origin` remote to `upstream`:
 
-        cd $AUV-PYTHON_HOME
+        cd $AUV_PYTHON_HOME
         git remote rename origin upstream
 
 5. Assign `origin` remote to your forked repository:
@@ -29,7 +29,7 @@ Instructions for contributing to the auv-python project
 
 1. cd into your working directory, e.g.:
 
-        cd $AUV-PYTHON_HOME
+        cd $AUV_PYTHON_HOME
 
 2. Create a branch off of main for the new feature: 
 
