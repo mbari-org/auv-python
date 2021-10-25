@@ -56,6 +56,8 @@ class Processor:
         auv_netcdf.args.local = self.args.local
         auv_netcdf.args.auv_name = "i2map"
         auv_netcdf.args.noinput = self.args.noinput
+        auv_netcdf.args.clobber = self.args.clobber
+        auv_netcdf.args.noreprocess = self.args.noreprocess
         auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.set_portal()
         auv_netcdf.args.mission = mission
@@ -89,10 +91,21 @@ class Processor:
             help="Specify if files are local in the MISSION directory",
         )
         parser.add_argument(
+            "--clobber",
+            action="store_true",
+            help="Use with --noinput to overwrite existing" " downloaded log files",
+        )
+        parser.add_argument(
             "--noinput",
             action="store_true",
             help="Execute without asking for a response, e.g. "
             " to not ask to re-download file",
+        )
+        parser.add_argument(
+            "--noreprocess",
+            action="store_true",
+            help="Use with --noinput to not re-process existing"
+            " downloaded log files",
         )
         parser.add_argument(
             "-v",
