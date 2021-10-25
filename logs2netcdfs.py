@@ -423,7 +423,7 @@ class AUV_NetCDF(AUV):
             try:
                 self.logger.info(f"Processing file {log_filename}")
                 self._process_log_file(log_filename, netcdf_filename)
-            except (FileNotFoundError, EOFError, struct.error) as e:
+            except (FileNotFoundError, EOFError, struct.error, IndexError) as e:
                 self.logger.debug(f"{e}")
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
 
