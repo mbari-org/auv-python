@@ -37,7 +37,9 @@ LOG_FILES = (
     "seabird25p.log",
     "FLBBCD2K.log",
 )
-BASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
+BASE_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../data/auv_data")
+)
 
 MISSIONLOGS = "missionlogs"
 MISSIONNETCDFS = "missionnetcdfs"
