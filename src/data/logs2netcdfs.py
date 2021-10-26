@@ -10,19 +10,21 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import argparse
 import asyncio
 import concurrent
-import os
-import sys
 import logging
-import requests
+import os
 import struct
+import sys
 import time
+from pathlib import Path
+from typing import List
+
+import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
-from AUV import AUV
 from netCDF4 import Dataset
-from pathlib import Path
+
+from AUV import AUV
 from readauvlog import log_record
-from typing import List
 
 LOG_FILES = (
     "ctdDriver.log",
@@ -35,7 +37,7 @@ LOG_FILES = (
     "seabird25p.log",
     "FLBBCD2K.log",
 )
-BASE_PATH = "auv_data"
+BASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
 
 MISSIONLOGS = "missionlogs"
 MISSIONNETCDFS = "missionnetcdfs"
