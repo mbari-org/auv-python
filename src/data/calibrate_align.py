@@ -305,7 +305,6 @@ class CalAligned_NetCDF:
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
             orig_netcdf_filename = os.path.join(netcdfs_dir, info["data_filename"])
-            breakpoint()
             self.logger.debug(
                 f"Reading data from {orig_netcdf_filename}"
                 f" into self.{sensor}.orig_data"
