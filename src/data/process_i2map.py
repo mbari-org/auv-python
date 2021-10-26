@@ -13,9 +13,7 @@ import logging
 import subprocess
 import sys
 
-from logs2netcdfs import AUV_NetCDF
-
-BASE_PATH = "auv_data"
+from logs2netcdfs import AUV_NetCDF, BASE_PATH
 
 
 class Processor:
