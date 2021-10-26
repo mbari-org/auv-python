@@ -40,6 +40,8 @@ class Processor:
         self.logger.debug("Executing %s", self.FIND_CMD)
         for line in subprocess.getoutput(self.FIND_CMD).split("\n"):
             self.logger.debug(line)
+            if "No such file or directory" in line:
+                raise FileNotFoundError(line)
             mission = line.split("/")[-1]
             try:
                 year = int(mission.split(".")[0])
