@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 """
+Convert AUV log files to NetCDF files
+
 Parse logged data from AUV MVC .log files and translate to NetCDF including
 all of the available metadata from associated .cfg and .xml files.
 """
@@ -459,7 +461,7 @@ class AUV_NetCDF(AUV):
 
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
-            description="Convert AUV log files to NetCDF files",
+            description=__doc__,
             epilog=examples,
         )
 

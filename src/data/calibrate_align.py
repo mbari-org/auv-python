@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 """
+Calibrate original data and produce NetCDF file for mission
+
 Read original data from netCDF files created by logs2netcdfs.py, apply
 calibration information in .cfg and .xml files associated with the 
 original .log files and write out a single netCDF file with the important
@@ -1290,9 +1292,9 @@ class CalAligned_NetCDF:
             os.remove(out_fn)
         self.combined_nc.to_netcdf(out_fn)
 
-    def process_logs(self):
-        name = self.args.mission
-        vehicle = self.args.auv_name
+    def process_logs(self, vehicle: str, name: str) -> None:
+        name = name or self.args.mission
+        vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         start_datetime = datetime.strptime(".".join(name.split(".")[:2]), "%Y.%j")
@@ -1307,14 +1309,12 @@ class CalAligned_NetCDF:
         except AttributeError as e:
             # Likely: 'SensorInfo' object has no attribute 'orig_data'
             # - meaning netCDF file not loaded
-            raise
             raise FileNotFoundError(
                 f"orig_data not found for {sensor}:"
                 f" refer to previous WARNING messages."
             )
 
         return netcdfs_dir
-        self.write_netcdf(netcdfs_dir)
 
     def process_command_line(self):
 
@@ -1328,7 +1328,7 @@ class CalAligned_NetCDF:
 
         parser = argparse.ArgumentParser(
             formatter_class=RawTextHelpFormatter,
-            description="Calibrate original data and produce NetCDF file for mission - all data locally stored",
+            description=__doc__,
             epilog=examples,
         )
 
@@ -1347,7 +1347,6 @@ class CalAligned_NetCDF:
         parser.add_argument(
             "--mission",
             action="store",
-            required=True,
             help="Mission directory, e.g.: 2020.064.10",
         )
         parser.add_argument(
