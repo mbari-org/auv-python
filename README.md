@@ -47,9 +47,10 @@ running the Jupyter Notebooks:
 
 * cd ~/dev/auv-python
 * poetry shell
-* ./logs2netcdf.py --help   # to see the options for the first processing step
+* src/data/logs2netcdf.py --help        # help for first processing step
+* src/data/calibrate_align.py --help    # help for second processing step
 
 --
 
 Mike McCann
-2 October 2020
+1 November 2021
