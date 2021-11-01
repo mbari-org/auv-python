@@ -1292,7 +1292,7 @@ class CalAligned_NetCDF:
             os.remove(out_fn)
         self.combined_nc.to_netcdf(out_fn)
 
-    def process_logs(self, vehicle: str, name: str) -> None:
+    def process_logs(self, vehicle: str = None, name: str = None) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
