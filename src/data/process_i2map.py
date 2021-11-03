@@ -27,6 +27,18 @@ import sys
 from calibrate_align import CalAligned_NetCDF
 from logs2netcdfs import BASE_PATH, AUV_NetCDF
 
+TEST_LIST = [
+    "2020.008.00",
+    "2020.041.02",
+    "2020.041.02",
+    "2020.055.01",
+    "2020.181.02",
+    "2020.210.03",
+    "2020.224.04",
+    "2020.258.01",
+    "2020.266.01",
+]
+
 
 class Processor:
     VEHICLE = "i2map"
@@ -73,10 +85,12 @@ class Processor:
         auv_netcdf.args.noinput = self.args.noinput
         auv_netcdf.args.clobber = self.args.clobber
         auv_netcdf.args.noreprocess = self.args.noreprocess
-        auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.args.auv_name = self.VEHICLE
         auv_netcdf.args.mission = mission
         auv_netcdf.set_portal()
+        auv_netcdf.args.verbose = self.args.verbose
+        auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        auv_netcdf.commandline = self.commandline
         auv_netcdf.download_process_logs()
 
     def calibrate(self, mission: str) -> None:
@@ -89,21 +103,25 @@ class Processor:
         cal_netcdf.args.noreprocess = self.args.noreprocess
         cal_netcdf.args.auv_name = self.VEHICLE
         cal_netcdf.args.mission = mission
+        cal_netcdf.args.plot = None
+        cal_netcdf.args.verbose = self.args.verbose
+        cal_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
         cal_netcdf.commandline = self.commandline
-        cal_netcdf.args.plot = "first10000"
         try:
             netcdf_dir = cal_netcdf.process_logs()
             cal_netcdf.write_netcdf(netcdf_dir)
         except FileNotFoundError as e:
-            cal_netcdf.logger.error("%s", e)
+            cal_netcdf.logger.error("%s %s", mission, e)
 
     def process_mission(self, mission: str) -> None:
-        if self.args.download_process:
+        if (not self.args.calibrate and not self.args.download_process) or (
+            self.args.calibrate and self.args.download_process
+        ):
             self.download_process(mission)
-        if self.args.calibrate:
             self.calibrate(mission)
-        if not self.args.calibrate and not self.args.download_process:
+        elif self.args.download_process:
             self.download_process(mission)
+        elif self.args.calibrate:
             self.calibrate(mission)
 
     def process_command_line(self):
@@ -192,7 +210,8 @@ class Processor:
 if __name__ == "__main__":
     proc = Processor()
     proc.process_command_line()
-    for mission in proc.mission_list(
-        start_year=proc.args.start_year, end_year=proc.args.end_year
-    ):
+    ##for mission in proc.mission_list(
+    ##    start_year=proc.args.start_year, end_year=proc.args.end_year
+    ##):
+    for mission in TEST_LIST:
         proc.process_mission(mission)
