@@ -5,14 +5,16 @@ Calibrate original data and produce NetCDF file for mission
 Read original data from netCDF files created by logs2netcdfs.py, apply
 calibration information in .cfg and .xml files associated with the 
 original .log files and write out a single netCDF file with the important
-variables at original sampling intervals. Alignment and plumbing lag
+variables at original sampling intervals. Geometric alignment and plumbing lag
 corrections are also done during this step. The file will contain combined
 variables (the combined_nc member variable) and be analogous to the original
 netCDF4 files produced by MBARI's LRAUVs. Rather than using groups in netCDF-4
-the data will be written in classic netCDF-4C with a naming syntax that mimics
+the data will be written in classic netCDF-CF with a naming syntax that mimics
 the LRAUV group naming convention with the coordinates for each sensor:
 ```
-    <sensor>_<variable>
+    <sensor>_<variable_1>
+    <sensor>_<..........>
+    <sensor>_<variable_n>
     <sensor>_time
     <sensor>_depth
     <sensor>_latitude
@@ -542,7 +544,7 @@ class CalAligned_NetCDF:
         lat_fix = self.combined_nc["gps_latitude"]
 
         self.logger.info(
-            f"{'seg#':4s}  {'end_sec_diff':12s} {'end_lon_diff':12s} {'end_lat_diff':12s} {'len(segi)':9s} {'seg_min':>9s} {'u_drift (cm/s)':14s} {'v_drift (cm/s)':14s} {'start datetime of segment':>29}"
+            f"{'seg#':5s}  {'end_sec_diff':12s} {'end_lon_diff':12s} {'end_lat_diff':12s} {'len(segi)':9s} {'seg_min':>9s} {'u_drift (cm/s)':14s} {'v_drift (cm/s)':14s} {'start datetime of segment':>29}"
         )
 
         # Any dead reckoned points before first GPS fix - usually empty as GPS fix happens before dive
@@ -563,7 +565,7 @@ class CalAligned_NetCDF:
         else:
             seg_min = 0
         self.logger.info(
-            f"{' ':4}  {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14} {'-':>29}"
+            f"{' ':5}  {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14} {'-':>29}"
         )
 
         seg_count = 0
@@ -601,25 +603,29 @@ class CalAligned_NetCDF:
 
             # Compute approximate horizontal drift rate as a sanity check
             u_drift = (
-                end_lat_diff
-                * float(np.cos(lat_fix[i + 1]))
+                end_lon_diff
+                * float(np.cos(lat_fix[i + 1] * np.pi / 180))
                 * 60
                 * 185300
-                / float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
-                / 1.0e9
+                / (
+                    float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
+                    / 1.0e9
+                )
             )
             v_drift = (
                 end_lat_diff
                 * 60
                 * 185300
-                / float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
-                / 1.0e9
+                / (
+                    float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
+                    / 1.0e9
+                )
             )
             if len(segi) > 10:
                 self.logger.info(
-                    f"{i:4d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
+                    f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
                     f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
-                    f" {u_drift:14.2f} {v_drift:14.2f} {lat.cf['T'].data[segi][-1]}"
+                    f" {u_drift:14.3f} {v_drift:14.3f} {lat.cf['T'].data[segi][-1]}"
                 )
 
             # Start with zero adjustment at begining and linearly ramp up to the diff at the end
@@ -847,7 +853,7 @@ class CalAligned_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except (FileNotFoundError, AttributeError) as e:
-            self.logger.error(f"{e}")
+            self.logger.debug(f"Original data not found for {sensor}: {e}")
             return
 
         # From initial CVS commit in 2004 the processDepth.m file computed
@@ -931,7 +937,7 @@ class CalAligned_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except (FileNotFoundError, AttributeError) as e:
-            self.logger.error(f"{e}")
+            self.logger.debug(f"Original data not found for {sensor}: {e}")
             return
 
         try:
@@ -1279,9 +1285,13 @@ class CalAligned_NetCDF:
             if coeffs is not None:
                 self._ctd_process(sensor, coeffs)
             else:
-                self.logger.warning(f"No calibration information for {sensor}")
+                if hasattr(getattr(self, sensor), "orig_data"):
+                    # Caller loops through all sensors, so only warn if data
+                    self.logger.warning(f"No calibration information for {sensor}")
         else:
-            self.logger.warning(f"No method (yet) to process {sensor}")
+            if hasattr(getattr(self, sensor), "orig_data"):
+                # Caller loops through all sensors, so only warn if data
+                self.logger.warning(f"No method (yet) to process {sensor}")
 
         return
 
@@ -1308,17 +1318,10 @@ class CalAligned_NetCDF:
         self._read_data(logs_dir, netcdfs_dir)
         self.combined_nc = xr.Dataset()
 
-        try:
-            for sensor in self.sinfo.keys():
-                setattr(getattr(self, sensor), "cal_align_data", xr.Dataset())
-                self._process(sensor, logs_dir, netcdfs_dir)
-        except AttributeError as e:
-            # Likely: 'SensorInfo' object has no attribute 'orig_data'
-            # - meaning netCDF file not loaded
-            raise FileNotFoundError(
-                f"orig_data not found for {sensor}:"
-                f" refer to previous WARNING messages."
-            )
+        for sensor in self.sinfo.keys():
+            setattr(getattr(self, sensor), "cal_align_data", xr.Dataset())
+            self.logger.debug(f"Processing {vehicle} {name} {sensor}")
+            self._process(sensor, logs_dir, netcdfs_dir)
 
         return netcdfs_dir
 
