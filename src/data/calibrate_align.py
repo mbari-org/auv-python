@@ -313,8 +313,8 @@ class CalAligned_NetCDF:
             )
             try:
                 setattr(sensor_info, "orig_data", xr.open_dataset(orig_netcdf_filename))
-            except FileNotFoundError as e:
-                self.logger.warning(
+            except (FileNotFoundError, ValueError) as e:
+                self.logger.debug(
                     f"{sensor:10}: Cannot open file" f" {orig_netcdf_filename}"
                 )
             if info["cal_filename"]:
@@ -1275,22 +1275,28 @@ class CalAligned_NetCDF:
             self._depth_process(sensor)
         elif sensor == "hs2":
             self._hs2_process(sensor, logs_dir)
-        elif (sensor == "ctd" or sensor == "ctd2") and coeffs:
-            self._ctd_process(sensor, coeffs)
+        elif sensor == "ctd" or sensor == "ctd2" or sensor == "seabird25p":
+            if coeffs is not None:
+                self._ctd_process(sensor, coeffs)
+            else:
+                self.logger.warning(f"No calibration information for {sensor}")
         else:
             self.logger.warning(f"No method (yet) to process {sensor}")
 
         return
 
-    def write_netcdf(self, netcdfs_dir):
+    def write_netcdf(self, netcdfs_dir, vehicle: str = None, name: str = None) -> None:
+        name = name or self.args.mission
+        vehicle = vehicle or self.args.auv_name
         self.combined_nc.attrs = self.global_metadata()
-        out_fn = os.path.join(
-            netcdfs_dir, f"{self.args.auv_name}_{self.args.mission}.nc"
-        )
-        self.logger.info(f"Writing calibrated and aligned data to file {out_fn}")
+        out_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}.nc")
+        self.logger.info(f"Writing calibrated instrument data to {out_fn}")
         if os.path.exists(out_fn):
             os.remove(out_fn)
         self.combined_nc.to_netcdf(out_fn)
+        self.logger.info(
+            "Data variables written: %s", ", ".join(sorted(self.combined_nc.variables))
+        )
 
     def process_logs(self, vehicle: str = None, name: str = None) -> None:
         name = name or self.args.mission
