@@ -14,8 +14,8 @@ import logging
 import os
 import sys
 
+import matplotlib.pyplot as plt
 import xarray as xr
-from scipy.signal import medfilt
 
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
 from process_i2map import TEST_LIST
@@ -32,23 +32,20 @@ class Resampler:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    def __init__(self) -> None:
+        plt.rcParams["figure.figsize"] = (15, 5)
+        self.resampled_nc = xr.Dataset()
+
     def resample_variables(self, nc_file):
         ds = xr.open_dataset(nc_file)
-        for variable in ds.variables:
+        for variable in ds.keys():
+            instr, _ = variable.split("_")
             print(f"Resampling {variable}")
-            ds["smooth_lat"] = (
-                ds["navigation_latitude"]
-                .rolling(navigation_time=5, center=True)
-                .median()
+            self.resampled_nc[variable] = ds[variable]
+            self.resampled_nc[f"{variable}_mf"] = (
+                ds[variable].rolling(**{instr + "_time": 3}, center=True).median()
             )
-            lat_mf = xr.apply_ufunc(
-                medfilt,
-                ds.navigation_latitude,
-                kwargs={"kernel_size": 3},
-                input_core_dims=[["navigation_time"]],
-                vectorize=True,
-            )
-            pass
+            self.resampled_nc.to_dataframe().plot.line(y=[variable, f"{variable}_mf"])
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
