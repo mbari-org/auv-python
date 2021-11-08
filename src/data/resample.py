@@ -14,7 +14,9 @@ import logging
 import os
 import sys
 
+import matplotlib
 import matplotlib.pyplot as plt
+import pandas as pd
 import xarray as xr
 
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
@@ -36,16 +38,50 @@ class Resampler:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
 
-    def resample_variables(self, nc_file):
+    def resample_variables(self, nc_file, mf_width=3, freq="1.0S"):
+        pd.options.plotting.backend = "matplotlib"
         ds = xr.open_dataset(nc_file)
+        last_instr = None
         for variable in ds.keys():
             instr, _ = variable.split("_")
-            print(f"Resampling {variable}")
-            self.resampled_nc[variable] = ds[variable]
-            self.resampled_nc[f"{variable}_mf"] = (
-                ds[variable].rolling(**{instr + "_time": 3}, center=True).median()
+            if instr == "navigation":
+                freq = "0.1S"
+            if instr != last_instr:
+                df_o = pd.DataFrame()  # original dataframe
+                df_r = pd.DataFrame()  # resampled dataframe
+            print(f"Median filtering {variable} with width {mf_width}")
+            df_o[variable] = ds[variable].to_pandas()
+            df_o[f"{variable}_mf"] = (
+                ds[variable]
+                .rolling(**{instr + "_time": mf_width}, center=True)
+                .median()
+                .to_pandas()
             )
-            self.resampled_nc.to_dataframe().plot.line(y=[variable, f"{variable}_mf"])
+            # Convert all coordinate variables to Pandas Series and resample
+            print(f"Resampling {variable} with frequency {freq}")
+            df_r[f"{instr}_latitude"] = (
+                ds[instr + "_latitude"].to_pandas().resample(freq).mean()
+            )
+            df_r[f"{instr}_longitude"] = (
+                ds[instr + "_longitude"].to_pandas().resample(freq).mean()
+            )
+            df_r[f"{instr}_depth"] = (
+                ds[instr + "_depth"].to_pandas().resample(freq).mean()
+            )
+            df_r[f"{variable}_rs"] = ds[variable].to_pandas().resample(freq).mean()
+
+            # Different freqs on same axes - https://stackoverflow.com/a/13873014/1281657
+            ax = df_o.plot.line(y=[variable, f"{variable}_mf"])
+            df_r.plot.line(
+                y=[f"{variable}_rs"],
+                ax=ax,
+                marker="o",
+                linestyle="dotted",
+                markersize=2,
+            )
+
+            plt.show()
+            last_instr = instr
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
