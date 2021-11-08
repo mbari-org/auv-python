@@ -1121,6 +1121,9 @@ class CalAligned_NetCDF:
             self.logger.error(f"{e}")
             return
 
+        # Remove duplicate times - https://stackoverflow.com/a/64749574/1281657
+        orig_nc = orig_nc.sel(time=~orig_nc.get_index("time").duplicated())
+
         # Need to do this zeroth-level QC to calibrate temperature
         orig_nc["temp_frequency"][orig_nc["temp_frequency"] == 0.0] = np.nan
         source = self.sinfo[sensor]["data_filename"]
