@@ -38,12 +38,14 @@ import scipy
 import sys
 import time
 import xarray as xr
+import webbrowser
 from collections import namedtuple, OrderedDict
 from ctd_proc import (
     _calibrated_sal_from_cond_frequency,
     _calibrated_temp_from_frequency,
 )
 from datetime import datetime
+from folium import Map, PolyLine
 from hs2_proc import hs2_read_cal_file, hs2_calc_bb
 from pathlib import Path
 from netCDF4 import Dataset
@@ -533,7 +535,7 @@ class CalAligned_NetCDF:
 
     def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
-        the match the surface gps positions.
+        they match the surface gps positions.
         """
         self.segment_count = None
         self.segment_minsum = None
@@ -550,15 +552,15 @@ class CalAligned_NetCDF:
         # Any dead reckoned points before first GPS fix - usually empty as GPS fix happens before dive
         segi = np.where(lat.cf["T"].data < lat_fix.cf["T"].data[0])[0]
         if lon[:][segi].any():
-            lon_nudged = lon[segi]
-            lat_nudged = lat[segi]
+            lon_nudged_array = lon[segi]
+            lat_nudged_array = lat[segi]
             dt_nudged = lon.index[segi]
             self.logger.debug(
                 f"Filled _nudged arrays with {len(segi)} values starting at {lat.index[0]} which were before the first GPS fix at {lat_fix.index[0]}"
             )
         else:
-            lon_nudged = np.array([])
-            lat_nudged = np.array([])
+            lon_nudged_array = np.array([])
+            lat_nudged_array = np.array([])
             dt_nudged = np.array([], dtype="datetime64[ns]")
         if segi.any():
             seg_min = (lat.index[segi][-1] - lat.index[segi][0]).total_seconds() / 60
@@ -661,8 +663,8 @@ class CalAligned_NetCDF:
                     f" max(abs(lat)) = {np.max(np.abs(lat[segi] + lat_nudge))}"
                 )
 
-            lon_nudged = np.append(lon_nudged, lon[segi] + lon_nudge)
-            lat_nudged = np.append(lat_nudged, lat[segi] + lat_nudge)
+            lon_nudged_array = np.append(lon_nudged_array, lon[segi] + lon_nudge)
+            lat_nudged_array = np.append(lat_nudged_array, lat[segi] + lat_nudge)
             dt_nudged = np.append(dt_nudged, lon.cf["T"].data[segi])
             seg_count += 1
 
@@ -670,8 +672,8 @@ class CalAligned_NetCDF:
         segi = np.where(lat.cf["T"].data > lat_fix.cf["T"].data[-1])[0]
         seg_min = 0
         if segi.any():
-            lon_nudged = np.append(lon_nudged, lon[segi])
-            lat_nudged = np.append(lat_nudged, lat[segi])
+            lon_nudged_array = np.append(lon_nudged_array, lon[segi])
+            lat_nudged_array = np.append(lat_nudged_array, lat[segi])
             dt_nudged = np.append(dt_nudged, lon.cf["T"].data[segi])
             seg_min = (
                 float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
@@ -687,24 +689,29 @@ class CalAligned_NetCDF:
 
         self.logger.info(f"Points in final series = {len(dt_nudged)}")
 
-        lon_series = pd.Series(lon_nudged, index=dt_nudged)
-        lat_series = pd.Series(lat_nudged, index=dt_nudged)
+        lon_nudged = xr.DataArray(
+            data=lon_nudged_array,
+            dims=["time"],
+            coords=dict(time=dt_nudged),
+        )
+        lat_nudged = xr.DataArray(
+            data=lat_nudged_array,
+            dims=["time"],
+            coords=dict(time=dt_nudged),
+        )
         if self.args.plot:
-            pbeg = 0
-            pend = len(self.combined_nc["gps_latitude"])
-            if self.args.plot.startswith("first"):
-                pend = int(self.args.plot.split("first")[1])
             fig, axes = plt.subplots(nrows=2, figsize=(18, 6))
-            ##axes[0].plot(lat_series[pbeg:pend], '-o')
-            axes[0].plot(lat[pbeg:pend], "-")
-            ##axes[0].plot(lat_fix[pbeg:pend], '*')
+            axes[0].plot(lat_nudged.coords["time"].data, lat_nudged, "-")
+            axes[0].plot(lat.cf["T"].data, lat, "--")
+            axes[0].plot(lat_fix.cf["T"].data, lat_fix, "*")
             axes[0].set_ylabel("Latitude")
-            ##axes[1].plot(lon_series[pbeg:pend], '-o')
-            axes[1].plot(lon[pbeg:pend], "-")
-            ##axes[1].plot(lon_fix[pbeg:pend], '*')
+            axes[0].legend(["Nudged", "Original", "GPS Fix"])
+            axes[1].plot(lon_nudged.coords["time"].data, lon_nudged, "-")
+            axes[1].plot(lon.cf["T"].data, lon, "--")
+            axes[1].plot(lon_fix.cf["T"].data, lon_fix, "*")
             axes[1].set_ylabel("Longitude")
+            axes[1].legend(["Nudged", "Original", "GPS Fix"])
             title = "Corrected nav from _nudge_pos()"
-            title += f" - First {pend} Points"
             fig.suptitle(title)
             axes[0].grid()
             axes[1].grid()
@@ -713,9 +720,7 @@ class CalAligned_NetCDF:
             )
             plt.show()
 
-        return pd.Series(lon_nudged, index=dt_nudged), pd.Series(
-            lat_nudged, index=dt_nudged
-        )
+        return lon_nudged, lat_nudged
 
     def _gps_process(self, sensor):
         try:
@@ -821,10 +826,28 @@ class CalAligned_NetCDF:
         # With navigation dead reckoned positions available in self.combined_nc
         # and the gps positions added we can now match the underwater inertial
         # (dead reckoned) positions to the surface gps positions.
-        self._nudge_pos()
+        nudged_lon, nudged_lat = self._nudge_pos()
 
         gps_plot = True  # Set to False for debugging other plots
         if self.args.plot and gps_plot:
+            # TODO: Make an ipyleaflet map of the gps positions here
+            self.logger.debug("Builing line from nudged points...")
+            line = PolyLine(
+                locations=[
+                    [point[1], point[0]]
+                    for point in zip(nudged_lon.values, nudged_lat.values)
+                ],
+                color="blue",
+                fill=False,
+            )
+            self.logger.debug("Adding line to map")
+            map = Map(center=(nudged_lon.values.mean(), nudged_lat.values.mean()))
+            line.add_to(map)
+            # https://github.com/python-visualization/folium/issues/946#issuecomment-417313698
+            file_name = f"{self.args.mission}_{sensor}_gps_map.html"
+            map.save(file_name)
+            webbrowser.open(file_name)
+
             pbeg = 0
             pend = len(self.combined_nc["gps_latitude"])
             if self.args.plot.startswith("first"):
