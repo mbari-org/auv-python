@@ -34,6 +34,7 @@ configured for your system. See https://bitbucket.org/account/settings/ssh-keys
 To install on a Workstation:
 
 * Install Python 3.8 on your system (Brew, Anaconda, etc)
+* On a Mac install necessary brew packages: netcdf4, geos, proj
 * Install Poetry (https://python-poetry.org/docs/#installation)
 * mkdir ~/dev   # create a directory for your repositories
 * cd ~/dev

@@ -28,6 +28,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
 import cf_xarray
+import cartopy.crs as ccrs
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,12 +46,12 @@ from ctd_proc import (
     _calibrated_temp_from_frequency,
 )
 from datetime import datetime
-from folium import Map, PolyLine
 from hs2_proc import hs2_read_cal_file, hs2_calc_bb
 from pathlib import Path
 from netCDF4 import Dataset
 from scipy.interpolate import interp1d
 from seawater import eos80
+from shapely.geometry import LineString
 from socket import gethostname
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
@@ -830,41 +831,18 @@ class CalAligned_NetCDF:
 
         gps_plot = True  # Set to False for debugging other plots
         if self.args.plot and gps_plot:
-            # TODO: Make an ipyleaflet map of the gps positions here
-            self.logger.debug("Builing line from nudged points...")
-            line = PolyLine(
-                locations=[
-                    [point[1], point[0]]
-                    for point in zip(nudged_lon.values, nudged_lat.values)
-                ],
-                color="blue",
-                fill=False,
-            )
+            fig = plt.figure(figsize=(6, 6))
+            ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            self.logger.debug("Building line from nudged points...")
+            nudged = LineString(zip(nudged_lon.values, nudged_lat.values))
             self.logger.debug("Adding line to map")
-            map = Map(center=(nudged_lon.values.mean(), nudged_lat.values.mean()))
-            line.add_to(map)
-            # https://github.com/python-visualization/folium/issues/946#issuecomment-417313698
-            file_name = f"{self.args.mission}_{sensor}_gps_map.html"
-            map.save(file_name)
-            webbrowser.open(file_name)
-
-            pbeg = 0
-            pend = len(self.combined_nc["gps_latitude"])
-            if self.args.plot.startswith("first"):
-                pend = int(self.args.plot.split("first")[1])
-            fig, axes = plt.subplots(nrows=2, figsize=(18, 6))
-            axes[0].plot(self.combined_nc["gps_latitude"][pbeg:pend], "-o")
-            axes[0].set_ylabel("gps_latitude")
-            axes[1].plot(self.combined_nc["gps_longitude"][pbeg:pend], "-o")
-            axes[1].set_ylabel("gps_longitude")
-            title = "GPS Positions"
-            title += f" - First {pend} Points"
-            fig.suptitle(title)
-            axes[0].grid()
-            axes[1].grid()
-            self.logger.debug(
-                f"Pausing with plot entitled: {title}." " Close window to continue."
+            ax.add_geometries(
+                [nudged], crs=ccrs.PlateCarree(), edgecolor="red", facecolor="none"
             )
+            bounds = nudged.buffer(0.1).bounds
+            extent = bounds[0], bounds[2], bounds[1], bounds[3]
+            ax.set_extent(extent, crs=ccrs.PlateCarree())
+            ax.coastlines()
             plt.show()
 
     def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
