@@ -13,17 +13,17 @@ pipelines:
           # Need to build geos & proj from source as cartopy needs
           # more recent versions than are available through:
           # apt-get install -y libgeos-dev libproj-dev  :-(
-          - apt-get update && apt-get install -y cmake
-          - wget http://download.osgeo.org/geos/geos-3.10.1.tar.bz2
-          - tar xvf geos-3.10.1.tar.bz2
-          - cd geos-3.10.1 && pwd
-          - mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
-          - make && make install
-          - apt-get update && apt-get install -y sqlite3-dev sqlite3
-          - wget --no-check-certificate https://download.osgeo.org/proj/proj-8.1.0.tar.gz
-          - tar xvzf proj-8.1.0.tar.gz
-          - cd proj-8.1.0 && pwd && ./configure
-          - make && make install
+          ##- apt-get update && apt-get install -y cmake
+          ##- wget http://download.osgeo.org/geos/geos-3.10.1.tar.bz2
+          ##- tar xvf geos-3.10.1.tar.bz2
+          ##- cd geos-3.10.1 && pwd
+          ##- mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
+          ##- make && make install
+          ##- apt-get update && apt-get install -y sqlite3-dev sqlite3
+          ##- wget --no-check-certificate https://download.osgeo.org/proj/proj-8.1.0.tar.gz
+          ##- tar xvzf proj-8.1.0.tar.gz
+          ##- cd proj-8.1.0 && pwd && ./configure
+          ##- make && make install
           # The above takes more than 10 minutes, below goes pretty quick
           # I've hit the 59 build minutes limit for this month!
           # This may work - TODO for next month once I'm out of purgatory:
