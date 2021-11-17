@@ -12,6 +12,7 @@ pipelines:
         script: # Modify the commands below to build your repository.
           - wget http://download.osgeo.org/geos/geos-3.10.1.tar.bz2
           - tar xvfz geos-3.10.1.tar.bz2 && cd geos-3.10.1
+          - apt-get update && apt-get install cmake
           - mkdir build && cd build && cmake ../geos
           - make && make install
           - apt-get update && apt-get install -y libproj-dev
