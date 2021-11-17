@@ -27,32 +27,31 @@ with the concept of "instrument" in SSDS parlance.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
-import cf_xarray
-import cartopy.crs as ccrs
+import cf_xarray  # Needed for the .cf accessor
 import logging
-import matplotlib.pyplot as plt
-import numpy as np
 import os
-import pandas as pd
-import requests
-import scipy
 import sys
 import time
+from collections import OrderedDict, namedtuple
+from datetime import datetime
+from socket import gethostname
+
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy
 import xarray as xr
-import webbrowser
-from collections import namedtuple, OrderedDict
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
+from scipy.interpolate import interp1d
+from seawater import eos80
+from shapely.geometry import LineString
+
 from ctd_proc import (
     _calibrated_sal_from_cond_frequency,
     _calibrated_temp_from_frequency,
 )
-from datetime import datetime
-from hs2_proc import hs2_read_cal_file, hs2_calc_bb
-from pathlib import Path
-from netCDF4 import Dataset
-from scipy.interpolate import interp1d
-from seawater import eos80
-from shapely.geometry import LineString
-from socket import gethostname
+from hs2_proc import hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = "time"
@@ -843,6 +842,22 @@ class CalAligned_NetCDF:
             extent = bounds[0], bounds[2], bounds[1], bounds[3]
             ax.set_extent(extent, crs=ccrs.PlateCarree())
             ax.coastlines()
+            ax.gridlines(
+                crs=ccrs.PlateCarree(),
+                draw_labels=True,
+                linewidth=1,
+                color="gray",
+                alpha=0.5,
+            )
+            ax.set_xlabel("Longitude")
+            ax.set_ylabel("Latitude")
+            ax.set_title(f"{self.args.auv_name} {self.args.mission}")
+            lon_formatter = LongitudeFormatter(
+                number_format=".3f", degree_symbol="", dateline_direction_label=True
+            )
+            lat_formatter = LatitudeFormatter(number_format=".3f", degree_symbol="")
+            ax.xaxis.set_major_formatter(lon_formatter)
+            ax.yaxis.set_major_formatter(lat_formatter)
             plt.show()
 
     def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
