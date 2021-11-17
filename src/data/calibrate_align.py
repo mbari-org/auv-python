@@ -43,9 +43,10 @@ import pandas as pd
 import scipy
 import xarray as xr
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
+from matplotlib import patches
 from scipy.interpolate import interp1d
 from seawater import eos80
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 
 from ctd_proc import (
     _calibrated_sal_from_cond_frequency,
@@ -705,12 +706,12 @@ class CalAligned_NetCDF:
             axes[0].plot(lat.cf["T"].data, lat, "--")
             axes[0].plot(lat_fix.cf["T"].data, lat_fix, "*")
             axes[0].set_ylabel("Latitude")
-            axes[0].legend(["Nudged", "Original", "GPS Fix"])
+            axes[0].legend(["Nudged", "Original", "GPS Fixes"])
             axes[1].plot(lon_nudged.coords["time"].data, lon_nudged, "-")
             axes[1].plot(lon.cf["T"].data, lon, "--")
             axes[1].plot(lon_fix.cf["T"].data, lon_fix, "*")
             axes[1].set_ylabel("Longitude")
-            axes[1].legend(["Nudged", "Original", "GPS Fix"])
+            axes[1].legend(["Nudged", "Original", "GPS Fixes"])
             title = "Corrected nav from _nudge_pos()"
             fig.suptitle(title)
             axes[0].grid()
@@ -719,6 +720,55 @@ class CalAligned_NetCDF:
                 f"Pausing with plot entitled: {title}." " Close window to continue."
             )
             plt.show()
+
+            gps_plot = True
+            if gps_plot:
+                ax = plt.axes(projection=ccrs.PlateCarree())
+                nudged = LineString(zip(lon_nudged.values, lat_nudged.values))
+                original = LineString(zip(lon.values, lat.values))
+                ax.add_geometries(
+                    [nudged],
+                    crs=ccrs.PlateCarree(),
+                    edgecolor="red",
+                    facecolor="none",
+                    label="Nudged",
+                )
+                ax.add_geometries(
+                    [original],
+                    crs=ccrs.PlateCarree(),
+                    edgecolor="grey",
+                    facecolor="none",
+                    label="Original",
+                )
+                handle_gps = ax.scatter(
+                    lon_fix.values,
+                    lat_fix.values,
+                    color="green",
+                    label="GPS Fixes",
+                )
+                bounds = nudged.buffer(0.02).bounds
+                extent = bounds[0], bounds[2], bounds[1], bounds[3]
+                ax.set_extent(extent, crs=ccrs.PlateCarree())
+                ax.coastlines()
+                handle_nudged = patches.Rectangle((0, 0), 1, 0.1, facecolor="red")
+                handle_original = patches.Rectangle((0, 0), 1, 0.1, facecolor="gray")
+                ax.legend(
+                    [handle_nudged, handle_original, handle_gps],
+                    ["Nudged", "Original", "GPS Fixes"],
+                )
+                ax.gridlines(
+                    crs=ccrs.PlateCarree(),
+                    draw_labels=True,
+                    linewidth=1,
+                    color="gray",
+                    alpha=0.5,
+                )
+                ax.set_title(f"{self.args.auv_name} {self.args.mission}")
+                self.logger.debug(
+                    "Pausing map plot (doesn't work well in VS Code debugger)."
+                    " Close window to continue."
+                )
+                plt.show()
 
         return lon_nudged, lat_nudged
 
@@ -827,38 +877,6 @@ class CalAligned_NetCDF:
         # and the gps positions added we can now match the underwater inertial
         # (dead reckoned) positions to the surface gps positions.
         nudged_lon, nudged_lat = self._nudge_pos()
-
-        gps_plot = True  # Set to False for debugging other plots
-        if self.args.plot and gps_plot:
-            fig = plt.figure(figsize=(6, 6))
-            ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-            self.logger.debug("Building line from nudged points...")
-            nudged = LineString(zip(nudged_lon.values, nudged_lat.values))
-            self.logger.debug("Adding line to map")
-            ax.add_geometries(
-                [nudged], crs=ccrs.PlateCarree(), edgecolor="red", facecolor="none"
-            )
-            bounds = nudged.buffer(0.1).bounds
-            extent = bounds[0], bounds[2], bounds[1], bounds[3]
-            ax.set_extent(extent, crs=ccrs.PlateCarree())
-            ax.coastlines()
-            ax.gridlines(
-                crs=ccrs.PlateCarree(),
-                draw_labels=True,
-                linewidth=1,
-                color="gray",
-                alpha=0.5,
-            )
-            ax.set_xlabel("Longitude")
-            ax.set_ylabel("Latitude")
-            ax.set_title(f"{self.args.auv_name} {self.args.mission}")
-            lon_formatter = LongitudeFormatter(
-                number_format=".3f", degree_symbol="", dateline_direction_label=True
-            )
-            lat_formatter = LatitudeFormatter(number_format=".3f", degree_symbol="")
-            ax.xaxis.set_major_formatter(lon_formatter)
-            ax.yaxis.set_major_formatter(lat_formatter)
-            plt.show()
 
     def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
         """Depth data (from the Parosci) is 10 Hz - Use a butterworth window
