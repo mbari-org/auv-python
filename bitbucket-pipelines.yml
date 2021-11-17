@@ -18,9 +18,11 @@ pipelines:
           - tar xvf geos-3.10.1.tar.bz2
           - cd geos-3.10.1 && pwd
           - mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
-          - wget https://download.osgeo.org/proj/proj-8.1.0.tar.gz
           - make && make install
-          - apt-get update && apt-get install -y libproj-dev
+          - wget https://download.osgeo.org/proj/proj-8.1.0.tar.gz
+          - tar xvzf proj-8.1.0.tar.gz
+          - cd proj-8.1.0 && pwd && ./configure
+          - make && make install
           - python -m pip install --upgrade pip
           - pip install poetry
           - poetry install
