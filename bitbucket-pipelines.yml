@@ -10,11 +10,15 @@ pipelines:
         caches:
           - pip
         script: # Modify the commands below to build your repository.
+          # Need to build geos & proj from source as cartopy needs
+          # more recent versions than are available through:
+          # apt-get install -y libgeos-dev libproj-dev  :-(
           - apt-get update && apt-get install -y cmake
           - wget http://download.osgeo.org/geos/geos-3.10.1.tar.bz2
           - tar xvf geos-3.10.1.tar.bz2
           - cd geos-3.10.1 && pwd
           - mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
+          - wget https://download.osgeo.org/proj/proj-8.1.0.tar.gz
           - make && make install
           - apt-get update && apt-get install -y libproj-dev
           - python -m pip install --upgrade pip
