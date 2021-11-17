@@ -10,7 +10,7 @@ pipelines:
         caches:
           - pip
         script: # Modify the commands below to build your repository.
-          - apt-get update && apt-get install -y libgeos++-dev libgeos-3.8.0 libgeos-c1v5 libgeos-dev proj-bin
+          - apt-get update && apt-get install -y libgeos++-dev libgeos libgeos-c1v5 libgeos-dev proj-bin
           - python -m pip install --upgrade pip
           - pip install poetry
           - poetry install
