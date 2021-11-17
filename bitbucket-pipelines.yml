@@ -25,6 +25,11 @@ pipelines:
           - cd proj-8.1.0 && pwd && ./configure
           - make && make install
           # The above takes more than 10 minutes, below goes pretty quick
+          # I've hit the 59 build minutes limit for this month!
+          # This may work - TODO for next month:
+          -           - 
+
+
           - python -m pip install --upgrade pip
           - pip install poetry
           - poetry install
