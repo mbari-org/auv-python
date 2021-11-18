@@ -694,11 +694,13 @@ class CalAligned_NetCDF:
             data=lon_nudged_array,
             dims=["time"],
             coords=dict(time=dt_nudged),
+            name="longitude",
         )
         lat_nudged = xr.DataArray(
             data=lat_nudged_array,
             dims=["time"],
             coords=dict(time=dt_nudged),
+            name="latitude",
         )
         if self.args.plot:
             fig, axes = plt.subplots(nrows=2, figsize=(18, 6))
@@ -873,10 +875,25 @@ class CalAligned_NetCDF:
             "comment": f"longitude from {source}",
         }
 
+        # TODO: Put this in a separate module like match_to_gps.py or something
         # With navigation dead reckoned positions available in self.combined_nc
         # and the gps positions added we can now match the underwater inertial
         # (dead reckoned) positions to the surface gps positions.
-        nudged_lon, nudged_lat = self._nudge_pos()
+        nudged_longitude, nudged_latitude = self._nudge_pos()
+        self.combined_nc["nudged_latitude"] = nudged_latitude
+        self.combined_nc["nudged_latitude"].attrs = {
+            "long_name": "Nudged Latitude",
+            "standard_name": "latitude",
+            "units": "degrees_north",
+            "comment": "Dead reckoned latitude nudged to GPS positions",
+        }
+        self.combined_nc["nudged_longitude"] = nudged_longitude
+        self.combined_nc["nudged_longitude"].attrs = {
+            "long_name": "Nudged Longitude",
+            "standard_name": "longitude",
+            "units": "degrees_east",
+            "comment": "Dead reckoned longitude nudged to GPS positions",
+        }
 
     def _depth_process(self, sensor, latitude=36, cutoff_freq=1):
         """Depth data (from the Parosci) is 10 Hz - Use a butterworth window
@@ -1323,11 +1340,9 @@ class CalAligned_NetCDF:
                 self._ctd_process(sensor, coeffs)
             else:
                 if hasattr(getattr(self, sensor), "orig_data"):
-                    # Caller loops through all sensors, so only warn if data
                     self.logger.warning(f"No calibration information for {sensor}")
         else:
             if hasattr(getattr(self, sensor), "orig_data"):
-                # Caller loops through all sensors, so only warn if data
                 self.logger.warning(f"No method (yet) to process {sensor}")
 
         return
