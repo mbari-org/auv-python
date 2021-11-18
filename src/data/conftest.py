@@ -1,7 +1,7 @@
 import logging
 import os
 import pytest
-from calibrate import CalAligned_NetCDF
+from calibrate import Calibrate_NetCDF
 from argparse import Namespace
 from hs2_proc import hs2_read_cal_file
 from logs2netcdfs import MISSIONLOGS, BASE_PATH
@@ -10,7 +10,7 @@ from logs2netcdfs import MISSIONLOGS, BASE_PATH
 @pytest.fixture(scope="session", autouse=False)
 def mission_data():
     """Load a short recent mission to have some real data to work with"""
-    cal_netcdf = CalAligned_NetCDF()
+    cal_netcdf = Calibrate_NetCDF()
     ns = Namespace()
     ns.base_path = BASE_PATH
     ns.auv_name = "Dorado389"

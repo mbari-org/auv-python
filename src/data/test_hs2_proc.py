@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from calibrate import CalAligned_NetCDF
+from calibrate import Calibrate_NetCDF
 from hs2_proc import typ_absorption, purewater_scatter, _get_gains, hs2_calc_bb
 
 def test_typ_absorption():

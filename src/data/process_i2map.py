@@ -24,7 +24,7 @@ import platform
 import subprocess
 import sys
 
-from calibrate import CalAligned_NetCDF
+from calibrate import Calibrate_NetCDF
 from logs2netcdfs import BASE_PATH, AUV_NetCDF
 
 TEST_LIST = [
@@ -94,7 +94,7 @@ class Processor:
         auv_netcdf.download_process_logs()
 
     def calibrate(self, mission: str) -> None:
-        cal_netcdf = CalAligned_NetCDF()
+        cal_netcdf = Calibrate_NetCDF()
         cal_netcdf.args = argparse.Namespace()
         cal_netcdf.args.base_path = self.args.base_path
         cal_netcdf.args.local = self.args.local

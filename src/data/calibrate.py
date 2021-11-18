@@ -111,7 +111,7 @@ class SensorInfo:
     pass
 
 
-class CalAligned_NetCDF:
+class Calibrate_NetCDF:
 
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -1351,7 +1351,7 @@ class CalAligned_NetCDF:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         self.combined_nc.attrs = self.global_metadata()
-        out_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}.nc")
+        out_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
         self.logger.info(f"Writing calibrated instrument data to {out_fn}")
         if os.path.exists(out_fn):
             os.remove(out_fn)
@@ -1445,7 +1445,7 @@ class CalAligned_NetCDF:
 
 if __name__ == "__main__":
 
-    cal_netcdf = CalAligned_NetCDF()
+    cal_netcdf = Calibrate_NetCDF()
     cal_netcdf.process_command_line()
     p_start = time.time()
     netcdf_dir = cal_netcdf.process_logs()
