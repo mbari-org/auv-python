@@ -12,7 +12,7 @@ Limit processing to specific steps by providing arugments:
     --resample
 If none provided then perform all steps.
 
-Uses command line arguments from logs2netcdf.py and calibrate_align.py.
+Uses command line arguments from logs2netcdf.py and calibrate.py.
 """
 
 __author__ = "Mike McCann"
@@ -24,7 +24,7 @@ import platform
 import subprocess
 import sys
 
-from calibrate_align import CalAligned_NetCDF
+from calibrate import CalAligned_NetCDF
 from logs2netcdfs import BASE_PATH, AUV_NetCDF
 
 TEST_LIST = [

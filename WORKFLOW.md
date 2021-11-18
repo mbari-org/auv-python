@@ -38,7 +38,12 @@ on the local file system is as follows:
         is parallel to the original data stored in missionlogs/.
 
     calibrate.py
-        Calibrate raw data.
+        Apply calibration coefficients to the raw data. The calibrated data
+        are written to a new netCDF file in the `missionnetcdfs/<mission>`
+        directory ending with `_cal.nc`. The record variables in the netCDF 
+        file have only their original coordinates, namely time associated with
+        them.
+        
     align.py
         Align calibrated data.
     resample.py

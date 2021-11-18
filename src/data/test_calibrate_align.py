@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import pytest
-from calibrate_align import align_geom
+from calibrate import align_geom
 
 def test_align_geom():
     # https://www.onlinemathlearning.com/math-trick-unit-circle.html

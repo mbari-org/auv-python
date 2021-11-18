@@ -49,7 +49,7 @@ running the Jupyter Notebooks:
 * cd ~/dev/auv-python
 * poetry shell
 * src/data/logs2netcdf.py --help        # help for first processing step
-* src/data/calibrate_align.py --help    # help for second processing step
+* src/data/calibrate.py --help    # help for second processing step
 
 --
 

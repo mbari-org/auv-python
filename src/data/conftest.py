@@ -1,7 +1,7 @@
 import logging
 import os
 import pytest
-from calibrate_align import CalAligned_NetCDF
+from calibrate import CalAligned_NetCDF
 from argparse import Namespace
 from hs2_proc import hs2_read_cal_file
 from logs2netcdfs import MISSIONLOGS, BASE_PATH
