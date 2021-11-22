@@ -7,78 +7,19 @@
 
 
         {
-            "name": "Test calibrate.py i2map",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/calibrate.py",
-            "console": "integratedTerminal",
-            "args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--plot", "first2000" ,"-v", "2"]
-        },
-        {
-            "name": "Test calibrate.py dorado 2020.245.00",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/calibrate.py",
-            "args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot",  "first1000", "-v", "1"]
-        },
-        {
-            "name": "Test logs2netcdfs.py i2map",
+            "name": "1.0 - logs2netcdfs.py",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
             "console": "integratedTerminal",
-            "args": ["--auv_name", "i2map", "--mission", "2020.055.00", "--noinput",  "-v", "2", "--clobber"]
+            //"args": ["--auv_name", "i2map", "--mission", "2019.190.00", "--local",  "-v", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2020.055.00", "--noinput",  "-v", "2", "--clobber"]
+            //"args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
+            //"args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
+            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
         },
         {
-            "name": "Test logs2netcdfs.py dorado 2017.297.00",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
-            "console": "integratedTerminal",
-            "args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
-        },
-        {
-            "name": "Test logs2netcdfs.py dorado 2019.190.00",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
-            "console": "integratedTerminal",
-            "args": ["--auv_name", "i2map", "--mission", "2019.190.00", "--local",  "-v", "1"]
-        },
-        {
-            "name": "Test logs2netcdfs.py early dorado",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
-            "console": "integratedTerminal",
-            "args": ["--auv_name", "Dorado389", "--mission", "2005.180.00", "--noinput", "-v", "1", "--noinput"]
-        },
-        {
-            "name": "Test calibrate.py early dorado",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/calibrate.py",
-            "console": "integratedTerminal",
-            "args": ["--auv_name", "dorado327", "--mission", "2003.223.02", "-v", "2"]
-        },
-        {
-            "name": "Test logs2netcdfs.py --start --end",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
-            "console": "integratedTerminal",
-            "args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
-        },
-        {
-            "name": "Test satelligent_sbd.py",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/satelligent_sbd.py",
-            "console": "integratedTerminal",
-            "args": ["~/Downloads/300434062030130_000575.sbd",]
-        },
-        {
-            "name": "Test correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
+            "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/correct_log_times.py",
@@ -86,19 +27,30 @@
             "args": ["--auv_name", "Dorado389", "--mission", "2017.284.00", "-v", "2"]
         },
         {
-            "name": "Test hs2_proc.py (its unit tests)",
+            "name": "2.0 - calibrate.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/calibrate.py",
+            "console": "integratedTerminal",
+            //"args": ["--auv_name", "dorado327", "--mission", "2003.223.02", "-v", "2"]
+            //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--plot", "first2000" ,"-v", "2"]
+            //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot",  "first1000", "-v", "1"]
+            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "first1000", "-v", "2"]
+        },
+        {
+            "name": "2.1 - Test hs2_proc.py (its unit tests)",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/hs2_proc.py",
             "console": "integratedTerminal",
         },
         {
-            "name": "Test calibrate.py early i2map short mission - repeated time",
+            "name": "3.0 - resample.py",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/data/calibrate.py",
+            "program": "${workspaceFolder}/src/data/resample.py",
             "console": "integratedTerminal",
-            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "firts1000", "-v", "2"]
+            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
         },
         {
             "name": "process_i2map",
@@ -108,13 +60,5 @@
             "console": "integratedTerminal",
             "args": ["-v", "1", "--calibrate", "--start_year", "2020", "--end_year", "2020"],
         },
-        {
-            "name": "resample.py",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/resample.py",
-            "console": "integratedTerminal",
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
-        },
+
     ]
-}
