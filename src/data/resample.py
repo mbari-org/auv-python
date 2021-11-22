@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
+from datetime import timedelta
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
 from process_i2map import TEST_LIST
 
@@ -38,7 +39,13 @@ class Resampler:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
 
-    def resample_variables(self, nc_file, mf_width=3, freq="1.0S"):
+    def resample_variables(
+        self,
+        nc_file,
+        mf_width=3,
+        freq="1.0S",
+        plot_seconds=60,
+    ):
         pd.options.plotting.backend = "matplotlib"
         ds = xr.open_dataset(nc_file)
         last_instr = None
@@ -46,6 +53,8 @@ class Resampler:
             instr, _ = variable.split("_")
             if instr == "navigation":
                 freq = "0.1S"
+            elif instr == "gps" or instr == "depth":
+                continue
             if instr != last_instr:
                 df_o = pd.DataFrame()  # original dataframe
                 df_r = pd.DataFrame()  # resampled dataframe
@@ -70,9 +79,13 @@ class Resampler:
             )
             df_r[f"{variable}_rs"] = ds[variable].to_pandas().resample(freq).mean()
 
+            sdt = df_o.index[0]
+            edt = sdt + timedelta(seconds=plot_seconds)
+            df_op = df_o.loc[sdt:edt]
+            df_rp = df_r.loc[sdt:edt]
             # Different freqs on same axes - https://stackoverflow.com/a/13873014/1281657
-            ax = df_o.plot.line(y=[variable, f"{variable}_mf"])
-            df_r.plot.line(
+            ax = df_op.plot.line(y=[variable, f"{variable}_mf"])
+            df_rp.plot.line(
                 y=[f"{variable}_rs"],
                 ax=ax,
                 marker="o",
