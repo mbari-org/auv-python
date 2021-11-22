@@ -35,7 +35,8 @@ on the local file system is as follows:
         processing. Metadata is drawn from information in the .log file and
         associated .cfg files for the vehicle and instruments.
         The output files are stored in the `missionnetcdfs/` directory which
-        is parallel to the original data stored in missionlogs/.
+        is parallel to the original data stored in missionlogs/. The file names
+        align with the type of instrument that generated the data.
 
     calibrate.py
         Apply calibration coefficients to the raw data. The calibrated data
@@ -43,10 +44,19 @@ on the local file system is as follows:
         directory ending with `_cal.nc`. The record variables in the netCDF 
         file have only their original coordinates, namely time associated with
         them.
-        
+
     align.py
-        Align calibrated data.
+        Interpolate corrected coordinate variables to the original sampling
+        intervals for each instrument's record variables. This format is 
+        analogous to the .nc4 files produced by the LRAUV unserialize
+        process. These are the best files to use for the highest temporal 
+        resolution of the data. Unlike the .nc4 files align.py's output files
+        use a naming convention rather than netCDF4 groups for each instrument.
+
     resample.py
-        Resample aligned data.
+        Produce a netCDF file with all of the instrument's record variables
+        resampled to the same temporal interval. These are the best files to
+        use for loading the data into STOQS and for analyses requireing 
+        co-temporal data.
 
 
