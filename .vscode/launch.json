@@ -45,7 +45,15 @@
             "console": "integratedTerminal",
         },
         {
-            "name": "3.0 - resample.py",
+            "name": "3.0 - align.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/align.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
+        },
+        {
+            "name": "4.0 - resample.py",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/resample.py",
