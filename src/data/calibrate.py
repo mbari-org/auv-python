@@ -27,16 +27,18 @@ with the concept of "instrument" in SSDS parlance.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
-import cf_xarray  # Needed for the .cf accessor
+import argparse
 import logging
 import os
 import sys
 import time
+from argparse import RawTextHelpFormatter
 from collections import OrderedDict, namedtuple
 from datetime import datetime
 from socket import gethostname
 
 import cartopy.crs as ccrs
+import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -153,14 +155,14 @@ class Calibrate_NetCDF:
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
         metadata["title"] = (
-            f"Calibrated and aligned AUV sensor data from"
+            f"Calibrated AUV sensor data from"
             f" {self.args.auv_name} mission {self.args.mission}"
         )
         metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
             f" Underwater Vehicle mission with measurements at"
             f" original sampling intervals. The data have been calibrated "
-            f" and aligned by MBARI's auv-python software."
+            f" by MBARI's auv-python software."
         )
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from original data"
@@ -1379,9 +1381,6 @@ class Calibrate_NetCDF:
 
     def process_command_line(self):
 
-        import argparse
-        from argparse import RawTextHelpFormatter
-
         examples = "Examples:" + "\n\n"
         examples += "  Calibrate original data for some missions:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
@@ -1397,7 +1396,7 @@ class Calibrate_NetCDF:
             "--base_path",
             action="store",
             default=BASE_PATH,
-            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
+            help=f"Base directory for missionlogs and missionnetcdfs, default: {BASE_PATH}",
         )
         parser.add_argument(
             "--auv_name",
