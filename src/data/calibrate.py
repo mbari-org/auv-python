@@ -42,10 +42,11 @@ import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy
 import xarray as xr
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from matplotlib import patches
+
+from scipy import signal
 from scipy.interpolate import interp1d
 from seawater import eos80
 from shapely.geometry import LineString, Point
@@ -56,6 +57,7 @@ from ctd_proc import (
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
+from AUV import monotonic_increasing_time_indices
 
 TIME = "time"
 
@@ -928,14 +930,14 @@ class Calibrate_NetCDF:
 
         # The Wn parameter for butter() is fraction of the Nyquist frequency
         Wn = cutoff_freq / (sample_rate / 2.0)
-        b, a = scipy.signal.butter(8, Wn)
-        depth_filtpres_butter = scipy.signal.filtfilt(b, a, pres)
-        depth_filtdepth_butter = scipy.signal.filtfilt(b, a, orig_nc["depth"])
+        b, a = signal.butter(8, Wn)
+        depth_filtpres_butter = signal.filtfilt(b, a, pres)
+        depth_filtdepth_butter = signal.filtfilt(b, a, orig_nc["depth"])
 
         # Use 10 points in boxcar as in processDepth.m
         a = 10
-        b = scipy.signal.boxcar(a)
-        depth_filtpres_boxcar = scipy.signal.filtfilt(b, a, pres)
+        b = signal.boxcar(a)
+        depth_filtpres_boxcar = signal.filtfilt(b, a, pres)
         pres_plot = True  # Set to False for debugging other plots
         if self.args.plot and pres_plot:
             # Use Pandas to plot multiple columns of data
@@ -1174,8 +1176,14 @@ class Calibrate_NetCDF:
             self.logger.error(f"{e}")
             return
 
-        # Remove duplicate times - https://stackoverflow.com/a/64749574/1281657
-        orig_nc = orig_nc.sel(time=~orig_nc.get_index("time").duplicated())
+        # Remove non-monotonic times
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
 
         # Need to do this zeroth-level QC to calibrate temperature
         orig_nc["temp_frequency"][orig_nc["temp_frequency"] == 0.0] = np.nan
@@ -1227,7 +1235,7 @@ class Calibrate_NetCDF:
             ),
         }
 
-        self.combined_nc[f"{sensor}_temperatue"] = temperature
+        self.combined_nc[f"{sensor}_temperature"] = temperature
         self.combined_nc[f"{sensor}_salinity"] = salinity
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
