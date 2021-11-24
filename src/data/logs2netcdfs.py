@@ -20,12 +20,13 @@ import time
 from pathlib import Path
 from typing import List
 
+import numpy as np
 import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from netCDF4 import Dataset
 
-from AUV import AUV
+from AUV import AUV, monotonic_increasing_time_indices
 from readauvlog import log_record
 
 LOG_FILES = (
@@ -362,7 +363,7 @@ class AUV_NetCDF(AUV):
         self.add_global_metadata()
         vehicle = self.args.auv_name
         self.nc_file.title = (
-            f"Original AUV {vehicle} data converted straight from the .log file"
+            f"Original AUV {vehicle} data converted from {log_filename}"
         )
         if hasattr(self.args, "title"):
             if self.args.title:
@@ -370,6 +371,12 @@ class AUV_NetCDF(AUV):
         if hasattr(self.args, "summary"):
             if self.args.summary:
                 self.nc_file.summary = self.args.summary
+        monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
+        if (~monotonic).any():
+            self.logger.debug(
+                f"Non-monotonic increasing time indices: {np.argwhere(~monotonic).flatten()}"
+            )
+            self.nc_file.comment += "Non-monotonic increasing times detected."
 
         self.nc_file.close()
 
