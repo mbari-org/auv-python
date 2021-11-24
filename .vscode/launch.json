@@ -4,8 +4,6 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
-
         {
             "name": "1.0 - logs2netcdfs.py",
             "type": "python",
@@ -13,10 +11,10 @@
             "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
             "console": "integratedTerminal",
             //"args": ["--auv_name", "i2map", "--mission", "2019.190.00", "--local",  "-v", "1"]
-            //"args": ["--auv_name", "i2map", "--mission", "2020.055.00", "--noinput",  "-v", "2", "--clobber"]
+            "args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--noinput", "--local", "-v", "2", "--clobber"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
             //"args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
-            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
         },
         {
             "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
@@ -33,9 +31,9 @@
             "program": "${workspaceFolder}/src/data/calibrate.py",
             "console": "integratedTerminal",
             //"args": ["--auv_name", "dorado327", "--mission", "2003.223.02", "-v", "2"]
-            //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--plot", "first2000" ,"-v", "2"]
+            "args": ["--auv_name", "i2map", "--mission", "2020.055.01", "-v", "2"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot",  "first1000", "-v", "1"]
-            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "first1000", "-v", "2"]
+            //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "first1000", "-v", "2"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -50,7 +48,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/align.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
+            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2020.055.01"],
+            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
         },
         {
             "name": "4.0 - resample.py",
@@ -68,5 +67,4 @@
             "console": "integratedTerminal",
             "args": ["-v", "1", "--calibrate", "--start_year", "2020", "--end_year", "2020"],
         },
-
     ]
