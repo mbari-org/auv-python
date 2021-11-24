@@ -7,20 +7,25 @@ Mike McCann
 MBARI 30 March 2020
 """
 
-import os
 import sys
-import csv
-import time
 import coards
-import glob
 import numpy as np
-import numpy.ma as ma
-from collections import namedtuple
 from datetime import datetime
-from scipy.interpolate import interp1d
-from scipy.signal import savgol_filter
-from seawater import eos80
-from subprocess import Popen, PIPE
+
+
+def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
+    monotonic = []
+    if isinstance(time_array[0], np.float64):
+        last_t = 0.0
+    else:
+        last_t = datetime(1970, 1, 1)
+    for t in enumerate(time_array):
+        if t > last_t:
+            monotonic.append(True)
+        else:
+            monotonic.append(False)
+        last_t = t
+    return np.array(monotonic)
 
 
 class AUV(object):
@@ -35,10 +40,7 @@ class AUV(object):
         self.nc_file.date_modified = iso_now
         self.nc_file.featureType = "trajectory"
 
-        self.nc_file.comment = (
-            "Autonomous Underwater Vehicle data...."
-            "https://bitbucket.org/mbari/auv-python"
-        )
+        self.nc_file.comment = ""
 
         self.nc_file.time_coverage_start = (
             coards.from_udunits(self.time[0], self.time.units).isoformat() + "Z"
