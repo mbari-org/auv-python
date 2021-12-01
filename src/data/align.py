@@ -24,6 +24,7 @@ from socket import gethostname
 import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import xarray as xr
 from scipy.interpolate import interp1d
 
@@ -55,12 +56,18 @@ class Align_NetCDF:
         metadata["date_modified"] = iso_now
         metadata["featureType"] = "trajectory"
 
-        ##metadata["time_coverage_start"] = str(
-        ##    self.aligned_nc["depth_time"].to_pandas()[0].isoformat()
-        ##)
-        ##metadata["time_coverage_end"] = str(
-        ##    self.aligned_nc["depth_time"].to_pandas()[-1].isoformat()
-        ##)
+        metadata["time_coverage_start"] = str(self.min_time)
+        metadata["time_coverage_end"] = str(self.max_time)
+        metadata["time_coverage_duration"] = str(
+            datetime.utcfromtimestamp(self.max_time.astype("float64") / 1.0e9)
+            - datetime.utcfromtimestamp(self.min_time.astype("float64") / 1.0e9)
+        )
+        metadata["geospatial_vertical_min"] = self.min_depth
+        metadata["geospatial_vertical_max"] = self.max_depth
+        metadata["geospatial_lat_min"] = self.min_lat
+        metadata["geospatial_lat_max"] = self.max_lat
+        metadata["geospatial_lon_min"] = self.min_lon
+        metadata["geospatial_lon_max"] = self.max_lon
         metadata[
             "distribution_statement"
         ] = "Any use requires prior approval from MBARI"
@@ -98,6 +105,14 @@ class Align_NetCDF:
         self.calibrated_nc = xr.open_dataset(os.path.join(netcdfs_dir, in_fn))
         logging.info(f"Processing {in_fn} from {netcdfs_dir}")
         self.aligned_nc = xr.Dataset()
+        self.min_time = datetime.utcnow()
+        self.max_time = datetime(1970, 1, 1)
+        self.min_depth = np.inf
+        self.max_depth = -np.inf
+        self.min_lat = np.inf
+        self.max_lat = -np.inf
+        self.min_lon = np.inf
+        self.max_lon = -np.inf
         for variable in self.calibrated_nc.keys():
             instr, _ = variable.split("_")
             self.logger.debug(f"instr: {instr}")
@@ -160,7 +175,7 @@ class Align_NetCDF:
             )
 
             self.aligned_nc[f"{instr}_depth"] = xr.DataArray(
-                depth_interp(var_time).astype(np.int64).tolist(),
+                depth_interp(var_time).astype(np.float64).tolist(),
                 dims={f"{instr}_time"},
                 coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
                 name=f"{instr}_depth",
@@ -172,34 +187,56 @@ class Align_NetCDF:
                 f". Variable depth_filtdepth from {in_fn} file interpolated"
                 f" onto {variable} time values."
             )
+            self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
 
             self.aligned_nc[f"{instr}_latitude"] = xr.DataArray(
-                lat_interp(var_time).astype(np.int64).tolist(),
+                lat_interp(var_time).astype(np.float64).tolist(),
                 dims={f"{instr}_time"},
                 coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
                 name=f"{instr}_latitude",
             )
             self.aligned_nc[f"{instr}_latitude"].attrs = self.calibrated_nc[
-                "depth_filtdepth"
+                "nudged_latitude"
             ].attrs
             self.aligned_nc[f"{instr}_latitude"].attrs["comment"] += (
                 f". Variable nudged_latitude from {in_fn} file interpolated"
                 f" onto {variable} time values."
             )
+            self.aligned_nc[f"{instr}_latitude"].attrs["long_name"] = "Latitude"
 
             self.aligned_nc[f"{instr}_longitude"] = xr.DataArray(
-                lon_interp(var_time).astype(np.int64).tolist(),
+                lon_interp(var_time).astype(np.float64).tolist(),
                 dims={f"{instr}_time"},
                 coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
                 name=f"{instr}_longitude",
             )
             self.aligned_nc[f"{instr}_longitude"].attrs = self.calibrated_nc[
-                "depth_filtdepth"
+                "nudged_longitude"
             ].attrs
             self.aligned_nc[f"{instr}_longitude"].attrs["comment"] += (
                 f". Variable nudged_longitude from {in_fn} file interpolated"
                 f" onto {variable} time values."
             )
+            self.aligned_nc[f"{instr}_longitude"].attrs["long_name"] = "Longitude"
+
+            # Update spatial temporal bounds for the global metadata
+            # https://github.com/pydata/xarray/issues/4917#issue-809708107
+            if self.aligned_nc[f"{instr}_time"][0] < pd.to_datetime(self.min_time):
+                self.min_time = self.aligned_nc[f"{instr}_time"][0].values
+            if self.aligned_nc[f"{instr}_time"][-1] > pd.to_datetime(self.max_time):
+                self.max_time = self.aligned_nc[f"{instr}_time"][-1].values
+            if self.aligned_nc[f"{instr}_depth"][0] < self.min_depth:
+                self.min_depth = self.aligned_nc[f"{instr}_depth"][0].values
+            if self.aligned_nc[f"{instr}_depth"][-1] > self.max_depth:
+                self.max_depth = self.aligned_nc[f"{instr}_depth"][-1].values
+            if self.aligned_nc[f"{instr}_latitude"].min() < self.min_lat:
+                self.min_lat = self.aligned_nc[f"{instr}_latitude"].min().values
+            if self.aligned_nc[f"{instr}_latitude"].max() > self.max_lat:
+                self.max_lat = self.aligned_nc[f"{instr}_latitude"].max().values
+            if self.aligned_nc[f"{instr}_longitude"].min() < self.min_lon:
+                self.min_lon = self.aligned_nc[f"{instr}_longitude"].min().values
+            if self.aligned_nc[f"{instr}_longitude"].max() > self.max_lon:
+                self.max_lon = self.aligned_nc[f"{instr}_longitude"].max().values
 
         return netcdfs_dir
 
