@@ -19,7 +19,7 @@ def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
         last_t = 0.0
     else:
         last_t = datetime(1970, 1, 1)
-    for t in enumerate(time_array):
+    for t in time_array:
         if t > last_t:
             monotonic.append(True)
         else:
