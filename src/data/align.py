@@ -23,10 +23,11 @@ from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from scipy.interpolate import interp1d
 
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
 
 
 class Align_NetCDF:
@@ -54,12 +55,12 @@ class Align_NetCDF:
         metadata["date_modified"] = iso_now
         metadata["featureType"] = "trajectory"
 
-        metadata["time_coverage_start"] = str(
-            self.aligned_nc["depth_time"].to_pandas()[0].isoformat()
-        )
-        metadata["time_coverage_end"] = str(
-            self.aligned_nc["depth_time"].to_pandas()[-1].isoformat()
-        )
+        ##metadata["time_coverage_start"] = str(
+        ##    self.aligned_nc["depth_time"].to_pandas()[0].isoformat()
+        ##)
+        ##metadata["time_coverage_end"] = str(
+        ##    self.aligned_nc["depth_time"].to_pandas()[-1].isoformat()
+        ##)
         metadata[
             "distribution_statement"
         ] = "Any use requires prior approval from MBARI"
@@ -76,8 +77,9 @@ class Align_NetCDF:
         metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
             f" Underwater Vehicle mission with measurements at"
-            f" original sampling intervals. The data have been calibrated "
-            f" and aligned by MBARI's auv-python software."
+            f" original sampling intervals. The data have been calibrated"
+            f" and the coordinate variables aligned using MBARI's auv-python"
+            f" software."
         )
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from original data"
@@ -92,21 +94,112 @@ class Align_NetCDF:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
-        in_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
-        self.calibrated_nc = xr.open_dataset(in_fn)
-        logging.info(f"Processing {in_fn}")
+        in_fn = f"{vehicle}_{name}_cal.nc"
+        self.calibrated_nc = xr.open_dataset(os.path.join(netcdfs_dir, in_fn))
+        logging.info(f"Processing {in_fn} from {netcdfs_dir}")
         self.aligned_nc = xr.Dataset()
-
-        last_instr = None
         for variable in self.calibrated_nc.keys():
             instr, _ = variable.split("_")
             self.logger.debug(f"instr: {instr}")
             if instr in ("navigation", "gps", "depth", "nudged"):
                 continue
+            # Process variables from seabird25p, ctd1, ctd2, hs2, ...
             self.logger.info(f"Processing {variable}")
-            if instr != last_instr:
-                pass
-            last_instr = instr
+            self.aligned_nc[variable] = self.calibrated_nc[variable]
+            # Interpolators for the non-time dimensions
+            lat_interp = interp1d(
+                self.calibrated_nc["nudged_latitude"]
+                .get_index("time")
+                .astype(np.int64)
+                .tolist(),
+                self.calibrated_nc["nudged_latitude"].values,
+                fill_value="extrapolate",
+            )
+            lon_interp = interp1d(
+                self.calibrated_nc["nudged_longitude"]
+                .get_index("time")
+                .astype(np.int64)
+                .tolist(),
+                self.calibrated_nc["nudged_longitude"].values,
+                fill_value="extrapolate",
+            )
+            depth_interp = interp1d(
+                self.calibrated_nc["depth_filtdepth"]
+                .get_index("depth_time")
+                .astype(np.int64)
+                .tolist(),
+                self.calibrated_nc["depth_filtdepth"].values,
+                fill_value="extrapolate",
+            )
+            var_time = (
+                self.aligned_nc[variable]
+                .get_index(f"{instr}_time")
+                .astype(np.int64)
+                .tolist()
+            )
+            # Create new DataArrays of all the variables, including "aligned"
+            # (interpolated) depth, latitude, and longitude coordinates.
+            # Use attributes from the calibrated data.
+            self.aligned_nc[variable] = xr.DataArray(
+                self.calibrated_nc[variable].values,
+                dims={f"{instr}_time"},
+                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                name=variable,
+            )
+            self.aligned_nc[variable].attrs = self.calibrated_nc[variable].attrs
+            self.aligned_nc[variable].attrs[
+                "coordinates"
+            ] = f"{instr}_time {instr}_depth {instr}_latitude {instr}_longitude"
+            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = np.round(
+                1.0
+                / (
+                    np.mean(np.diff(self.calibrated_nc[f"{instr}_time"]))
+                    / np.timedelta64(1, "s")
+                ),
+                decimals=2,
+            )
+
+            self.aligned_nc[f"{instr}_depth"] = xr.DataArray(
+                depth_interp(var_time).astype(np.int64).tolist(),
+                dims={f"{instr}_time"},
+                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                name=f"{instr}_depth",
+            )
+            self.aligned_nc[f"{instr}_depth"].attrs = self.calibrated_nc[
+                "depth_filtdepth"
+            ].attrs
+            self.aligned_nc[f"{instr}_depth"].attrs["comment"] += (
+                f". Variable depth_filtdepth from {in_fn} file interpolated"
+                f" onto {variable} time values."
+            )
+
+            self.aligned_nc[f"{instr}_latitude"] = xr.DataArray(
+                lat_interp(var_time).astype(np.int64).tolist(),
+                dims={f"{instr}_time"},
+                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                name=f"{instr}_latitude",
+            )
+            self.aligned_nc[f"{instr}_latitude"].attrs = self.calibrated_nc[
+                "depth_filtdepth"
+            ].attrs
+            self.aligned_nc[f"{instr}_latitude"].attrs["comment"] += (
+                f". Variable nudged_latitude from {in_fn} file interpolated"
+                f" onto {variable} time values."
+            )
+
+            self.aligned_nc[f"{instr}_longitude"] = xr.DataArray(
+                lon_interp(var_time).astype(np.int64).tolist(),
+                dims={f"{instr}_time"},
+                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                name=f"{instr}_longitude",
+            )
+            self.aligned_nc[f"{instr}_longitude"].attrs = self.calibrated_nc[
+                "depth_filtdepth"
+            ].attrs
+            self.aligned_nc[f"{instr}_longitude"].attrs["comment"] += (
+                f". Variable nudged_longitude from {in_fn} file interpolated"
+                f" onto {variable} time values."
+            )
 
         return netcdfs_dir
 
