@@ -48,7 +48,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/align.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2020.055.01"],
+            "args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
         },
         {
