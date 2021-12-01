@@ -971,6 +971,10 @@ class Calibrate_NetCDF:
             "long_name": "Filtered Depth",
             "standard_name": "depth",
             "units": "m",
+            "comment": (
+                f"Original {sample_rate} Hz depth data filtered using"
+                f" Butterworth window with cutoff frequency of {cutoff_freq} Hz"
+            ),
         }
 
         depth_filtpres = xr.DataArray(
@@ -983,6 +987,10 @@ class Calibrate_NetCDF:
             "long_name": "Filtered Pressure",
             "standard_name": "sea_water_pressure",
             "units": "dbar",
+            "comment": (
+                f"Original {sample_rate} Hz pressure data filtered using"
+                f" Butterworth window with cutoff frequency of {cutoff_freq} Hz"
+            ),
         }
 
         self.combined_nc["depth_filtdepth"] = depth_filtdepth
@@ -1177,6 +1185,7 @@ class Calibrate_NetCDF:
             return
 
         # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
         monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
         if (~monotonic).any():
             self.logger.debug(
@@ -1188,7 +1197,6 @@ class Calibrate_NetCDF:
         # Need to do this zeroth-level QC to calibrate temperature
         orig_nc["temp_frequency"][orig_nc["temp_frequency"] == 0.0] = np.nan
         source = self.sinfo[sensor]["data_filename"]
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
 
         # Seabird specific calibrations
         temperature = xr.DataArray(
@@ -1201,7 +1209,6 @@ class Calibrate_NetCDF:
             "long_name": "Temperature",
             "standard_name": "sea_water_temperature",
             "units": "degree_Celsius",
-            "coordinates": coord_str,
             "comment": (
                 f"Derived from temp_frequency from"
                 f" {source} via calibration parms:"
