@@ -37,27 +37,28 @@ from collections import OrderedDict, namedtuple
 from datetime import datetime
 from socket import gethostname
 
-import cartopy.crs as ccrs
+try:
+    import cartopy.crs as ccrs
+    from shapely.geometry import LineString
+except ModuleNotFoundError:
+    print("cartopy is not installed, will not be able to plot maps")
 import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
-from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from matplotlib import patches
-
 from scipy import signal
 from scipy.interpolate import interp1d
 from seawater import eos80
-from shapely.geometry import LineString, Point
 
+from AUV import monotonic_increasing_time_indices
 from ctd_proc import (
     _calibrated_sal_from_cond_frequency,
     _calibrated_temp_from_frequency,
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
-from AUV import monotonic_increasing_time_indices
 
 TIME = "time"
 
