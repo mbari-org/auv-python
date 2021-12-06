@@ -32,5 +32,6 @@ pipelines:
           - pip install poetry
           - apt-get update && apt install -y software-properties-common
           - add-apt-repository ppa:ubuntugis/ubuntugis-unstable
+          - apt-get update && apt install -y geos proj
           - poetry install
           - poetry run ./test.sh
