@@ -27,9 +27,9 @@ pipelines:
           # The above takes more than 10 minutes, below goes pretty quick
           # I've hit the 59 build minutes limit for this month!
           # This may work - TODO for next month once I'm out of purgatory:
-          ##- add-apt-repository ppa:ubuntugis/ubuntugis-unstable
           ##- apt-get install -y libgeos-dev libproj-dev
           - python -m pip install --upgrade pip
           - pip install poetry
+          - add-apt-repository ppa:ubuntugis/ubuntugis-unstable
           - poetry install
           - poetry run ./test.sh
