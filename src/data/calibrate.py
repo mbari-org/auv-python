@@ -1235,7 +1235,6 @@ class Calibrate_NetCDF:
             "long_name": "Salinity",
             "standard_name": "sea_water_salinity",
             "units": "",
-            "coordinates": coord_str,
             "comment": (
                 f"Derived from cond_frequency from"
                 f" {source} via calibration parms:"
