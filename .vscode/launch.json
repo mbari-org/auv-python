@@ -57,7 +57,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/resample.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
+            "args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
+            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
         },
         {
             "name": "process_i2map",

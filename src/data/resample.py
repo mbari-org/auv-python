@@ -56,6 +56,7 @@ class Resampler:
             elif instr == "gps" or instr == "depth":
                 continue
             if instr != last_instr:
+                # New instrument, so create a new dataframes
                 df_o = pd.DataFrame()  # original dataframe
                 df_r = pd.DataFrame()  # resampled dataframe
             print(f"Median filtering {variable} with width {mf_width}")
@@ -79,10 +80,11 @@ class Resampler:
             )
             df_r[f"{variable}_rs"] = ds[variable].to_pandas().resample(freq).mean()
 
-            sdt = df_o.index[0]
-            edt = sdt + timedelta(seconds=plot_seconds)
-            df_op = df_o.loc[sdt:edt]
-            df_rp = df_r.loc[sdt:edt]
+            # Use sample rate to get indices for plotting plot_seconds of data
+            o_end = int(ds[variable].attrs["instrument_sample_rate_hz"] * plot_seconds)
+            r_end = int(plot_seconds / float(freq[:-1]))
+            df_op = df_o.iloc[:o_end]
+            df_rp = df_r.iloc[:r_end]
             # Different freqs on same axes - https://stackoverflow.com/a/13873014/1281657
             ax = df_op.plot.line(y=[variable, f"{variable}_mf"])
             df_rp.plot.line(
@@ -142,7 +144,7 @@ if __name__ == "__main__":
     resamp = Resampler()
     resamp.process_command_line()
     ##for mission in TEST_LIST:
-    file_name = f"{resamp.args.auv_name}_{resamp.args.mission}.nc"
+    file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
     nc_file = os.path.join(
         BASE_PATH,
         resamp.args.auv_name,
