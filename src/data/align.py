@@ -155,6 +155,14 @@ class Align_NetCDF:
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
             # Use attributes from the calibrated data.
+            sample_rate = np.round(
+                1.0
+                / (
+                    np.mean(np.diff(self.calibrated_nc[f"{instr}_time"]))
+                    / np.timedelta64(1, "s")
+                ),
+                decimals=2,
+            )
             self.aligned_nc[variable] = xr.DataArray(
                 self.calibrated_nc[variable].values,
                 dims={f"{instr}_time"},
@@ -165,15 +173,7 @@ class Align_NetCDF:
             self.aligned_nc[variable].attrs[
                 "coordinates"
             ] = f"{instr}_time {instr}_depth {instr}_latitude {instr}_longitude"
-            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = np.round(
-                1.0
-                / (
-                    np.mean(np.diff(self.calibrated_nc[f"{instr}_time"]))
-                    / np.timedelta64(1, "s")
-                ),
-                decimals=2,
-            )
-
+            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
             self.aligned_nc[f"{instr}_depth"] = xr.DataArray(
                 depth_interp(var_time).astype(np.float64).tolist(),
                 dims={f"{instr}_time"},
@@ -188,6 +188,9 @@ class Align_NetCDF:
                 f" onto {variable} time values."
             )
             self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
+            self.aligned_nc[f"{instr}_depth"].attrs[
+                "instrument_sample_rate_hz"
+            ] = sample_rate
 
             self.aligned_nc[f"{instr}_latitude"] = xr.DataArray(
                 lat_interp(var_time).astype(np.float64).tolist(),
@@ -203,6 +206,9 @@ class Align_NetCDF:
                 f" onto {variable} time values."
             )
             self.aligned_nc[f"{instr}_latitude"].attrs["long_name"] = "Latitude"
+            self.aligned_nc[f"{instr}_latitude"].attrs[
+                "instrument_sample_rate_hz"
+            ] = sample_rate
 
             self.aligned_nc[f"{instr}_longitude"] = xr.DataArray(
                 lon_interp(var_time).astype(np.float64).tolist(),
@@ -218,6 +224,9 @@ class Align_NetCDF:
                 f" onto {variable} time values."
             )
             self.aligned_nc[f"{instr}_longitude"].attrs["long_name"] = "Longitude"
+            self.aligned_nc[f"{instr}_longitude"].attrs[
+                "instrument_sample_rate_hz"
+            ] = sample_rate
 
             # Update spatial temporal bounds for the global metadata
             # https://github.com/pydata/xarray/issues/4917#issue-809708107
