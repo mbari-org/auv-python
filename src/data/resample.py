@@ -61,8 +61,8 @@ class Resampler:
     def resample_coordinates(self, instr: str, mf_width: int, freq: str) -> None:
         # Original
         self.df_o[f"{instr}_depth"] = self.ds[f"{instr}_depth"].to_pandas()
-        self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_depth"].to_pandas()
-        self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_depth"].to_pandas()
+        self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
+        self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
         # Median Filetered
         self.df_o[f"{instr}_depth_mf"] = (
             self.ds[f"{instr}_depth"]
@@ -114,7 +114,41 @@ class Resampler:
             self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
         )
 
-    def plot_sampled(
+    def plot_coordinates(self, instr: str, freq: str, plot_seconds: float) -> None:
+        self.logger.info("Plotting resampled data")
+        # Use sample rate to get indices for plotting plot_seconds of data
+        o_end = int(
+            self.ds[f"{instr}_depth"].attrs["instrument_sample_rate_hz"] * plot_seconds
+        )
+        r_end = int(plot_seconds / float(freq[:-1]))
+        df_op = self.df_o.iloc[:o_end]
+        df_rp = self.df_r.iloc[:r_end]
+
+        _, ax = plt.subplots(nrows=3, figsize=(18, 10))
+        df_op[f"{instr}_depth"].plot(ax=ax[0])
+        df_op[f"{instr}_depth_mf"].plot(ax=ax[0])
+        df_rp[f"{instr}_depth"].plot(linestyle="--", ax=ax[0], marker="o", markersize=2)
+        df_op[f"{instr}_latitude"].plot(ax=ax[1])
+        df_op[f"{instr}_latitude_mf"].plot(ax=ax[1])
+        df_rp[f"{instr}_latitude"].plot(
+            linestyle="--", ax=ax[1], marker="o", markersize=2
+        )
+        df_op[f"{instr}_longitude"].plot(ax=ax[2])
+        df_op[f"{instr}_longitude_mf"].plot(ax=ax[2])
+        df_rp[f"{instr}_longitude"].plot(
+            linestyle="--", ax=ax[2], marker="o", markersize=2
+        )
+        ax[0].set_ylabel("Depth")
+        ax[0].legend(["Original", "Median Filtered", "Resampled"])
+        ax[1].set_ylabel("Latitude")
+        ax[1].legend(["Original", "Median Filtered", "Resampled"])
+        ax[2].set_ylabel("Longitude")
+        ax[2].legend(["Original", "Median Filtered", "Resampled"])
+        ax[2].set_xlabel("Time")
+        ax[0].set_title(f"{instr} coordinates")
+        plt.show()
+
+    def plot_variable(
         self, instr: str, variable: str, freq: str, plot_seconds: float
     ) -> None:
         self.logger.info("Plotting resampled data")
@@ -133,14 +167,6 @@ class Resampler:
             linestyle="dotted",
             markersize=2,
         )
-        ax = df_op.plot.line(y=[f"{instr}_depth", f"{instr}_depth_mf"])
-        df_rp.plot.line(
-            y=[f"{instr}_depth"],
-            ax=ax,
-            marker="o",
-            linestyle="dotted",
-            markersize=2,
-        )
         plt.show()
 
     def resample_mission(
@@ -148,7 +174,7 @@ class Resampler:
         nc_file: str,
         mf_width: int = 3,
         freq: str = "1.0S",
-        plot_seconds: float = 180,
+        plot_seconds: float = 300,
     ) -> None:
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
@@ -156,11 +182,13 @@ class Resampler:
             self.df_o = pd.DataFrame()  # original dataframe
             self.df_r = pd.DataFrame()  # resampled dataframe
             self.resample_coordinates(instr, mf_width, freq)
+            if self.args.plot:
+                self.plot_coordinates(instr, freq, plot_seconds)
             for variable in variables:
                 self.resample_variable(instr, variable, mf_width, freq)
                 self.resampled_nc[variable] = self.df_r[variable].to_xarray()
                 if self.args.plot:
-                    self.plot_sampled(instr, variable, freq, plot_seconds)
+                    self.plot_variable(instr, variable, freq, plot_seconds)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
