@@ -184,8 +184,8 @@ class Align_NetCDF:
                 "depth_filtdepth"
             ].attrs
             self.aligned_nc[f"{instr}_depth"].attrs["comment"] += (
-                f". Variable depth_filtdepth from {in_fn} file interpolated"
-                f" onto {variable} time values."
+                f". Variable depth_filtdepth from {in_fn} file linearly"
+                f" interpolated onto {variable} time values."
             )
             self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
             self.aligned_nc[f"{instr}_depth"].attrs[
@@ -202,8 +202,8 @@ class Align_NetCDF:
                 "nudged_latitude"
             ].attrs
             self.aligned_nc[f"{instr}_latitude"].attrs["comment"] += (
-                f". Variable nudged_latitude from {in_fn} file interpolated"
-                f" onto {variable} time values."
+                f". Variable nudged_latitude from {in_fn} file linearly"
+                f" interpolated onto {variable} time values."
             )
             self.aligned_nc[f"{instr}_latitude"].attrs["long_name"] = "Latitude"
             self.aligned_nc[f"{instr}_latitude"].attrs[
@@ -220,8 +220,8 @@ class Align_NetCDF:
                 "nudged_longitude"
             ].attrs
             self.aligned_nc[f"{instr}_longitude"].attrs["comment"] += (
-                f". Variable nudged_longitude from {in_fn} file interpolated"
-                f" onto {variable} time values."
+                f". Variable nudged_longitude from {in_fn} file linearly"
+                f" interpolated onto {variable} time values."
             )
             self.aligned_nc[f"{instr}_longitude"].attrs["long_name"] = "Longitude"
             self.aligned_nc[f"{instr}_longitude"].attrs[
