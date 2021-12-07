@@ -55,8 +55,8 @@ on the local file system is as follows:
 
     resample.py
         Produce a netCDF file with all of the instrument's record variables
-        resampled to the same temporal interval. These are the best files to
-        use for loading the data into STOQS and for analyses requireing 
-        co-temporal data.
-
-
+        resampled to the same temporal interval. The coordinate variables are
+        also resampled to the same temporal interval and named with standard
+        depth, latitude, and longitude names. These are the best files to
+        use for loading data into STOQS and for analyses requiring all the
+        data to be on the same spatial temporal grid.
