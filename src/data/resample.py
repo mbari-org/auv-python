@@ -10,11 +10,15 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
-from collections import defaultdict
 import logging
 import os
 import sys
+import time
+from collections import defaultdict
+from datetime import datetime
+from socket import gethostname
 
+import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
@@ -37,6 +41,65 @@ class Resampler:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
 
+    def global_metadata(self):
+        """Use instance variables to return a dictionary of
+        metadata specific for the data that are written
+        """
+        iso_now = datetime.utcnow().isoformat() + "Z"
+
+        metadata = {}
+        metadata["netcdf_version"] = "4"
+        metadata["Conventions"] = "CF-1.6"
+        metadata["date_created"] = iso_now
+        metadata["date_update"] = iso_now
+        metadata["date_modified"] = iso_now
+        metadata["featureType"] = "trajectory"
+
+        metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
+        metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
+        metadata["time_coverage_duration"] = str(
+            datetime.utcfromtimestamp(
+                max(self.resampled_nc.time.values).astype("float64") / 1.0e9
+            )
+            - datetime.utcfromtimestamp(
+                min(self.resampled_nc.time.values).astype("float64") / 1.0e9
+            )
+        )
+        metadata["geospatial_vertical_min"] = min(self.resampled_nc.cf["depth"].values)
+        metadata["geospatial_vertical_max"] = max(self.resampled_nc.cf["depth"].values)
+        metadata["geospatial_lat_min"] = min(self.resampled_nc.cf["latitude"].values)
+        metadata["geospatial_lat_max"] = max(self.resampled_nc.cf["latitude"].values)
+        metadata["geospatial_lon_min"] = min(self.resampled_nc.cf["longitude"].values)
+        metadata["geospatial_lon_max"] = max(self.resampled_nc.cf["longitude"].values)
+        metadata[
+            "distribution_statement"
+        ] = "Any use requires prior approval from MBARI"
+        metadata["license"] = metadata["distribution_statement"]
+        metadata[
+            "useconst"
+        ] = "Not intended for legal use. Data may contain inaccuracies."
+        metadata["history"] = f"Created by {self.commandline} on {iso_now}"
+
+        metadata["title"] = (
+            f"Calibrated, aligned, and resampled AUV sensor data from"
+            f" {self.args.auv_name} mission {self.args.mission}"
+        )
+        metadata["summary"] = (
+            f"Observational oceanographic data obtained from an Autonomous"
+            f" Underwater Vehicle mission with measurements at"
+            f" original sampling intervals. The data have been calibrated"
+            f" and the coordinate variables aligned using MBARI's auv-python"
+            f" software."
+        )
+        metadata["comment"] = (
+            f"MBARI Dorado-class AUV data produced from aligned data"
+            f" with execution of '{self.commandline}' at {iso_now} on"
+            f" host {gethostname()}. Software available at"
+            f" 'https://bitbucket.org/mbari/auv-python'"
+        )
+
+        return metadata
+
     def instruments_variables(self) -> dict:
         """
         Return a dictionary of all the variables in the mission netCDF file,
@@ -56,16 +119,26 @@ class Resampler:
         return instr_vars
 
     def resample_coordinates(self, instr: str, mf_width: int, freq: str) -> None:
+        self.logger.info(
+            f"Resampling coordinates depth, latitude and longitude with"
+            f" frequency {freq} following {mf_width} point median filter "
+        )
         # Original
         self.df_o[f"{instr}_depth"] = self.ds[f"{instr}_depth"].to_pandas()
         self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
         self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
-        # Median Filtered
+        # Median Filtered - back & forward filling nan values at ends
         self.df_o[f"{instr}_depth_mf"] = (
             self.ds[f"{instr}_depth"]
             .rolling(**{instr + "_time": mf_width}, center=True)
             .median()
             .to_pandas()
+        )
+        self.df_o[f"{instr}_depth_mf"] = self.df_o[f"{instr}_depth_mf"].fillna(
+            method="bfill"
+        )
+        self.df_o[f"{instr}_depth_mf"] = self.df_o[f"{instr}_depth_mf"].fillna(
+            method="ffill"
         )
         self.df_o[f"{instr}_latitude_mf"] = (
             self.ds[f"{instr}_latitude"]
@@ -73,11 +146,23 @@ class Resampler:
             .median()
             .to_pandas()
         )
+        self.df_o[f"{instr}_latitude_mf"] = self.df_o[f"{instr}_latitude_mf"].fillna(
+            method="bfill"
+        )
+        self.df_o[f"{instr}_latitude_mf"] = self.df_o[f"{instr}_latitude_mf"].fillna(
+            method="ffill"
+        )
         self.df_o[f"{instr}_longitude_mf"] = (
             self.ds[f"{instr}_longitude"]
             .rolling(**{instr + "_time": mf_width}, center=True)
             .median()
             .to_pandas()
+        )
+        self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].fillna(
+            method="bfill"
+        )
+        self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].fillna(
+            method="ffill"
         )
         # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
         aggregator = ".mean() aggregator"
@@ -101,25 +186,29 @@ class Resampler:
     def save_coordinates(
         self, instr: str, mf_width: int, freq: str, aggregator: str
     ) -> None:
+        in_fn = self.ds.encoding["source"].split("/")[-1]
+        self.df_r["depth"].index.rename("time", inplace=True)
         self.resampled_nc["depth"] = self.df_r["depth"].to_xarray()
+        self.df_r["latitude"].index.rename("time", inplace=True)
         self.resampled_nc["latitude"] = self.df_r["latitude"].to_xarray()
+        self.df_r["longitude"].index.rename("time", inplace=True)
         self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
         self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
         self.resampled_nc["depth"].attrs["comment"] += (
-            " Instrument"
-            f" aligned _depth median filtered with {mf_width} samples"
+            f" Variable {instr}_depth from {in_fn}"
+            f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
         self.resampled_nc["latitude"].attrs = self.ds[f"{instr}_latitude"].attrs
         self.resampled_nc["latitude"].attrs["comment"] += (
-            " Instrument"
-            f" aligned _latitude median filtered with {mf_width} samples"
+            f" Variable {instr}_latitude from {in_fn}"
+            f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
         self.resampled_nc["longitude"].attrs = self.ds[f"{instr}_longitude"].attrs
         self.resampled_nc["longitude"].attrs["comment"] += (
-            " Instrument"
-            f" aligned _longitude median filtered with {mf_width} samples"
+            f" Variable {instr}_longitude from {in_fn}"
+            f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
@@ -135,18 +224,24 @@ class Resampler:
         )
         # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
         aggregator = ".mean() aggregator"
-        self.logger.info(f"Resampling {variable} with frequency {freq} into df_r")
+        self.logger.info(
+            f"Resampling {variable} with frequency {freq} following {mf_width} point median filter "
+        )
         self.df_r[variable] = (
             self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
         )
         return aggregator
 
     def save_variable(
-        self, variable: str, mf_width: int, freq: str, aggregator: str
+        self, instr: str, variable: str, mf_width: int, freq: str, aggregator: str
     ) -> None:
+        self.df_r[variable].index.rename("time", inplace=True)
         self.resampled_nc[variable] = self.df_r[variable].to_xarray()
         self.resampled_nc[variable].attrs = self.ds[variable].attrs
-        self.resampled_nc[variable].attrs["comment"] += (
+        self.resampled_nc[variable].attrs[
+            "coordinates"
+        ] = "time depth latitude longitude"
+        self.resampled_nc[variable].attrs["comment"] = (
             f" Calibrated {variable} median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
@@ -229,9 +324,10 @@ class Resampler:
                     self.plot_coordinates(instr, freq, plot_seconds)
             for variable in variables:
                 aggregator = self.resample_variable(instr, variable, mf_width, freq)
-                self.save_variable(variable, mf_width, freq, aggregator)
+                self.save_variable(instr, variable, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_variable(instr, variable, freq, plot_seconds)
+        self.resampled_nc.attrs = self.global_metadata()
         self.resampled_nc.to_netcdf(nc_file.replace("_align.nc", f"_{freq}.nc"))
 
     def process_command_line(self):
@@ -295,5 +391,6 @@ if __name__ == "__main__":
         resamp.args.mission,
         file_name,
     )
+    p_start = time.time()
     resamp.resample_mission(nc_file, plot_seconds=resamp.args.plot_seconds)
-    print("Done")
+    resamp.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
