@@ -392,8 +392,9 @@ class Calibrate_NetCDF:
 
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        # Units of these angles are radians in the original files, we want degrees
         self.combined_nc["navigation_roll"] = xr.DataArray(
-            orig_nc["mPhi"].values,
+            orig_nc["mPhi"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_roll",
@@ -407,7 +408,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["navigation_pitch"] = xr.DataArray(
-            orig_nc["mTheta"].values,
+            orig_nc["mTheta"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
             dims={f"navigation_time"},
             name="pitch",
@@ -421,7 +422,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["navigation_yaw"] = xr.DataArray(
-            orig_nc["mPsi"].values,
+            orig_nc["mPsi"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
             dims={f"navigation_time"},
             name="yaw",
