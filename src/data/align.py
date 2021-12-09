@@ -89,8 +89,8 @@ class Align_NetCDF:
             f" software."
         )
         metadata["comment"] = (
-            f"MBARI Dorado-class AUV data produced from original data"
-            f" with execution of '{self.commandline}'' at {iso_now} on"
+            f"MBARI Dorado-class AUV data produced from calibrated data"
+            f" with execution of '{self.commandline}' at {iso_now} on"
             f" host {gethostname()}. Software available at"
             f" 'https://bitbucket.org/mbari/auv-python'"
         )
