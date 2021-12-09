@@ -116,9 +116,13 @@ class Align_NetCDF:
         for variable in self.calibrated_nc.keys():
             instr, _ = variable.split("_")
             self.logger.debug(f"instr: {instr}")
-            if instr in ("navigation", "gps", "depth", "nudged"):
+            if instr in ("gps", "depth", "nudged"):
                 continue
-            # Process variables from seabird25p, ctd1, ctd2, hs2, ...
+            if variable.startswith("navigation"):
+                if variable.split("_")[1] not in ("roll", "pitch", "yaw"):
+                    continue
+            # Process roll, pitch, & yaw and variables from
+            # instruments: seabird25p, ctd1, ctd2, hs2, ...
             self.logger.info(f"Processing {variable}")
             self.aligned_nc[variable] = self.calibrated_nc[variable]
             # Interpolators for the non-time dimensions

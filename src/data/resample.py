@@ -237,7 +237,7 @@ class Resampler:
         return aggregator
 
     def save_variable(
-        self, instr: str, variable: str, mf_width: int, freq: str, aggregator: str
+        self, variable: str, mf_width: int, freq: str, aggregator: str
     ) -> None:
         self.df_r[variable].index.rename("time", inplace=True)
         self.resampled_nc[variable] = self.df_r[variable].to_xarray()
@@ -328,7 +328,7 @@ class Resampler:
                     self.plot_coordinates(instr, freq, plot_seconds)
             for variable in variables:
                 aggregator = self.resample_variable(instr, variable, mf_width, freq)
-                self.save_variable(instr, variable, mf_width, freq, aggregator)
+                self.save_variable(variable, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_variable(instr, variable, freq, plot_seconds)
         self.resampled_nc.attrs = self.global_metadata()
