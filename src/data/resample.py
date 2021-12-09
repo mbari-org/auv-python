@@ -25,6 +25,10 @@ import xarray as xr
 
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
 
+MF_WIDTH = 3
+FREQ = "1S"
+PLOT_SECONDS = 300
+
 
 class Resampler:
     logger = logging.getLogger(__name__)
@@ -328,7 +332,13 @@ class Resampler:
                 if self.args.plot:
                     self.plot_variable(instr, variable, freq, plot_seconds)
         self.resampled_nc.attrs = self.global_metadata()
-        self.resampled_nc.to_netcdf(nc_file.replace("_align.nc", f"_{freq}.nc"))
+        self.resampled_nc["time"].attrs = {
+            "standard_name": "time",
+            "long_name": "Time (UTC)",
+        }
+        out_fn = nc_file.replace("_align.nc", f"_{freq}.nc")
+        self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF3_CLASSIC")
+        self.logger.info(f"Saved resampled mission to {out_fn}")
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -357,9 +367,22 @@ class Resampler:
         parser.add_argument(
             "--plot_seconds",
             action="store",
-            default=300,
+            default=PLOT_SECONDS,
             type=float,
-            help="Plot sesonds of data",
+            help="Plot seconds of data",
+        )
+        parser.add_argument(
+            "--mf_width",
+            action="store",
+            default=MF_WIDTH,
+            type=int,
+            help="Median filter width",
+        )
+        parser.add_argument(
+            "--freq",
+            action="store",
+            default=FREQ,
+            help="Resample freq",
         )
         parser.add_argument(
             "-v",
@@ -392,5 +415,10 @@ if __name__ == "__main__":
         file_name,
     )
     p_start = time.time()
-    resamp.resample_mission(nc_file, plot_seconds=resamp.args.plot_seconds)
+    resamp.resample_mission(
+        nc_file,
+        mf_width=resamp.args.mf_width,
+        freq=resamp.args.freq,
+        plot_seconds=resamp.args.plot_seconds,
+    )
     resamp.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
