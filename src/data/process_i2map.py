@@ -3,8 +3,8 @@
 Scan master/i2MAP directory and process all missions found there
 
 Find all the i2MAP missions in cifs://titan.shore.mbari.org/M3/master/i2MAP
-and run the data through standard science data processing to calibrated and
-aligned netCDF files.
+and run the data through standard science data processing to calibrated,
+aligned, and resampled netCDF files.
 
 Limit processing to specific steps by providing arugments:
     --download_process
@@ -20,15 +20,19 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
+import os
 import platform
 import subprocess
 import sys
 
+from align import Align_NetCDF
 from calibrate import Calibrate_NetCDF
-from logs2netcdfs import BASE_PATH, AUV_NetCDF
+from logs2netcdfs import BASE_PATH, AUV_NetCDF, MISSIONNETCDFS
+from resample import Resampler, MF_WIDTH
+
 
 TEST_LIST = [
-    "2020.008.00",
+    # "2020.008.00",
     "2020.041.02",
     "2020.041.02",
     "2020.055.01",
@@ -49,7 +53,8 @@ class Processor:
         "%(funcName)s():%(lineno)d %(message)s"
     )
     _handler.setFormatter(_formatter)
-    logger.addHandler(_handler)
+    if _handler not in logger.handlers:
+        logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     I2MAP_DIR = "/Volumes/M3/master/i2MAP"
@@ -78,6 +83,7 @@ class Processor:
         return missions
 
     def download_process(self, mission: str) -> None:
+        self.logger.info("Processing %s", mission)
         auv_netcdf = AUV_NetCDF()
         auv_netcdf.args = argparse.Namespace()
         auv_netcdf.args.base_path = self.args.base_path
@@ -94,6 +100,7 @@ class Processor:
         auv_netcdf.download_process_logs()
 
     def calibrate(self, mission: str) -> None:
+        self.logger.info("Processing %s", mission)
         cal_netcdf = Calibrate_NetCDF()
         cal_netcdf.args = argparse.Namespace()
         cal_netcdf.args.base_path = self.args.base_path
@@ -113,16 +120,57 @@ class Processor:
         except FileNotFoundError as e:
             cal_netcdf.logger.error("%s %s", mission, e)
 
+    def align(self, mission: str) -> None:
+        self.logger.info("Processing %s", mission)
+        align_netcdf = Align_NetCDF()
+        align_netcdf.args = argparse.Namespace()
+        align_netcdf.args.base_path = self.args.base_path
+        align_netcdf.args.auv_name = self.VEHICLE
+        align_netcdf.args.mission = mission
+        align_netcdf.args.plot = None
+        align_netcdf.args.verbose = self.args.verbose
+        align_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        align_netcdf.commandline = self.commandline
+        try:
+            netcdf_dir = align_netcdf.process_cal()
+            align_netcdf.write_netcdf(netcdf_dir)
+        except FileNotFoundError as e:
+            align_netcdf.logger.error("%s %s", mission, e)
+
+    def resample(self, mission: str) -> None:
+        self.logger.info("Processing %s", mission)
+        resamp = Resampler()
+        resamp.args = argparse.Namespace()
+        resamp.args.auv_name = self.VEHICLE
+        resamp.args.mission = mission
+        resamp.args.plot = None
+        resamp.commandline = self.commandline
+        resamp.args.verbose = self.args.verbose
+        file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
+        nc_file = os.path.join(
+            self.args.base_path,
+            resamp.args.auv_name,
+            MISSIONNETCDFS,
+            resamp.args.mission,
+            file_name,
+        )
+        resamp.resample_mission(nc_file)
+
     def process_mission(self, mission: str) -> None:
-        if (not self.args.calibrate and not self.args.download_process) or (
-            self.args.calibrate and self.args.download_process
-        ):
-            self.download_process(mission)
-            self.calibrate(mission)
-        elif self.args.download_process:
+        self.logger.info("Processing %s", mission)
+        if self.args.download_process:
             self.download_process(mission)
         elif self.args.calibrate:
             self.calibrate(mission)
+        elif self.args.align:
+            self.align(mission)
+        elif self.args.resample:
+            self.resample(mission)
+        else:
+            self.download_process(mission)
+            self.calibrate(mission)
+            self.align(mission)
+            self.resample(mission)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -183,6 +231,11 @@ class Processor:
             help="Calibrate and adjust original instrument netCDF data",
         )
         parser.add_argument(
+            "--align",
+            action="store_true",
+            help="Align corrected coordinates onto calibrated instrument data",
+        )
+        parser.add_argument(
             "--resample",
             action="store_true",
             help="Resample all instrument data to common times",
@@ -213,5 +266,6 @@ if __name__ == "__main__":
     ##for mission in proc.mission_list(
     ##    start_year=proc.args.start_year, end_year=proc.args.end_year
     ##):
+    # for mission in ("2021.062.01",):
     for mission in TEST_LIST:
         proc.process_mission(mission)
