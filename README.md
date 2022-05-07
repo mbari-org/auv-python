@@ -48,8 +48,13 @@ running the Jupyter Notebooks:
 
 * cd ~/dev/auv-python
 * poetry shell
-* src/data/logs2netcdf.py --help        # help for first processing step
-* src/data/calibrate.py --help    # help for second processing step
+* src/data/logs2netcdfs.py --help       # 1.0 - help for first processing step
+* src/data/calibrate.py --help          # 2.0 - help for second processing step
+* src/data/align.py --help              # 3.0 - help for third processing step
+* src/data/resample.py --help           # 4.0 - help for fourth processing step
+
+To use VS Code, make sure that the poetry shell is selected with the Command
+palette command: "Python: select interpreter".
 
 --
 
