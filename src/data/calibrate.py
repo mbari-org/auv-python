@@ -117,7 +117,6 @@ class SensorInfo:
 
 
 class Calibrate_NetCDF:
-
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _formatter = logging.Formatter(

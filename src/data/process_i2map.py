@@ -83,7 +83,7 @@ class Processor:
         return missions
 
     def download_process(self, mission: str) -> None:
-        self.logger.info("Processing %s", mission)
+        self.logger.info("Download and processing steps for %s", mission)
         auv_netcdf = AUV_NetCDF()
         auv_netcdf.args = argparse.Namespace()
         auv_netcdf.args.base_path = self.args.base_path
@@ -100,7 +100,7 @@ class Processor:
         auv_netcdf.download_process_logs()
 
     def calibrate(self, mission: str) -> None:
-        self.logger.info("Processing %s", mission)
+        self.logger.info("Calibration steps for %s", mission)
         cal_netcdf = Calibrate_NetCDF()
         cal_netcdf.args = argparse.Namespace()
         cal_netcdf.args.base_path = self.args.base_path
@@ -121,7 +121,7 @@ class Processor:
             cal_netcdf.logger.error("%s %s", mission, e)
 
     def align(self, mission: str) -> None:
-        self.logger.info("Processing %s", mission)
+        self.logger.info("Alignment steps for %s", mission)
         align_netcdf = Align_NetCDF()
         align_netcdf.args = argparse.Namespace()
         align_netcdf.args.base_path = self.args.base_path
@@ -138,7 +138,7 @@ class Processor:
             align_netcdf.logger.error("%s %s", mission, e)
 
     def resample(self, mission: str) -> None:
-        self.logger.info("Processing %s", mission)
+        self.logger.info("Resampling steps for %s", mission)
         resamp = Resampler()
         resamp.args = argparse.Namespace()
         resamp.args.auv_name = self.VEHICLE
@@ -157,7 +157,7 @@ class Processor:
         resamp.resample_mission(nc_file)
 
     def process_mission(self, mission: str) -> None:
-        self.logger.info("Processing %s", mission)
+        self.logger.info("Processing mission %s", mission)
         if self.args.download_process:
             self.download_process(mission)
         elif self.args.calibrate:
