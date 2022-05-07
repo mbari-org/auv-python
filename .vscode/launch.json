@@ -60,8 +60,8 @@
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01", "--plot", "--plot_seconds", "82000"],
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01", "--plot"],
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2020.055.01", "--freq", "2S"],
-            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
+            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2020.055.01", "--freq", "2S"],
+            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
         },
         {
             "name": "process_i2map",
@@ -69,6 +69,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/process_i2map.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--calibrate", "--start_year", "2020", "--end_year", "2020"],
+            //"args": ["-v", "1", "--calibrate", "--start_year", "2020", "--end_year", "2020"],
+            "args": ["-v", "1", "--noinput"],
         },
     ]
