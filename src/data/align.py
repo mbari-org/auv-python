@@ -103,7 +103,7 @@ class Align_NetCDF:
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         in_fn = f"{vehicle}_{name}_cal.nc"
         self.calibrated_nc = xr.open_dataset(os.path.join(netcdfs_dir, in_fn))
-        logging.info(f"Processing {in_fn} from {netcdfs_dir}")
+        self.logger.info(f"Processing {in_fn} from {netcdfs_dir}")
         self.aligned_nc = xr.Dataset()
         self.min_time = datetime.utcnow()
         self.max_time = datetime(1970, 1, 1)
