@@ -129,7 +129,7 @@ class Align_NetCDF:
             lat_interp = interp1d(
                 self.calibrated_nc["nudged_latitude"]
                 .get_index("time")
-                .astype(np.int64)
+                .view(np.int64)
                 .tolist(),
                 self.calibrated_nc["nudged_latitude"].values,
                 fill_value="extrapolate",
@@ -137,7 +137,7 @@ class Align_NetCDF:
             lon_interp = interp1d(
                 self.calibrated_nc["nudged_longitude"]
                 .get_index("time")
-                .astype(np.int64)
+                .view(np.int64)
                 .tolist(),
                 self.calibrated_nc["nudged_longitude"].values,
                 fill_value="extrapolate",
@@ -145,7 +145,7 @@ class Align_NetCDF:
             depth_interp = interp1d(
                 self.calibrated_nc["depth_filtdepth"]
                 .get_index("depth_time")
-                .astype(np.int64)
+                .view(np.int64)
                 .tolist(),
                 self.calibrated_nc["depth_filtdepth"].values,
                 fill_value="extrapolate",
@@ -153,7 +153,7 @@ class Align_NetCDF:
             var_time = (
                 self.aligned_nc[variable]
                 .get_index(f"{instr}_time")
-                .astype(np.int64)
+                .view(np.int64)
                 .tolist()
             )
             # Create new DataArrays of all the variables, including "aligned"
