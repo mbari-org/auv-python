@@ -104,7 +104,7 @@ class Resampler:
 
         return metadata
 
-    def instruments_variables(self) -> dict:
+    def instruments_variables(self, nc_file: str) -> dict:
         """
         Return a dictionary of all the variables in the mission netCDF file,
         keyed by instrument name
@@ -310,14 +310,14 @@ class Resampler:
     def resample_mission(
         self,
         nc_file: str,
-        mf_width: int = 3,
-        freq: str = "1S",
-        plot_seconds: float = 300,
+        mf_width: int = MF_WIDTH,
+        freq: str = FREQ,
+        plot_seconds: float = PLOT_SECONDS,
     ) -> None:
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
         for icount, (instr, variables) in enumerate(
-            self.instruments_variables().items()
+            self.instruments_variables(nc_file).items()
         ):
             if icount == 0:
                 self.df_o = pd.DataFrame()  # original dataframe
