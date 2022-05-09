@@ -69,7 +69,10 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/process_i2map.py",
             "console": "integratedTerminal",
-            //"args": ["-v", "1", "--calibrate", "--start_year", "2020", "--end_year", "2020"],
-            "args": ["-v", "1", "--noinput"],
+            //"args": ["-v", "1", "--download_process", "--start_year", "2022", "--end_year", "2022"],
+            //"args": ["-v", "1", "--calibrate", "--start_year", "2022", "--end_year", "2022"],
+            //"args": ["-v", "1", "--noinput"],
+            //"args": ["-v", "1", "--mission", "2021.264.03", "--noinput"],
+            "args": ["-v", "1", "--start_year", "2022", "--end_year", "2022"],
         },
     ]

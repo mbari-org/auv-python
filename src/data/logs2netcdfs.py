@@ -25,6 +25,7 @@ import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from netCDF4 import Dataset
+from shutil import copytree
 
 from AUV import AUV, monotonic_increasing_time_indices
 from readauvlog import log_record
@@ -261,6 +262,25 @@ class AUV_NetCDF(AUV):
 
             await asyncio.gather(*tasks)
 
+    def _portal_download(self, logs_dir, name=None, vehicle=None):
+        self.logger.debug(f"Getting logs from {self.portal_base}")
+        self.logger.info(f"Downloading mission: {vehicle} {name}")
+        d_start = time.time()
+        loop = asyncio.get_event_loop()
+        try:
+            future = asyncio.ensure_future(
+                self._download_files(logs_dir, name, vehicle)
+            )
+        except asyncio.exceptions.TimeoutError as e:
+            self.logger.warning(f"{e}")
+        try:
+            loop.run_until_complete(future)
+        except LookupError as e:
+            self.logger.error(f"{e}")
+            self.logger.info(f"Perhaps use '--update' option?")
+            return
+        self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
+
     def _correct_dup_short_names(self, log_data):
         short_names = [v.short_name for v in log_data]
         dupes = set([x for n, x in enumerate(short_names) if x in short_names[:n]])
@@ -380,13 +400,17 @@ class AUV_NetCDF(AUV):
 
         self.nc_file.close()
 
-    def download_process_logs(self, vehicle=None, name=None):
+    def download_process_logs(
+        self,
+        vehicle: str = None,
+        name: str = None,
+        src_dir: str = None,
+    ) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
 
         if not self.args.local:
-            # Download logs via portal service
             self.logger.debug(
                 f"Unique vehicle names: {self._unique_vehicle_names()} seconds"
             )
@@ -407,24 +431,11 @@ class AUV_NetCDF(AUV):
                         or "Y"
                     )
             if yes_no.upper().startswith("Y"):
-                self.logger.info(f"Downloading mission: {vehicle} {name}")
-                d_start = time.time()
-                loop = asyncio.get_event_loop()
-                try:
-                    future = asyncio.ensure_future(
-                        self._download_files(logs_dir, name, vehicle)
-                    )
-                except asyncio.exceptions.TimeoutError as e:
-                    self.logger.warning(f"{e}")
-                try:
-                    loop.run_until_complete(future)
-                except LookupError as e:
-                    self.logger.error(f"{e}")
-                    self.logger.info(f"Perhaps use '--update' option?")
-                    return
-                self.logger.info(
-                    f"Time to download: {(time.time() - d_start):.2f} seconds"
-                )
+                if self.args.use_m3:
+                    self.logger.info(f"Copying {src_dir} to {logs_dir}")
+                    copytree(src_dir, logs_dir, dirs_exist_ok=True)
+                else:
+                    self._portal_download(logs_dir, vehicle, name)
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
@@ -547,6 +558,11 @@ class AUV_NetCDF(AUV):
             help="Specify the base url for the auv-portal data"
             " service, e.g.:"
             " http://stoqs.mbari.org:8080/auvdata/v1",
+        )
+        parser.add_argument(
+            "--use_m3",
+            action="store_true",
+            help="Download data from Titan's M3 mount instead of using the portal",
         )
         parser.add_argument(
             "-v",

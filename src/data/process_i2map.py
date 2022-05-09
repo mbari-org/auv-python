@@ -41,6 +41,7 @@ TEST_LIST = [
     "2020.224.04",
     "2020.258.01",
     "2020.266.01",
+    "2021.264.03",
 ]
 
 
@@ -53,8 +54,7 @@ class Processor:
         "%(funcName)s():%(lineno)d %(message)s"
     )
     _handler.setFormatter(_formatter)
-    if _handler not in logger.handlers:
-        logger.addHandler(_handler)
+    logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     I2MAP_DIR = "/Volumes/M3/master/i2MAP"
@@ -64,8 +64,8 @@ class Processor:
     else:
         FIND_CMD = f'find {I2MAP_DIR} -regex "{REGEX}" | sort'
 
-    def mission_list(self, start_year: int, end_year: int) -> list:
-        missions = []
+    def mission_list(self, start_year: int, end_year: int) -> dict:
+        missions = {}
         self.logger.debug("Executing %s", self.FIND_CMD)
         for line in subprocess.getoutput(self.FIND_CMD).split("\n"):
             self.logger.debug(line)
@@ -79,10 +79,10 @@ class Processor:
             except ValueError:
                 self.logger.warning("Cannot parse year from %s", mission)
             if start_year <= year and year <= end_year:
-                missions.append(mission)
+                missions[mission] = line.rstrip()
         return missions
 
-    def download_process(self, mission: str) -> None:
+    def download_process(self, mission: str, src_dir: str) -> None:
         self.logger.info("Download and processing steps for %s", mission)
         auv_netcdf = AUV_NetCDF()
         auv_netcdf.args = argparse.Namespace()
@@ -93,11 +93,12 @@ class Processor:
         auv_netcdf.args.noreprocess = self.args.noreprocess
         auv_netcdf.args.auv_name = self.VEHICLE
         auv_netcdf.args.mission = mission
+        auv_netcdf.args.use_m3 = True
         auv_netcdf.set_portal()
         auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
         auv_netcdf.commandline = self.commandline
-        auv_netcdf.download_process_logs()
+        auv_netcdf.download_process_logs(src_dir=src_dir)
 
     def calibrate(self, mission: str) -> None:
         self.logger.info("Calibration steps for %s", mission)
@@ -156,10 +157,10 @@ class Processor:
         )
         resamp.resample_mission(nc_file)
 
-    def process_mission(self, mission: str) -> None:
+    def process_mission(self, mission: str, src_dir: str = None) -> None:
         self.logger.info("Processing mission %s", mission)
         if self.args.download_process:
-            self.download_process(mission)
+            self.download_process(mission, src_dir)
         elif self.args.calibrate:
             self.calibrate(mission)
         elif self.args.align:
@@ -167,7 +168,7 @@ class Processor:
         elif self.args.resample:
             self.resample(mission)
         else:
-            self.download_process(mission)
+            self.download_process(mission, src_dir)
             self.calibrate(mission)
             self.align(mission)
             self.resample(mission)
@@ -241,6 +242,11 @@ class Processor:
             help="Resample all instrument data to common times",
         )
         parser.add_argument(
+            "--mission",
+            action="store",
+            help="Process only this mission",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             type=int,
@@ -263,9 +269,25 @@ class Processor:
 if __name__ == "__main__":
     proc = Processor()
     proc.process_command_line()
-    ##for mission in proc.mission_list(
-    ##    start_year=proc.args.start_year, end_year=proc.args.end_year
-    ##):
-    # for mission in ("2021.062.01",):
-    for mission in TEST_LIST:
-        proc.process_mission(mission)
+    if proc.args.mission:
+        # mission is string like: 2021.062.01
+        year = int(proc.args.mission.split(".")[0])
+        missions = proc.mission_list(start_year=year, end_year=year)
+        if proc.args.mission in missions:
+            proc.process_mission(
+                proc.args.mission,
+                src_dir=missions[proc.args.mission],
+            )
+        else:
+            proc.logger.error(
+                "Mission %s not found in missions: %s",
+                proc.args.mission,
+                missions,
+            )
+    elif proc.args.start_year and proc.args.end_year:
+        missions = proc.mission_list(
+            start_year=proc.args.start_year,
+            end_year=proc.args.end_year,
+        )
+        for mission in missions:
+            proc.process_mission(mission, src_dir=missions[mission])
