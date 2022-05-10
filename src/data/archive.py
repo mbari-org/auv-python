@@ -18,6 +18,7 @@ import time
 from shutil import copyfile, copytree
 
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
+from resample import FREQ
 
 
 class Archiver:
@@ -40,7 +41,9 @@ class Archiver:
         year = self.args.mission.split(".")[0]
         auvctd_dir = os.path.join(auvctd_dir, year, "netcdf")
         self.logger.info(f"Copying {resampled_nc_file} to {auvctd_dir}")
-        copyfile(resampled_nc_file, auvctd_dir)
+        # To avoid "fchmod failed: Permission denied" message use rsync:
+        # https://apple.stackexchange.com/a/206251
+        os.system(f"rsync {resampled_nc_file} {auvctd_dir}")
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
@@ -67,6 +70,12 @@ class Archiver:
             "--mission",
             action="store",
             help="Mission directory, e.g.: 2020.064.10",
+        ),
+        parser.add_argument(
+            "--freq",
+            action="store",
+            default=FREQ,
+            help="Resample freq",
         ),
         parser.add_argument(
             "--M3",
@@ -98,19 +107,19 @@ class Archiver:
 
 
 if __name__ == "__main__":
-    archive = Archiver()
-    archive.process_command_line()
-    file_name = f"{archive.args.auv_name}_{archive.args.mission}_align.nc"
+    arch = Archiver()
+    arch.process_command_line()
+    file_name = f"{arch.args.auv_name}_{arch.args.mission}_{arch.args.freq}.nc"
     nc_file = os.path.join(
         BASE_PATH,
-        archive.args.auv_name,
+        arch.args.auv_name,
         MISSIONNETCDFS,
-        archive.args.mission,
+        arch.args.mission,
         file_name,
     )
     p_start = time.time()
-    if archive.args.M3:
-        archive.copy_to_M3(nc_file)
-    if archive.args.AUVCTD:
-        archive.copy_to_AUVTCD(nc_file)
-    archive.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    if arch.args.M3:
+        arch.copy_to_M3(nc_file)
+    if arch.args.AUVCTD:
+        arch.copy_to_AUVTCD(nc_file)
+    arch.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
