@@ -64,6 +64,14 @@
             "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
         },
         {
+            "name": "5.0 - archive.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/archive.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
+        },
+        {
             "name": "process_i2map",
             "type": "python",
             "request": "launch",
