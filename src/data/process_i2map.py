@@ -4,7 +4,8 @@ Scan master/i2MAP directory and process all missions found there
 
 Find all the i2MAP missions in cifs://titan.shore.mbari.org/M3/master/i2MAP
 and run the data through standard science data processing to calibrated,
-aligned, and resampled netCDF files.
+aligned, and resampled netCDF files.  Use a standard set of processing options;
+more flexibility is available via the inndividual processing modules.
 
 Limit processing to specific steps by providing arugments:
     --download_process
@@ -28,7 +29,8 @@ import sys
 from align import Align_NetCDF
 from calibrate import Calibrate_NetCDF
 from logs2netcdfs import BASE_PATH, AUV_NetCDF, MISSIONNETCDFS
-from resample import Resampler, MF_WIDTH
+from resample import Resampler, FREQ
+from archive import Archiver
 
 
 TEST_LIST = [
@@ -157,6 +159,22 @@ class Processor:
         )
         resamp.resample_mission(nc_file)
 
+    def archive(self, mission: str) -> None:
+        self.logger.info("Archiving steps for %s", mission)
+        arch = Archiver()
+        arch.args = argparse.Namespace()
+        arch.args.auv_name = self.VEHICLE
+        arch.args.mission = mission
+        file_name = f"{arch.args.auv_name}_{arch.args.mission}_{FREQ}.nc"
+        nc_file = os.path.join(
+            BASE_PATH,
+            arch.args.auv_name,
+            MISSIONNETCDFS,
+            arch.args.mission,
+            file_name,
+        )
+        arch.copy_to_AUVTCD(nc_file)
+
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         self.logger.info("Processing mission %s", mission)
         if self.args.download_process:
@@ -168,10 +186,11 @@ class Processor:
         elif self.args.resample:
             self.resample(mission)
         else:
-            self.download_process(mission, src_dir)
-            self.calibrate(mission)
-            self.align(mission)
-            self.resample(mission)
+            # self.download_process(mission, src_dir)
+            # self.calibrate(mission)
+            # self.align(mission)
+            # self.resample(mission)
+            self.archive(mission)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(

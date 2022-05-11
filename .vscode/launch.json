@@ -81,6 +81,7 @@
             //"args": ["-v", "1", "--calibrate", "--start_year", "2022", "--end_year", "2022"],
             //"args": ["-v", "1", "--noinput"],
             //"args": ["-v", "1", "--mission", "2021.264.03", "--noinput"],
-            "args": ["-v", "1", "--start_year", "2022", "--end_year", "2022"],
+            "args": ["-v", "1", "--mission", "2021.062.01", "--noinput"],
+            //"args": ["-v", "1", "--start_year", "2022", "--end_year", "2022"],
         },
     ]
