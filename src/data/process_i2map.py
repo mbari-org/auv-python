@@ -186,10 +186,10 @@ class Processor:
         elif self.args.resample:
             self.resample(mission)
         else:
-            # self.download_process(mission, src_dir)
-            # self.calibrate(mission)
-            # self.align(mission)
-            # self.resample(mission)
+            self.download_process(mission, src_dir)
+            self.calibrate(mission)
+            self.align(mission)
+            self.resample(mission)
             self.archive(mission)
 
     def process_command_line(self):
