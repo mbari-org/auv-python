@@ -11,6 +11,7 @@ Limit processing to specific steps by providing arugments:
     --download_process
     --calibrate
     --resample
+    --archive
 If none provided then perform all steps.
 
 Uses command line arguments from logs2netcdf.py and calibrate.py.
@@ -185,6 +186,8 @@ class Processor:
             self.align(mission)
         elif self.args.resample:
             self.resample(mission)
+        elif self.args.archive:
+            self.archive(mission)
         else:
             self.download_process(mission, src_dir)
             self.calibrate(mission)
@@ -259,6 +262,11 @@ class Processor:
             "--resample",
             action="store_true",
             help="Resample all instrument data to common times",
+        )
+        parser.add_argument(
+            "--archive",
+            action="store_true",
+            help="Archive the resampled netCDF file(s)",
         )
         parser.add_argument(
             "--mission",
