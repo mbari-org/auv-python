@@ -1184,6 +1184,13 @@ class Calibrate_NetCDF:
         except FileNotFoundError as e:
             self.logger.error(f"{e}")
             return
+        except AttributeError:
+            self.logger.error(
+                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s",
+                sensor,
+                self.args.mission,
+            )
+            return
 
         # Remove non-monotonic times
         self.logger.debug("Checking for non-monotonic increasing times")
