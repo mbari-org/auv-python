@@ -370,7 +370,7 @@ class AUV_NetCDF(AUV):
                 variable.data,
             )
 
-    def _process_log_file(self, log_filename, netcdf_filename):
+    def _process_log_file(self, log_filename, netcdf_filename, src_dir=None):
         log_data = self.read(log_filename)
         if os.path.exists(netcdf_filename):
             # xarray's Dataset raises permission denied error if file exists
@@ -388,6 +388,8 @@ class AUV_NetCDF(AUV):
         if hasattr(self.args, "title"):
             if self.args.title:
                 self.nc_file.title = self.args.title
+        if src_dir:
+            self.nc_file.summary = f"Original log file copied from {src_dir}"
         if hasattr(self.args, "summary"):
             if self.args.summary:
                 self.nc_file.summary = self.args.summary
@@ -446,7 +448,7 @@ class AUV_NetCDF(AUV):
             netcdf_filename = os.path.join(netcdfs_dir, log.replace(".log", ".nc"))
             try:
                 self.logger.info(f"Processing file {log_filename}")
-                self._process_log_file(log_filename, netcdf_filename)
+                self._process_log_file(log_filename, netcdf_filename, src_dir)
             except (FileNotFoundError, EOFError, struct.error, IndexError) as e:
                 self.logger.debug(f"{e}")
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
