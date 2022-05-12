@@ -58,7 +58,7 @@ from ctd_proc import (
     _calibrated_temp_from_frequency,
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, SUMMARY_SOURCE
 
 TIME = "time"
 
@@ -166,6 +166,13 @@ class Calibrate_NetCDF:
             f" original sampling intervals. The data have been calibrated "
             f" by MBARI's auv-python software."
         )
+        # Append location of original data files to summary
+        matches = re.search(
+            "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
+            self.calibrated_nc.attrs["summary"],
+        )
+        if matches:
+            metadata["summary"] += " " + matches.group(1)
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"

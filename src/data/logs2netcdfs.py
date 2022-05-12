@@ -50,6 +50,7 @@ MISSIONNETCDFS = "missionnetcdfs"
 PORTAL_BASE = "http://portal.shore.mbari.org:8080/auvdata/v1"
 TIME = "time"
 TIMEOUT = 240
+SUMMARY_SOURCE = "Original log files copied from {}"
 
 
 class AUV_NetCDF(AUV):
@@ -389,7 +390,9 @@ class AUV_NetCDF(AUV):
             if self.args.title:
                 self.nc_file.title = self.args.title
         if src_dir:
-            self.nc_file.summary = f"Original log file copied from {src_dir}"
+            # The source attribute might make more sense for the location of
+            # the source data, but the summary field is shown in STOQS metadata
+            self.nc_file.summary = SUMMARY_SOURCE.format(src_dir)
         if hasattr(self.args, "summary"):
             if self.args.summary:
                 self.nc_file.summary = self.args.summary

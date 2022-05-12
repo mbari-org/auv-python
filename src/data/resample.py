@@ -12,6 +12,7 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -23,7 +24,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -95,6 +96,13 @@ class Resampler:
             f" and the coordinate variables aligned using MBARI's auv-python"
             f" software."
         )
+        # Append location of original data files to summary
+        matches = re.search(
+            "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
+            self.ds.attrs["summary"],
+        )
+        if matches:
+            metadata["summary"] += " " + matches.group(1)
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from aligned data"
             f" with execution of '{self.commandline}' at {iso_now} on"
