@@ -2,7 +2,7 @@
 
 The sequence of steps to process data is as follows:
 
-    logs2netcdfs.py → calibrate.py → align.py → resample.py
+    logs2netcdfs.py → calibrate.py → align.py → resample.py → archive.py
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure
@@ -60,3 +60,9 @@ on the local file system is as follows:
         depth, latitude, and longitude names. These are the best files to
         use for loading data into STOQS and for analyses requiring all the
         data to be on the same spatial temporal grid.
+
+    archive.py
+        Copy the netCDF files to the archive directory. The archive directory
+        is initally in the AUVCTD share on atlas which is shared with the
+        data from the Dorado Gulper vehicle, but can also be on the M3 share
+        on titan near the original log data. 
