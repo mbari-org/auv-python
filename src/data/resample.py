@@ -91,10 +91,9 @@ class Resampler:
         )
         metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
-            f" Underwater Vehicle mission with measurements at"
-            f" original sampling intervals. The data have been calibrated"
-            f" and the coordinate variables aligned using MBARI's auv-python"
-            f" software."
+            f" Underwater Vehicle mission with measurements sampled at"
+            f" {self.args.freq} intervals."
+            f" Data processed using MBARI's auv-python software."
         )
         # Append location of original data files to summary
         matches = re.search(
