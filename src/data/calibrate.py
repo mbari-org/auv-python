@@ -58,7 +58,7 @@ from ctd_proc import (
     _calibrated_temp_from_frequency,
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, SUMMARY_SOURCE
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = "time"
 
@@ -166,13 +166,9 @@ class Calibrate_NetCDF:
             f" original sampling intervals. The data have been calibrated "
             f" by MBARI's auv-python software."
         )
-        # Append location of original data files to summary
-        matches = re.search(
-            "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
-            self.calibrated_nc.attrs["summary"],
-        )
-        if matches:
-            metadata["summary"] += " " + matches.group(1)
+        if self.summary_fields:
+            # Should be just one item in set, but just in case join them
+            metadata["summary"] += " " + ". ".join(self.summary_fields)
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"
@@ -318,8 +314,10 @@ class Calibrate_NetCDF:
         """Read in all the instrument data into member variables named by "sensor"
         Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
         Access calibration coefficients like: self.ctd.cals.t_f0, or as a
-        dictionary for hs2 data.
+        dictionary for hs2 data.  Collect summary metadata fields that should
+        describe the source of the data if copied from M3.
         """
+        self.summary_fields = set()
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
             orig_netcdf_filename = os.path.join(netcdfs_dir, info["data_filename"])
@@ -346,6 +344,10 @@ class Calibrate_NetCDF:
                         self.logger.debug(f"{e}")
 
             setattr(self, sensor, sensor_info)
+            if hasattr(sensor_info, "orig_data"):
+                self.summary_fields.add(
+                    getattr(self, sensor).orig_data.attrs["summary"]
+                )
 
         # TODO: Warn if no data found and if logs2netcdfs.py should be run
 
