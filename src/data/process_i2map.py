@@ -121,7 +121,7 @@ class Processor:
         try:
             netcdf_dir = cal_netcdf.process_logs()
             cal_netcdf.write_netcdf(netcdf_dir)
-        except FileNotFoundError as e:
+        except (FileNotFoundError, EOFError) as e:
             cal_netcdf.logger.error("%s %s", mission, e)
 
     def align(self, mission: str) -> None:
@@ -158,7 +158,10 @@ class Processor:
             resamp.args.mission,
             file_name,
         )
-        resamp.resample_mission(nc_file)
+        try:
+            resamp.resample_mission(nc_file)
+        except FileNotFoundError as e:
+            self.logger.error("%s %s", mission, e)
 
     def archive(self, mission: str) -> None:
         self.logger.info("Archiving steps for %s", mission)

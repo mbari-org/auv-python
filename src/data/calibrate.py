@@ -140,10 +140,12 @@ class Calibrate_NetCDF:
         metadata["date_update"] = iso_now
         metadata["date_modified"] = iso_now
         metadata["featureType"] = "trajectory"
-
-        metadata["time_coverage_start"] = str(
-            self.combined_nc["depth_time"].to_pandas()[0].isoformat()
-        )
+        try:
+            metadata["time_coverage_start"] = str(
+                self.combined_nc["depth_time"].to_pandas()[0].isoformat()
+            )
+        except KeyError:
+            raise EOFError("No depth_time variable in combined_nc")
         metadata["time_coverage_end"] = str(
             self.combined_nc["depth_time"].to_pandas()[-1].isoformat()
         )
@@ -397,6 +399,13 @@ class Calibrate_NetCDF:
         except FileNotFoundError as e:
             self.logger.error(f"{e}")
             return
+        except AttributeError:
+            raise EOFError(
+                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
+                    sensor,
+                    self.args.mission,
+                )
+            )
 
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
@@ -794,6 +803,13 @@ class Calibrate_NetCDF:
         except FileNotFoundError as e:
             self.logger.error(f"{e}")
             return
+        except AttributeError:
+            raise EOFError(
+                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
+                    sensor,
+                    self.args.mission,
+                )
+            )
 
         if self.args.mission == "2010.151.04":
             # Gulf of Mexico mission - read from usbl.dat files
@@ -1194,12 +1210,12 @@ class Calibrate_NetCDF:
             self.logger.error(f"{e}")
             return
         except AttributeError:
-            self.logger.error(
-                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s",
-                sensor,
-                self.args.mission,
+            raise EOFError(
+                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
+                    sensor,
+                    self.args.mission,
+                )
             )
-            return
 
         # Remove non-monotonic times
         self.logger.debug("Checking for non-monotonic increasing times")
@@ -1406,7 +1422,10 @@ class Calibrate_NetCDF:
         for sensor in self.sinfo.keys():
             setattr(getattr(self, sensor), "cal_align_data", xr.Dataset())
             self.logger.debug(f"Processing {vehicle} {name} {sensor}")
-            self._process(sensor, logs_dir, netcdfs_dir)
+            try:
+                self._process(sensor, logs_dir, netcdfs_dir)
+            except EOFError as e:
+                self.logger.warning("Error processing %s: %s", sensor, e)
 
         return netcdfs_dir
 
