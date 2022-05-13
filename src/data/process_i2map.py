@@ -149,6 +149,7 @@ class Processor:
         resamp.args.auv_name = self.VEHICLE
         resamp.args.mission = mission
         resamp.args.plot = None
+        resamp.args.freq = self.args.freq
         resamp.commandline = self.commandline
         resamp.args.verbose = self.args.verbose
         file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
@@ -170,7 +171,7 @@ class Processor:
         arch.args = argparse.Namespace()
         arch.args.auv_name = self.VEHICLE
         arch.args.mission = mission
-        file_name = f"{arch.args.auv_name}_{arch.args.mission}_{FREQ}.nc"
+        file_name = f"{arch.args.auv_name}_{arch.args.mission}_{self.args.freq}.nc"
         nc_file = os.path.join(
             BASE_PATH,
             arch.args.auv_name,
@@ -259,7 +260,7 @@ class Processor:
             action="store",
             type=int,
             default=366,
-            help="End processing at this year day",
+            help="End processing before this year day",
         )
         parser.add_argument(
             "--download_process",
@@ -290,6 +291,12 @@ class Processor:
             "--mission",
             action="store",
             help="Process only this mission",
+        )
+        parser.add_argument(
+            "--freq",
+            action="store",
+            default=FREQ,
+            help="Resample freq",
         )
         parser.add_argument(
             "-v",
