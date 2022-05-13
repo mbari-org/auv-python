@@ -631,25 +631,31 @@ class Calibrate_NetCDF:
             seg_minsum += seg_min
 
             # Compute approximate horizontal drift rate as a sanity check
-            u_drift = (
-                end_lon_diff
-                * float(np.cos(lat_fix[i + 1] * np.pi / 180))
-                * 60
-                * 185300
-                / (
-                    float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
-                    / 1.0e9
+            try:
+                u_drift = (
+                    end_lon_diff
+                    * float(np.cos(lat_fix[i + 1] * np.pi / 180))
+                    * 60
+                    * 185300
+                    / (
+                        float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
+                        / 1.0e9
+                    )
                 )
-            )
-            v_drift = (
-                end_lat_diff
-                * 60
-                * 185300
-                / (
-                    float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
-                    / 1.0e9
+            except ZeroDivisionError:
+                u_drift = 0
+            try:
+                v_drift = (
+                    end_lat_diff
+                    * 60
+                    * 185300
+                    / (
+                        float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
+                        / 1.0e9
+                    )
                 )
-            )
+            except ZeroDivisionError:
+                v_drift = 0
             if len(segi) > 10:
                 self.logger.info(
                     f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
