@@ -960,7 +960,10 @@ class Calibrate_NetCDF:
         # The Wn parameter for butter() is fraction of the Nyquist frequency
         Wn = cutoff_freq / (sample_rate / 2.0)
         b, a = signal.butter(8, Wn)
-        depth_filtpres_butter = signal.filtfilt(b, a, pres)
+        try:
+            depth_filtpres_butter = signal.filtfilt(b, a, pres)
+        except ValueError as e:
+            raise EOFError(f"Likely short or emypty file: {e}")
         depth_filtdepth_butter = signal.filtfilt(b, a, orig_nc["depth"])
 
         # Use 10 points in boxcar as in processDepth.m
@@ -1431,7 +1434,7 @@ class Calibrate_NetCDF:
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
             except EOFError as e:
-                self.logger.warning("Error processing %s: %s", sensor, e)
+                self.logger.warning(f"Error processing {sensor}: {e}")
 
         return netcdfs_dir
 
