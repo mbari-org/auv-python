@@ -134,14 +134,17 @@ class Align_NetCDF:
             self.logger.info(f"Processing {variable}")
             self.aligned_nc[variable] = self.calibrated_nc[variable]
             # Interpolators for the non-time dimensions
-            lat_interp = interp1d(
-                self.calibrated_nc["nudged_latitude"]
-                .get_index("time")
-                .view(np.int64)
-                .tolist(),
-                self.calibrated_nc["nudged_latitude"].values,
-                fill_value="extrapolate",
-            )
+            try:
+                lat_interp = interp1d(
+                    self.calibrated_nc["nudged_latitude"]
+                    .get_index("time")
+                    .view(np.int64)
+                    .tolist(),
+                    self.calibrated_nc["nudged_latitude"].values,
+                    fill_value="extrapolate",
+                )
+            except KeyError:
+                raise EOFError("No nudged_latitude data in calibrated_nc")
             lon_interp = interp1d(
                 self.calibrated_nc["nudged_longitude"]
                 .get_index("time")

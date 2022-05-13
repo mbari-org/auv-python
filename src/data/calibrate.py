@@ -564,7 +564,10 @@ class Calibrate_NetCDF:
         self.segment_count = None
         self.segment_minsum = None
 
-        lon = self.combined_nc["navigation_longitude"]
+        try:
+            lon = self.combined_nc["navigation_longitude"]
+        except KeyError:
+            raise EOFError("No navigation_longitude data in combined_nc")
         lat = self.combined_nc["navigation_latitude"]
         lon_fix = self.combined_nc["gps_longitude"]
         lat_fix = self.combined_nc["gps_latitude"]
@@ -1352,11 +1355,14 @@ class Calibrate_NetCDF:
         as its variables in combined_nc are required. Returns corrected depth
         array.
         """
-        p_interp = interp1d(
-            self.combined_nc["navigation_time"].values.tolist(),
-            self.combined_nc["navigation_pitch"].values,
-            fill_value="extrapolate",
-        )
+        try:
+            p_interp = interp1d(
+                self.combined_nc["navigation_time"].values.tolist(),
+                self.combined_nc["navigation_pitch"].values,
+                fill_value="extrapolate",
+            )
+        except KeyError:
+            raise EOFError("No navigation_time or navigation_pitch in combined_nc. ")
         pitch = p_interp(orig_nc["time"].values.tolist())
 
         d_interp = interp1d(
