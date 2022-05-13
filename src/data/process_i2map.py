@@ -21,6 +21,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
+from datetime import datetime
 import logging
 import os
 import platform
@@ -138,7 +139,7 @@ class Processor:
         try:
             netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
-        except FileNotFoundError as e:
+        except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)
 
     def resample(self, mission: str) -> None:
@@ -236,15 +237,29 @@ class Processor:
             "--start_year",
             action="store",
             type=int,
-            default=2000,
+            default=2017,
             help="Begin processing at this year",
         )
         parser.add_argument(
             "--end_year",
             action="store",
             type=int,
-            default=2100,
+            default=datetime.now().year,
             help="End processing at this year",
+        )
+        parser.add_argument(
+            "--start_yd",
+            action="store",
+            type=int,
+            default=1,
+            help="Begin processing at this year day",
+        )
+        parser.add_argument(
+            "--end_yd",
+            action="store",
+            type=int,
+            default=366,
+            help="End processing at this year day",
         )
         parser.add_argument(
             "--download_process",
@@ -320,4 +335,9 @@ if __name__ == "__main__":
             end_year=proc.args.end_year,
         )
         for mission in missions:
+            if (
+                int(mission.split(".")[1]) < proc.args.start_yd
+                or int(mission.split(".")[1]) > proc.args.end_yd
+            ):
+                continue
             proc.process_mission(mission, src_dir=missions[mission])
