@@ -32,7 +32,7 @@ class Archiver:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def copy_to_AUVTCD(self, resampled_nc_file: str) -> None:
+    def copy_to_AUVTCD(self, nc_file: str, freq: str) -> None:
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
         if platform.system() == "Darwin":
             auvctd_dir = "/Volumes/AUVCTD/surveys"
@@ -40,10 +40,12 @@ class Archiver:
             auvctd_dir = "/mbari/AUVCTD/surveys"
         year = self.args.mission.split(".")[0]
         auvctd_dir = os.path.join(auvctd_dir, year, "netcdf")
-        self.logger.info(f"Copying {resampled_nc_file} to {auvctd_dir}")
         # To avoid "fchmod failed: Permission denied" message use rsync:
         # https://apple.stackexchange.com/a/206251
-        os.system(f"rsync {resampled_nc_file} {auvctd_dir}")
+        for ftype in ("cal", "align", freq):
+            src_file = f"{nc_file[:-3]}_{ftype}.nc"
+            self.logger.info(f"rsync {src_file} {auvctd_dir}")
+            os.system(f"rsync {src_file} {auvctd_dir}")
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
