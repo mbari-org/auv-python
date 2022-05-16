@@ -362,9 +362,14 @@ class Calibrate_NetCDF:
         """
         self.logger.debug(f"Opening {cfg_filename}")
         coeffs = Coeffs()
+        use_g_j = False
         with open(cfg_filename) as fh:
             for line in fh:
                 ##self.logger.debug(line)
+                if line.startswith("//"):
+                    continue
+                if line.startswith("t_coefs = G;"):
+                    use_g_j = True
                 # From get_auv_cal.m - Handle CTD calibration parameters
                 if line[:2] in (
                     "t_",
@@ -384,6 +389,15 @@ class Calibrate_NetCDF:
                         setattr(coeffs, coeff, float(value.replace(";", "")))
                     except ValueError as e:
                         self.logger.debug(f"{e}")
+        if use_g_j:
+            for a_d, g_j in (
+                ("a", "g"),
+                ("b", "h"),
+                ("c", "i"),
+                ("d", "j"),
+            ):
+                setattr(coeffs, f"t_{a_d}", getattr(coeffs, f"t_{g_j}"))
+                setattr(coeffs, f"c_{a_d}", getattr(coeffs, f"c_{g_j}"))
 
         return coeffs
 
