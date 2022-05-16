@@ -152,6 +152,7 @@ class Processor:
         resamp.args.freq = self.args.freq
         resamp.commandline = self.commandline
         resamp.args.verbose = self.args.verbose
+        resamp.logger.setLevel(self._log_levels[self.args.verbose])
         file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
         nc_file = os.path.join(
             self.args.base_path,
@@ -171,7 +172,10 @@ class Processor:
         arch.args = argparse.Namespace()
         arch.args.auv_name = self.VEHICLE
         arch.args.mission = mission
-        file_name = f"{arch.args.auv_name}_{arch.args.mission}_{self.args.freq}.nc"
+        arch.commandline = self.commandline
+        arch.args.verbose = self.args.verbose
+        arch.logger.setLevel(self._log_levels[self.args.verbose])
+        file_name = f"{arch.args.auv_name}_{arch.args.mission}.nc"
         nc_file = os.path.join(
             BASE_PATH,
             arch.args.auv_name,
@@ -179,7 +183,7 @@ class Processor:
             arch.args.mission,
             file_name,
         )
-        arch.copy_to_AUVTCD(nc_file)
+        arch.copy_to_AUVTCD(nc_file, self.args.freq)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         self.logger.info("Processing mission %s", mission)
