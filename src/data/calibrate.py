@@ -347,9 +347,12 @@ class Calibrate_NetCDF:
 
             setattr(self, sensor, sensor_info)
             if hasattr(sensor_info, "orig_data"):
-                self.summary_fields.add(
-                    getattr(self, sensor).orig_data.attrs["summary"]
-                )
+                try:
+                    self.summary_fields.add(
+                        getattr(self, sensor).orig_data.attrs["summary"]
+                    )
+                except KeyError:
+                    self.logger.warning(f"{orig_netcdf_filename}: No summary field")
 
         # TODO: Warn if no data found and if logs2netcdfs.py should be run
 
