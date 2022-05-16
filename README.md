@@ -48,10 +48,15 @@ running the Jupyter Notebooks:
 
 * cd ~/dev/auv-python
 * poetry shell
+
+The following commands are available:
+
 * src/data/logs2netcdfs.py --help       # 1.0 - help for first processing step
 * src/data/calibrate.py --help          # 2.0 - help for second processing step
 * src/data/align.py --help              # 3.0 - help for third processing step
 * src/data/resample.py --help           # 4.0 - help for fourth processing step
+* src/data/archive.py --help            # 5.0 - help for fifth processing step
+* src/data/process_i2map.py --help      # Process i2map data 
 
 To use VS Code, make sure that the poetry shell is selected with the Command
 palette command: "Python: select interpreter".
