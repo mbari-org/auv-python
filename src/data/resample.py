@@ -102,6 +102,14 @@ class Resampler:
         )
         if matches:
             metadata["summary"] += " " + matches.group(1)
+            # Append shortened location of original data files to title
+            metadata["title"] += (
+                ", "
+                + "original data in /mbari/M3/master/i2MAP/: "
+                + matches.group(1)
+                .replace("Original log files copied from ", "")
+                .replace("/Volumes/M3/master/i2MAP/", "")
+            )
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from aligned data"
             f" with execution of '{self.commandline}' at {iso_now} on"
