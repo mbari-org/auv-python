@@ -399,6 +399,7 @@ class Calibrate_NetCDF:
                 ("b", "h"),
                 ("c", "i"),
                 ("d", "j"),
+                ("f0", "gf0"),
             ):
                 setattr(coeffs, f"t_{a_d}", getattr(coeffs, f"t_{g_j}"))
         if c_use_g_j:
