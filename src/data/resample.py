@@ -128,7 +128,7 @@ class Resampler:
         last_instr = None
         instr_vars = defaultdict(list)
         for variable in self.ds.keys():
-            instr, _ = variable.split("_")
+            instr, *_ = variable.split("_")
             if instr == "navigation":
                 freq = "0.1S"
             elif instr == "gps" or instr == "depth":

@@ -122,7 +122,7 @@ class Align_NetCDF:
         self.min_lon = np.inf
         self.max_lon = -np.inf
         for variable in self.calibrated_nc.keys():
-            instr, _ = variable.split("_")
+            instr, *_ = variable.split("_")
             self.logger.debug(f"instr: {instr}")
             if instr in ("gps", "depth", "nudged"):
                 continue

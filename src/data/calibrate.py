@@ -1274,6 +1274,7 @@ class Calibrate_NetCDF:
         source = self.sinfo[sensor]["data_filename"]
 
         # Seabird specific calibrations
+        self.logger.debug("Calling _calibrated_temp_from_frequency()")
         temperature = xr.DataArray(
             _calibrated_temp_from_frequency(cf, orig_nc),
             coords=[orig_nc.get_index("time")],
@@ -1291,6 +1292,7 @@ class Calibrate_NetCDF:
             ),
         }
 
+        self.logger.debug("Calling _calibrated_sal_from_cond_frequency()")
         salinity = xr.DataArray(
             _calibrated_sal_from_cond_frequency(
                 self.args,
@@ -1316,8 +1318,49 @@ class Calibrate_NetCDF:
             ),
         }
 
+        # Variables computed onboard the vehicle
+        self.logger.debug("Collecting temperature_onboard")
+        temperature_onboard = xr.DataArray(
+            orig_nc["temperature"],
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="temperature_onboard",
+        )
+        # Onboard software sets bad values to absolute zero - replace with NaN
+        temperature_onboard[temperature_onboard <= -273] = np.nan
+        temperature_onboard.attrs = {
+            "long_name": "Temperature computed onboard the vehicle",
+            "standard_name": "sea_water_temperature",
+            "units": "degree_Celsius",
+            "comment": (
+                f"Temperature computed onboard the vehicle from"
+                f" calibration parameters installed on the vehicle"
+                f" at the time of deployment."
+            ),
+        }
+
+        self.logger.debug("Collecting salinity_onboard")
+        salinity_onboard = xr.DataArray(
+            orig_nc["salinity"],
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="salinity_onboard",
+        )
+        salinity_onboard.attrs = {
+            "long_name": "Salinity computed onboard the vehicle",
+            "standard_name": "sea_water_salinity",
+            "units": "",
+            "comment": (
+                f"Salinity computed onboard the vehicle from"
+                f" calibration parameters installed on the vehicle"
+                f" at the time of deployment."
+            ),
+        }
+
         self.combined_nc[f"{sensor}_temperature"] = temperature
         self.combined_nc[f"{sensor}_salinity"] = salinity
+        self.combined_nc[f"{sensor}_temperature_onboard"] = temperature_onboard
+        self.combined_nc[f"{sensor}_salinity_onboard"] = salinity_onboard
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
