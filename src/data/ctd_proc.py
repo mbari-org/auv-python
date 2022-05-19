@@ -93,16 +93,30 @@ def _calibrated_temp_from_frequency(cf, nc):
     #   T = 1/(T_G + (T_H + (T_I + T_J*f)*f)*f) - 273.15;
     # }
     K2C = 273.15
-    calibrated_temp = (
-        1.0
-        / (
-            cf.t_a
-            + cf.t_b * np.log(cf.t_f0 / nc["temp_frequency"].values)
-            + cf.t_c * np.power(np.log(cf.t_f0 / nc["temp_frequency"]), 2)
-            + cf.t_d * np.power(np.log(cf.t_f0 / nc["temp_frequency"]), 3)
+    if cf.t_coefs == "A":
+        calibrated_temp = (
+            1.0
+            / (
+                cf.t_a
+                + cf.t_b * np.log(cf.t_f0 / nc["temp_frequency"].values)
+                + cf.t_c * np.power(np.log(cf.t_f0 / nc["temp_frequency"]), 2)
+                + cf.t_d * np.power(np.log(cf.t_f0 / nc["temp_frequency"]), 3)
+            )
+            - K2C
         )
-        - K2C
-    )
+    elif cf.t_coefs == "G":
+        calibrated_temp = (
+            1.0
+            / (
+                cf.t_g
+                + cf.t_h * np.log(cf.t_gf0 / nc["temp_frequency"].values)
+                + cf.t_i * np.power(np.log(cf.t_gf0 / nc["temp_frequency"]), 2)
+                + cf.t_j * np.power(np.log(cf.t_gf0 / nc["temp_frequency"]), 3)
+            )
+            - K2C
+        )
+    else:
+        raise ValueError(f"Unknown t_coefs: {cf.t_coefs}")
 
     return calibrated_temp
 
@@ -151,17 +165,44 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp,
     # %% Conductivity Calculation
     # cfreq=cond_frequency/1000;
     # c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
+    #
+    # seabird25p.cc: https://bitbucket.org/mbari/dorado-auv-qnx/src/master/auv/altex/onboard/seabird25p/Seabird25p.cc
+    # if(*_c_coefs == 'A') {
+    # C = (C_A*pow(f,C_M) + C_B*f*f +C_C +C_D*t)/(10*(1+EPS*p));
+    # }
+    # else if(*_c_coefs == 'G') {
+    # C = (C_G +(C_H +(C_I + C_J*f)*f)*f*f) / (10.*(1+C_TCOR*t+C_PCOR*p)) ;
+    # }
+    # else {
+    # Syslog::write("Seabird25p::calculate_Cond(): no c_coefs set selected.\n");
+    # C=0;
+    # }
     cfreq = nc["cond_frequency"].values / 1000.0
-    calibrated_conductivity = (
-        cf.c_a * np.power(cfreq, cf.c_m)
-        + cf.c_b * np.power(cfreq, 2)
-        + cf.c_c
-        + cf.c_d * temp.values
-    ) / (10 * (1 + eps * p1))
+
+    if cf.c_coefs == "A":
+        calibrated_conductivity = (
+            cf.c_a * np.power(cfreq, cf.c_m)
+            + cf.c_b * np.power(cfreq, 2)
+            + cf.c_c
+            + cf.c_d * temp.values
+        ) / (10 * (1 + eps * p1))
+    elif cf.c_coefs == "G":
+        # C = (C_G +(C_H +(C_I + C_J*f)*f)*f*f) / (10.*(1+C_TCOR*t+C_PCOR*p)) ;
+        calibrated_conductivity = (
+            cf.c_g + (cf.c_h + (cf.c_i + cf.c_j * cfreq) * cfreq) * np.power(cfreq, 2)
+        ) / (10 * (1 + cf.c_tcor * temp.values + cf.c_pcor * p1))
+    else:
+        raise ValueError(f"Unknown c_coefs: {cf.c_coefs}")
 
     # % Calculate Salinty
     # cratio = c1*10/sw_c3515; % sw_C is conductivity value at 35,15,0
     # CTD.salinity = sw_salt(cratio,CTD.temperature,p1); % (psu)
+    # seabird25p.cc: https://bitbucket.org/mbari/dorado-auv-qnx/src/master/auv/altex/onboard/seabird25p/Seabird25p.cc
+    # //
+    # // rsm 28 Mar 07: Compute salinity from conductivity, temperature and
+    # // presssure:
+    # cndr      = 10.*read_cond/sw_c3515();
+    # salinity  = sw_salt( cndr, read_temp, depthSensor_pres);
     cratio = calibrated_conductivity * 10 / sw_c3515
     calibrated_salinity = eos80.salt(cratio, temp, p1)
 

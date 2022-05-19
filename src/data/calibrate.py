@@ -369,10 +369,6 @@ class Calibrate_NetCDF:
                 ##self.logger.debug(line)
                 if line.startswith("//"):
                     continue
-                if line.startswith("t_coefs = G;"):
-                    t_use_g_j = True
-                if line.startswith("c_coefs = G;"):
-                    c_use_g_j = True
                 # From get_auv_cal.m - Handle CTD calibration parameters
                 if line[:2] in (
                     "t_",
@@ -389,29 +385,16 @@ class Calibrate_NetCDF:
                     coeff, value = [s.strip() for s in line.split("=")]
                     try:
                         self.logger.debug(f"Saving {line}")
-                        setattr(coeffs, coeff, float(value.replace(";", "")))
+                        # Like in Seabird25p.cc use ?_coefs to determine which
+                        # calibration scheme to in ctd_proc.py for i2map data
+                        if coeff == "t_coefs":
+                            setattr(coeffs, coeff, str(value.replace(";", "")))
+                        elif coeff == "c_coefs":
+                            setattr(coeffs, coeff, str(value.replace(";", "")))
+                        else:
+                            setattr(coeffs, coeff, float(value.replace(";", "")))
                     except ValueError as e:
                         self.logger.debug(f"{e}")
-        if t_use_g_j:
-            self.logger.info(f"Using t_ g-j coefficients")
-            for a_d, g_j in (
-                ("a", "g"),
-                ("b", "h"),
-                ("c", "i"),
-                ("d", "j"),
-                ("f0", "gf0"),
-            ):
-                setattr(coeffs, f"t_{a_d}", getattr(coeffs, f"t_{g_j}"))
-        if c_use_g_j:
-            self.logger.info(f"Using c_ g-j coefficients")
-            for a_d, g_j in (
-                ("a", "g"),
-                ("b", "h"),
-                ("c", "i"),
-                ("d", "j"),
-            ):
-                setattr(coeffs, f"c_{a_d}", getattr(coeffs, f"c_{g_j}"))
-
         return coeffs
 
     def _navigation_process(self, sensor):
