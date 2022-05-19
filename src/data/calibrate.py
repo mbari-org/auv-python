@@ -1295,7 +1295,7 @@ class Calibrate_NetCDF:
         conductivity.attrs = {
             "long_name": "Conductivity",
             "standard_name": "sea_water_conductivity",
-            "units": "",
+            "units": "Siemens/meter",
             "comment": (
                 f"Derived from cond_frequency from"
                 f" {source} via calibration parms:"
@@ -1351,7 +1351,7 @@ class Calibrate_NetCDF:
         )
         conductivity_onboard.attrs = {
             "long_name": "Conductivity computed onboard the vehicle",
-            "units": "degree_Celsius",
+            "units": "Siemens/meter",
             "comment": (
                 f"Temperature computed onboard the vehicle from"
                 f" calibration parameters installed on the vehicle"
