@@ -42,7 +42,7 @@ class Archiver:
         auvctd_dir = os.path.join(auvctd_dir, year, "netcdf")
         # To avoid "fchmod failed: Permission denied" message use rsync:
         # https://apple.stackexchange.com/a/206251
-        for ftype in ("cal", "align", freq):
+        for ftype in (freq, "cal", "align"):
             src_file = f"{nc_file[:-3]}_{ftype}.nc"
             self.logger.info(f"rsync {src_file} {auvctd_dir}")
             os.system(f"rsync {src_file} {auvctd_dir}")

@@ -1333,7 +1333,6 @@ class Calibrate_NetCDF:
         temperature_onboard[temperature_onboard <= -273] = np.nan
         temperature_onboard.attrs = {
             "long_name": "Temperature computed onboard the vehicle",
-            "standard_name": "sea_water_temperature",
             "units": "degree_Celsius",
             "comment": (
                 f"Temperature computed onboard the vehicle from"
@@ -1352,7 +1351,6 @@ class Calibrate_NetCDF:
         )
         conductivity_onboard.attrs = {
             "long_name": "Conductivity computed onboard the vehicle",
-            "standard_name": "sea_water_conductivity",
             "units": "degree_Celsius",
             "comment": (
                 f"Temperature computed onboard the vehicle from"
@@ -1371,7 +1369,6 @@ class Calibrate_NetCDF:
         )
         salinity_onboard.attrs = {
             "long_name": "Salinity computed onboard the vehicle",
-            "standard_name": "sea_water_salinity",
             "units": "",
             "comment": (
                 f"Salinity computed onboard the vehicle from"
