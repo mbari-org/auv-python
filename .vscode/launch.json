@@ -85,7 +85,7 @@
             //"args": ["-v", "1", "--start_year", "2020", "--end_year", "2022", "--noinput"],
             //"args": ["-v", "1", "--start_year", "2019", "--start_yd", "281", "--end_year", "2019", "--noinput"],
             // Zero-sized seabird .log file in 2021.307.02
-            "args": ["-v", "2", "--mission", "2022.061.01", "--local", "--noinput"],
-            //"args": ["-v", "1", "--local", "--noinput"],
+            //"args": ["-v", "2", "--mission", "2022.061.01", "--local", "--noinput"],
+            "args": ["-v", "2", "--local", "--noinput"],
         },
     ]

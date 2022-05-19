@@ -1291,18 +1291,37 @@ class Calibrate_NetCDF:
                 f" {cf.__dict__}"
             ),
         }
+        self.combined_nc[f"{sensor}_temperature"] = temperature
 
         self.logger.debug("Calling _calibrated_sal_from_cond_frequency()")
-        salinity = xr.DataArray(
-            _calibrated_sal_from_cond_frequency(
-                self.args,
-                self.combined_nc,
-                self.logger,
-                cf,
-                orig_nc,
-                temperature,
-                self.combined_nc["depth_filtdepth"],
+        cal_conductivity, cal_salinity = _calibrated_sal_from_cond_frequency(
+            self.args,
+            self.combined_nc,
+            self.logger,
+            cf,
+            orig_nc,
+            temperature,
+            self.combined_nc["depth_filtdepth"],
+        )
+        conductivity = xr.DataArray(
+            cal_conductivity,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="conductivity",
+        )
+        conductivity.attrs = {
+            "long_name": "Conductivity",
+            "standard_name": "sea_water_conductivity",
+            "units": "",
+            "comment": (
+                f"Derived from cond_frequency from"
+                f" {source} via calibration parms:"
+                f" {cf.__dict__}"
             ),
+        }
+        self.combined_nc[f"{sensor}_conductivity"] = conductivity
+        salinity = xr.DataArray(
+            cal_salinity,
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name="salinity",
@@ -1317,8 +1336,9 @@ class Calibrate_NetCDF:
                 f" {cf.__dict__}"
             ),
         }
+        self.combined_nc[f"{sensor}_salinity"] = salinity
 
-        # Variables computed onboard the vehicle
+        # Variables computed onboard the vehicle that are recomputed here
         self.logger.debug("Collecting temperature_onboard")
         temperature_onboard = xr.DataArray(
             orig_nc["temperature"],
@@ -1338,6 +1358,26 @@ class Calibrate_NetCDF:
                 f" at the time of deployment."
             ),
         }
+        self.combined_nc[f"{sensor}_temperature_onboard"] = temperature_onboard
+
+        self.logger.debug("Collecting conductivity_onboard")
+        conductivity_onboard = xr.DataArray(
+            orig_nc["conductivity"],
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="conductivity_onboard",
+        )
+        conductivity_onboard.attrs = {
+            "long_name": "Conductivity computed onboard the vehicle",
+            "standard_name": "sea_water_conductivity",
+            "units": "degree_Celsius",
+            "comment": (
+                f"Temperature computed onboard the vehicle from"
+                f" calibration parameters installed on the vehicle"
+                f" at the time of deployment."
+            ),
+        }
+        self.combined_nc[f"{sensor}_conductivity_onboard"] = conductivity_onboard
 
         self.logger.debug("Collecting salinity_onboard")
         salinity_onboard = xr.DataArray(
@@ -1356,11 +1396,58 @@ class Calibrate_NetCDF:
                 f" at the time of deployment."
             ),
         }
-
-        self.combined_nc[f"{sensor}_temperature"] = temperature
-        self.combined_nc[f"{sensor}_salinity"] = salinity
-        self.combined_nc[f"{sensor}_temperature_onboard"] = temperature_onboard
         self.combined_nc[f"{sensor}_salinity_onboard"] = salinity_onboard
+
+        # Variables from i2map computed on the vehicle
+        self.logger.debug("Collecting dissolvedO2")
+        try:
+            dissolvedO2 = xr.DataArray(
+                orig_nc["dissolvedO2"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="dissolvedO2",
+            )
+            dissolvedO2.attrs = {
+                "long_name": "Dissolved Oxygen sensor",
+                "units": "Volts",
+                "comment": (f"Analog Voltage Channel 6 - to be converted to umol/kg"),
+            }
+            self.combined_nc[f"{sensor}_dissolvedO2"] = dissolvedO2
+        except KeyError:
+            self.logger.debug("No dissolvedO2 data in %s", self.args.mission)
+        self.logger.debug("Collecting dissolvedO2_port")
+        try:
+            dissolvedO2_port = xr.DataArray(
+                orig_nc["dissolvedO2_port"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="dissolvedO2_port",
+            )
+            dissolvedO2_port.attrs = {
+                "long_name": "Dissolved Oxygen port side sensor",
+                "units": "Volts",
+                "comment": (f"Analog Voltage Channel 3 - to be converted to umol/kg"),
+            }
+            self.combined_nc[f"{sensor}_dissolvedO2_port"] = dissolvedO2_port
+        except KeyError:
+            self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
+        self.logger.debug("Collecting dissolvedO2_port")
+        try:
+            dissolvedO2_stbd = xr.DataArray(
+                orig_nc["dissolvedO2_stbd"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="dissolvedO2_stbd",
+            )
+            dissolvedO2_stbd.attrs = {
+                "long_name": "Dissolved Oxygen stbd side sensor",
+                "units": "Volts",
+                "comment": (f"Analog Voltage Channel 5 - to be converted to umol/kg"),
+            }
+            self.combined_nc[f"{sensor}_dissolvedO2_stbd"] = dissolvedO2_stbd
+        except KeyError:
+            self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
+
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
