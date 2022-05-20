@@ -1229,6 +1229,9 @@ class Calibrate_NetCDF:
         # TODO: Add latitude & longitude coordinates
 
     def _ctd_process(self, sensor, cf):
+        # Don't be put off by the length of this method.
+        # It's lengthy because of all the possible netCDF variabels and
+        # attribute metadata that could be added to the combined_nc.
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
@@ -1256,6 +1259,7 @@ class Calibrate_NetCDF:
         orig_nc["temp_frequency"][orig_nc["temp_frequency"] == 0.0] = np.nan
         source = self.sinfo[sensor]["data_filename"]
 
+        # === Temperature and salinity variables ===
         # Seabird specific calibrations
         self.logger.debug("Calling _calibrated_temp_from_frequency()")
         temperature = xr.DataArray(
@@ -1378,7 +1382,8 @@ class Calibrate_NetCDF:
         }
         self.combined_nc[f"{sensor}_salinity_onboard"] = salinity_onboard
 
-        # Variables from i2map computed on the vehicle
+        # === Oxygen variables ===
+        # original values in units of volts
         self.logger.debug("Collecting dissolvedO2")
         try:
             dissolvedO2 = xr.DataArray(
@@ -1431,72 +1436,8 @@ class Calibrate_NetCDF:
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
-        # TODO: Save nudged latitude & longitude coordinates
-        """
-        self.combined_nc[f"{sensor}_latitude"] = 
-        la_interp = interp1d(self.combined_nc['navigation_time'].values.tolist(),
-                            self.combined_nc['navigation_pitch'].values, 
-                            fill_value="extrapolate")
-        pitch = p_interp(orig_nc['time'].values.tolist())
-        """
-        pass
 
-        # Other variables that may be in the original data
-
-        # Salinity
-        """
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Salinity
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Note that recalculation of conductivity and correction for thermal mass
-        %% are possible, however, their magnitude results in salinity differences
-        %% of less than 10^-4.  
-        %% In other regions where these corrections are more significant, the
-        %% corrections can be turned on.
-        p1=10*(interp1(Dep.time,Dep.fltpres,time));  %% pressure in db
-
-        % Always calculate conductivity from cond_frequency
-        do_thermal_mass_calc=0;    % Has a negligable effect
-        if do_thermal_mass_calc;
-            %% Conductivity Calculation
-            cfreq=cond_frequency/1000;
-            Cuncorrected = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
-            
-            % correct conductivity for cell thermal mass (see Seabird documentation for explanation of equations)
-            sampint  = 0.25;  % Sampling interval for CT sensors
-            Tmp.data = TC;
-            alphac = 0.04;   % constant for conductivity thermal mass calculation
-            betac  = 1/8.0;  % constant for conductivity thermal mass calculation
-            ctm1(1) = 0;
-            for i = 1:(length(Cuncorrected)-1)
-                ctm1(i+1) = (-1.0*(1-(2*(2*alphac/(sampint*betac+2))/alphac))*ctm1(i)) + ...
-                    (2*(alphac/(sampint*betac+2))*(0.1*(1+0.006*(Tmp.data(i)-20)))*(Tmp.data(i+1)-Tmp.data(i)));
-            end
-            c1 = Cuncorrected + ctm1'; % very, very small correction. +/-0.0005
-        else
-            %% Conductivity Calculation
-            cfreq=cond_frequency/1000;
-            c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
-
-            %%c1=conductivity;    % This uses conductivity as calculated on the vehicle with the cal
-                        % params that were in the .cfg file at the time.  Not what we want.
-        end
-
-        % Calculate Salinty
-        cratio = c1*10/sw_c3515; % sw_C is conductivity value at 35,15,0
-        CTD.salinity = sw_salt(cratio,CTD.temperature,p1); % (psu)
-
-        %% Compute depth for temperature sensor with geometric correction
-        cpitch=interp1(Nav.time,Nav.pitch,time);    %find the pitch(time)
-        cdepth=interp1(Dep.time,Dep.data,time);     %find reference depth(time)
-        zoffset=align_geom(sensor_offsets,cpitch);  %calculate offset from 0,0
-        depth=cdepth-zoffset;                       %Find True depth of sensor
-
-        % Output structured array
-        CTD.temperature=TC;
-        CTD.time=time;
-        CTD.Tdepth=depth;  % depth of temperature sensor
-        """
+        # === PAR variables ===
 
     def _geometric_depth_correction(self, sensor, orig_nc):
         """Performs the align_geom() function from the legacy Matlab.
