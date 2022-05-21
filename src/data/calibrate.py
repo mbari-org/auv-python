@@ -30,6 +30,7 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import os
+from re import I
 import sys
 import time
 from argparse import RawTextHelpFormatter
@@ -56,6 +57,7 @@ from AUV import monotonic_increasing_time_indices
 from ctd_proc import (
     _calibrated_sal_from_cond_frequency,
     _calibrated_temp_from_frequency,
+    _calibrated_O2_from_volts,
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
@@ -1288,7 +1290,6 @@ class Calibrate_NetCDF:
             cf,
             orig_nc,
             temperature,
-            self.combined_nc["depth_filtdepth"],
         )
         conductivity = xr.DataArray(
             cal_conductivity,
@@ -1436,6 +1437,27 @@ class Calibrate_NetCDF:
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
+        oxy_mll, oxy_umolkg = _calibrated_O2_from_volts(
+            self.args,
+            self.combined_nc,
+            self.logger,
+            cf,
+            orig_nc,
+            "dissolvedO2",
+            temperature,
+            salinity,
+        )
+        oxygen_mll = xr.DataArray(
+            oxy_mll,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="oxygen",
+        )
+        oxygen_mll.attrs = {
+            "long_name": "Dissolved Oxygen",
+            "units": "ml/l",
+            "comment": (f"..."),
+        }
 
         # === PAR variables ===
 

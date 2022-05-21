@@ -121,7 +121,7 @@ def _calibrated_temp_from_frequency(cf, nc):
     return calibrated_temp
 
 
-def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp, depth):
+def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp):
     # Comments carried over from doradosdp's processCTD.m:
     # Note that recalculation of conductivity and correction for thermal mass
     # are possible, however, their magnitude results in salinity differences
@@ -209,7 +209,9 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp,
     return calibrated_conductivity, calibrated_salinity
 
 
-def _calibrated_O2_from_volts(args, combined_nc, logger, cf, nc, temp):
+def _calibrated_O2_from_volts(
+    args, combined_nc, logger, cf, nc, var_name, temperature, salinity
+):
     # Contents of doradosdp's calc_O2_SBE43.m:
     # ----------------------------------------
     # function [O2] = calc_O2_SBE43(O2V,T,S,P,O2cal,time,units);
@@ -219,6 +221,13 @@ def _calibrated_O2_from_volts(args, combined_nc, logger, cf, nc, temp):
     # %%  Also, described in SeaBird application note.
     # pltit = 'n';
     # % disp(['   Pressure should be in dB']);
+    f_interp = interp1d(
+        combined_nc["depth_time"].values.tolist(),
+        combined_nc["depth_filtpres"].values,
+        fill_value="extrapolate",
+    )
+    pressure = f_interp(nc["time"].values.tolist())
+
     #
     # %%----------------------------------
     # %% Oxygen voltage
@@ -227,6 +236,13 @@ def _calibrated_O2_from_volts(args, combined_nc, logger, cf, nc, temp):
     # % disp(['   Maximum of oxygen voltage ' num2str(max(O2V)) ' V']);
     # % disp(['   Mean of oxygen voltage ' num2str(mean(O2V)) ' V']);
     # docdt = [NaN;[diff(O2V)./diff(time)]];  % slope of oxygen current (uA/sec);
+    docdt = np.append(
+        np.nan,
+        np.divide(
+            np.diff(nc[var_name]), np.diff(nc["time"].astype(np.int64).values / 1e9)
+        ),
+    )
+
     #
     # %%----------------------------------
     # %% Oxygen saturation: f(T,S); ml/l
@@ -235,6 +251,23 @@ def _calibrated_O2_from_volts(args, combined_nc, logger, cf, nc, temp):
     # A1 = -173.4292; A2 = 249.6339; A3 = 143.3483; A4 = -21.8492;
     # B1 = -0.033096; B2 = 0.014259; B3 =  -0.00170;
     # OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );
+    tk = 273.15 + temperature.values  # degrees Kelvin
+    a1 = -173.4292
+    a2 = 249.6339
+    a3 = 143.3483
+    a4 = -21.8492
+    b1 = -0.033096
+    b2 = 0.014259
+    b3 = -0.00170
+    oxsat = np.exp(
+        a1
+        + a2 * (100 / tk)
+        + a3 * np.log(tk / 100)
+        + a4 * (tk / 100)
+        + np.multiply(salinity, b1 + b2 * (tk / 100))
+        + (b3 * (tk / 100) * (tk / 100))
+    )
+
     #
     # %%----------------------------------
     # %% Oxygen concentration (mL/L)
@@ -243,6 +276,13 @@ def _calibrated_O2_from_volts(args, combined_nc, logger, cf, nc, temp):
     # tau=0;
     #
     # O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;
+    tau = 0.0
+    o2_mll = np.multiply(
+        cf.SOc * ((nc[var_name] + cf.Voff) + (tau * docdt))
+        + cf.BOc * np.exp(-0.03 * temperature.values),
+        np.exp(np.multiply((cf.TCor * temperature.values + cf.PCor * pressure), oxsat)),
+    )
+
     #
     # if strcmp(units,'umolkg')==1
     # %%----------------------------------
@@ -253,6 +293,7 @@ def _calibrated_O2_from_volts(args, combined_nc, logger, cf, nc, temp):
     # %%  Convert dissolved O2 to mg/l using density of oxygen = 1.4276 kg/m^3
     # dens=sw_dens(S,T,P);
     # O2 = (O2 * 1.4276) .* (1e6./(dens*32));
-    # end
+    dens = eos80.dens(salinity.values, temperature.values, pressure)
+    o2_umolkg = np.multiply(o2_mll, 1.4276e6 / (dens * 32))
 
-    pass
+    return o2_mll, o2_umolkg
