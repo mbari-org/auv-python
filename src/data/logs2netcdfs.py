@@ -440,7 +440,7 @@ class AUV_NetCDF(AUV):
                     self.logger.info(f"Copying {src_dir} to {logs_dir}")
                     copytree(src_dir, logs_dir, dirs_exist_ok=True)
                 else:
-                    self._portal_download(logs_dir, vehicle, name)
+                    self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
