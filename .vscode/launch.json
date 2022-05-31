@@ -12,7 +12,8 @@
             "console": "integratedTerminal",
             //"args": ["--auv_name", "i2map", "--mission", "2019.190.00", "--local",  "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--noinput", "--local", "-v", "2", "--clobber"]
-            "args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v", "2", "--portal", "http://stoqs.mbari.org:8080/auvdata/v1", "--clobber"]
+            //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v", "2", "--portal", "http://stoqs.mbari.org:8080/auvdata/v1", "--clobber"]
+            "args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
             //"args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
