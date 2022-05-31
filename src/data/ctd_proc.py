@@ -280,7 +280,11 @@ def _calibrated_O2_from_volts(
     o2_mll = np.multiply(
         cf.SOc * ((nc[var_name] + cf.Voff) + (tau * docdt))
         + cf.BOc * np.exp(-0.03 * temperature.values),
-        np.exp(np.multiply((cf.TCor * temperature.values + cf.PCor * pressure), oxsat)),
+        np.exp(
+            np.multiply(
+                (cf.TCor * temperature.values + cf.PCor * pressure), oxsat.values
+            )
+        ),
     )
 
     #

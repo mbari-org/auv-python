@@ -37,6 +37,7 @@ from argparse import RawTextHelpFormatter
 from collections import OrderedDict, namedtuple
 from datetime import datetime
 from socket import gethostname
+from typing import Tuple
 
 try:
     import cartopy.crs as ccrs
@@ -364,8 +365,9 @@ class Calibrate_NetCDF:
         """
         self.logger.debug(f"Opening {cfg_filename}")
         coeffs = Coeffs()
-        t_use_g_j = False
-        c_use_g_j = False
+        # Default for non-i2map data
+        coeffs.t_coefs = "A"
+        coeffs.c_coefs = "A"
         with open(cfg_filename) as fh:
             for line in fh:
                 ##self.logger.debug(line)
@@ -1230,6 +1232,51 @@ class Calibrate_NetCDF:
         )
         # TODO: Add latitude & longitude coordinates
 
+    def _calibrated_oxygen(
+        self,
+        sensor,
+        cf,
+        orig_nc,
+        var_name,
+        temperature,
+        salinity,
+        portstbd="",
+    ) -> Tuple[xr.DataArray, xr.DataArray]:
+        """Calibrate oxygen data, returning DataArrays."""
+        oxy_mll, oxy_umolkg = _calibrated_O2_from_volts(
+            self.args,
+            self.combined_nc,
+            self.logger,
+            cf,
+            orig_nc,
+            var_name,
+            temperature,
+            salinity,
+        )
+        oxygen_mll = xr.DataArray(
+            oxy_mll,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="oxygen_mll" + portstbd,
+        )
+        oxygen_mll.attrs = {
+            "long_name": "Dissolved Oxygen",
+            "units": "ml/l",
+            "comment": (f"..."),
+        }
+        oxygen_umolkg = xr.DataArray(
+            oxy_umolkg,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name="oxygen_umolkg" + portstbd,
+        )
+        oxygen_umolkg.attrs = {
+            "long_name": "Dissolved Oxygen",
+            "units": "umol/kg",
+            "comment": (f"..."),
+        }
+        return oxygen_mll, oxygen_umolkg
+
     def _ctd_process(self, sensor, cf):
         # Don't be put off by the length of this method.
         # It's lengthy because of all the possible netCDF variabels and
@@ -1399,6 +1446,18 @@ class Calibrate_NetCDF:
                 "comment": (f"Analog Voltage Channel 6 - to be converted to umol/kg"),
             }
             self.combined_nc[f"{sensor}_dissolvedO2"] = dissolvedO2
+            (
+                self.combined_nc[f"{sensor}_oxygen_mll"],
+                self.combined_nc[f"{sensor}_oxygen_umolkg"],
+            ) = self._calibrated_oxygen(
+                sensor,
+                cf,
+                orig_nc,
+                "dissolvedO2",
+                temperature,
+                salinity,
+                "",
+            )
         except KeyError:
             self.logger.debug("No dissolvedO2 data in %s", self.args.mission)
         self.logger.debug("Collecting dissolvedO2_port")
@@ -1415,6 +1474,18 @@ class Calibrate_NetCDF:
                 "comment": (f"Analog Voltage Channel 3 - to be converted to umol/kg"),
             }
             self.combined_nc[f"{sensor}_dissolvedO2_port"] = dissolvedO2_port
+            (
+                self.combined_nc[f"{sensor}_oxygen_mll_port"],
+                self.combined_nc[f"{sensor}_oxygen_umolkg_port"],
+            ) = self._calibrated_oxygen(
+                sensor,
+                cf,
+                orig_nc,
+                "dissolvedO2_port",
+                temperature,
+                salinity,
+                "port",
+            )
         except KeyError:
             self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
         self.logger.debug("Collecting dissolvedO2_port")
@@ -1431,33 +1502,24 @@ class Calibrate_NetCDF:
                 "comment": (f"Analog Voltage Channel 5 - to be converted to umol/kg"),
             }
             self.combined_nc[f"{sensor}_dissolvedO2_stbd"] = dissolvedO2_stbd
+            (
+                self.combined_nc[f"{sensor}_oxygen_mll_stbd"],
+                self.combined_nc[f"{sensor}_oxygen_umolkg_stbd"],
+            ) = self._calibrated_oxygen(
+                sensor,
+                cf,
+                orig_nc,
+                "dissolvedO2_stbd",
+                temperature,
+                salinity,
+                "stbd",
+            )
         except KeyError:
             self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
 
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
-        oxy_mll, oxy_umolkg = _calibrated_O2_from_volts(
-            self.args,
-            self.combined_nc,
-            self.logger,
-            cf,
-            orig_nc,
-            "dissolvedO2",
-            temperature,
-            salinity,
-        )
-        oxygen_mll = xr.DataArray(
-            oxy_mll,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name="oxygen",
-        )
-        oxygen_mll.attrs = {
-            "long_name": "Dissolved Oxygen",
-            "units": "ml/l",
-            "comment": (f"..."),
-        }
 
         # === PAR variables ===
 
