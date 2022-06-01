@@ -43,7 +43,8 @@ try:
     import cartopy.crs as ccrs
     from shapely.geometry import LineString
 except ModuleNotFoundError:
-    print("cartopy is not installed, will not be able to plot maps")
+    # cartopy is not installed, will not be able to plot maps
+    pass
 import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
@@ -392,11 +393,11 @@ class Calibrate_NetCDF:
                         # Like in Seabird25p.cc use ?_coefs to determine which
                         # calibration scheme to in ctd_proc.py for i2map data
                         if coeff == "t_coefs":
-                            setattr(coeffs, coeff, str(value.replace(";", "")))
+                            setattr(coeffs, coeff, str(value.split(";")[0]))
                         elif coeff == "c_coefs":
-                            setattr(coeffs, coeff, str(value.replace(";", "")))
+                            setattr(coeffs, coeff, str(value.split(";")[0]))
                         else:
-                            setattr(coeffs, coeff, float(value.replace(";", "")))
+                            setattr(coeffs, coeff, float(value.split(";")[0]))
                     except ValueError as e:
                         self.logger.debug(f"{e}")
         return coeffs
