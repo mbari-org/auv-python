@@ -9,4 +9,6 @@ They are named in the order of processing and kept specific to their purpose:
     1.0-mpm-logs2netcdfs.ipynb
     1.1-mpm-logs2netcdfs-ssds.ipynb
     2.0-mpm-calibrate.ipynb
-    4.0-mpm-resample-matlab.ipynb
+    3.0-mpm-align.ipynb
+    4.0-mpm-resample.ipynb
+    4.1-mpm-resample-matlab.ipynb
