@@ -314,8 +314,12 @@ class Resampler:
             linestyle="dotted",
             markersize=2,
         )
+        try:
+            units = self.ds[variable].attrs["units"]
+        except KeyError:
+            units = ""
         ax.set_ylabel(
-            f"{self.ds[variable].attrs['long_name']} ({self.ds[variable].attrs['units']})"
+            f"{self.ds[variable].attrs['long_name']} ({units})"
         )
         ax.legend(["Original", "Median Filtered", "Resampled"])
         ax.set_xlabel("Time")
@@ -331,6 +335,7 @@ class Resampler:
     ) -> None:
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
+        last_instr = ''
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items()
         ):
@@ -341,6 +346,10 @@ class Resampler:
                 self.save_coordinates(instr, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
+            if instr != last_instr:
+                # Start with new dataframes for each instrument
+                self.df_o = pd.DataFrame()
+                self.df_r = pd.DataFrame()
             for variable in variables:
                 aggregator = self.resample_variable(instr, variable, mf_width, freq)
                 self.save_variable(variable, mf_width, freq, aggregator)
