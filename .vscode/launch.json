@@ -64,7 +64,8 @@
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01", "--plot"],
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2020.055.01", "--freq", "2S"],
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
+            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
+            "args": ["-v", "2", "--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot"],
         },
         {
             "name": "5.0 - archive.py",
