@@ -24,9 +24,9 @@ on the local file system is as follows:
                                        having associated coordinate variables
                                        at original instrument sampling rate -
                                        created by align.py
-    │   │   │   │   │   ├── <grid>  <- .nc file with all measurement variables
-                                       resampled to a common time grid -
-                                       created by resample.py
+    │   │   │   │   │   ├── <nS>    <- .nc file with all measurement variables
+                                       resampled to a common time grid at n 
+                                       Second intervals - created by resample.py
 
     logs2netcdfs.py:
         Download and convert raw .log data recorded the vehicle to netCDF files.
