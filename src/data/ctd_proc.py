@@ -209,9 +209,36 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
     return calibrated_conductivity, calibrated_salinity
 
 
-def _calibrated_O2_from_volts(
-    args, combined_nc, logger, cf, nc, var_name, temperature, salinity
-):
+def _oxsat(temperature, salinity):
+    #
+    # %%----------------------------------
+    # %% Oxygen saturation: f(T,S); ml/l
+    # %%----------------------------------
+    # TK = 273.15+T;  % degrees Kelvin
+    # A1 = -173.4292; A2 = 249.6339; A3 = 143.3483; A4 = -21.8492;
+    # B1 = -0.033096; B2 = 0.014259; B3 =  -0.00170;
+    # OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );
+    tk = 273.15 + temperature  # degrees Kelvin
+    a1 = -173.4292
+    a2 = 249.6339
+    a3 = 143.3483
+    a4 = -21.8492
+    b1 = -0.033096
+    b2 = 0.014259
+    b3 = -0.00170
+    oxsat = np.exp(
+        a1
+        + a2 * (100 / tk)
+        + a3 * np.log(tk / 100)
+        + a4 * (tk / 100)
+        + np.multiply(
+            salinity, b1 + b2 * (tk / 100) + np.multiply(b3 * (tk / 100), (tk / 100))
+        )
+    )
+    return oxsat
+
+
+def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salinity):
     # Contents of doradosdp's calc_O2_SBE43.m:
     # ----------------------------------------
     # function [O2] = calc_O2_SBE43(O2V,T,S,P,O2cal,time,units);
@@ -243,30 +270,7 @@ def _calibrated_O2_from_volts(
         ),
     )
 
-    #
-    # %%----------------------------------
-    # %% Oxygen saturation: f(T,S); ml/l
-    # %%----------------------------------
-    # TK = 273.15+T;  % degrees Kelvin
-    # A1 = -173.4292; A2 = 249.6339; A3 = 143.3483; A4 = -21.8492;
-    # B1 = -0.033096; B2 = 0.014259; B3 =  -0.00170;
-    # OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );
-    tk = 273.15 + temperature.values  # degrees Kelvin
-    a1 = -173.4292
-    a2 = 249.6339
-    a3 = 143.3483
-    a4 = -21.8492
-    b1 = -0.033096
-    b2 = 0.014259
-    b3 = -0.00170
-    oxsat = np.exp(
-        a1
-        + a2 * (100 / tk)
-        + a3 * np.log(tk / 100)
-        + a4 * (tk / 100)
-        + np.multiply(salinity, b1 + b2 * (tk / 100))
-        + (b3 * (tk / 100) * (tk / 100))
-    )
+    oxsat = _oxsat(temperature, salinity)
 
     #
     # %%----------------------------------
@@ -278,12 +282,10 @@ def _calibrated_O2_from_volts(
     # O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;
     tau = 0.0
     o2_mll = np.multiply(
-        cf.SOc * ((nc[var_name] + cf.Voff) + (tau * docdt))
+        cf.SOc * ((nc[var_name].values + cf.Voff) + (tau * docdt))
         + cf.BOc * np.exp(-0.03 * temperature.values),
-        np.exp(
-            np.multiply(
-                (cf.TCor * temperature.values + cf.PCor * pressure), oxsat.values
-            )
+        np.multiply(
+            np.exp(cf.TCor * temperature.values + cf.PCor * pressure), oxsat.values
         ),
     )
 
@@ -298,6 +300,6 @@ def _calibrated_O2_from_volts(
     # dens=sw_dens(S,T,P);
     # O2 = (O2 * 1.4276) .* (1e6./(dens*32));
     dens = eos80.dens(salinity.values, temperature.values, pressure)
-    o2_umolkg = np.multiply(o2_mll, 1.4276e6 / (dens * 32))
+    o2_umolkg = np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))
 
     return o2_mll, o2_umolkg
