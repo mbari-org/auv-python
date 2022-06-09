@@ -18,7 +18,7 @@ def mission_data():
     ns.plot = None
     cal_netcdf.args = ns
     cal_netcdf.logger.setLevel(logging.DEBUG)
-    cal_netcdf.process_logs()
+    cal_netcdf.process_logs(process_gps=False)
     return cal_netcdf
 
 

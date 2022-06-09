@@ -775,7 +775,11 @@ class Calibrate_NetCDF:
 
             gps_plot = True
             if gps_plot:
-                ax = plt.axes(projection=ccrs.PlateCarree())
+                try:
+                    ax = plt.axes(projection=ccrs.PlateCarree())
+                except NameError:
+                    self.logger.warning("No gps_plot, could not import cartopy")
+                    return lon_nudged, lat_nudged
                 nudged = LineString(zip(lon_nudged.values, lat_nudged.values))
                 original = LineString(zip(lon.values, lat.values))
                 ax.add_geometries(
@@ -1245,9 +1249,7 @@ class Calibrate_NetCDF:
     ) -> Tuple[xr.DataArray, xr.DataArray]:
         """Calibrate oxygen data, returning DataArrays."""
         oxy_mll, oxy_umolkg = _calibrated_O2_from_volts(
-            self.args,
             self.combined_nc,
-            self.logger,
             cf,
             orig_nc,
             var_name,
@@ -1590,7 +1592,9 @@ class Calibrate_NetCDF:
             "Data variables written: %s", ", ".join(sorted(self.combined_nc.variables))
         )
 
-    def process_logs(self, vehicle: str = None, name: str = None) -> None:
+    def process_logs(
+        self, vehicle: str = None, name: str = None, process_gps: bool = True
+    ) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
@@ -1601,6 +1605,9 @@ class Calibrate_NetCDF:
         self.combined_nc = xr.Dataset()
 
         for sensor in self.sinfo.keys():
+            if not process_gps:
+                if sensor == "gps":
+                    continue  # to skip gps processing in conftest.py fixture
             setattr(getattr(self, sensor), "cal_align_data", xr.Dataset())
             self.logger.debug(f"Processing {vehicle} {name} {sensor}")
             try:
