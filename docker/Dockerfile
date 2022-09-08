@@ -13,12 +13,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-ENV WAIT_VERSION 2.7.2
-ADD https://github.com/ufoscout/docker-compose-wait/releases/download/$WAIT_VERSION/wait /wait
-RUN chmod +x /wait
-COPY ./python_docker/wait-for-postgres.sh /wait-for-postgres.sh
-RUN chmod +x /wait-for-postgres.sh
-
 # builder-base is used to build dependencies
 FROM python-base as builder-base
 RUN apt-get update \
@@ -38,10 +32,10 @@ WORKDIR $PYSETUP_PATH
 COPY ./poetry.lock ./pyproject.toml ./
 RUN poetry update --only main  # respects 
 
-# 'development' stage installs all dev deps and can be used to develop code.
+# 'production' stage installs all dev deps and can be used to develop code.
 # For example using docker-compose to mount local volume under /app
-FROM python-base as development
-ENV TARGET_ENV=development
+FROM python-base as production
+ENV TARGET_ENV=production
 
 # Copying poetry and venv into image
 COPY --from=builder-base $POETRY_HOME $POETRY_HOME
@@ -62,8 +56,8 @@ EXPOSE 8001
 ENTRYPOINT /docker-entrypoint.sh $0 $@
 
 # 'lint' stage runs black, isort, safety
-FROM development AS lint
-COPY app ./app
+FROM production AS lint
+COPY src ./src
 # RUN black --config $PYSETUP_PATH/pyproject.toml --check app
 RUN isort --settings-path $PYSETUP_PATH/pyproject.toml --recursive --check-only
 # RUN safety check
@@ -75,10 +69,10 @@ ENV TARGET_ENV=production
 
 COPY --from=builder-base $VENV_PATH $VENV_PATH
 
-COPY ./app /app
-WORKDIR /app
+COPY ./src /src
+WORKDIR /src
 
-COPY ./python_docker/docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-EXPOSE $UR_L_PORT
-ENTRYPOINT /docker-entrypoint.sh $0 $@
+#COPY ./python_docker/docker-entrypoint.sh /docker-entrypoint.sh
+#RUN chmod +x /docker-entrypoint.sh
+#EXPOSE $UR_L_PORT
+#ENTRYPOINT /docker-entrypoint.sh $0 $@
