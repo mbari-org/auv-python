@@ -1,54 +1,84 @@
-# From SeafloorMapping
-# Base the build off of recent stable GDAL image
-FROM osgeo/gdal:ubuntu-small-3.3.0 as python
+# From ur_l/python_docker/Dockerfile
+FROM python:3.8.1-slim as python-base
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    POETRY_HOME="/opt/poetry" \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_NO_INTERACTION=1 \
+    PYSETUP_PATH="/opt/pysetup" \
+    VENV_PATH="/opt/pysetup/.venv"
 
-# Python build stage
-FROM python as python-build-stage
+ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-# Install apt packages
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  # dependencies for building Python packages
-  build-essential \
-  python3-dev \
-  python3-pip
+ENV WAIT_VERSION 2.7.2
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/$WAIT_VERSION/wait /wait
+RUN chmod +x /wait
+COPY ./python_docker/wait-for-postgres.sh /wait-for-postgres.sh
+RUN chmod +x /wait-for-postgres.sh
 
+# builder-base is used to build dependencies
+FROM python-base as builder-base
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        curl \
+        build-essential
 
-# Python 'run' stage
-FROM python as python-run-stage
-
-ARG APP_HOME=/app
-
-ENV PYTHONUNBUFFERED 1
-ENV PYTHONDONTWRITEBYTECODE 1
-
-WORKDIR ${APP_HOME}
-
-# Install required system dependencies
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  # Translations dependencies
-  python3-pip \
-  # Install here rather than from .devcontainer/devcontainer.json
-  git less wget zsh ssh-client \
-  # cleaning up unused files
-  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-  && rm -rf /var/lib/apt/lists/*
-
-# All absolute dir copies ignore workdir instruction. All relative dir copies are wrt to the workdir instruction
-COPY --from=python-build-stage /usr/lib/libgdal* /usr/lib/
-RUN ldconfig
-
-# Copy poetry requirements and install  
-COPY ./poetry.lock ./pyproject.toml .
-
+# Install Poetry - respects $POETRY_VERSION & $POETRY_HOME
+ENV POETRY_VERSION=1.2.0
+#RUN curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
 RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
-RUN poetry install --no-dev
 
+# We copy our Python requirements here to cache them
+# and install only runtime deps using poetry
 
-# copy application code to WORKDIR
-COPY ./src/data /src/data
-COPY . ${APP_HOME}
+WORKDIR $PYSETUP_PATH
+COPY ./poetry.lock ./pyproject.toml ./
+RUN poetry update --only main  # respects 
 
-ENTRYPOINT [ "poetry", "shell" ]
+# 'development' stage installs all dev deps and can be used to develop code.
+# For example using docker-compose to mount local volume under /app
+FROM python-base as development
+ENV TARGET_ENV=development
 
+# Copying poetry and venv into image
+COPY --from=builder-base $POETRY_HOME $POETRY_HOME
+COPY --from=builder-base $PYSETUP_PATH $PYSETUP_PATH
 
+# venv already has runtime deps installed we get a quicker install
+WORKDIR $PYSETUP_PATH
+#RUN poetry install
+RUN poetry update
+
+RUN mkdir /dev_app
+WORKDIR /dev_app
+
+# Copying in our entrypoint
+COPY ./python_docker/docker-entrypoint_dev.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+EXPOSE 8001
+ENTRYPOINT /docker-entrypoint.sh $0 $@
+
+# 'lint' stage runs black, isort, safety
+FROM development AS lint
+COPY app ./app
+# RUN black --config $PYSETUP_PATH/pyproject.toml --check app
+RUN isort --settings-path $PYSETUP_PATH/pyproject.toml --recursive --check-only
+# RUN safety check
+
+# 'production' stage uses the clean 'python-base' stage and copyies
+# in only our runtime deps that were installed in the 'builder-base'
+FROM python-base as production
+ENV TARGET_ENV=production
+
+COPY --from=builder-base $VENV_PATH $VENV_PATH
+
+COPY ./app /app
+WORKDIR /app
+
+COPY ./python_docker/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+EXPOSE $UR_L_PORT
+ENTRYPOINT /docker-entrypoint.sh $0 $@
