@@ -1,7 +1,8 @@
+version: "3.4"
+
 # Env variables required in .env, e.g. for Mac
 # M3_VOL=/Volumes/M3
 # AUVCTD_VOL=/Volumes/AUVCTD
-version: "3.4"
 
 services:
   auvpython:
@@ -12,6 +13,5 @@ services:
         - DOCKER_USER_ID=$DOCKER_USER_ID
     image: auvpython_production
     volumes:
-      - /home/docker_user/.ssh:/root/.ssh:z
       - ${M3_VOL}:/Volumes/M3:z
       - ${AUVCTD_VOL}:/Volumes/AUVCTD:z

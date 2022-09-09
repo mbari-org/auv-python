@@ -48,14 +48,11 @@ RUN poetry update
 RUN mkdir /dev_app
 WORKDIR /dev_app
 
-# 'lint' stage runs black, isort, safety
+# 'lint' stage was for running black, isort, safety
 FROM production AS lint
 COPY src ./src
-# RUN black --config $PYSETUP_PATH/pyproject.toml --check app
-RUN isort --settings-path $PYSETUP_PATH/pyproject.toml --recursive --check-only
-# RUN safety check
 
-# 'production' stage uses the clean 'python-base' stage and copyies
+# 'production' stage uses the clean 'python-base' stage and copies
 # in only our runtime deps that were installed in the 'builder-base'
 FROM python-base as production
 ENV TARGET_ENV=production
