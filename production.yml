@@ -4,6 +4,9 @@ version: "3.4"
 # M3_VOL=/Volumes/M3
 # AUVCTD_VOL=/Volumes/AUVCTD
 
+volumes:
+  local_auvctd_data: {}
+
 services:
   auvpython:
     build:
@@ -13,5 +16,6 @@ services:
         - DOCKER_USER_ID=$DOCKER_USER_ID
     image: auvpython_production
     volumes:
+      - local_auvctd_data:/data
       - ${M3_VOL}:/Volumes/M3:z
       - ${AUVCTD_VOL}:/Volumes/AUVCTD:z
