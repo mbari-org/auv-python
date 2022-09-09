@@ -32,18 +32,26 @@ class Archiver:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def copy_to_AUVTCD(self, nc_file: str, freq: str) -> None:
+    def copy_to_AUVTCD(self, nc_file: str, freq: str = FREQ) -> None:
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
         if platform.system() == "Darwin":
             auvctd_dir = "/Volumes/AUVCTD/surveys"
         else:
             auvctd_dir = "/mbari/AUVCTD/surveys"
+        try:
+            os.stat(auvctd_dir)
+        except FileNotFoundError:
+            self.logger.error(
+                f"{auvctd_dir} not found. Is cifs://atlas.shore.mbari.org/AUVCTD mounted?"
+            )
+            return
         year = self.args.mission.split(".")[0]
         auvctd_dir = os.path.join(auvctd_dir, year, "netcdf")
-        # To avoid "fchmod failed: Permission denied" message use rsync:
+        nc_file_base = "_".join(nc_file.split("_")[:-1])
+        # To avoid "fchmod failed: Permission denied" message use rsync instead cp
         # https://apple.stackexchange.com/a/206251
         for ftype in (freq, "cal", "align"):
-            src_file = f"{nc_file[:-3]}_{ftype}.nc"
+            src_file = f"{nc_file_base}_{ftype}.nc"
             self.logger.info(f"rsync {src_file} {auvctd_dir}")
             os.system(f"rsync {src_file} {auvctd_dir}")
 
