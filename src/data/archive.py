@@ -34,10 +34,7 @@ class Archiver:
 
     def copy_to_AUVTCD(self, nc_file: str, freq: str = FREQ) -> None:
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
-        if platform.system() == "Darwin":
-            auvctd_dir = "/Volumes/AUVCTD/surveys"
-        else:
-            auvctd_dir = "/mbari/AUVCTD/surveys"
+        auvctd_dir = "/Volumes/AUVCTD/surveys"
         try:
             os.stat(auvctd_dir)
         except FileNotFoundError:

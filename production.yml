@@ -9,8 +9,12 @@ services:
         - DOCKER_USER_ID=$DOCKER_USER_ID
     image: auvpython_production
     volumes:
-      # - /home/docker_user/.ssh:/home/docker_user/.ssh:z
-      # - /mbari/M3:/mbari/M3:z
+      # Use theses volumes for production
+      # - /home/docker_user/.ssh:/root/.ssh:z
+      # - /mbari/M3:/Volumes/M3:z
+      # - /mbari/M3:/Volumes/M3:z
+      # Use theses volumes for development
       - /Users/mccann/.ssh:/root/.ssh:z
       - /Volumes/M3:/Volumes/M3:z
+      - /Volumes/AUVCTD:/Volumes/AUVCTD:z
 
