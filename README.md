@@ -31,7 +31,7 @@ gives some background on the motivation for these goals.
 Cloning the source code requires an MBARI bitbucket account and SSH keys
 configured for your system. See https://bitbucket.org/account/settings/ssh-keys
 
-To install on a Workstation:
+To install on a workstation:
 
 * Install Python 3.8 on your system (Brew, Anaconda, etc)
 * On a Mac install necessary brew packages: netcdf4, geos, proj
@@ -48,6 +48,16 @@ running the Jupyter Notebooks:
 
 * cd ~/dev/auv-python
 * poetry shell
+
+To use with Docker on a server:
+
+sudo -u docker_user -i
+cd /opt/auv-python
+export DOCKER_USER_ID=$(id -u)
+export AUVPYTHON_HOME=$(pwd)
+export COMPOSE_FILE=$AUVPYTHON_HOME/production.yml
+docker-compose build
+docker-compose run --rm auvpython python src/data/process_i2map.py --help
 
 The following commands are available:
 
