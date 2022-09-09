@@ -1,0 +1,16 @@
+version: "3.4"
+
+services:
+  auvpython:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+      args:
+        - DOCKER_USER_ID=$DOCKER_USER_ID
+    image: auvpython_production
+    volumes:
+      # - /home/docker_user/.ssh:/home/docker_user/.ssh:z
+      # - /mbari/M3:/mbari/M3:z
+      - /Users/mccann/.ssh:/root/.ssh:z
+      - /Volumes/M3:/Volumes/M3:z
+
