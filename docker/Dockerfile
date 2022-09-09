@@ -20,9 +20,8 @@ RUN apt-get update \
         curl \
         build-essential
 
-# Install Poetry - respects $POETRY_VERSION & $POETRY_HOME
-ENV POETRY_VERSION=1.2.0
-#RUN curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
+# Freeze poetry version to avoid breaking changes
+ENV POETRY_VERSION=1.1.6
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # We copy our Python requirements here to cache them
@@ -30,7 +29,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 
 WORKDIR $PYSETUP_PATH
 COPY ./poetry.lock ./pyproject.toml ./
-RUN poetry update --only main  # respects 
+RUN poetry self update $POETRY_VERSION && poetry install --no-dev
 
 # 'production' stage installs all dev deps and can be used to develop code.
 # For example using docker-compose to mount local volume under /app
@@ -69,10 +68,8 @@ ENV TARGET_ENV=production
 
 COPY --from=builder-base $VENV_PATH $VENV_PATH
 
+# Need rsync in final production image for use by src/data/process_i2map.py
+RUN apt-get update && apt-get install -y rsync
+
 COPY ./src /src
 WORKDIR /src
-
-#COPY ./python_docker/docker-entrypoint.sh /docker-entrypoint.sh
-#RUN chmod +x /docker-entrypoint.sh
-#EXPOSE $UR_L_PORT
-#ENTRYPOINT /docker-entrypoint.sh $0 $@
