@@ -31,27 +31,6 @@ WORKDIR $PYSETUP_PATH
 COPY ./poetry.lock ./pyproject.toml ./
 RUN poetry self update $POETRY_VERSION && poetry install --no-dev
 
-# 'production' stage installs all dev deps and can be used to develop code.
-# For example using docker-compose to mount local volume under /app
-FROM python-base as production
-ENV TARGET_ENV=production
-
-# Copying poetry and venv into image
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
-COPY --from=builder-base $PYSETUP_PATH $PYSETUP_PATH
-
-# venv already has runtime deps installed we get a quicker install
-WORKDIR $PYSETUP_PATH
-#RUN poetry install
-RUN poetry update
-
-RUN mkdir /dev_app
-WORKDIR /dev_app
-
-# 'lint' stage was for running black, isort, safety
-FROM production AS lint
-COPY src ./src
-
 # 'production' stage uses the clean 'python-base' stage and copies
 # in only our runtime deps that were installed in the 'builder-base'
 FROM python-base as production
