@@ -64,26 +64,32 @@ class Processor:
     I2MAP_DIR = "/Volumes/M3/master/i2MAP"
     REGEX = r".*\/[0-9][0-9][0-9][0-9]\.[0-9][0-9][0-9]\.[0-9][0-9]"
     if platform.system() == "Darwin":
-        FIND_CMD = f'find -E {I2MAP_DIR} -regex "{REGEX}" | sort'
+        FIND_CMD = f'find -E {I2MAP_DIR} -regex "{REGEX}"'
     else:
-        FIND_CMD = f'find {I2MAP_DIR} -regex "{REGEX}" | sort'
+        FIND_CMD = f'find {I2MAP_DIR} -regex "{REGEX}"'
 
     def mission_list(self, start_year: int, end_year: int) -> dict:
         missions = {}
         self.logger.debug("Executing %s", self.FIND_CMD)
-        for line in subprocess.getoutput(self.FIND_CMD).split("\n"):
+        if self.args.last_n_days:
+            self.FIND_CMD += f" -mtime -{self.args.last_n_days}"
+        self.logger.info("Collecting missions from %s to %s", start_year, end_year)
+        lines = subprocess.getoutput(f"{self.FIND_CMD} | sort").split("\n")
+        for line in lines:
             self.logger.debug(line)
             if "No such file or directory" in line:
                 self.logger.error("%s", line)
                 self.logger.info("Is smb://titan.shore.mbari.org/M3 mounted?")
                 return missions
             mission = line.split("/")[-1]
+            if not mission:
+                continue
             try:
                 year = int(mission.split(".")[0])
+                if start_year <= year and year <= end_year:
+                    missions[mission] = line.rstrip()
             except ValueError:
                 self.logger.warning("Cannot parse year from %s", mission)
-            if start_year <= year and year <= end_year:
-                missions[mission] = line.rstrip()
         return missions
 
     def download_process(self, mission: str, src_dir: str) -> None:
@@ -257,14 +263,20 @@ class Processor:
             action="store",
             type=int,
             default=1,
-            help="Begin processing at this year day",
+            help="Begin processing at this year day - start_year and end_year should be the same",
         )
         parser.add_argument(
             "--end_yd",
             action="store",
             type=int,
             default=366,
-            help="End processing before this year day",
+            help="End processing before this year day - start_year and end_year should be the same",
+        )
+        parser.add_argument(
+            "--last_n_days",
+            action="store",
+            type=int,
+            help="Process mission directories modified in the last n days",
         )
         parser.add_argument(
             "--download_process",
