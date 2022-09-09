@@ -48,12 +48,6 @@ RUN poetry update
 RUN mkdir /dev_app
 WORKDIR /dev_app
 
-# Copying in our entrypoint
-COPY ./python_docker/docker-entrypoint_dev.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-EXPOSE 8001
-ENTRYPOINT /docker-entrypoint.sh $0 $@
-
 # 'lint' stage runs black, isort, safety
 FROM production AS lint
 COPY src ./src
