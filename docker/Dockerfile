@@ -1,5 +1,7 @@
-# From ur_l/python_docker/Dockerfile
+# Adapted from from https://github.com/MBARIMike/ur_l/python_docker/Dockerfile
 FROM python:3.8.1-slim as python-base
+# Set DOCKER_USER_ID in shell, e.g. export DOCKER_USER_ID=$(id -u)
+ARG DOCKER_USER_ID
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=off \
@@ -34,12 +36,19 @@ RUN poetry self update $POETRY_VERSION && poetry install --no-dev
 # 'production' stage uses the clean 'python-base' stage and copies
 # in only our runtime deps that were installed in the 'builder-base'
 FROM python-base as production
+ARG DOCKER_USER_ID
 ENV TARGET_ENV=production
+
+RUN adduser docker_user --uid $DOCKER_USER_ID --gid 100 --disabled-password --gecos ""
 
 COPY --from=builder-base $VENV_PATH $VENV_PATH
 
 # Need rsync in final production image for use by src/data/process_i2map.py
 RUN apt-get update && apt-get install -y rsync
+
+# Make sure the uid used in production (docker_user) can write to /data
+RUN mkdir /data && chown docker_user:100 /data
+USER docker_user
 
 COPY ./src /src
 WORKDIR /src
