@@ -32,7 +32,7 @@ class Archiver:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def copy_to_AUVTCD(self, nc_file: str, freq: str = FREQ) -> None:
+    def copy_to_AUVTCD(self, nc_file_base: str, freq: str = FREQ) -> None:
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
         auvctd_dir = "/Volumes/AUVCTD/surveys"
         try:
@@ -44,7 +44,7 @@ class Archiver:
             return
         year = self.args.mission.split(".")[0]
         auvctd_dir = os.path.join(auvctd_dir, year, "netcdf")
-        nc_file_base = "_".join(nc_file.split("_")[:-1])
+        self.logger.info(f"Copying {nc_file_base} files to {auvctd_dir}")
         # To avoid "fchmod failed: Permission denied" message use rsync instead cp
         # https://apple.stackexchange.com/a/206251
         for ftype in (freq, "cal", "align"):
@@ -116,17 +116,17 @@ class Archiver:
 if __name__ == "__main__":
     arch = Archiver()
     arch.process_command_line()
-    file_name = f"{arch.args.auv_name}_{arch.args.mission}_{arch.args.freq}.nc"
-    nc_file = os.path.join(
+    file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
+    nc_file_base = os.path.join(
         BASE_PATH,
         arch.args.auv_name,
         MISSIONNETCDFS,
         arch.args.mission,
-        file_name,
+        file_name_base,
     )
     p_start = time.time()
     if arch.args.M3:
-        arch.copy_to_M3(nc_file)
+        arch.copy_to_M3(nc_file_base)
     if arch.args.AUVCTD:
-        arch.copy_to_AUVTCD(nc_file)
+        arch.copy_to_AUVTCD(nc_file_base)
     arch.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")

@@ -181,15 +181,15 @@ class Processor:
         arch.commandline = self.commandline
         arch.args.verbose = self.args.verbose
         arch.logger.setLevel(self._log_levels[self.args.verbose])
-        file_name = f"{arch.args.auv_name}_{arch.args.mission}.nc"
-        nc_file = os.path.join(
+        file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
+        nc_file_base = os.path.join(
             BASE_PATH,
             arch.args.auv_name,
             MISSIONNETCDFS,
             arch.args.mission,
-            file_name,
+            file_name_base,
         )
-        arch.copy_to_AUVTCD(nc_file, self.args.freq)
+        arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         self.logger.info("Processing mission %s", mission)
