@@ -51,4 +51,6 @@ RUN mkdir /data && chown docker_user:100 /data
 USER docker_user
 
 COPY ./src /src
-WORKDIR /src
+
+# Make WORKDIR / so that relative paths (e.g. src/data/process_i2map.py) work
+WORKDIR /

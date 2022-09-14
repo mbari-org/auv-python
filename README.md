@@ -49,13 +49,18 @@ running the Jupyter Notebooks:
 * cd ~/dev/auv-python
 * poetry shell
 
-To use with Docker on a server:
+First time use with Docker on a server:
 
 sudo -u docker_user -i
 cd /opt/auv-python
+Create a .env file with the following contents:
+
+    M3_VOL=<mount_location>
+    AUVCTD_VOL=<mount_location>
+
+Then run:
+
 export DOCKER_USER_ID=$(id -u)
-export AUVPYTHON_HOME=$(pwd)
-export COMPOSE_FILE=$AUVPYTHON_HOME/production.yml
 docker-compose build
 docker-compose run --rm auvpython python src/data/process_i2map.py --help
 

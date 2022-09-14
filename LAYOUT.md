@@ -1,10 +1,10 @@
 auv-python
-==============================
+==========
 
 Python code for processing MBARI Dorado-class AUV instrument data
 
 Project Organization
-------------
+--------------------
 
     ├── LICENSE
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
