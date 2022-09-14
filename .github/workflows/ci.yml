@@ -46,4 +46,4 @@ jobs:
         run: docker-compose build
 
       - name: Run Pytest Tests
-        run: docker-compose --rm django pytest
+        run: docker-compose --rm auvpython pytest src/data/test_calibrate_align.py -v

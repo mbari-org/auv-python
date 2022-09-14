@@ -1,6 +1,6 @@
 version: "3.4"
 
-# Env variables required in .env, e.g. for Mac
+# Env variables required in .env, e.g. for Mac:
 # M3_VOL=/Volumes/M3
 # AUVCTD_VOL=/Volumes/AUVCTD
 
