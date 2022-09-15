@@ -56,4 +56,4 @@ jobs:
             --base_path /data/auv_data --clobber --noinput -v
 
       - name: Run Pytest Tests
-        run: docker-compose run --rm auvpython pytest -v
+        run: docker-compose run --rm auvpython pytest -s src/data
