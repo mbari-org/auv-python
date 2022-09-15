@@ -49,11 +49,10 @@ jobs:
       - name: mkdir /data/auv_data
         run: docker-compose run --rm auvpython mkdir /data/auv_data
 
-      - name: ls /data
-        run: docker-compose run --rm auvpython ls -la /data
-
       - name: Get some data
-        run: docker-compose run --rm auvpython src/data/logs2netcdfs.py --auv_name Dorado389 --mission 2020.245.00 --portal http://stoqs.mbari.org:8080/auvdata/v1 --base_path /data/auv_data --clobber --noinput -v
+        run: docker-compose run --rm auvpython src/data/logs2netcdfs.py --auv_name Dorado389 \
+                        --mission 2020.245.00 --portal http://stoqs.mbari.org:8080/auvdata/v1 \
+                        --base_path /data/auv_data --clobber --noinput -v
 
       - name: Run Pytest Tests
-        run: docker-compose run --rm auvpython pytest src/data/test_calibrate_align.py -v
+        run: docker-compose run --rm auvpython pytest -v
