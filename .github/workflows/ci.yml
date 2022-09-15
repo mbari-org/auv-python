@@ -4,7 +4,7 @@ name: CI
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
-  DOCKER_USER_ID: 100
+  COMPOSE_FILE: ci-docker-compose.yml
 
 on:
   pull_request:
