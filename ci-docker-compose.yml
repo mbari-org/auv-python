@@ -1,0 +1,14 @@
+# ci-docker-compose.yml: Does not include production required docker_user & mounts
+version: "3.4"
+
+volumes:
+  local_auvctd_data: {}
+
+services:
+  auvpython:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile-ci
+    image: auvpython_ci
+    volumes:
+      - local_auvctd_data:/data
