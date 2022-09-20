@@ -509,9 +509,27 @@ class Calibrate_NetCDF:
             "comment": f"mDepth from {source}",
         }
 
-        try:
+        if "latitude" in orig_nc:
+            navlat_var = "latitude"
+        elif "latitudeNav" in orig_nc:
+            # Starting with 2022.243.00 the latitude variable name was changed
+            navlat_var = "latitudeNav"
+        else:
+            navlat_var = None
+            self.logger.debug("Likely before late 2004 when latitude was added")
+
+        if "longitude" in orig_nc:
+            navlon_var = "longitude"
+        elif "longitudeNav" in orig_nc:
+            # Starting with 2022.243.00 the longitude variable name was changed
+            navlon_var = "longitudeNav"
+        else:
+            navlon_var = None
+            self.logger.debug("Likely before late 2004 when longitude was added")
+
+        if navlat_var is not None:
             self.combined_nc["navigation_latitude"] = xr.DataArray(
-                orig_nc["latitude"].values * 180 / np.pi,
+                orig_nc[navlat_var].values * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
                 dims={f"navigation_time"},
                 name="latitude",
@@ -523,11 +541,9 @@ class Calibrate_NetCDF:
                 "comment": f"latitude (converted from radians) from {source}",
             }
 
-        except KeyError:
-            self.logger.debug("Likely before late 2004 when latitude was added")
-        try:
+        if navlon_var is not None:
             self.combined_nc["navigation_longitude"] = xr.DataArray(
-                orig_nc["longitude"].values * 180 / np.pi,
+                orig_nc[navlon_var].values * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
                 dims={f"navigation_time"},
                 name="longitude",
@@ -542,12 +558,11 @@ class Calibrate_NetCDF:
                 "units": "degrees_east",
                 "comment": f"longitude (converted from radians) from {source}",
             }
-        except KeyError:
+        else:
             # Setting standard_name attribute here once sets it for all variables
             self.combined_nc["navigation_depth"].coords[f"{sensor}_time"].attrs = {
                 "standard_name": "time"
             }
-            self.logger.debug("Likely before late 2004 when longitude was added")
 
         # % Remove obvious outliers that later disrupt the section plots.
         # % (First seen on mission 2008.281.03)
