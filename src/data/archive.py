@@ -49,8 +49,11 @@ class Archiver:
         # https://apple.stackexchange.com/a/206251
         for ftype in (freq, "cal", "align"):
             src_file = f"{nc_file_base}_{ftype}.nc"
-            self.logger.info(f"rsync {src_file} {auvctd_dir}")
-            os.system(f"rsync {src_file} {auvctd_dir}")
+            if os.path.exists(src_file):
+                os.system(f"rsync {src_file} {auvctd_dir}")
+                self.logger.info(f"rsync {src_file} {auvctd_dir}")
+            else:
+                self.logger.warning(f"{src_file} not found")
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
