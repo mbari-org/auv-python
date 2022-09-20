@@ -71,7 +71,8 @@ The following commands are available:
 * src/data/align.py --help              # 3.0 - help for third processing step
 * src/data/resample.py --help           # 4.0 - help for fourth processing step
 * src/data/archive.py --help            # 5.0 - help for fifth processing step
-* src/data/process_i2map.py --help      # Process i2map data 
+* src/data/process_i2map.py --help      # Process i2MAP data 
+* src/data/process_dorado.py --help     # Process Dorado/Gulper data 
 
 To use VS Code, make sure that the poetry shell is selected with the Command
 palette command: "Python: select interpreter".
