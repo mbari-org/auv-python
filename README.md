@@ -1,5 +1,7 @@
 # Python code for processing MBARI Dorado-class AUV instrument data
 
+![auv-python tests](https://github.com/mbari-org/auv-python/actions/workflows/ci.yml/badge.svg)
+
 The code here is used to process Dorado-class AUV data from the original
 log files recorded by the vehicle's main vehicle computer into more
 interoperable netCDF files.
@@ -51,7 +53,7 @@ running the Jupyter Notebooks:
 
 First time use with Docker on a server:
 
-sudo -u docker_user -i
+sudo -u stoqsadm -i
 cd /opt/auv-python
 Create a .env file with the following contents:
 

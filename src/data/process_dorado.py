@@ -34,7 +34,7 @@ if __name__ == "__main__":
     MOUNT_DIR = "cifs://atlas.shore.mbari.org/AUVCTD"
     START_YEAR = 2003
 
-    proc = DoradoProcessor(VEHICLE, VEHICLE_DIR + "/2022", MOUNT_DIR)
+    proc = DoradoProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR)
     proc.process_command_line()
     proc.args.use_m3 = False
     if not proc.args.start_year:

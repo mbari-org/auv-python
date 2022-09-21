@@ -103,7 +103,9 @@
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--calibrate", "--noinput"]
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--align", "--noinput"]
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--resample", "--noinput"]
-            "args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--archive", "--noinput"]
+            //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--archive", "--noinput"]
+            "args": ["-v", "1", "--start_year", "2021", "--end_year", "2021",  "--noinput"]
+            //"args": ["-v", "1"]
         },
     ]
 }

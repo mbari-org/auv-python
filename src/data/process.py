@@ -20,18 +20,19 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
-from datetime import datetime
 import logging
 import os
 import platform
 import subprocess
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from align import Align_NetCDF
+from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
-from logs2netcdfs import BASE_PATH, AUV_NetCDF, MISSIONNETCDFS
-from resample import Resampler, FREQ
-from archive import Archiver
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
+from resample import FREQ, Resampler
 
 
 class Processor:
@@ -69,7 +70,7 @@ class Processor:
         self.logger.debug("Executing %s", find_cmd)
         if self.args.last_n_days:
             self.logger.info(
-                "Will be looking back {self.args.last_n_days} days for new missions..."
+                f"Will be looking back {self.args.last_n_days} days for new missions..."
             )
             find_cmd += f" -mtime -{self.args.last_n_days}"
         self.logger.info("Collecting missions from %s to %s", start_year, end_year)
@@ -106,6 +107,7 @@ class Processor:
         auv_netcdf.set_portal()
         auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        auv_netcdf.logger.addHandler(self.log_handler)
         auv_netcdf.commandline = self.commandline
         auv_netcdf.download_process_logs(src_dir=src_dir)
 
@@ -123,6 +125,7 @@ class Processor:
         cal_netcdf.args.plot = None
         cal_netcdf.args.verbose = self.args.verbose
         cal_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        cal_netcdf.logger.addHandler(self.log_handler)
         cal_netcdf.commandline = self.commandline
         try:
             netcdf_dir = cal_netcdf.process_logs()
@@ -140,6 +143,7 @@ class Processor:
         align_netcdf.args.plot = None
         align_netcdf.args.verbose = self.args.verbose
         align_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        align_netcdf.logger.addHandler(self.log_handler)
         align_netcdf.commandline = self.commandline
         try:
             netcdf_dir = align_netcdf.process_cal()
@@ -158,6 +162,7 @@ class Processor:
         resamp.commandline = self.commandline
         resamp.args.verbose = self.args.verbose
         resamp.logger.setLevel(self._log_levels[self.args.verbose])
+        resamp.logger.addHandler(self.log_handler)
         file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
         nc_file = os.path.join(
             self.args.base_path,
@@ -180,6 +185,7 @@ class Processor:
         arch.commandline = self.commandline
         arch.args.verbose = self.args.verbose
         arch.logger.setLevel(self._log_levels[self.args.verbose])
+        arch.logger.addHandler(self.log_handler)
         file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
         nc_file_base = os.path.join(
             BASE_PATH,
@@ -191,6 +197,17 @@ class Processor:
         arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
+        self.logger.info("Processing mission %s", mission)
+        netcdfs_dir = os.path.join(
+            self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
+        )
+        Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
+        self.log_handler = logging.FileHandler(
+            os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}")
+        )
+        self.log_handler.setLevel(self._log_levels[self.args.verbose])
+        self.log_handler.setFormatter(self._formatter)
+        self.logger.addHandler(self.log_handler)
         self.logger.info("Processing mission %s", mission)
         if self.args.download_process:
             self.download_process(mission, src_dir)
@@ -333,6 +350,11 @@ class Processor:
         )
 
         self.args = parser.parse_args()
+
+        # Append year to vehicle_dir if --start_year and --end_year identical
+        if self.args.start_year == self.args.end_year:
+            self.vehicle_dir = os.path.join(self.vehicle_dir, str(self.args.start_year))
+
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)
 

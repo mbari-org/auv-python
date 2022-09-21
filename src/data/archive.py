@@ -20,6 +20,8 @@ from shutil import copyfile, copytree
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
 from resample import FREQ
 
+LOG_NAME = "processing.log"
+
 
 class Archiver:
     logger = logging.getLogger(__name__)
@@ -47,8 +49,8 @@ class Archiver:
         self.logger.info(f"Copying {nc_file_base} files to {auvctd_dir}")
         # To avoid "fchmod failed: Permission denied" message use rsync instead cp
         # https://apple.stackexchange.com/a/206251
-        for ftype in (freq, "cal", "align"):
-            src_file = f"{nc_file_base}_{ftype}.nc"
+        for ftype in (f"{freq}.nc", "cal.nc", "align.nc", LOG_NAME):
+            src_file = f"{nc_file_base}_{ftype}"
             if os.path.exists(src_file):
                 os.system(f"rsync {src_file} {auvctd_dir}")
                 self.logger.info(f"rsync {src_file} {auvctd_dir}")
