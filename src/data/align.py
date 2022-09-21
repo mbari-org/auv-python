@@ -144,7 +144,7 @@ class Align_NetCDF:
                     fill_value="extrapolate",
                 )
             except KeyError:
-                raise EOFError("No nudged_latitude data in calibrated_nc")
+                raise EOFError(f"No nudged_latitude data in {in_fn}")
             lon_interp = interp1d(
                 self.calibrated_nc["nudged_longitude"]
                 .get_index("time")

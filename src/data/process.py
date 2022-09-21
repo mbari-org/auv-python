@@ -203,7 +203,7 @@ class Processor:
         )
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
-            os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}")
+            os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"), mode="w+"
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
         self.log_handler.setFormatter(self._formatter)
@@ -225,6 +225,7 @@ class Processor:
             self.align(mission)
             self.resample(mission)
             self.archive(mission)
+        self.logger.removeHandler(self.log_handler)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(

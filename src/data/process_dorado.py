@@ -21,6 +21,7 @@ Uses command line arguments from logs2netcdf.py and calibrate.py.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 
+from asyncio.exceptions import TimeoutError
 from process import Processor
 
 
@@ -67,4 +68,15 @@ if __name__ == "__main__":
                 or int(mission.split(".")[1]) > proc.args.end_yd
             ):
                 continue
-            proc.process_mission(mission, src_dir=missions[mission])
+            try:
+                proc.process_mission(mission, src_dir=missions[mission])
+            except TimeoutError:
+                try:
+                    proc.logger.warning(
+                        "Timeout error processing mission %s, trying again", mission
+                    )
+                    proc.process_mission(mission, src_dir=missions[mission])
+                except TimeoutError:
+                    proc.logger.exception(
+                        "Timeout error processing mission %s", mission
+                    )

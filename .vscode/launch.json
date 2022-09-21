@@ -35,8 +35,10 @@
             //"args": ["--auv_name", "dorado327", "--mission", "2003.223.02", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.065.02", "-v", "2"]
-            "args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot",  "first1000", "-v", "1"]
+            //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot",  "first1000", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "first1000", "-v", "2"]
+            //"args": ["--auv_name", "dorado", "--mission", "2021.104.00", "--plot",  "first1000", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--plot",  "first1000", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -51,8 +53,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/align.py",
             "console": "integratedTerminal",
-            "args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
+            //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.109.00"],
         },
         {
             "name": "4.0 - resample.py",

@@ -1627,7 +1627,7 @@ class Calibrate_NetCDF:
             self.logger.debug(f"Processing {vehicle} {name} {sensor}")
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
-            except EOFError as e:
+            except (EOFError, ValueError) as e:
                 self.logger.warning(f"Error processing {sensor}: {e}")
 
         return netcdfs_dir
