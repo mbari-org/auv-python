@@ -25,6 +25,7 @@ import os
 import platform
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -103,7 +104,7 @@ class Processor:
         auv_netcdf.args.noreprocess = self.args.noreprocess
         auv_netcdf.args.auv_name = self.vehicle
         auv_netcdf.args.mission = mission
-        auv_netcdf.args.use_m3 = self.args.use_m3
+        auv_netcdf.args.use_portal = self.args.use_portal
         auv_netcdf.set_portal()
         auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
@@ -198,6 +199,7 @@ class Processor:
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         self.logger.info("Processing mission %s", mission)
+        t_sart = time.time()
         netcdfs_dir = os.path.join(
             self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
         )
@@ -226,6 +228,9 @@ class Processor:
             self.resample(mission)
             self.archive(mission)
         self.logger.removeHandler(self.log_handler)
+        self.logger.info(
+            "Mission %s took %.1f seconds to process", mission, time.time() - t_sart
+        )
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -331,9 +336,12 @@ class Processor:
             help="Resample freq",
         )
         parser.add_argument(
-            "--use_m3",
+            "--use_portal",
             action="store_true",
-            help="Download data from Titan's M3 mount instead of using the portal",
+            help=(
+                "Download data using portal (much faster than copy over"
+                " remote connection), otherwise copy from mount point"
+            ),
         )
         parser.add_argument(
             "-v",
@@ -355,6 +363,11 @@ class Processor:
         # Append year to vehicle_dir if --start_year and --end_year identical
         if self.args.start_year == self.args.end_year:
             self.vehicle_dir = os.path.join(self.vehicle_dir, str(self.args.start_year))
+        # Append year if processing a single mission
+        if self.args.mission:
+            self.vehicle_dir = os.path.join(
+                self.vehicle_dir, self.args.mission.split(".")[0]
+            )
 
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)

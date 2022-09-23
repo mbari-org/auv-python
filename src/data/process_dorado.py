@@ -37,7 +37,6 @@ if __name__ == "__main__":
 
     proc = DoradoProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR)
     proc.process_command_line()
-    proc.args.use_m3 = False
     if not proc.args.start_year:
         proc.args.start_year = START_YEAR
 
