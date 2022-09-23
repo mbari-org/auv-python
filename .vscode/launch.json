@@ -13,10 +13,11 @@
             //"args": ["--auv_name", "i2map", "--mission", "2019.190.00", "--local",  "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--noinput", "--local", "-v", "2", "--clobber"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v", "2", "--portal", "http://stoqs.mbari.org:8080/auvdata/v1", "--clobber"]
-            "args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v"]
+            //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
             //"args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--noinput", "-v"]
         },
         {
             "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
@@ -38,7 +39,7 @@
             //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot",  "first1000", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "first1000", "-v", "2"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.104.00", "--plot",  "first1000", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--plot",  "first1000", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--plot",  "first1000", "-v", "2"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -92,9 +93,9 @@
             //"args": ["-v", "1", "--start_year", "2020", "--end_year", "2022", "--noinput"],
             //"args": ["-v", "1", "--start_year", "2019", "--start_yd", "281", "--end_year", "2019", "--noinput"],
             // Zero-sized seabird .log file in 2021.307.02
-            //"args": ["-v", "2", "--mission", "2022.061.01", "--local", "--noinput"],
+            "args": ["-v", "2", "--mission", "2022.061.01", "--local", "--noinput"],
             //"args": ["-v", "1", "--local", "--noinput"],
-            "args": ["-v", "1", "--last_n_days", "80", "--use_m3", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--last_n_days", "80", "--clobber", "--noinput"]
         },
         {
             "name": "process_dorado",
@@ -107,7 +108,8 @@
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--align", "--noinput"]
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--resample", "--noinput"]
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--archive", "--noinput"]
-            "args": ["-v", "1", "--start_year", "2021", "--end_year", "2021",  "--noinput"]
+            //"args": ["-v", "1", "--start_year", "2021", "--end_year", "2022",  "--noinput"]
+            "args": ["-v", "1", "--mission", "2022.201.00", "--use_portal",  "--clobber", "--noinput", "-v"]
             //"args": ["-v", "1"]
         },
     ]

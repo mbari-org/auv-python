@@ -40,6 +40,7 @@ LOG_FILES = (
     "parosci.log",
     "seabird25p.log",
     "FLBBCD2K.log",
+    "tailCone.log",
 )
 BASE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../data/auv_data")
@@ -150,7 +151,13 @@ class AUV_NetCDF(AUV):
                             f" only {byte_offset+len_sum-file_size}"
                             f" bytes remaining"
                         )
-                        raise
+                        if rec_count > 0:
+                            self.logger.info(
+                                f"Successfully unpacked {rec_count} records"
+                            )
+                        else:
+                            self.logger.error("No records uppacked")
+                            raise
                     r.data.append(v)
                 rec_count += 1
 
@@ -436,11 +443,11 @@ class AUV_NetCDF(AUV):
                         or "Y"
                     )
             if yes_no.upper().startswith("Y"):
-                if self.args.use_m3:
+                if self.args.use_portal:
+                    self._portal_download(logs_dir, name=name, vehicle=vehicle)
+                else:
                     self.logger.info(f"Copying {src_dir} to {logs_dir}")
                     copytree(src_dir, logs_dir, dirs_exist_ok=True)
-                else:
-                    self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
@@ -565,9 +572,12 @@ class AUV_NetCDF(AUV):
             " http://stoqs.mbari.org:8080/auvdata/v1",
         )
         parser.add_argument(
-            "--use_m3",
+            "--use_portal",
             action="store_true",
-            help="Download data from Titan's M3 mount instead of using the portal",
+            help=(
+                "Download data using portal (much faster than copy over"
+                " remote connection), otherwise copy from mount point"
+            ),
         )
         parser.add_argument(
             "-v",
