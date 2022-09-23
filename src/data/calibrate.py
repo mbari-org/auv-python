@@ -1078,6 +1078,16 @@ class Calibrate_NetCDF:
             self.logger.debug(f"Original data not found for {sensor}: {e}")
             return
 
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
         try:
             cal_fn = os.path.join(logs_dir, self.sinfo["hs2"]["cal_filename"])
             cals = hs2_read_cal_file(cal_fn)
@@ -1145,18 +1155,18 @@ class Calibrate_NetCDF:
         # Fluoresence
         if hasattr(hs2, "bb676"):
             fl = xr.DataArray(
-                hs2.bb676.values,
-                coords=[hs2.bb676.get_index("time")],
+                hs2.fl676.values,
+                coords=[hs2.fl676.get_index("time")],
                 dims={"hs2_time"},
-                name="hs2_bb676",
+                name="hs2_fl676",
             )
             fl.attrs = {
                 "long_name": "Fluoresence at 676 nm",
                 "coordinates": coord_str,
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
-            self.combined_nc["hs2_bb676"] = bb676
-            fl = bb676
+            self.combined_nc["hs2_bb676"] = fl676
+            fl = fl676
         if hasattr(hs2, "fl700"):
             fl700 = xr.DataArray(
                 hs2.fl700.values,
@@ -1297,8 +1307,8 @@ class Calibrate_NetCDF:
 
     def _ctd_process(self, sensor, cf):
         # Don't be put off by the length of this method.
-        # It's lengthy because of all the possible netCDF variabels and
-        # attribute metadata that could be added to the combined_nc.
+        # It's lengthy because of all the possible netCDF variables and
+        # attribute metadata that need to be added to the combined_nc.
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
