@@ -125,11 +125,18 @@ class Align_NetCDF:
             instr, *_ = variable.split("_")
             self.logger.debug(f"instr: {instr}")
             if instr in ("gps", "depth", "nudged"):
+                # Skip coordinate type variables
                 continue
             if variable.startswith("navigation"):
-                if variable.split("_")[1] not in ("roll", "pitch", "yaw"):
+                if variable.split("_")[1] not in (
+                    "mWaterSpeed",
+                    "roll",
+                    "pitch",
+                    "yaw",
+                ):
+                    self.logger.info(f"Skipping {variable}")
                     continue
-            # Process roll, pitch, & yaw and variables from
+            # Process mWaterSpeed, roll, pitch, & yaw and variables from
             # instruments: seabird25p, ctd1, ctd2, hs2, ...
             self.logger.info(f"Processing {variable}")
             self.aligned_nc[variable] = self.calibrated_nc[variable]

@@ -203,6 +203,7 @@ class Calibrate_NetCDF:
                         )
 
     def _define_sensor_info(self, start_datetime):
+        # TODO: Refactor this to use for multiple vehicles & changes over time
         # Horizontal and vertical distance from origin in meters
         SensorOffset = namedtuple("SensorOffset", "x y")
 
@@ -304,6 +305,15 @@ class Calibrate_NetCDF:
                     {
                         "data_filename": "FLBBCD2K.nc",
                         "cal_filename": "FLBBCD2K-3695.dev",
+                        "lag_secs": None,
+                        "sensor_offset": None,
+                    },
+                ),
+                (
+                    "tailcone",
+                    {
+                        "data_filename": "tailCone.nc",
+                        "cal_filename": None,
                         "lag_secs": None,
                         "sensor_offset": None,
                     },
@@ -507,6 +517,19 @@ class Calibrate_NetCDF:
             "standard_name": "depth",
             "units": "m",
             "comment": f"mDepth from {source}",
+        }
+
+        self.combined_nc["navigation_mWaterSpeed"] = xr.DataArray(
+            orig_nc["mWaterSpeed"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"navigation_time"},
+            name="navigation_mWaterSpeed",
+        )
+        self.combined_nc["navigation_mWaterSpeed"].attrs = {
+            "long_name": "Current speed based upon DVL data",
+            "standard_name": "platform_speed_wrt_sea_water",
+            "units": "m/s",
+            "comment": f"mWaterSpeed from {source}",
         }
 
         if "latitude" in orig_nc:
@@ -1551,6 +1574,39 @@ class Calibrate_NetCDF:
 
         # === PAR variables ===
 
+    def _tailcone_process(self, sensor):
+        # As requested by Rob Sherlock capture propRpm for comparison with
+        # mWaterSpeed from navigation.log
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+        except AttributeError:
+            raise EOFError(
+                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
+                    sensor,
+                    self.args.mission,
+                )
+            )
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["tailcone_propRpm"] = xr.DataArray(
+            orig_nc["propRpm"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_propRpm",
+        )
+        self.combined_nc["tailcone_propRpm"].attrs = {
+            "long_name": "Vehicle propeller RPM",
+            # These units are not SI (rad/s), but are the same as the units in the
+            # original file. https://en.wikipedia.org/wiki/Revolutions_per_minute
+            "units": "rpm",
+            "coordinates": coord_str,
+            "comment": f"propRpm from {source}",
+        }
+
     def _geometric_depth_correction(self, sensor, orig_nc):
         """Performs the align_geom() function from the legacy Matlab.
         Works for any sensor, but requires navigation being processed first
@@ -1592,6 +1648,8 @@ class Calibrate_NetCDF:
             self._depth_process(sensor)
         elif sensor == "hs2":
             self._hs2_process(sensor, logs_dir)
+        elif sensor == "tailcone":
+            self._tailcone_process(sensor)
         elif sensor == "ctd" or sensor == "ctd2" or sensor == "seabird25p":
             if coeffs is not None:
                 self._ctd_process(sensor, coeffs)
