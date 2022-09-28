@@ -1599,12 +1599,11 @@ class Calibrate_NetCDF:
             name=f"{sensor}_propRpm",
         )
         self.combined_nc["tailcone_propRpm"].attrs = {
-            "long_name": "Vehicle propeller RPM",
-            # These units are not SI (rad/s), but are the same as the units in the
-            # original file. https://en.wikipedia.org/wiki/Revolutions_per_minute
-            "units": "rpm",
+            "long_name": "Vehicle propeller speed",
+            # Don't be confused by its name - propeller speed is logged in radians/sec.
+            "units": "rad/s",
             "coordinates": coord_str,
-            "comment": f"propRpm from {source}",
+            "comment": f"propRpm from {source} - convert to RPM by multiplying by 9.549297",
         }
 
     def _geometric_depth_correction(self, sensor, orig_nc):
