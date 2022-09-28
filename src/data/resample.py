@@ -101,7 +101,13 @@ class Resampler:
             self.ds.attrs["summary"],
         )
         if matches:
-            metadata["summary"] += " " + matches.group(1)
+            metadata["summary"] += (
+                " "
+                + matches.group(1)
+                + ".  Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
+                + f"{self.args.mission.split('.')[0]}/netcdf/"
+                + f"{self.args.auv_name}_{self.args.mission}_processing.log"
+            )
             # Append shortened location of original data files to title
             metadata["title"] += (
                 ", "
