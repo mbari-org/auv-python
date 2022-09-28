@@ -100,7 +100,7 @@ class Align_NetCDF:
             f"MBARI Dorado-class AUV data produced from calibrated data"
             f" with execution of '{self.commandline}' at {iso_now} on"
             f" host {gethostname()}. Software available at"
-            f" 'https://bitbucket.org/mbari/auv-python'"
+            f" 'https://github.com/mbari-org/auv-python'"
         )
 
         return metadata
@@ -207,7 +207,7 @@ class Align_NetCDF:
             ].attrs
             self.aligned_nc[f"{instr}_depth"].attrs["comment"] += (
                 f". Variable depth_filtdepth from {in_fn} file linearly"
-                f" interpolated onto {variable} time values."
+                f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
             self.aligned_nc[f"{instr}_depth"].attrs[
@@ -225,7 +225,7 @@ class Align_NetCDF:
             ].attrs
             self.aligned_nc[f"{instr}_latitude"].attrs["comment"] += (
                 f". Variable nudged_latitude from {in_fn} file linearly"
-                f" interpolated onto {variable} time values."
+                f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_latitude"].attrs["long_name"] = "Latitude"
             self.aligned_nc[f"{instr}_latitude"].attrs[
@@ -243,7 +243,7 @@ class Align_NetCDF:
             ].attrs
             self.aligned_nc[f"{instr}_longitude"].attrs["comment"] += (
                 f". Variable nudged_longitude from {in_fn} file linearly"
-                f" interpolated onto {variable} time values."
+                f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_longitude"].attrs["long_name"] = "Longitude"
             self.aligned_nc[f"{instr}_longitude"].attrs[

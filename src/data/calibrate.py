@@ -179,7 +179,7 @@ class Calibrate_NetCDF:
             f"MBARI Dorado-class AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"
             f" host {gethostname()}. Software available at"
-            f" 'https://bitbucket.org/mbari/auv-python'"
+            f" 'https://github.com/mbari-org/auv-python'"
         )
 
         return metadata
@@ -1603,7 +1603,7 @@ class Calibrate_NetCDF:
             # Don't be confused by its name - propeller speed is logged in radians/sec.
             "units": "rad/s",
             "coordinates": coord_str,
-            "comment": f"propRpm from {source} - convert to RPM by multiplying by 9.549297",
+            "comment": f"propRpm from {source} (convert to RPM by multiplying by 9.549297)",
         }
 
     def _geometric_depth_correction(self, sensor, orig_nc):

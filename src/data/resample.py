@@ -114,7 +114,7 @@ class Resampler:
             f"MBARI Dorado-class AUV data produced from aligned data"
             f" with execution of '{self.commandline}' at {iso_now} on"
             f" host {gethostname()}. Software available at"
-            f" 'https://bitbucket.org/mbari/auv-python'"
+            f" 'https://github.com/mbari-org/auv-python'"
         )
 
         return metadata
@@ -260,8 +260,8 @@ class Resampler:
         self.resampled_nc[variable].attrs[
             "coordinates"
         ] = "time depth latitude longitude"
-        self.resampled_nc[variable].attrs["comment"] = (
-            f" Calibrated {variable} median filtered with {mf_width} samples"
+        self.resampled_nc[variable].attrs["comment"] += (
+            f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
@@ -318,9 +318,7 @@ class Resampler:
             units = self.ds[variable].attrs["units"]
         except KeyError:
             units = ""
-        ax.set_ylabel(
-            f"{self.ds[variable].attrs['long_name']} ({units})"
-        )
+        ax.set_ylabel(f"{self.ds[variable].attrs['long_name']} ({units})")
         ax.legend(["Original", "Median Filtered", "Resampled"])
         ax.set_xlabel("Time")
         ax.set_title(f"{instr} {variable}")
@@ -335,7 +333,7 @@ class Resampler:
     ) -> None:
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
-        last_instr = ''
+        last_instr = ""
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items()
         ):
