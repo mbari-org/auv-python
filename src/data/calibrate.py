@@ -429,10 +429,7 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
-                    sensor,
-                    self.args.mission,
-                )
+                f"{sensor} has no orig_data - likely a zero-sized .log file in missionlogs/{self.args.mission}"
             )
 
         source = self.sinfo[sensor]["data_filename"]

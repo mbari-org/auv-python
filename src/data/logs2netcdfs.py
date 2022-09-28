@@ -457,7 +457,10 @@ class AUV_NetCDF(AUV):
             log_filename = os.path.join(logs_dir, log)
             netcdf_filename = os.path.join(netcdfs_dir, log.replace(".log", ".nc"))
             try:
-                self.logger.info(f"Processing file {log_filename}")
+                file_size = os.path.getsize(log_filename)
+                self.logger.info(f"Processing file {log_filename} ({file_size} bytes)")
+                if file_size == 0:
+                    self.logger.warning(f"{log_filename} is empty")
                 self._process_log_file(log_filename, netcdf_filename, src_dir)
             except (FileNotFoundError, EOFError, struct.error, IndexError) as e:
                 self.logger.debug(f"{e}")
