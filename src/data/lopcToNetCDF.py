@@ -45,7 +45,9 @@ import lopcMEP
 # Make a global logging object.
 #
 h = logging.StreamHandler()
-f = logging.Formatter("%(levelname)s %(asctime)s %(message)s")
+f = logging.Formatter(
+    "%(levelname)s %(asctime)s %(filename)s " "%(funcName)s():%(lineno)d %(message)s"
+)
 ##f = logging.Formatter("%(levelname)s %(asctime)s %(funcName)s %(lineno)d %(message)s")    # Python 2.4 does not support funcName :-(
 h.setFormatter(f)
 
@@ -229,10 +231,10 @@ def checkForDLE(file, char):
     global frameText, countUnknownFrameCharacter, unknownFrameCharacters
     nextChar = file.read(1)
     if debugLevel >= 3:
-        logger.debug("checkForDLE(): nextChar = %s" % nextChar)
+        logger.debug("nextChar = %s" % nextChar)
     if nextChar == "*":
         if debugLevel >= 5:
-            logger.debug("checkForDLE(): nextChar is *; this is the end of frame")
+            logger.debug("nextChar is *; this is the end of frame")
         frameText += nextChar
         raise EndOfFrameException
 
@@ -240,39 +242,39 @@ def checkForDLE(file, char):
         frameText += nextChar
         if debugLevel >= 5:
             logger.debug(
-                "checkForDLE(): nextChar is ~; skipping the second <DLE> that is added by the instrument"
+                "nextChar is ~; skipping the second <DLE> that is added by the instrument"
             )
 
     elif nextChar == "M":
         frameText += nextChar
         if debugLevel >= 3:
             logger.warn(
-                "checkForDLE(): Detected beginning of new M frame without a detection of the end of the previous frame."
+                "Detected beginning of new M frame without a detection of the end of the previous frame."
             )
         if debugLevel >= 3:
-            logger.warn("checkForDLE(): frameText = \n" + frameText)
+            logger.warn("frameText = \n" + frameText)
         raise BeginMFrameWithoutEndOfPreviousFrame
 
     elif nextChar == "L":
         frameText += nextChar
         if debugLevel >= 3:
             logger.warn(
-                "checkForDLE(): Detected beginning of new L frame without a detection of the end of the previous frame."
+                "Detected beginning of new L frame without a detection of the end of the previous frame."
             )
         if debugLevel >= 3:
-            logger.warn("checkForDLE(): frameText = \n" + frameText)
+            logger.warn("frameText = \n" + frameText)
         raise BeginLFrameWithoutEndOfPreviousFrame
 
     else:
         frameText += str(ord(nextChar))
         if debugLevel >= 3:
             logger.warn(
-                "checkForDLE(): this is not expected.  If we have a '~' then there should be either a '~' or  '*' following it."
+                "this is not expected.  If we have a '~' then there should be either a '~' or  '*' following it."
             )
         if debugLevel >= 3:
-            logger.warn("checkForDLE(): frameText = \n" + frameText)
+            logger.warn("frameText = \n" + frameText)
         if debugLevel >= 3:
-            logger.warn("checkForDLE(): nextChar = " + nextChar)
+            logger.warn("nextChar = " + nextChar)
         countUnknownFrameCharacter += 1
         unknownFrameCharacters.append(str(ord(nextChar)))
         ##raw_input("Encountered unexpected area of code.  Please notify Mike McCann.  Press Enter to continue...")
@@ -289,7 +291,7 @@ def readBigEndianUShort(binFile):
         raise EndOfFileException
 
     if debugLevel >= 5:
-        logger.debug("readBigEndianUShort(): c1 = %s" % ord(c1))
+        logger.debug("c1 = %s" % ord(c1))
     if c1 == "~":
         frameText += c1
         checkForDLE(binFile, c1)
@@ -301,7 +303,7 @@ def readBigEndianUShort(binFile):
         raise EndOfFileException
 
     if debugLevel >= 5:
-        logger.debug("readBigEndianUShort(): c2 = %s" % ord(c2))
+        logger.debug("c2 = %s" % ord(c2))
     if c2 == "~":
         frameText += c2
         checkForDLE(binFile, c2)
@@ -310,7 +312,7 @@ def readBigEndianUShort(binFile):
 
     value = struct.unpack("H", c2 + c1)
     if debugLevel >= 5:
-        logger.debug("readBigEndianUShort(): value = %i" % value)
+        logger.debug("value = %i" % value)
 
     return int(value[0])  # End readBigEndianUShort()
 
@@ -325,7 +327,7 @@ def readChar(binFile):
     if len(c) == 0:
         raise EndOfFileException
     if debugLevel >= 5:
-        logger.debug("readChar(): c = %s" % ord(c))
+        logger.debug("c = %s" % ord(c))
     if c == "~":
         frameText += c
         checkForDLE(binFile, c)
@@ -349,7 +351,7 @@ def readLframeData(binFile, sampleCountList):
     if debugLevel >= 2:
         logger.debug("-" * 81)
     if debugLevel >= 2:
-        logger.debug("readLframeData(): frameID = L: Read Binned Count Data")
+        logger.debug("frameID = L: Read Binned Count Data")
     countList = []
     # Expecting to read 128 values.  The call to readBigEndianUShort() may raise an EndOfFrameException, in which case
     # is caught by the routine that calls this function and is an error.
@@ -359,21 +361,21 @@ def readLframeData(binFile, sampleCountList):
         except EndOfFrameException:
             if debugLevel >= 1:
                 logger.warn(
-                    "readLframeData(): Reached the end of this L frame before the end (# 127) at bin # %d."
+                    "Reached the end of this L frame before the end (# 127) at bin # %d."
                     % i
                 )
             if debugLevel >= 1:
-                logger.warn("readLframeData(): L Frame text = \n" + frameText + "\n")
+                logger.warn("L Frame text = \n" + frameText + "\n")
             if debugLevel >= 1:
-                logger.warn("readLframeData(): countList = \n" + str(countList))
+                logger.warn("countList = \n" + str(countList))
             if debugLevel >= 1:
-                logger.warn("readLframeData(): Raising ShortLFrameError.")
+                logger.warn("Raising ShortLFrameError.")
             raise ShortLFrameError
 
         countList.append(value)
 
         if debugLevel >= 4:
-            logger.debug("readLframeData(): bin: %i count = %i" % (i, value))
+            logger.debug("bin: %i count = %i" % (i, value))
 
     # Peek at last several values in countList for really bin values that indicates a garbled frame
     # Tests indicate the the scalar data are corrupted on frame that meet this criteria.  Let's just discard them.
@@ -382,7 +384,7 @@ def readLframeData(binFile, sampleCountList):
             ##raw_input("Paused with too high a value at red-end of the countList, c = %d" % c)
             if debugLevel >= 1:
                 logger.warn(
-                    "readLframeData(): Detected garbled frame with count value = %d between indices [101:128] of countList"
+                    "Detected garbled frame with count value = %d between indices [101:128] of countList"
                     % c
                 )
             raise GarbledLFrame
@@ -397,7 +399,7 @@ def readLframeData(binFile, sampleCountList):
         logger.debug("-" * 80)
     try:
         if debugLevel >= 2:
-            logger.debug("readLframeData(): Reading scalar data:")
+            logger.debug("Reading scalar data:")
         for var in LframeScalarKeys:
             # All but counter are 2 bytes
             if var == "counter":
@@ -412,12 +414,12 @@ def readLframeData(binFile, sampleCountList):
                 try:
                     # Perform QC checkes on threshold and bufferStatus, save sampleCount in List that is used for timeStamp
                     if debugLevel >= 2:
-                        logger.debug("readLframeData():   %s = %d" % (var, val))
+                        logger.debug("  %s = %d" % (var, val))
                     LframeScalarDict[var] = val
                     if var == "threshold" and val != 100:
                         if debugLevel >= 1:
                             logger.warn(
-                                "readLframeData(): Detected garbled frame with threshold != 100 (%d)"
+                                "Detected garbled frame with threshold != 100 (%d)"
                                 % val
                             )
                         raise GarbledLFrame
@@ -433,7 +435,7 @@ def readLframeData(binFile, sampleCountList):
                     if var == "bufferStatus" and (val != 0 and val != 1):
                         if debugLevel >= 1:
                             logger.warn(
-                                "readLframeData(): Detected garbled frame with bufferStatus != 0|1 (%d)"
+                                "Detected garbled frame with bufferStatus != 0|1 (%d)"
                                 % val
                             )
                         raise GarbledLFrame
@@ -446,17 +448,17 @@ def readLframeData(binFile, sampleCountList):
     except EndOfFrameException:
         if debugLevel >= 1:
             logger.warn(
-                "readLframeData(): Reached the end of this L frame while attempting to read the LframeScalar data."
+                "Reached the end of this L frame while attempting to read the LframeScalar data."
             )
         if debugLevel >= 1:
-            logger.warn("readLframeData(): LframeScalarDict = " + str(LframeScalarDict))
+            logger.warn("LframeScalarDict = " + str(LframeScalarDict))
         return (countList, LframeScalarDict)
 
     # If we read one more character we should get an EndOfFrameException - make sure this happens
     endOfFrame = False
     while not endOfFrame:
         if debugLevel >= 2:
-            logger.debug("readLframeData(): Inside 'while not endOfFrame:' loop")
+            logger.debug("Inside 'while not endOfFrame:' loop")
         try:
             val = readBigEndianUShort(
                 binFile
@@ -465,11 +467,11 @@ def readLframeData(binFile, sampleCountList):
         # Catch the EndOfFrameException and deal with it gracefully
         except EndOfFrameException:
             if debugLevel >= 2:
-                logger.debug("readLframeData(): Reached the end of this L frame.")
+                logger.debug("Reached the end of this L frame.")
             endOfFrame = True
 
     if debugLevel >= 2:
-        logger.debug("readLframeData(): L Frame text = \n" + frameText + "\n")
+        logger.debug("L Frame text = \n" + frameText + "\n")
 
     if debugLevel >= 2:
         logger.debug("-" * 80)
@@ -483,9 +485,7 @@ def readMframeData(binFile):
     if debugLevel >= 2:
         logger.debug("-" * 80)
     if debugLevel >= 2:
-        logger.debug(
-            "readMframeData(): frameID = M: Read Mulit-Element Plankton Frame Format Data"
-        )
+        logger.debug("frameID = M: Read Mulit-Element Plankton Frame Format Data")
 
     groupCount = 0
     mepCount = 0
@@ -545,7 +545,7 @@ def readMframeData(binFile):
             )
 
     if debugLevel >= 4:
-        logger.debug("readMframeData(): M Frame text = \n" + frameText + "\n")
+        logger.debug("M Frame text = \n" + frameText + "\n")
 
     return (nL, pL, eL, lL, sL, mepCount)  # End readMframeData()
 
@@ -591,10 +591,7 @@ def flowSpeed(flowTime, flowCount):
 
     sqrtFC = math.sqrt(FC)
     if debugLevel >= 2:
-        logger.debug(
-            "flowSpeed(): sqrtFC = %f, idx = %d, a[1,idx] = %f "
-            % (sqrtFC, idx, a[1, idx])
-        )
+        logger.debug("sqrtFC = %f, idx = %d, a[1,idx] = %f " % (sqrtFC, idx, a[1, idx]))
     speed = a[0, idx] * math.exp(
         -(
             a[1, idx] * math.sqrt(sqrtFC)
@@ -605,7 +602,7 @@ def flowSpeed(flowTime, flowCount):
     )
 
     if debugLevel >= 1:
-        logger.debug("flowSpeed(): speed = %f " % speed)
+        logger.debug("speed = %f " % speed)
 
     return speed
 
@@ -616,9 +613,7 @@ def readCframeData(binFile):
     if debugLevel >= 2:
         logger.debug("-" * 80)
     if debugLevel >= 2:
-        logger.debug(
-            "readCframeData(): frameID = C: Read CTD Data (timestamp that the mvc writes)"
-        )
+        logger.debug("frameID = C: Read CTD Data (timestamp that the mvc writes)")
 
     nChar = 0
     str = ""
@@ -628,7 +623,7 @@ def readCframeData(binFile):
             char = readChar(binFile)
             str += char
             if debugLevel >= 2:
-                logger.debug("readCframeData(): char = %s" % (char))
+                logger.debug("char = %s" % (char))
             nChar += 1
 
     except EndOfFrameException:
@@ -647,8 +642,7 @@ def readCframeData(binFile):
                 )  # Remove nonprintable characters
                 str = re.sub("\s+", "", str)  # REmove whitespace
                 logger.warn(
-                    "readCframeData(): Unable to parse a float from the string str[:70] = %s"
-                    % str[:70]
+                    "Unable to parse a float from the string str[:70] = %s" % str[:70]
                 )
                 esecs = missing_value
 
@@ -657,7 +651,7 @@ def readCframeData(binFile):
             return esecs
         else:
             logger.info(
-                "readCframeData(): This mission is before esecs were written to the C frame.  No attempt made to parse."
+                "This mission is before esecs were written to the C frame.  No attempt made to parse."
             )
             return missing_value
 
@@ -715,13 +709,11 @@ def unpackLOPCbin(binFile, opts, textFile=None):
     global LframeScalarDict
     global debugLevel
 
-    logger.info("unpackLOPCbin(): >>> Unpacking LOPC data from " + binFile.name)
-    logger.info("unpackLOPCbin(): >>> Writing NetCDF file " + opts.netCDF_fileName)
+    logger.info(">>> Unpacking LOPC data from " + binFile.name)
+    logger.info(">>> Writing NetCDF file " + opts.netCDF_fileName)
 
     if textFile != None:
-        logger.info(
-            "unpackLOPCbin(): >>> Writing ASCII text file " + opts.text_fileName
-        )
+        logger.info(">>> Writing ASCII text file " + opts.text_fileName)
 
     recCount = 0
     dataStructure["lFrameCount"] = 0
@@ -783,9 +775,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                 "Read characters until we reach the first <DLE> ('~'), then read another char to get the frameID"
                 char = binFile.read(1)
                 if debugLevel >= 3:
-                    logger.debug(
-                        "unpackLOPCbin(): char = %s, len(char) = %d" % (char, len(char))
-                    )
+                    logger.debug("char = %s, len(char) = %d" % (char, len(char)))
                 if len(char) == 0:
                     raise EndOfFileException
                 if char == "~":
@@ -794,7 +784,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                         logger.debug("-" * 80)
                     if debugLevel >= 2:
                         logger.debug(
-                            "unpackLOPCbin(): frameID = %s (lFrameCount = %d, mFrameCount = %d)"
+                            "frameID = %s (lFrameCount = %d, mFrameCount = %d)"
                             % (
                                 frameID,
                                 dataStructure["lFrameCount"],
@@ -813,7 +803,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                 detectedLFrame = True
                 if debugLevel >= 1:
                     logger.error(
-                        "unpackLOPCbin(): Begin of L Frame (around # %d) witout encountering end of previous frame."
+                        "Begin of L Frame (around # %d) witout encountering end of previous frame."
                         % dataStructure["lFrameCount"]
                     )
                 countBeginLFrameWithoutEndOfPreviousFrame += 1
@@ -822,7 +812,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                 countBeginMFrameWithoutEndOfPreviousFrame += 1
                 if debugLevel >= 1:
                     logger.error(
-                        "unpackLOPCbin(): Begin of M Frame (around # %d) witout encountering end of previous frame."
+                        "Begin of M Frame (around # %d) witout encountering end of previous frame."
                         % dataStructure["lFrameCount"]
                     )
                 detectedMFrame = True
@@ -830,7 +820,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
             except ShortLFrameError:
                 if debugLevel >= 1:
                     logger.warn(
-                        "unpackLOPCbin(): Reached the end of this L frame (around sample # %d) before expected."
+                        "Reached the end of this L frame (around sample # %d) before expected."
                         % dataStructure["lFrameCount"]
                     )
                 countShortLFrameError += 1
@@ -858,14 +848,12 @@ def unpackLOPCbin(binFile, opts, textFile=None):
 
             # Compute flow speed
             if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): Calling flowSpeed()")
+                logger.debug("Calling flowSpeed()")
             dataStructure["flowSpeed"] = flowSpeed(
                 LframeScalarDict["flowTime"], LframeScalarDict["flowCount"]
             )
             if debugLevel >= 2:
-                logger.debug(
-                    "unpackLOPCbin(): flowSpeed = %f" % dataStructure["flowSpeed"]
-                )
+                logger.debug("flowSpeed = %f" % dataStructure["flowSpeed"])
 
             # Save values specifc to the C frame
             if hasMBARICframeData:
@@ -884,13 +872,11 @@ def unpackLOPCbin(binFile, opts, textFile=None):
             # Confirm contents of Dictionary
             if debugLevel >= 2:
                 logger.debug(
-                    "unpackLOPCbin(): LframeScalarDict contents after return from readLframeData():"
+                    "LframeScalarDict contents after return from readLframeData():"
                 )
             for k in LframeScalarKeys:
                 if debugLevel >= 2:
-                    logger.debug(
-                        "unpackLOPCbin():   %s = %d" % (k, LframeScalarDict[k])
-                    )
+                    logger.debug("  %s = %d" % (k, LframeScalarDict[k]))
 
             # Write ASCII L frame data, if requested
             if opts.text_fileName:
@@ -917,29 +903,21 @@ def unpackLOPCbin(binFile, opts, textFile=None):
             # point to the last LframeScalarDict dictionary returned by readLframeData().  Appending a shallow copy() fixes this.
             if debugLevel >= 3:
                 logger.debug(
-                    "unpackLOPCbin(): Reading data from DataStructure dictionary after appending:"
+                    "Reading data from DataStructure dictionary after appending:"
                 )
             for countList, lframeScalarDict in zip(countList, LframeScalarDict):
                 if debugLevel >= 3:
-                    logger.debug(
-                        "unpackLOPCbin(): \tlen(countList) = %d" % len(countList)
-                    )
+                    logger.debug("\tlen(countList) = %d" % len(countList))
                 if debugLevel >= 3:
-                    logger.debug(
-                        "unpackLOPCbin(): \tnumpy.sum(countList) = %d"
-                        % numpy.sum(countList)
-                    )
+                    logger.debug("\tnumpy.sum(countList) = %d" % numpy.sum(countList))
                 for item in LframeScalarKeys:
                     if debugLevel >= 3:
-                        logger.debug(
-                            "unpackLOPCbin(): \t%s = %d"
-                            % (item, lframeScalarDict[item])
-                        )
+                        logger.debug("\t%s = %d" % (item, lframeScalarDict[item]))
 
             # Verbose output table column header wait until after first frame so that openNetCDFFile ouput is printed first
             if verboseFlag and dataStructure["lFrameCount"] == 100:
                 logger.info(
-                    "unpackLOPCbin(): "
+                    ""
                     + "".join(
                         [
                             s.center(12)
@@ -957,7 +935,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                     )
                 )
                 logger.info(
-                    "unpackLOPCbin(): "
+                    ""
                     + "".join(
                         [
                             s.center(12)
@@ -975,7 +953,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                     )
                 )
                 logger.info(
-                    "unpackLOPCbin(): "
+                    ""
                     + "".join(
                         [
                             s.center(12)
@@ -999,7 +977,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                     dataStructure["tsList"][-1] - dataStructure["tsList"][0]
                 )
                 logger.info(
-                    "unpackLOPCbin(): %s %.1f seconds, last L Frame: %d"
+                    "%s %.1f seconds, last L Frame: %d"
                     % (
                         "".join(
                             [
@@ -1059,7 +1037,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                 frameID
             )  # Initialize global debugging text string representation of the data frame
             if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): C Frame text = \n" + frameText + "\n")
+                logger.debug("C Frame text = \n" + frameText + "\n")
 
             # Note that before 2010074 a C frame is probably garbled data and should not be parsed for esecs.  This logic is in readCframeData().
             try:
@@ -1068,7 +1046,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                 detectedLFrame = True
                 if debugLevel >= 1:
                     logger.error(
-                        "unpackLOPCbin(): Begin of L Frame (around # %d) witout encountering end of previous frame."
+                        "Begin of L Frame (around # %d) witout encountering end of previous frame."
                         % dataStructure["lFrameCount"]
                     )
                 countBeginLFrameWithoutEndOfPreviousFrame += 1
@@ -1077,7 +1055,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                 countBeginMFrameWithoutEndOfPreviousFrame += 1
                 if debugLevel >= 1:
                     logger.error(
-                        "unpackLOPCbin(): Begin of M Frame (around # %d) witout encountering end of previous frame."
+                        "Begin of M Frame (around # %d) witout encountering end of previous frame."
                         % dataStructure["lFrameCount"]
                     )
                 detectedMFrame = True
@@ -1096,7 +1074,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
         else:
             if debugLevel >= 2:
                 logger.debug(
-                    "unpackLOPCbin(): Encountered frameID = %s at L frame # %d"
+                    "Encountered frameID = %s at L frame # %d"
                     % (frameID, dataStructure["lFrameCount"])
                 )
 
@@ -1113,23 +1091,19 @@ def unpackLOPCbin(binFile, opts, textFile=None):
             mepData.build(lastMEP)
 
             if debugLevel >= 1:
-                logger.debug(
-                    "unpackLOPCbin(): len(mepData.mepList) = %d" % len(mepData.mepList)
-                )
+                logger.debug("len(mepData.mepList) = %d" % len(mepData.mepList))
 
             if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): SEP-only counts")
+                logger.debug("SEP-only counts")
             if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): ===============")
+                logger.debug("===============")
             if debugLevel >= 1:
                 logger.debug(
-                    "unpackLOPCbin(): SEP-only counts: sepCountArraySum.sum() = %d"
+                    "SEP-only counts: sepCountArraySum.sum() = %d"
                     % sepCountArraySum.sum()
                 )
             if debugLevel >= 2:
-                logger.debug(
-                    "unpackLOPCbin(): sepCountArraySum = %s" % sepCountArraySum
-                )
+                logger.debug("sepCountArraySum = %s" % sepCountArraySum)
 
             # Add the MEP counts to the sepCountArray that has been summed up
             ##logging.getLogger("MEP").setLevel(logging.DEBUG)
@@ -1156,32 +1130,27 @@ def unpackLOPCbin(binFile, opts, textFile=None):
 
             if debugLevel >= 1:
                 logger.debug(
-                    "unpackLOPCbin(): MEP-only counts: mepCountArray.sum() = %d"
-                    % mepCountArray.sum()
+                    "MEP-only counts: mepCountArray.sum() = %d" % mepCountArray.sum()
                 )
 
             if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): After adding MEP counts to SEP counts")
+                logger.debug("After adding MEP counts to SEP counts")
             if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): =====================================")
+                logger.debug("=====================================")
+            if debugLevel >= 1:
+                logger.debug("SEP+MEP counts: countArray.sum() = %d" % countArray.sum())
+            if debugLevel >= 2:
+                logger.debug("countArray = %s" % countArray)
+            if debugLevel >= 1:
+                logger.debug("LCcount = %d" % LCcount)
             if debugLevel >= 1:
                 logger.debug(
-                    "unpackLOPCbin(): SEP+MEP counts: countArray.sum() = %d"
-                    % countArray.sum()
-                )
-            if debugLevel >= 2:
-                logger.debug("unpackLOPCbin(): countArray = %s" % countArray)
-            if debugLevel >= 1:
-                logger.debug("unpackLOPCbin(): LCcount = %d" % LCcount)
-            if debugLevel >= 1:
-                logger.debug(
-                    "unpackLOPCbin(): transCount = %d, nonTransCount = %d"
-                    % (transCount, nonTransCount)
+                    "transCount = %d, nonTransCount = %d" % (transCount, nonTransCount)
                 )
             if mepCountArray.sum() > 0:
                 if debugLevel >= 1:
                     logger.debug(
-                        "unpackLOPCbin(): ai:   mean = %f, min = %f, max = %f, std = %f"
+                        "ai:   mean = %f, min = %f, max = %f, std = %f"
                         % (
                             mepData.aiArray.mean(),
                             mepData.aiArray.min(),
@@ -1191,7 +1160,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                     )
                 if debugLevel >= 1:
                     logger.debug(
-                        "unpackLOPCbin(): esd:   mean = %f, min = %f, max = %f, std = %f"
+                        "esd:   mean = %f, min = %f, max = %f, std = %f"
                         % (
                             mepData.esdArray.mean(),
                             mepData.esdArray.min(),
@@ -1232,7 +1201,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
             writeNetCDFRecord(ncFile, MEPDataDict, LframeScalarDict, outRecNumFunc)
 
             # Save the LframeCount to use for writing the time axis data when we close the file - it's a python array index, so subtract 1
-            ##logger.info("unpackLOPCbin(): appending lFrameCount = %d" % dataStructure['lFrameCount'])
+            ##logger.info("appending lFrameCount = %d" % dataStructure['lFrameCount'])
             lFrameCountWrittenList.append(dataStructure["lFrameCount"] - 1)
             sampleCountWrittenList.append(LframeScalarDict["sampleCount"])
 
@@ -1250,7 +1219,7 @@ def unpackLOPCbin(binFile, opts, textFile=None):
 
             dataStructure["lFrameCountWrittenList"] = lFrameCountWrittenList
             dataStructure["sampleCountWrittenList"] = sampleCountWrittenList
-            ##logger.info("unpackLOPCbin(): dataStructure['lFrameCountWrittenList'] = " + str(dataStructure['lFrameCountWrittenList']))
+            ##logger.info("dataStructure['lFrameCountWrittenList'] = " + str(dataStructure['lFrameCountWrittenList']))
 
         # NOTE: This function cannot return any values as it reads records from the input file until
         # the end is trapped with an exception.  That is now this function ends.  This is why assignments
@@ -1280,18 +1249,18 @@ def constructTimestampList(
     parosci_nc = binFile.name.replace("lopc.bin", "parosci.nc").replace(
         "missionlogs", "missionnetcdfs"
     )
-    logger.info("constructTimestampList(): parosci_nc = %s" % parosci_nc)
+    logger.info("parosci_nc = %s" % parosci_nc)
     logger.info(
-        "constructTimestampList(): Using NetCDF4 to get start and end epoch seconds for this mission from this URL:"
+        "Using NetCDF4 to get start and end epoch seconds for this mission from this URL:"
     )
-    logger.info("constructTimestampList(): %s" % parosci_nc)
+    logger.info("%s" % parosci_nc)
     sensor_on_time = 0  # Bogus initial starting time
     sensor_off_time = 10000  # Bogus initial ending time
     try:
         parosci = Dataset(parosci_nc)
     except FileNotFoundError:
         logger.error(
-            "constructTimestampList(): Could not open %s.  Cannot process until the netCDF file exists.  Exiting."
+            "Could not open %s.  Cannot process until the netCDF file exists.  Exiting."
             % parosci_nc
         )
         sys.exit(-1)
@@ -1302,11 +1271,11 @@ def constructTimestampList(
         sensor_off_time = parosci["time"][-1]
 
     logger.info(
-        "constructTimestampList(): From associated paroscinc file: sensor_on_time = %.1f, sensor_off_time = %.1f"
+        "From associated paroscinc file: sensor_on_time = %.1f, sensor_off_time = %.1f"
         % (sensor_on_time, sensor_off_time)
     )
     logger.info(
-        "constructTimestampList(): Duration is %d seconds.  Expecting to read %d L frames from the lopc.bin file."
+        "Duration is %d seconds.  Expecting to read %d L frames from the lopc.bin file."
         % (
             int(sensor_off_time - sensor_on_time),
             2 * int(sensor_off_time - sensor_on_time),
@@ -1316,37 +1285,37 @@ def constructTimestampList(
     if recCount == None:
         recCount = 2 * int(sensor_off_time - sensor_on_time)
         logger.info(
-            "constructTimestampList(): recCount not passed in, assuming we'll have %d records from the lopc.bin file."
+            "recCount not passed in, assuming we'll have %d records from the lopc.bin file."
             % (recCount)
         )
 
     timestampList = []
-    logger.debug("constructTimestampList(): sampleCountList = %s" % (sampleCountList))
+    logger.debug("sampleCountList = %s" % (sampleCountList))
     if sampleCountList != None:
         # Analyze the sampleCountList - correct for 16-bit overflow, and interpolate over 0-values, stuck values, and spikes
         logger.info(
-            "constructTimestampList(): Calling correctSampleCountList() with sampleCountList[0] = %d and len(sampleCountList) = %d"
+            "Calling correctSampleCountList() with sampleCountList[0] = %d and len(sampleCountList) = %d"
             % (sampleCountList[0], len(sampleCountList))
         )
         correctedSampleCountList = correctSampleCountList(sampleCountList)
         logger.info(
-            "constructTimestampList(): correctSampleCountList() returned correctedSampleCountList = %s with len(correctedSampleCountList) = %d"
+            "correctSampleCountList() returned correctedSampleCountList = %s with len(correctedSampleCountList) = %d"
             % (correctedSampleCountList, len(correctedSampleCountList))
         )
 
         # SampleCount does not always begin at 0 so subtract the first element's value so that we can use it as a time base
         # Use the instrument concept of sample count to construct the best possible time stamp list
         logger.info(
-            "constructTimestampList(): Subtracting %d from all values of correctedSampleCountList"
+            "Subtracting %d from all values of correctedSampleCountList"
             % correctedSampleCountList[0]
         )
         deltaT = 0.5
         logger.info(
-            "constructTimestampList(): Constructing timestampArray from instrument corrected sampleCount and constant deltaT = %f"
+            "Constructing timestampArray from instrument corrected sampleCount and constant deltaT = %f"
             % deltaT
         )
         logger.info(
-            "constructTimestampList(): New re-zeroed correctedSampleCountList = %s"
+            "New re-zeroed correctedSampleCountList = %s"
             % ((correctedSampleCountList - correctedSampleCountList[0]) * deltaT)
         )
         timestampArray = (
@@ -1356,9 +1325,9 @@ def constructTimestampList(
             )
             + sensor_on_time
         )
-        logger.info("constructTimestampList(): timestampArray = %s" % timestampArray)
+        logger.info("timestampArray = %s" % timestampArray)
         logger.info(
-            "constructTimestampList(): timestampArray[:2] = [%.1f %.1f, ..., timestampArray[-2:] = %.1f %.1f]"
+            "timestampArray[:2] = [%.1f %.1f, ..., timestampArray[-2:] = %.1f %.1f]"
             % (
                 timestampArray[0],
                 timestampArray[1],
@@ -1369,15 +1338,15 @@ def constructTimestampList(
 
         timestampList = list(timestampArray)
         logger.info(
-            "constructTimestampList(): timestampList[:2] = %s, ..., timestampList[-2:] = %s]"
+            "timestampList[:2] = %s, ..., timestampList[-2:] = %s]"
             % (timestampList[:2], timestampList[-2:])
         )
         logger.info(
-            "constructTimestampList(): Subsampling correctedSampleCountList (len = %d) according to what got written to the netCDF file by the binning interval"
+            "Subsampling correctedSampleCountList (len = %d) according to what got written to the netCDF file by the binning interval"
             % len(correctedSampleCountList)
         )
         logger.info(
-            "constructTimestampList(): lFrameCountWrittenList[:2] = %s, ... lFrameCountWrittenList[-2:] = %s"
+            "lFrameCountWrittenList[:2] = %s, ... lFrameCountWrittenList[-2:] = %s"
             % (
                 dataStructure["lFrameCountWrittenList"][:2],
                 dataStructure["lFrameCountWrittenList"][-2:],
@@ -1386,7 +1355,7 @@ def constructTimestampList(
 
         if dataStructure["lFrameCountWrittenList"][-1] > len(correctedSampleCountList):
             logger.info(
-                "constructTimestampList(): lFrameCountWrittenList[-1] > len(correctedSampleCountList). Truncating the list before subsampling."
+                "lFrameCountWrittenList[-1] > len(correctedSampleCountList). Truncating the list before subsampling."
             )
             dataStructure["lFrameCountWrittenList"] = dataStructure[
                 "lFrameCountWrittenList"
@@ -1397,7 +1366,7 @@ def constructTimestampList(
         ]
         dataStructure["correctedSampleCountList"] = subSampledCorrectedSampleCountList
         logger.info(
-            "constructTimestampList(): len(subSampledCorrectedSampleCountList) = %d"
+            "len(subSampledCorrectedSampleCountList) = %d"
             % len(subSampledCorrectedSampleCountList)
         )
 
@@ -1406,26 +1375,21 @@ def constructTimestampList(
         # Used at the beginning of processing to estimate time to completion - DO NOT USE THE RESULTS OF THIS IN THE NETCDF FILE!
         deltaT = float(sensor_off_time - sensor_on_time) / float(recCount - 1)
         if debugLevel >= 1:
-            logger.debug(
-                "constructTimestampList(): deltaT = %f [Should be 0.5 seconds]"
-                % (deltaT)
-            )
+            logger.debug("deltaT = %f [Should be 0.5 seconds]" % (deltaT))
         for i in range(recCount):
             timestamp = sensor_on_time + i * deltaT
             timestampList.append(timestamp)
 
         return timestampList
 
+    logger.info("len(timestampList) = %i" % (len(timestampList)))
     logger.info(
-        "constructTimestampList(): len(timestampList) = %i" % (len(timestampList))
-    )
-    logger.info(
-        "constructTimestampList(): timestampList[:2] = %s, ..., timestampList[-2:] = %s]"
+        "timestampList[:2] = %s, ..., timestampList[-2:] = %s]"
         % (timestampList[:2], timestampList[-2:])
     )
 
     logger.info(
-        "constructTimestampList(): Subsampling timestampList (len = %d) according to what got written to the netCDF file by the binning interval"
+        "Subsampling timestampList (len = %d) according to what got written to the netCDF file by the binning interval"
         % len(timestampList)
     )
     writtenSampleCounts = list(
@@ -1435,16 +1399,13 @@ def constructTimestampList(
         numpy.array(dataStructure["lFrameCountWrittenList"], dtype="int32") - 1
     )  # Subtract 1 for Python's 0-based list indexing
     logger.info(
-        "constructTimestampList(): Taking indices [%s ... %s] from timestampList to create subSampledTimestampList"
+        "Taking indices [%s ... %s] from timestampList to create subSampledTimestampList"
         % (writtenLFrameCounts[:2], writtenLFrameCounts[-2:])
     )
     subSampledTimestampList = list(numpy.array(timestampList)[writtenLFrameCounts])
-    logger.info(
-        "constructTimestampList(): len(subSampledTimestampList) = %d"
-        % len(subSampledTimestampList)
-    )
+    logger.info("len(subSampledTimestampList) = %d" % len(subSampledTimestampList))
     logger.debug(
-        "constructTimestampList(): subSampledTimestampList[:2] = %s, ..., subSampledTimestampList[-2:] = %s"
+        "subSampledTimestampList[:2] = %s, ..., subSampledTimestampList[-2:] = %s"
         % (subSampledTimestampList[:2], subSampledTimestampList[-2:])
     )
 
@@ -1452,25 +1413,17 @@ def constructTimestampList(
 
     if cFrameEsecsList != None:
         # First replace all NaNs with an interpolation between the non-NaNed values
-        logger.info(
-            "constructTimestampList(): Finding elements of cFrameEsecsList that != %d"
-            % missing_value
-        )
-        ##logger.info("constructTimestampList(): cFrameEsecsList = " + str(cFrameEsecsList))
+        logger.info("Finding elements of cFrameEsecsList that != %d" % missing_value)
+        ##logger.info("cFrameEsecsList = " + str(cFrameEsecsList))
         hasValue_indices = list(
             numpy.nonzero(
                 numpy.array(cFrameEsecsList, dtype="float64") != missing_value
             )[0]
         )
+        logger.debug("len(cFrameEsecsList) = %d" % len(cFrameEsecsList))
+        logger.debug("len(hasValue_indices) = %d" % len(hasValue_indices))
         logger.debug(
-            "constructTimestampList(): len(cFrameEsecsList) = %d" % len(cFrameEsecsList)
-        )
-        logger.debug(
-            "constructTimestampList(): len(hasValue_indices) = %d"
-            % len(hasValue_indices)
-        )
-        logger.debug(
-            "constructTimestampList(): hasValue_indices[:2] = %s, ..., hasValue_indices[-2:] = %s"
+            "hasValue_indices[:2] = %s, ..., hasValue_indices[-2:] = %s"
             % (hasValue_indices[:2], hasValue_indices[-2:])
         )
 
@@ -1487,7 +1440,7 @@ def constructTimestampList(
             )
         else:
             logger.debug(
-                "constructTimestampList(): cFrameEsecsListInterpolated[:2] = %s, ..., cFrameEsecsListInterpolated[-2:] = %s"
+                "cFrameEsecsListInterpolated[:2] = %s, ..., cFrameEsecsListInterpolated[-2:] = %s"
                 % (cFrameEsecsListInterpolated[:2], cFrameEsecsListInterpolated[-2:])
             )
             cFrameEsecsList = cFrameEsecsListInterpolated
@@ -1515,12 +1468,12 @@ def interpolate(darray, i, npts, goodValueFcn, spikeValue):
 
     """
 
-    logger.debug("interpolate(): Replacing value %d at index %d" % (darray[i], i))
+    logger.debug("iReplacing value %d at index %d" % (darray[i], i))
 
     # locate start point for interpolation
     for si in range(i - 1, i - npts, -1):
         logger.debug(
-            "interpolate(): Looking up npts = %d to index %d for starting goodValue at index = %d, value = %d"
+            "Looking up npts = %d to index %d for starting goodValue at index = %d, value = %d"
             % (npts, i - npts, si, darray[si])
         )
         s_indx = si
@@ -1530,7 +1483,7 @@ def interpolate(darray, i, npts, goodValueFcn, spikeValue):
     # locate end point for interpolation
     for ei in range(i, i + npts):
         logger.debug(
-            "interpolate(): Looking down npts = %d to index %d for ending goodValue at index = %d, value = %d"
+            "Looking down npts = %d to index %d for ending goodValue at index = %d, value = %d"
             % (npts, i + npts, ei, darray[ei])
         )
         e_indx = ei
@@ -1538,14 +1491,14 @@ def interpolate(darray, i, npts, goodValueFcn, spikeValue):
             break
 
     logger.debug(
-        "interpolate(): Replacing value with interpolation over values %d and %d at indices %d and %d"
+        "Replacing value with interpolation over values %d and %d at indices %d and %d"
         % (darray[s_indx], darray[e_indx], s_indx, e_indx)
     )
     value = (
         int((i - s_indx) * (darray[e_indx] - darray[s_indx]) / (e_indx - s_indx))
         + darray[s_indx]
     )
-    logger.debug("interpolate(): interpolated value = %d" % value)
+    logger.debug("interpolated value = %d" % value)
 
     return value  # End interpolate()
 
@@ -1562,18 +1515,17 @@ def deSpike(sc_array, crit):
     sampleCountList = sc_array.copy()
     d_sampleCountList = numpy.diff(sampleCountList)
     spike_crit = 300  # equivalent to 2.5 minutes
-    logger.info("deSpike(): d_sampleCountList = %s" % d_sampleCountList)
+    logger.info("d_sampleCountList = %s" % d_sampleCountList)
     spike_indx = numpy.nonzero(abs(d_sampleCountList) > spike_crit)[0] + 1
     logger.info(
-        "\ndeSpike(): Found %d spike indicators at indices: %s"
-        % (len(spike_indx), spike_indx)
+        "\nFound %d spike indicators at indices: %s" % (len(spike_indx), spike_indx)
     )
     i = 0
     lastIndx = 0
     endOfMultipleSpikeIndx = 0
     for indx in spike_indx:
         logger.info(
-            "deSpike(): Identifying nature of spike value = %d at index = %d"
+            "Identifying nature of spike value = %d at index = %d"
             % (sampleCountList[indx], indx)
         )
 
@@ -1589,37 +1541,32 @@ def deSpike(sc_array, crit):
 
         # Check if single point spike (next index is in the list)
         if indx + 1 in spike_indx:
-            logger.info("deSpike(): Single point spike, interpolating over this point")
+            logger.info("Single point spike, interpolating over this point")
 
             # Test for interpolation
             def notSpikeValue(value, spikeValue):
                 return value != spikeValue
 
             logger.info(
-                "deSpike(): minIndx = %d, indx = %d, maxIndx = %d"
-                % (minIndx, indx, maxIndx)
+                "minIndx = %d, indx = %d, maxIndx = %d" % (minIndx, indx, maxIndx)
             )
 
-            logger.info(
-                "deSpike(): Before interpolation: %s" % sampleCountList[minIndx:maxIndx]
-            )
+            logger.info("Before interpolation: %s" % sampleCountList[minIndx:maxIndx])
             sampleCountList[indx] = interpolate(
                 sampleCountList, indx, 5, notSpikeValue, sampleCountList[indx]
             )
-            logger.info(
-                "deSpike(): After  interpolation: %s" % sampleCountList[minIndx:maxIndx]
-            )
+            logger.info("After  interpolation: %s" % sampleCountList[minIndx:maxIndx])
 
         elif indx == lastIndx + 1:
-            logger.debug("deSpike(): Second part of single point spike, skipping.")
+            logger.debug("Second part of single point spike, skipping.")
 
         elif indx == endOfMultipleSpikeIndx:
-            logger.debug("deSpike(): Second part of multiple point spike, skipping.")
+            logger.debug("Second part of multiple point spike, skipping.")
 
         else:
             if i + 1 < len(spike_indx):
                 logger.info(
-                    "\ndeSpike(): Multiple point spike over indices [%d:%d], interpolating over these points"
+                    "\nMultiple point spike over indices [%d:%d], interpolating over these points"
                     % (indx, spike_indx[i + 1])
                 )
 
@@ -1627,13 +1574,13 @@ def deSpike(sc_array, crit):
                 if sampleCountList[indx] > sampleCountList[indx - 1]:
                     spikeValue = numpy.min(sampleCountList[indx : spike_indx[i + 1]])
                     logger.debug(
-                        "deSpike(): Spike values are greater than the true values, good values are less than %d"
+                        "Spike values are greater than the true values, good values are less than %d"
                         % spikeValue
                     )
 
                     def notSpikeValues(value, spikeValue):
                         logger.debug(
-                            "deSpike(): notSpikeValues(): Testing if value = %d is less than %d"
+                            "Testing if value = %d is less than %d"
                             % (value, spikeValue)
                         )
                         return value < spikeValue
@@ -1641,36 +1588,36 @@ def deSpike(sc_array, crit):
                 else:
                     spikeValue = numpy.max(sampleCountList[indx : spike_indx[i + 1]])
                     logger.debug(
-                        "deSpike(): Spike values are less than the true values, good values are greater than %d"
+                        "Spike values are less than the true values, good values are greater than %d"
                         % spikeValue
                     )
 
                     def notSpikeValues(value, spikeValue):
                         logger.debug(
-                            "deSpike(): notSpikeValues(): Testing if value = %d is greater than %d"
+                            "Testing if value = %d is greater than %d"
                             % (value, spikeValue)
                         )
                         return value > spikeValue
 
                 logger.info(
-                    "deSpike(): Before interpolation: %s"
+                    "Before interpolation: %s"
                     % sampleCountList[minIndx : spike_indx[i + 1] + 3]
                 )
                 for ix in range(indx, spike_indx[i + 1]):
                     lookingRange = spike_indx[i + 1] - indx + 2
                     logger.debug(
-                        "deSpike(): Calling interpolate with ix = %d, lookingRange = %d"
+                        "Calling interpolate with ix = %d, lookingRange = %d"
                         % (ix, lookingRange)
                     )
                     if (
                         lookingRange > 20
                     ):  # Not sure why I have this here, make it just a WARN.  -MPM 23 June 2011
                         logger.warn(
-                            "deSpike(): lookingRange = %d is too big, returning for you to examine..."
+                            "lookingRange = %d is too big, returning for you to examine..."
                             % lookingRange
                         )
                         input("Paused")
-                        ##logger.error("deSpike(): lookingRange = %d is too big, returning for you to examine..." % lookingRange)
+                        ##logger.error("lookingRange = %d is too big, returning for you to examine..." % lookingRange)
                         return sampleCountList
 
                     sampleCountList[ix] = interpolate(
@@ -1678,14 +1625,14 @@ def deSpike(sc_array, crit):
                     )
 
                 logger.info(
-                    "deSpike(): After  interpolation: %s"
+                    "After  interpolation: %s"
                     % sampleCountList[minIndx : spike_indx[i + 1] + 3]
                 )
                 endOfMultipleSpikeIndx = spike_indx[i + 1]
 
             else:
                 logger.info(
-                    "\ndeSpike(): This is the last element in spike_indx.  No need to deSpike()."
+                    "\nThis is the last element in spike_indx.  No need to deSpike()."
                 )
 
         lastIndx = indx
@@ -1709,31 +1656,21 @@ def correctSampleCountList(orig_sc):
         0
     ]  # Pull off 0 index of tuple of array
     overflow_indx += 1  # Start slices one index more
-    logger.info(
-        "correctSampleCountList(): Found overflows at indices: %s" % overflow_indx
-    )
-    logger.debug(
-        "correctSampleCountList(): len(sampleCountList) = %d" % len(sampleCountList)
-    )
+    logger.info("Found overflows at indices: %s" % overflow_indx)
+    logger.debug("len(sampleCountList) = %d" % len(sampleCountList))
     i = 0
     for indx in overflow_indx:
         i += 1
         logger.info(
-            "correctSampleCountList(): Assigning values from slice starting at index %d, i = %d"
-            % (indx, i)
+            "Assigning values from slice starting at index %d, i = %d" % (indx, i)
         )
         sampleCountList[indx:] = numpy.array(orig_sc[indx:]).copy() + (i * 65537)
 
     # Find and interpolate over 0 values
     npts = 5  # Number of points to look back & forward for non-zero values
     zero_indx = numpy.nonzero(sampleCountList == 0)[0]
-    logger.info(
-        "correctSampleCountList(): Original sampleCountList =  %s" % (sampleCountList)
-    )
-    logger.info(
-        "correctSampleCountList(): Found %d 0 values at indices: %s"
-        % (len(zero_indx), zero_indx)
-    )
+    logger.info("Original sampleCountList =  %s" % (sampleCountList))
+    logger.info("Found %d 0 values at indices: %s" % (len(zero_indx), zero_indx))
 
     # Test function for interpolate to find good value to use in interpolation
     def nonZeroValue(value, badValue):
@@ -1751,26 +1688,17 @@ def correctSampleCountList(orig_sc):
             maxIndx = len(sampleCountList) - 1
 
         logger.debug(
-            "correctSampleCountList(): Interpolating over value = %d at index = %d"
+            "Interpolating over value = %d at index = %d"
             % (sampleCountList[indx], indx)
         )
-        logger.debug(
-            "correctSampleCountList(): Before interpolation: %s"
-            % sampleCountList[minIndx:maxIndx]
-        )
+        logger.debug("Before interpolation: %s" % sampleCountList[minIndx:maxIndx])
         sampleCountList[indx] = interpolate(sampleCountList, indx, 5, nonZeroValue, 0)
-        logger.debug(
-            "correctSampleCountList(): After  interpolation: %s"
-            % sampleCountList[minIndx:maxIndx]
-        )
+        logger.debug("After  interpolation: %s" % sampleCountList[minIndx:maxIndx])
 
     # Find stuck values and assign to one more than the previous value
     d_sampleCountList = numpy.diff(sampleCountList)
     stuck_indx = numpy.nonzero(d_sampleCountList == 0)[0] + 1
-    logger.info(
-        "correctSampleCountList(): Found %d stuck values at indices: %s"
-        % (len(stuck_indx), stuck_indx)
-    )
+    logger.info("Found %d stuck values at indices: %s" % (len(stuck_indx), stuck_indx))
     for indx in stuck_indx:
         # Assign look back and look ahead indices, making sure we don't IndexError
         if indx > 2:
@@ -1783,26 +1711,20 @@ def correctSampleCountList(orig_sc):
             maxIndx = len(sampleCountList) - 1
 
         logger.debug(
-            "correctSampleCountList(): Replacing stuck value = %d at index = %d"
-            % (sampleCountList[indx], indx)
+            "Replacing stuck value = %d at index = %d" % (sampleCountList[indx], indx)
         )
         logger.debug(
-            "correctSampleCountList(): Before incrementing stuck value: %s"
-            % sampleCountList[minIndx:maxIndx]
+            "Before incrementing stuck value: %s" % sampleCountList[minIndx:maxIndx]
         )
         sampleCountList[indx] = sampleCountList[indx - 1] + 1
         logger.debug(
-            "correctSampleCountList(): After  incrementing stuck value: %s"
-            % sampleCountList[minIndx:maxIndx]
+            "After  incrementing stuck value: %s" % sampleCountList[minIndx:maxIndx]
         )
 
     # Find and interpolate over spikes using crit=300 (appropriate for 2009.084.02)
     sampleCountList = deSpike(sampleCountList, 300)
 
-    logger.info(
-        "correctSampleCountList(): After despike()  sampleCountList =  %s"
-        % (sampleCountList)
-    )
+    logger.info("After despike()  sampleCountList =  %s" % (sampleCountList))
     return sampleCountList  # End correctSampleCountList()
 
 
@@ -1825,19 +1747,17 @@ def testCSCL(
 
     logging.getLogger("logger").setLevel(logging.DEBUG)
 
-    logger.info("testCSCL(): Opening URL: %s" % lopcNC)
+    logger.info("Opening URL: %s" % lopcNC)
     ds = Dataset(lopcNC, "w")
 
-    logger.info("testCSCL(): Extracting sampleCount[:] from the NetCDF4 proxy.")
+    logger.info("Extracting sampleCount[:] from the NetCDF4 proxy.")
     scList = ds["sampleCount"].sampleCount[:]
 
-    logger.info("testCSCL(): Calling correctSampleCountList()")
+    logger.info("Calling correctSampleCountList()")
     correctedSC = correctSampleCountList(scList)
 
-    logger.info("testCSCL(): Returning scList and correctedSC")
-    logger.info(
-        "testCSCL(): From ipython you may plot with\nplot(scList)\nplot(correctedSC)\n"
-    )
+    logger.info("Returning scList and correctedSC")
+    logger.info("From ipython you may plot with\nplot(scList)\nplot(correctedSC)\n")
 
     return scList, correctedSC  # End testCSCL()
 
@@ -1845,7 +1765,7 @@ def testCSCL(
 def testFlowSpeed():
     """Test using values provided in Herman 2009"""
     logger.info(
-        "testFlowSpeed(): flowSpeed = %f for flowCount = %d and flowTime = %d"
+        "flowSpeed = %f for flowCount = %d and flowTime = %d"
         % (flowSpeed(1026, 143), 143, 1026)
     )
 
@@ -1859,7 +1779,7 @@ def openNetCDFFile(opts):
     """
 
     ncFileName = opts.netCDF_fileName
-    logger.info("openNetCDFFile(): Will output NetCDF file to %s" % ncFileName)
+    logger.info("Will output NetCDF file to %s" % ncFileName)
 
     # Improve long names of MEP counts based on passed in arguements
     MEPDataDictLongName[
@@ -1882,10 +1802,10 @@ def openNetCDFFile(opts):
         missionName = ncFileName.split("/")[-2]
     except IndexError:
         logger.warn(
-            "openNetCDFFile(): Could not parse missionName from netCDF file name - probably not production processing."
+            "Could not parse missionName from netCDF file name - probably not production processing."
         )
 
-    logger.info("openNetCDFFile(): missionName = %s" % missionName)
+    logger.info("missionName = %s" % missionName)
 
     ncFile.title = (
         "Laser Optical Plankton Counter measurements from AUV mission " + missionName
@@ -1902,7 +1822,7 @@ def openNetCDFFile(opts):
     # Create bin size dimension for the counts variable
     ncFile.create_dimension("bin", len(dataStructure["binSizeList"]))
     logger.info(
-        "openNetCDFFile(): Writing bin axis for len(dataStructure['binSizeList']) = %d"
+        "Writing bin axis for len(dataStructure['binSizeList']) = %d"
         % len(dataStructure["binSizeList"])
     )
     ncFile.create_variable("bin", "f", ("bin",))
@@ -1913,34 +1833,32 @@ def openNetCDFFile(opts):
     # --- Create the record variables ---
     for key in MEPDataDictKeys:
         if key.endswith("List"):
-            logger.info(
-                "openNetCDFFile(): Creating variable %s on axes time and bin" % key
-            )
+            logger.info("Creating variable %s on axes time and bin" % key)
             ncFile.create_variable(key, "i", ("time", "bin"))
         else:
-            logger.info("openNetCDFFile(): Creating variable %s on axes time" % key)
+            logger.info("Creating variable %s on axes time" % key)
             ncFile.create_variable(key, "f", ("time",))
 
         ncFile.variables[key].units = MEPDataDictUnits[key]
         ncFile.variables[key].long_name = MEPDataDictLongName[key]
 
-    logger.info("openNetCDFFile(): Creating variable countSum on axis time")
+    logger.info("Creating variable countSum on axis time")
     ncFile.create_variable("countSum", "i", ("time",))
     ncFile.variables["countSum"].units = "count"
 
     # Create scalar list item variable
     logger.info(
-        "openNetCDFFile(): Creating variables from engineering data collected in LframeScalarDict:"
+        "Creating variables from engineering data collected in LframeScalarDict:"
     )
     for var in LframeScalarKeys:
-        logger.info("openNetCDFFile(): Creating variable %s on axis time" % var)
+        logger.info("Creating variable %s on axis time" % var)
         if var == "snapshot" or var == "bufferStatus":
             ncFile.create_variable(var, "b", ("time",))
         else:
             ncFile.create_variable(var, "i", ("time",))
 
         if debugLevel >= 2:
-            logger.debug("openNetCDFFile():   units = %s " % LframeScalarDictUnits[var])
+            logger.debug("  units = %s " % LframeScalarDictUnits[var])
         if LframeScalarDictUnits[var] == None:
             ncFile.variables[
                 var
@@ -1949,25 +1867,23 @@ def openNetCDFFile(opts):
             ncFile.variables[var].units = LframeScalarDictUnits[var]
 
         if debugLevel >= 2:
-            logger.debug(
-                "openNetCDFFile():   long_name = %s " % LframeScalarDictLongName[var]
-            )
+            logger.debug("  long_name = %s " % LframeScalarDictLongName[var])
         if LframeScalarDictLongName[var] != None:
             ncFile.variables[var].long_name = LframeScalarDictLongName[var]
 
     # Create other (mainly Error count) variables from the dataStructure
     logger.info(
-        "openNetCDFFile(): Creating variables from processing information collected in the dataStructure dictionary:"
+        "Creating variables from processing information collected in the dataStructure dictionary:"
     )
     for var in list(dataStructure.keys()):
-        logger.info("openNetCDFFile(): Checking var = %s" % var)
+        logger.info("Checking var = %s" % var)
         if var.startswith("count"):
-            logger.info("openNetCDFFile(): Creating variable %s on axis time" % var)
+            logger.info("Creating variable %s on axis time" % var)
             ncFile.create_variable(var, "i", ("time",))
             ncFile.variables[var].units = "count"
             ncFile.variables[var].long_name = dataStructureLongName[var]
         if var.startswith("flowSpeed"):
-            logger.info("openNetCDFFile(): Creating variable %s on axis time" % var)
+            logger.info("Creating variable %s on axis time" % var)
             ncFile.create_variable(var, "f", ("time",))
             ncFile.variables[var].units = "m/s"
             ncFile.variables[var]._FillValue = missing_value
@@ -2002,24 +1918,21 @@ def writeNetCDFRecord(ncFile, MEPDataDict, LframeScalarDict, outRecNumFunc):
     indx = outRecNumFunc()
 
     if debugLevel >= 1:
-        logger.debug(
-            "writeNetCDFRecord(): Appending variables to time axis at index # %d:"
-            % indx
-        )
-    ##if debugLevel >= 1: logger.debug("writeNetCDFRecord(): appending countList variable for len(countList) = %d , len(dataStructure['binSizeList']) = %d" % (len(countList),  len(dataStructure['binSizeList'])))
-    ##if debugLevel >= 2: logger.debug("writeNetCDFRecord(): countList = %s" % countList)
+        logger.debug("Appending variables to time axis at index # %d:" % indx)
+    ##if debugLevel >= 1: logger.debug("appending countList variable for len(countList) = %d , len(dataStructure['binSizeList']) = %d" % (len(countList),  len(dataStructure['binSizeList'])))
+    ##if debugLevel >= 2: logger.debug("countList = %s" % countList)
 
     # Make sure that the countList is the right length
     ##lenInitialbinSizeList = 128   # Hard coded for now, but if this should change we need to assign this variable when counts is created in openNetCDFFile()
     lenInitialbinSizeList = 994
     if len(MEPDataDict["countList"]) != lenInitialbinSizeList:
         logger.warn(
-            "writeNetCDFRecord(): len(countList) of %d != %d"
+            "len(countList) of %d != %d"
             % (len(MEPDataDict["countList"]), lenInitialbinSizeList)
         )
         if debugLevel >= 1:
             logger.warn(
-                "writeNetCDFRecord(): appending the last good record counts as I doubt we can trust the values that were parsed in this incomplete record."
+                "appending the last good record counts as I doubt we can trust the values that were parsed in this incomplete record."
             )
         ##countList = [0] * lenInitialbinSizeList   # A list of zero counts
 
@@ -2037,38 +1950,31 @@ def writeNetCDFRecord(ncFile, MEPDataDict, LframeScalarDict, outRecNumFunc):
     # Write the countSum - making it easier for the user of the data
     countSum = numpy.sum(MEPDataDict["countList"])
     if debugLevel >= 2:
-        logger.debug("writeNetCDFRecord(): appending countSum = %d" % countSum)
+        logger.debug("appending countSum = %d" % countSum)
     ncFile.variables["countSum"][indx] = countSum
 
     # Write scalar list items
     for var in LframeScalarKeys:
         if debugLevel >= 2:
-            logger.debug(
-                "writeNetCDFRecord(): appending %s = %d" % (var, LframeScalarDict[var])
-            )
+            logger.debug("appending %s = %d" % (var, LframeScalarDict[var]))
         ncFile.variables[var][indx] = LframeScalarDict[var]
 
     # Write accumulated error counts
     for var in list(dataStructure.keys()):
         if var.startswith("count"):
             if debugLevel >= 2:
-                logger.debug(
-                    "writeNetCDFRecord(): appending %s = %d" % (var, dataStructure[var])
-                )
+                logger.debug("appending %s = %d" % (var, dataStructure[var]))
             ncFile.variables[var][indx] = dataStructure[var]
         if var.startswith("flow"):
             if debugLevel >= 2:
-                logger.debug(
-                    "writeNetCDFRecord(): appending %s = %d" % (var, dataStructure[var])
-                )
+                logger.debug("appending %s = %d" % (var, dataStructure[var]))
             ncFile.variables[var][indx] = dataStructure[var]
 
     # Write mvc epoch seconds if we have it
     if "cFrameEsecs" in list(dataStructure.keys()):
         if debugLevel >= 2:
             logger.debug(
-                "writeNetCDFRecord(): appending %s = %f"
-                % ("cFrameEsecs", dataStructure["cFrameEsecs"])
+                "appending %s = %f" % ("cFrameEsecs", dataStructure["cFrameEsecs"])
             )
         ncFile.variables["cFrameEsecs"][indx] = dataStructure["cFrameEsecs"]
 
@@ -2091,38 +1997,32 @@ def closeNetCDFFile(ncFile, tsList, cFrameEsecsList):
     ]
 
     # Write time axis
-    logger.info(
-        "closeNetCDFFile(): Writing time axis for len(tsList) = " + str(len(tsList))
-    )
+    logger.info("Writing time axis for len(tsList) = " + str(len(tsList)))
     if debugLevel >= 2:
-        logger.info("closeNetCDFFile(): tsList = %s" % tsList)
+        logger.info("tsList = %s" % tsList)
+    logger.info("tsList[:1] = %s, ..., tsList[-2:] = %s" % (tsList[:1], tsList[-2:]))
     logger.info(
-        "closeNetCDFFile(): tsList[:1] = %s, ..., tsList[-2:] = %s"
-        % (tsList[:1], tsList[-2:])
-    )
-    logger.info(
-        "closeNetCDFFile(): Begin time = %s"
+        "Begin time = %s"
         % (time.strftime("%Y-%m-%d %H:%M:%S Z", time.gmtime(tsList[0])))
     )
     logger.info(
-        "closeNetCDFFile(): End time   = %s"
+        "End time   = %s"
         % (time.strftime("%Y-%m-%d %H:%M:%S Z", time.gmtime(tsList[-1])))
     )
 
     logger.info(
-        "closeNetCDFFile(): Writing time axis for len(cFrameEsecsList) = "
-        + str(len(cFrameEsecsList))
+        "Writing time axis for len(cFrameEsecsList) = " + str(len(cFrameEsecsList))
     )
     logger.info(
-        "closeNetCDFFile(): cFrameEsecsList[:1] = %s, ..., cFrameEsecsList[-2:] = %s"
+        "cFrameEsecsList[:1] = %s, ..., cFrameEsecsList[-2:] = %s"
         % (cFrameEsecsList[:1], cFrameEsecsList[-2:])
     )
     logger.info(
-        "closeNetCDFFile(): Begin time = %s"
+        "Begin time = %s"
         % (time.strftime("%Y-%m-%d %H:%M:%S Z", time.gmtime(cFrameEsecsList[0])))
     )
     logger.info(
-        "closeNetCDFFile(): End time   = %s"
+        "End time   = %s"
         % (time.strftime("%Y-%m-%d %H:%M:%S Z", time.gmtime(cFrameEsecsList[-1])))
     )
 
@@ -2304,7 +2204,7 @@ Examples:
 
             textFile = open(opts.text_fileName, "w")
 
-        logger.info("main(): Processing begun: %s" % time.ctime())
+        logger.info("Processing begun: %s" % time.ctime())
         # Open input file
         binFile = open(opts.bin_fileName, "rb")
 
@@ -2320,7 +2220,7 @@ Examples:
         tsList = constructTimestampList(binFile)
         dataStructure["tsList"] = tsList
         logger.info(
-            "main(): Examined sibling parosci.nc file to find startTime = %s and endTime = %s with %d records expected to be read from lopc.bin"
+            "Examined sibling parosci.nc file to find startTime = %s and endTime = %s with %d records expected to be read from lopc.bin"
             % (
                 time.strftime("%Y-%m-%d %H:%M:%S Z", time.gmtime(tsList[0])),
                 time.strftime("%Y-%m-%d %H:%M:%S Z", time.gmtime(tsList[-1])),
@@ -2338,14 +2238,14 @@ Examples:
             # then calls writeNetCDFRecord at the binningInterval. dataStructure[] is
             # populated with lots of information by unpackLOPCbin.
         except EndOfFileException:
-            logger.info("main(): >>> Done reading file.")
+            logger.info(">>> Done reading file.")
             logger.info(
-                "main(): lFrameCount = %d, mFrameCount = %d"
+                "lFrameCount = %d, mFrameCount = %d"
                 % (dataStructure["lFrameCount"], dataStructure["mFrameCount"])
             )
             if countBeginMFrameWithoutEndOfPreviousFrame:
                 logger.info(
-                    "main(): countBeginMFrameWithoutEndOfPreviousFrame = %d, countBeginLFrameWithoutEndOfPreviousFrame = %d"
+                    "countBeginMFrameWithoutEndOfPreviousFrame = %d, countBeginLFrameWithoutEndOfPreviousFrame = %d"
                     % (
                         dataStructure["countBeginMFrameWithoutEndOfPreviousFrame"],
                         dataStructure["countBeginLFrameWithoutEndOfPreviousFrame"],
@@ -2354,7 +2254,7 @@ Examples:
 
         # Close the ASCII text file, if it exists
         if textFile != None:
-            logger.info("main(): Closing test file")
+            logger.info("Closing test file")
             textFile.close()
 
         # Make sure that tsList from the parosci.nc file and the dataStructure parsed from lopc.bin are the same lengths
@@ -2367,11 +2267,11 @@ Examples:
         # Close the netCDF file writing the proper tsList data first
         closeNetCDFFile(ncFile, tsList, cFrameEsecsList)
 
-        logger.info("main(): Created file: %s" % opts.netCDF_fileName)
+        logger.info("Created file: %s" % opts.netCDF_fileName)
 
         mark = time.time()
         logger.info(
-            "main(): Processing finished: %s Elapsed processing time from start of processing = %d seconds"
+            "Processing finished: %s Elapsed processing time from start of processing = %d seconds"
             % (time.ctime(), (mark - start))
         )
 

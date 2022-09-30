@@ -31,7 +31,9 @@ import numpy
 # Global logger object, name it MEP to avoid clashes with calling module logger output
 #
 h = logging.StreamHandler()
-f = logging.Formatter("%(levelname)s %(asctime)s %(lineno)d %(message)s")
+f = logging.Formatter(
+    "%(levelname)s %(asctime)s %(filename)s " "%(funcName)s():%(lineno)d %(message)s"
+)
 h.setFormatter(f)
 logger = logging.getLogger("MEP")
 logger.addHandler(h)
@@ -154,22 +156,20 @@ class MepData:
 
         # Build MEP list from raw data parsed from M frames
         for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):
-            logger.debug(
-                "build(): n = %s, p = %s, e = %s, l = %s, s = %s" % (n, p, e, l, s)
-            )
+            logger.debug("n = %s, p = %s, e = %s, l = %s, s = %s" % (n, p, e, l, s))
             if n == 1:
                 # Instantiate MEP object (n == 1 indicates a new MEP detected by the instrument)
                 mep = MEP(p, e, l, s)
                 self.mepList.append(mep)
 
-                ##logger.debug("build(): Beginning new mep")
+                ##logger.debug("Beginning new mep")
             else:
                 # Not the first part of an MEP, add any partial data to the previous [-1] MEP
                 try:
                     self.mepList[-1].addPartial(p, e, l, s)
                 except IndexError:
                     # No MEPs in list yet, append the previous MEP passed in then add partial
-                    ##logger.debug("build(): previousMEP = " + str(previousMEP))
+                    ##logger.debug("previousMEP = " + str(previousMEP))
                     if previousMEP == None:
                         return
 
@@ -180,7 +180,7 @@ class MepData:
         ##try:
         ##	self.mepList.append(mep)
         ##except NameError:
-        ##logger.error("build(): No mep assembled at end of loop.")
+        ##logger.error("No mep assembled at end of loop.")
         ##	pass
 
         # For each MEP calculate its specific attributes
@@ -192,7 +192,7 @@ class MepData:
             mep.build()
             aiList.append(mep.ai)
             esdList.append(mep.esd)
-            ##logger.debug("build(): built mep # %d = \n%s" % (i, mep))
+            ##logger.debug("built mep # %d = \n%s" % (i, mep))
 
         # Compute statistics for this set of MEPs
         self.aiArray = numpy.array(aiList, dtype="float32")
@@ -213,12 +213,10 @@ class MepData:
         for mep in self.mepList:
             """Find the index of the closest bin to the mep's esd and increment the count"""
 
-            logger.debug("count(): Finding index for mep.esd = %f" % (mep.esd))
+            logger.debug("Finding index for mep.esd = %f" % (mep.esd))
             diffBin = abs(binSizeList - mep.esd)
             indx = numpy.nonzero(diffBin == diffBin.min())[0][0]
-            logger.debug(
-                "count(): increment index = %d for mep.esd = %f" % (indx, mep.esd)
-            )
+            logger.debug("increment index = %d for mep.esd = %f" % (indx, mep.esd))
             countList[indx] += 1
 
         return countList
@@ -235,11 +233,11 @@ class MepData:
 
         lcCount = 0
         logger.debug(
-            "countLC(): aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f"
+            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f"
             % (aiCrit, esdLowCrit, esdHiCrit)
         )
         for mep in self.mepList:
-            logger.debug("countLC(): mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
+            logger.debug("mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
             if mep.ai > aiCrit and mep.esd > esdLowCrit and mep.esd < esdHiCrit:
                 lcCount += 1
 
@@ -253,9 +251,9 @@ class MepData:
 
         transCount = 0
         nonTransCount = 0
-        logger.debug("countLC(): aiCrit = %f" % aiCrit)
+        logger.debug("aiCrit = %f" % aiCrit)
         for mep in self.mepList:
-            logger.debug("countTrans(): mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
+            logger.debug("mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
             if mep.ai > aiCrit:
                 nonTransCount += 1
             else:
