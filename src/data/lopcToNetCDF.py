@@ -26,24 +26,27 @@ for now we just need to produce netCDF files from the .bin files.
 @license: GPL
 """
 
-import sys
-import struct
-import logging
-from optparse import OptionParser
-import os
 import datetime
-import urllib.request, urllib.parse, urllib.error
-import zipfile
-import numpy
+import logging
+import math
+import os
+import re
+import string
+import struct
+import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import zipfile
+from optparse import OptionParser
+
 import Nio
+import numpy
 import pydap.client
 import pydap.exceptions
-import lopcMEP
-import math
-import string
-import re
 
+import lopcMEP
 
 #
 # Make a global logging object.

@@ -23,11 +23,12 @@ snow estimates.
 @license: GPL
 """
 
+import datetime
 import logging
 import os
-import datetime
-import numpy
+
 import Nio
+import numpy
 
 #
 # Global logger object, name it MEP to avoid clashes with calling module logger output
