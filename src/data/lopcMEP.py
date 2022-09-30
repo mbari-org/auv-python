@@ -85,7 +85,7 @@ class MEP:
 				eDict[e] = 0
 
 		eSum = 0
-		for k in eDict.keys():
+		for k in list(eDict.keys()):
 			eSum += 1
 
 		self.od = eSum
@@ -349,7 +349,7 @@ if __name__ == '__main__':
 	logger.info("Input sample (really fake) MEP data = \n%s" % (mepDataFake))
 
 	# Run the count() method
-	counts = mepDataFake.count(numpy.array(range(108,15015,15),dtype='float32'))
+	counts = mepDataFake.count(numpy.array(list(range(108,15015,15)),dtype='float32'))
 	logger.info("counts = %s" % counts)
 	logger.info("len(mepDataFake.mepList)  = %d" % len(mepDataFake.mepList))
 	LCcount = mepDataFake.countLC()
@@ -387,7 +387,7 @@ if __name__ == '__main__':
 	logger.info("\n\nInput sample from Herman June 2009 MEP data = \n%s" % (mepData))
 
 	# Run the count() method
-	counts = mepData.count(numpy.array(range(108,15015,15),dtype='float32'))
+	counts = mepData.count(numpy.array(list(range(108,15015,15)),dtype='float32'))
 	logger.info("counts = %s" % counts)
 	logger.info("len(mepData.mepList)  = %d" % len(mepData.mepList))
 

@@ -32,7 +32,7 @@ import logging
 from optparse import OptionParser
 import os
 import datetime
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import zipfile
 import numpy
 import time
@@ -540,7 +540,7 @@ def unpackLOPCbin(binFile, opts, textFile = None):
     dataStructure['mFrameCount'] = 0
 
     # Array for the size class dimension [108 microns to 1.5 cm] - for both SEP and MEP data
-    dataStructure['binSizeList'] = numpy.array(range(108,15015,15),dtype='float32')
+    dataStructure['binSizeList'] = numpy.array(list(range(108,15015,15)),dtype='float32')
 
     # Instantiate MepData object to collect and compute MEP parameters
     mepData = lopcMEP.MepData()
@@ -565,7 +565,7 @@ def unpackLOPCbin(binFile, opts, textFile = None):
     sampleCountWrittenList = [] # For keeping track of which frames (telling us the time) were written to the NetCDF file - to better calculate time...
     cFrameEsecsList = []        # For recording 'ground-truth' time from the MVC 
 
-    outRecNumFunc = record_count().next # Generator of indices for netCDF output
+    outRecNumFunc = record_count().__next__ # Generator of indices for netCDF output
 
     # write header for ASCII text file, if specified
     if textFile != None:
@@ -947,7 +947,7 @@ def constructTimestampList(binFile, recCount = None, sampleCountList = None, cFr
         # Used at the beginning of processing to estimate time to completion - DO NOT USE THE RESULTS OF THIS IN THE NETCDF FILE!
         deltaT = float(sensor_off_time - sensor_on_time) / float(recCount - 1)
         if debugLevel >= 1: logger.debug("constructTimestampList(): deltaT = %f [Should be 0.5 seconds]" % (deltaT) )
-        for i in xrange(recCount):
+        for i in range(recCount):
             timestamp = sensor_on_time + i * deltaT
             timestampList.append(timestamp) 
 
@@ -1106,7 +1106,7 @@ def deSpike(sc_array, crit):
                     logger.debug("deSpike(): Calling interpolate with ix = %d, lookingRange = %d" % (ix, lookingRange))
                     if lookingRange > 20:       # Not sure why I have this here, make it just a WARN.  -MPM 23 June 2011
                         logger.warn("deSpike(): lookingRange = %d is too big, returning for you to examine..." % lookingRange)
-                        raw_input('Paused')
+                        input('Paused')
                         ##logger.error("deSpike(): lookingRange = %d is too big, returning for you to examine..." % lookingRange)
                         return sampleCountList
 
@@ -1331,7 +1331,7 @@ def openNetCDFFile(opts):
 
     # Create other (mainly Error count) variables from the dataStructure 
     logger.info("openNetCDFFile(): Creating variables from processing information collected in the dataStructure dictionary:")
-    for var in dataStructure.keys():
+    for var in list(dataStructure.keys()):
         logger.info("openNetCDFFile(): Checking var = %s" % var)
         if var.startswith('count'):
             logger.info("openNetCDFFile(): Creating variable %s on axis time" % var)
@@ -1388,7 +1388,7 @@ def writeNetCDFRecord(ncFile, MEPDataDict, LframeScalarDict, outRecNumFunc):
         ##countList = [0] * lenInitialbinSizeList   # A list of zero counts
         
     # Go through all the MEP data items, those that end in 'List' are 2D and were properly dimensioned in openNetCDFFile()
-    for key in MEPDataDict.keys():
+    for key in list(MEPDataDict.keys()):
         ncFile.variables[key][indx] = MEPDataDict[key]
 
     ##ncFile.variables['SEPcounts'][indx] = sepCountList
@@ -1409,7 +1409,7 @@ def writeNetCDFRecord(ncFile, MEPDataDict, LframeScalarDict, outRecNumFunc):
         ncFile.variables[var][indx] = LframeScalarDict[var]
 
     # Write accumulated error counts
-    for var in dataStructure.keys():
+    for var in list(dataStructure.keys()):
         if var.startswith('count'):
             if debugLevel >= 2: logger.debug("writeNetCDFRecord(): appending %s = %d" % (var, dataStructure[var]))
             ncFile.variables[var][indx] = dataStructure[var]
@@ -1418,7 +1418,7 @@ def writeNetCDFRecord(ncFile, MEPDataDict, LframeScalarDict, outRecNumFunc):
             ncFile.variables[var][indx] = dataStructure[var]
 
     # Write mvc epoch seconds if we have it
-    if 'cFrameEsecs' in dataStructure.keys():
+    if 'cFrameEsecs' in list(dataStructure.keys()):
         if debugLevel >= 2: logger.debug("writeNetCDFRecord(): appending %s = %f" % ('cFrameEsecs', dataStructure['cFrameEsecs']))
         ncFile.variables['cFrameEsecs'][indx] = dataStructure['cFrameEsecs']
 
@@ -1556,7 +1556,7 @@ Examples:
                 if os.path.exists(opts.netCDF_fileName):
                     os.remove(opts.netCDF_fileName)
             else:
-                ans = raw_input(opts.netCDF_fileName + " file exists.\nDo you want to remove it and continue processing? (y/[N]) ")
+                ans = input(opts.netCDF_fileName + " file exists.\nDo you want to remove it and continue processing? (y/[N]) ")
                 if ans.upper() == 'Y':
                     os.remove(opts.netCDF_fileName)
                 else:
@@ -1569,7 +1569,7 @@ Examples:
                     if os.path.exists(opts.text_fileName):
                         os.remove(opts.text_fileName)
                 else:
-                    ans = raw_input(opts.text_fileName + " file exists.\nDo you want to remove it and continue processing? (y/[N]) ")
+                    ans = input(opts.text_fileName + " file exists.\nDo you want to remove it and continue processing? (y/[N]) ")
                     if ans.upper() == 'Y':
                         os.remove(opts.text_fileName)
                     else:
@@ -1628,7 +1628,7 @@ Examples:
         logger.info("main(): Processing finished: %s Elapsed processing time from start of processing = %d seconds" % (time.ctime(), (mark - start)))
 
     else:
-        print "\nCannot process input.  Execute with -h for usage note.\n"  
+        print("\nCannot process input.  Execute with -h for usage note.\n")  
 
     return # End main()
 
