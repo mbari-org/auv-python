@@ -23,9 +23,7 @@ snow estimates.
 @license: GPL
 """
 
-import datetime
 import logging
-import os
 
 import numpy
 

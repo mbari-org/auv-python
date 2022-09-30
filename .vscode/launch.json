@@ -118,5 +118,15 @@
             "args": ["-v", "1", "--mission", "2022.201.00", "--use_portal",  "--clobber", "--noinput", "-v"]
             //"args": ["-v", "1"]
         },
+        {
+            "name": "lopcToNetCDF",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/lopcToNetCDF.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "1", "-i", "data/auv_data/dorado/missionlogs/2022.201.00/lopc.bin", "-n data/auv_data/dorado/missionnetcdfs/2022.201.00/lopc.nc"]
+        },
+    ]
+}
     ]
 }

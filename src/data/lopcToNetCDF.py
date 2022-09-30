@@ -26,7 +26,6 @@ for now we just need to produce netCDF files from the .bin files.
 @license: GPL
 """
 
-import datetime
 import logging
 import math
 import os
@@ -35,10 +34,6 @@ import string
 import struct
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
-import zipfile
 from netCDF4 import Dataset
 from optparse import OptionParser
 
@@ -1279,28 +1274,32 @@ def constructTimestampList(
     global dataStructure
 
     # Get time information from ctd file associated with this mission.  Translate .bin file name to a missionlog netcdf file:
+    # Legacy locations:
     #   /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin ->
     #   /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.00/parosci.nc
-    parosciURL = "http://dods.mbari.org/cgi-bin/nph-nc/data/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/"
-    parosciURL += "/".join(binFile.name.split("/")[-5:-1]) + "/parosci.nc"
-    logger.info("constructTimestampList(): parosciURL = %s" % parosciURL)
+    parosci_nc = binFile.name.replace("lopc.bin", "parosci.nc").replace(
+        "missionlogs", "missionnetcdfs"
+    )
+    logger.info("constructTimestampList(): parosci_nc = %s" % parosci_nc)
     logger.info(
         "constructTimestampList(): Using NetCDF4 to get start and end epoch seconds for this mission from this URL:"
     )
-    logger.info("constructTimestampList(): %s" % parosciURL)
+    logger.info("constructTimestampList(): %s" % parosci_nc)
     sensor_on_time = 0  # Bogus initial starting time
     sensor_off_time = 10000  # Bogus initial ending time
     try:
-        parosci = Dataset(parosciURL)
+        parosci = Dataset(parosci_nc)
     except FileNotFoundError:
         logger.error(
             "constructTimestampList(): Could not open %s.  Cannot process until the netCDF file exists.  Exiting."
-            % parosciURL
+            % parosci_nc
         )
         sys.exit(-1)
     else:
-        sensor_on_time = parosci.time[0]
-        sensor_off_time = parosci.time[-1]
+        # sensor_on_time = parosci.time[0]
+        # sensor_off_time = parosci.time[-1]
+        sensor_on_time = parosci["time"][0]
+        sensor_off_time = parosci["time"][-1]
 
     logger.info(
         "constructTimestampList(): From associated paroscinc file: sensor_on_time = %.1f, sensor_off_time = %.1f"
