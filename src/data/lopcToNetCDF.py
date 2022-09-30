@@ -39,12 +39,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from netCDF4 import Dataset
 from optparse import OptionParser
 
-import Nio
 import numpy
-import pydap.client
-import pydap.exceptions
 
 import lopcMEP
 
@@ -1287,14 +1285,14 @@ def constructTimestampList(
     parosciURL += "/".join(binFile.name.split("/")[-5:-1]) + "/parosci.nc"
     logger.info("constructTimestampList(): parosciURL = %s" % parosciURL)
     logger.info(
-        "constructTimestampList(): Using pydap to get start and end epoch seconds for this mission from this URL:"
+        "constructTimestampList(): Using NetCDF4 to get start and end epoch seconds for this mission from this URL:"
     )
     logger.info("constructTimestampList(): %s" % parosciURL)
     sensor_on_time = 0  # Bogus initial starting time
     sensor_off_time = 10000  # Bogus initial ending time
     try:
-        parosci = pydap.client.open_url(parosciURL)
-    except pydap.exceptions.ClientError:
+        parosci = Dataset(parosciURL)
+    except FileNotFoundError:
         logger.error(
             "constructTimestampList(): Could not open %s.  Cannot process until the netCDF file exists.  Exiting."
             % parosciURL
@@ -1813,7 +1811,7 @@ def testCSCL(
     lopcNC="http://dods.mbari.org/cgi-bin/nph-nc/data/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.02/lopc.nc",
 ):
     """
-        Test the correctSampleCountList() function by reading (via pydap) a previously saved netCDF file's original sampleCount.
+        Test the correctSampleCountList() function by reading (via NetCDF4) a previously saved netCDF file's original sampleCount.
         Runs the code with debugging turned on.
 
         ipyhton test procedure:
@@ -1829,9 +1827,9 @@ def testCSCL(
     logging.getLogger("logger").setLevel(logging.DEBUG)
 
     logger.info("testCSCL(): Opening URL: %s" % lopcNC)
-    ds = pydap.client.open_url(lopcNC)
+    ds = Dataset(lopcNC, "w")
 
-    logger.info("testCSCL(): Extracting sampleCount[:] from the pydap proxy.")
+    logger.info("testCSCL(): Extracting sampleCount[:] from the NetCDF4 proxy.")
     scList = ds["sampleCount"].sampleCount[:]
 
     logger.info("testCSCL(): Calling correctSampleCountList()")
@@ -1876,20 +1874,9 @@ def openNetCDFFile(opts):
     MEPDataDictLongName["transCount"] += " with ai > %.2f" % opts.trans_AIcrit
 
     #
-    # Set the PreFill option to False to improve writing performance
-    #
-    opt = Nio.options()
-    opt.PreFill = False
-
-    #
-    # Set the history attribute
-    #
-    hatt = "Created by lopcToNetCDF.py on " + time.ctime()
-
-    #
     # Open the netCDF file and set some global attributes
     #
-    ncFile = Nio.open_file(ncFileName, "c", opt, hatt)
+    ncFile = Dataset(ncFileName, "w")
 
     missionName = ""
     try:

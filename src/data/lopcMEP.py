@@ -27,7 +27,6 @@ import datetime
 import logging
 import os
 
-import Nio
 import numpy
 
 #
