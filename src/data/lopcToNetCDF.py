@@ -232,21 +232,21 @@ def checkForDLE(file, char):
     nextChar = file.read(1)
     if debugLevel >= 3:
         logger.debug("nextChar = %s" % nextChar)
-    if nextChar == "*":
+    if nextChar == b"*":
         if debugLevel >= 5:
             logger.debug("nextChar is *; this is the end of frame")
-        frameText += nextChar
+        frameText += nextChar.decode("utf-8")
         raise EndOfFrameException
 
-    elif nextChar == "~":
-        frameText += nextChar
+    elif nextChar == b"~":
+        frameText += nextChar.decode("utf-8")
         if debugLevel >= 5:
             logger.debug(
                 "nextChar is ~; skipping the second <DLE> that is added by the instrument"
             )
 
-    elif nextChar == "M":
-        frameText += nextChar
+    elif nextChar == b"M":
+        frameText += nextChar.decode("utf-8")
         if debugLevel >= 3:
             logger.warn(
                 "Detected beginning of new M frame without a detection of the end of the previous frame."
@@ -255,14 +255,14 @@ def checkForDLE(file, char):
             logger.warn("frameText = \n" + frameText)
         raise BeginMFrameWithoutEndOfPreviousFrame
 
-    elif nextChar == "L":
-        frameText += nextChar
+    elif nextChar == b"L":
+        frameText += nextChar.decode("utf-8")
         if debugLevel >= 3:
             logger.warn(
                 "Detected beginning of new L frame without a detection of the end of the previous frame."
             )
         if debugLevel >= 3:
-            logger.warn("frameText = \n" + frameText)
+            logger.warn("frameText = \n" + frameText.decode("utf-8"))
         raise BeginLFrameWithoutEndOfPreviousFrame
 
     else:
@@ -277,7 +277,9 @@ def checkForDLE(file, char):
             logger.warn("nextChar = " + nextChar)
         countUnknownFrameCharacter += 1
         unknownFrameCharacters.append(str(ord(nextChar)))
-        ##raw_input("Encountered unexpected area of code.  Please notify Mike McCann.  Press Enter to continue...")
+        input(
+            "Encountered unexpected area of code.  Please notify Mike McCann.  Press Enter to continue..."
+        )
 
 
 def readBigEndianUShort(binFile):
@@ -292,29 +294,29 @@ def readBigEndianUShort(binFile):
 
     if debugLevel >= 5:
         logger.debug("c1 = %s" % ord(c1))
-    if c1 == "~":
-        frameText += c1
-        checkForDLE(binFile, c1)
+    if c1 == b"~":
+        frameText += c1.decode("utf-8")
+        checkForDLE(binFile, c1.decode("utf-8"))
     else:
-        frameText += str(ord(c1))
+        frameText += str(c1[0])
 
     c2 = binFile.read(1)
     if len(c2) == 0:
         raise EndOfFileException
 
     if debugLevel >= 5:
-        logger.debug("c2 = %s" % ord(c2))
-    if c2 == "~":
-        frameText += c2
-        checkForDLE(binFile, c2)
+        logger.debug("c2 = %s" % c2[0])
+    if c2 == b"~":
+        frameText += c2.decode("utf-8")
+        checkForDLE(binFile, c2.decode("utf-8"))
     else:
-        frameText += str(ord(c2))
+        frameText += str(c2[0])
 
-    value = struct.unpack("H", c2 + c1)
+    value = struct.unpack("H", c2 + c1)[0]
     if debugLevel >= 5:
         logger.debug("value = %i" % value)
 
-    return int(value[0])  # End readBigEndianUShort()
+    return int(value)  # End readBigEndianUShort()
 
 
 def readChar(binFile):
@@ -323,7 +325,7 @@ def readChar(binFile):
 
     """
     global frameText
-    c = binFile.read(1)
+    c = binFile.read(1).decode("utf-8")
     if len(c) == 0:
         raise EndOfFileException
     if debugLevel >= 5:
@@ -403,7 +405,11 @@ def readLframeData(binFile, sampleCountList):
         for var in LframeScalarKeys:
             # All but counter are 2 bytes
             if var == "counter":
-                val = ord(binFile.read(1))
+                b1 = binFile.read(1)
+                try:
+                    val = ord(b1.decode("utf-8"))
+                except UnicodeDecodeError:
+                    val = ord(b1)
                 frameText += str(val)
             else:
                 val = readBigEndianUShort(binFile)
@@ -412,7 +418,7 @@ def readLframeData(binFile, sampleCountList):
                 logger.warn("L frame scalar: %s is None (unable to parse)" % var)
             else:
                 try:
-                    # Perform QC checkes on threshold and bufferStatus, save sampleCount in List that is used for timeStamp
+                    # Perform QC checks on threshold and bufferStatus, save sampleCount in List that is used for timeStamp
                     if debugLevel >= 2:
                         logger.debug("  %s = %d" % (var, val))
                     LframeScalarDict[var] = val
@@ -429,9 +435,9 @@ def readLframeData(binFile, sampleCountList):
                         ##      raw_input("Paused at samplewCount excursion...")
                         ##except IndexError:
                         ##  pass
-                        sampleCountList.append(
-                            val
-                        )  # Appends to list that is passed in and returned in call argument list
+
+                        # Append to list that is passed in and returned in call argument list
+                        sampleCountList.append(val)
                     if var == "bufferStatus" and (val != 0 and val != 1):
                         if debugLevel >= 1:
                             logger.warn(
@@ -460,12 +466,10 @@ def readLframeData(binFile, sampleCountList):
         if debugLevel >= 2:
             logger.debug("Inside 'while not endOfFrame:' loop")
         try:
-            val = readBigEndianUShort(
-                binFile
-            )  # Reads one byte at a time checking for EndOfFrame
-
-        # Catch the EndOfFrameException and deal with it gracefully
+            # Read one byte at a time checking for EndOfFrame
+            val = readBigEndianUShort(binFile)
         except EndOfFrameException:
+            # Catch the EndOfFrameException and deal with it gracefully
             if debugLevel >= 2:
                 logger.debug("Reached the end of this L frame.")
             endOfFrame = True
@@ -742,16 +746,14 @@ def unpackLOPCbin(binFile, opts, textFile=None):
 
     sepCountArraySum = numpy.zeros(len(dataStructure["binSizeList"]), dtype="int32")
     lastMEP = None  # For properly building the MEP list (for transferring partial frames between binning intervals)
-    sampleCountList = (
-        []
-    )  # The sampleCount from the instrument - used for getting accurate timeStamp
-    lFrameCountWrittenList = (
-        []
-    )  # For keeping track of which frames (telling us the time) were written to the NetCDF file - this starts conting at 1
-    sampleCountWrittenList = (
-        []
-    )  # For keeping track of which frames (telling us the time) were written to the NetCDF file - to better calculate time...
-    cFrameEsecsList = []  # For recording 'ground-truth' time from the MVC
+    # The sampleCount from the instrument - used for getting accurate timeStamp
+    sampleCountList = []
+    # For keeping track of which frames (telling us the time) were written to the NetCDF file - this starts conting at 1
+    lFrameCountWrittenList = []
+    # For keeping track of which frames (telling us the time) were written to the NetCDF file - to better calculate time...
+    sampleCountWrittenList = []
+    # For recording 'ground-truth' time from the MVC
+    cFrameEsecsList = []
 
     outRecNumFunc = record_count().__next__  # Generator of indices for netCDF output
 
@@ -774,12 +776,13 @@ def unpackLOPCbin(binFile, opts, textFile=None):
             while True:
                 "Read characters until we reach the first <DLE> ('~'), then read another char to get the frameID"
                 char = binFile.read(1)
+                # char = struct.unpack("B", binFile.read(1))[0]
                 if debugLevel >= 3:
                     logger.debug("char = %s, len(char) = %d" % (char, len(char)))
                 if len(char) == 0:
                     raise EndOfFileException
-                if char == "~":
-                    frameID = binFile.read(1)
+                if char == b"~":
+                    frameID = binFile.read(1).decode("utf-8")
                     if debugLevel >= 2:
                         logger.debug("-" * 80)
                     if debugLevel >= 2:
@@ -794,9 +797,8 @@ def unpackLOPCbin(binFile, opts, textFile=None):
                     break  # Exit the enclosing 'while True:' loop
 
         if frameID == "L":
-            frameText = str(char) + str(
-                frameID
-            )  # Initialize global debugging text string representation of the data frame
+            # Initialize global debugging text string representation of the data frame
+            frameText = str(char) + str(frameID)
             try:
                 (countList, LframeScalarDict) = readLframeData(binFile, sampleCountList)
             except BeginLFrameWithoutEndOfPreviousFrame:
@@ -1817,15 +1819,15 @@ def openNetCDFFile(opts):
     ncFile.standard_name_vocabulary = "CF-1.1"
 
     # Time dimension is unlimited, we'll write variable records then write the time data at the end of processing
-    ncFile.create_dimension("time", None)  # Unlimited dimension
+    ncFile.createDimension("time", None)  # Unlimited dimension
 
     # Create bin size dimension for the counts variable
-    ncFile.create_dimension("bin", len(dataStructure["binSizeList"]))
+    ncFile.createDimension("bin", len(dataStructure["binSizeList"]))
     logger.info(
         "Writing bin axis for len(dataStructure['binSizeList']) = %d"
         % len(dataStructure["binSizeList"])
     )
-    ncFile.create_variable("bin", "f", ("bin",))
+    ncFile.createVariable("bin", "f", ("bin",))
     ncFile.variables["bin"].units = "microns"
     ncFile.variables["bin"].long_name = "Equivalent Spherical Diameter"
     ncFile.variables["bin"][:] = dataStructure["binSizeList"]
@@ -1834,16 +1836,16 @@ def openNetCDFFile(opts):
     for key in MEPDataDictKeys:
         if key.endswith("List"):
             logger.info("Creating variable %s on axes time and bin" % key)
-            ncFile.create_variable(key, "i", ("time", "bin"))
+            ncFile.createVariable(key, "i", ("time", "bin"))
         else:
             logger.info("Creating variable %s on axes time" % key)
-            ncFile.create_variable(key, "f", ("time",))
+            ncFile.createVariable(key, "f", ("time",))
 
         ncFile.variables[key].units = MEPDataDictUnits[key]
         ncFile.variables[key].long_name = MEPDataDictLongName[key]
 
     logger.info("Creating variable countSum on axis time")
-    ncFile.create_variable("countSum", "i", ("time",))
+    ncFile.createVariable("countSum", "i", ("time",))
     ncFile.variables["countSum"].units = "count"
 
     # Create scalar list item variable
@@ -1853,9 +1855,9 @@ def openNetCDFFile(opts):
     for var in LframeScalarKeys:
         logger.info("Creating variable %s on axis time" % var)
         if var == "snapshot" or var == "bufferStatus":
-            ncFile.create_variable(var, "b", ("time",))
+            ncFile.createVariable(var, "b", ("time",))
         else:
-            ncFile.create_variable(var, "i", ("time",))
+            ncFile.createVariable(var, "i", ("time",))
 
         if debugLevel >= 2:
             logger.debug("  units = %s " % LframeScalarDictUnits[var])
@@ -1879,23 +1881,31 @@ def openNetCDFFile(opts):
         logger.info("Checking var = %s" % var)
         if var.startswith("count"):
             logger.info("Creating variable %s on axis time" % var)
-            ncFile.create_variable(var, "i", ("time",))
+            ncFile.createVariable(var, "i", ("time",))
             ncFile.variables[var].units = "count"
             ncFile.variables[var].long_name = dataStructureLongName[var]
         if var.startswith("flowSpeed"):
             logger.info("Creating variable %s on axis time" % var)
-            ncFile.create_variable(var, "f", ("time",))
+            ncFile.createVariable(
+                var,
+                "f",
+                ("time",),
+                fill_value=missing_value,
+            )
             ncFile.variables[var].units = "m/s"
-            ncFile.variables[var]._FillValue = missing_value
             ncFile.variables[var].missing_value = missing_value
             ncFile.variables[var].long_name = dataStructureLongName[var]
 
     # Create cFrameEsecs variable for missions after March 2010 when Hans added it
     # There is a record for each L frame record, but most are fill values as Hans sends an updated Esecs every 5 seconds or so
     if hasMBARICframeData:
-        ncFile.create_variable("cFrameEsecs", "f", ("time",))
+        ncFile.createVariable(
+            "cFrameEsecs",
+            "f",
+            ("time",),
+            fill_value=missing_value,
+        )
         ncFile.variables["cFrameEsecs"].units = "seconds since 1970-01-01 00:00:00"
-        ncFile.variables["cFrameEsecs"]._FillValue = missing_value
         ncFile.variables["cFrameEsecs"].missing_value = missing_value
         ncFile.variables[
             "cFrameEsecs"
@@ -1987,7 +1997,7 @@ def closeNetCDFFile(ncFile, tsList, cFrameEsecsList):
     global dataStructure
 
     # Save corrected sample count list
-    ncFile.create_variable("correctedSampleCountList", "i", ("time",))
+    ncFile.createVariable("correctedSampleCountList", "i", ("time",))
     ncFile.variables[
         "correctedSampleCountList"
     ].long_name = "Corrected instrumenet sample count"
@@ -2027,13 +2037,13 @@ def closeNetCDFFile(ncFile, tsList, cFrameEsecsList):
     )
 
     # Write time axis that is used for all the time dependent variables
-    ncFile.create_variable("time", "d", ("time",))
+    ncFile.createVariable("time", "d", ("time",))
     ncFile.variables["time"].units = "seconds since 1970-01-01 00:00:00"
     ncFile.variables["time"].long_name = "Time GMT"
     ncFile.variables["time"][:] = tsList
 
     # Write main vehicle time variable as received via C Frame
-    ncFile.create_variable("mvctime", "f", ("time",))
+    ncFile.createVariable("mvctime", "f", ("time",))
     ncFile.variables["mvctime"].units = "seconds since 1970-01-01 00:00:00"
     ncFile.variables["mvctime"].long_name = "Main Vehicle Computer Time GMT"
     ncFile.variables["mvctime"] = cFrameEsecsList
@@ -2231,12 +2241,11 @@ Examples:
         # Unpack LOPC binary data into a data structure that we can later write to a NetCDF file (with the time information)
         # unpackLOPCbin() blocks until end of file is encountered, then we close the output NetCDF file and finish up.
         try:
-            unpackLOPCbin(
-                binFile, opts, textFile
-            )  # The major workhorse function: populates global dataStructure dictionary
+            # The major workhorse function: populates global dataStructure dictionary
             # On first L frame read this function opens the netCDF file for appending
             # then calls writeNetCDFRecord at the binningInterval. dataStructure[] is
             # populated with lots of information by unpackLOPCbin.
+            unpackLOPCbin(binFile, opts, textFile)
         except EndOfFileException:
             logger.info(">>> Done reading file.")
             logger.info(
