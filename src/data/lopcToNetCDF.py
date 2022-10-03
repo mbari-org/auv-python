@@ -2120,7 +2120,7 @@ class LOPC_Processor(object):
 
         return self.ncFile  # End closeNetCDFFile()
 
-    def main(self):
+    def process_command_line(self):
         """Main routine: Parse command line options and call unpack and write functions."""
 
         parser = OptionParser(
@@ -2231,6 +2231,7 @@ class LOPC_Processor(object):
         )
         self.opts, args = parser.parse_args()
 
+    def main(self):
         #
         # unpack data according to command line options
         #
@@ -2362,6 +2363,7 @@ class LOPC_Processor(object):
 # Allow this file to be imported as a module
 if __name__ == "__main__":
     lp = LOPC_Processor()
+    lp.process_command_line()
     try:
         if sys.argv[1].startswith("test"):
             """Run a function that begins with 'test' using the locals() dictionary of functions in this module."""

@@ -115,7 +115,8 @@
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--resample", "--noinput"]
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--archive", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2021", "--end_year", "2022",  "--noinput"]
-            "args": ["-v", "1", "--mission", "2022.201.00", "--use_portal",  "--clobber", "--noinput", "-v"]
+            //"args": ["-v", "1", "--mission", "2022.201.00", "--use_portal",  "--clobber", "--noinput", "-v"]
+            "args": ["-v", "1", "--mission", "2009.084.00",  "--clobber", "--noinput", "-v"]
             //"args": ["-v", "1"]
         },
         {
@@ -124,9 +125,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/lopcToNetCDF.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "-i", "data/auv_data/dorado/missionlogs/2022.201.00/lopc.bin", "-n data/auv_data/dorado/missionnetcdfs/2022.201.00/lopc.nc"]
+            "args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.084.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.084.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
         },
-    ]
-}
     ]
 }
