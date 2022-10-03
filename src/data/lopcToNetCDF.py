@@ -5,10 +5,7 @@ __date__ = "$Date: 2020/11/23 21:40:04 $".split()[1]
 __copyright__ = "2009"
 __license__ = "GPL v3"
 __contact__ = "mccann at mbari.org"
-__idt__ = "$Id: lopcToNetCDF.py,v 1.43 2020/11/23 21:40:04 ssdsadmin Exp $"
-
 __doc__ = """
-
 Unpack Brooke Ocean Technology Laser Optical Plankton Counter binary data from
 lopc.bin files logged on the vehicle.  These files are the BOT binary data stream
 format as described in Section 6.2 of the LOPC Software Operation Manual. They
@@ -16,16 +13,22 @@ do not follow the same format as the control system software generated .log
 files that are processed by the SSDS-Java code (auvportal) therefore there is no
 compulsion to use that same framework for processing these data.
 
-This Python script is the shortest path to a file conversion.  Once an SSDS
-interface is available for Python we'll integrate ProcessRun recording - but
-for now we just need to produce netCDF files from the .bin files.
+This Python script is the shortest path to a file conversion.
 
-@var __date__: Date of last cvs commit
-@undocumented: __doc__ parser
-@status: In development
-@license: GPL
+Examples:
+
+    1. A short mission useful for testing:
+    lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.00/lopc.nc
+
+    2. A complete around the bay survey:
+    lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.02/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.02/lopc.nc
+    
+    3. A communications fixed short mission C Frame epoch seconds with output to ASCII text file:
+    lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010083/2010.083.08/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010083/2010.083.08/lopc.nc -t lopc_2010_083_08.dat -v -f 
+
 """
 
+import argparse
 import logging
 import math
 import os
@@ -35,7 +38,6 @@ import struct
 import sys
 import time
 from netCDF4 import Dataset
-from optparse import OptionParser
 
 import numpy
 
@@ -82,6 +84,7 @@ class LOPC_Processor(object):
 
     logger = logging.getLogger("logger")
     logger.addHandler(h)
+    _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     ##logging.getLogger("logger").setLevel(logging.DEBUG)
     logging.getLogger("logger").setLevel(logging.INFO)
@@ -231,50 +234,50 @@ class LOPC_Processor(object):
     def checkForDLE(self, file, char):
         """Logic that is applied to each character read if a <DLE> ('~') is encounered"""
         nextChar = file.read(1)
-        if self.opts.debugLevel >= 3:
+        if self.args.debugLevel >= 3:
             self.logger.debug("nextChar = %s" % nextChar)
         if nextChar == b"*":
-            if self.opts.debugLevel >= 5:
+            if self.args.debugLevel >= 5:
                 self.logger.debug("nextChar is *; this is the end of frame")
             self.frameText += nextChar.decode("utf-8")
             raise EndOfFrameException
 
         elif nextChar == b"~":
             self.frameText += nextChar.decode("utf-8")
-            if self.opts.debugLevel >= 5:
+            if self.args.debugLevel >= 5:
                 self.logger.debug(
                     "nextChar is ~; skipping the second <DLE> that is added by the instrument"
                 )
 
         elif nextChar == b"M":
             self.frameText += nextChar.decode("utf-8")
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn(
                     "Detected beginning of new M frame without a detection of the end of the previous frame."
                 )
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn("self.frameText = \n" + self.frameText)
             raise BeginMFrameWithoutEndOfPreviousFrame
 
         elif nextChar == b"L":
             self.frameText += nextChar.decode("utf-8")
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn(
                     "Detected beginning of new L frame without a detection of the end of the previous frame."
                 )
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn("self.frameText = \n" + self.frameText.decode("utf-8"))
             raise BeginLFrameWithoutEndOfPreviousFrame
 
         else:
             self.frameText += str(ord(nextChar))
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn(
                     "this is not expected.  If we have a '~' then there should be either a '~' or  '*' following it."
                 )
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn("self.frameText = \n" + self.frameText)
-            if self.opts.debugLevel >= 3:
+            if self.args.debugLevel >= 3:
                 self.logger.warn("nextChar = " + nextChar)
             self.countUnknownFrameCharacter += 1
             self.unknownFrameCharacters.append(str(ord(nextChar)))
@@ -292,7 +295,7 @@ class LOPC_Processor(object):
         if len(c1) == 0:
             raise EndOfFileException
 
-        if self.opts.debugLevel >= 5:
+        if self.args.debugLevel >= 5:
             self.logger.debug("c1 = %s" % ord(c1))
         if c1 == b"~":
             self.frameText += c1.decode("utf-8")
@@ -304,7 +307,7 @@ class LOPC_Processor(object):
         if len(c2) == 0:
             raise EndOfFileException
 
-        if self.opts.debugLevel >= 5:
+        if self.args.debugLevel >= 5:
             self.logger.debug("c2 = %s" % c2[0])
         if c2 == b"~":
             self.frameText += c2.decode("utf-8")
@@ -313,7 +316,7 @@ class LOPC_Processor(object):
             self.frameText += str(c2[0])
 
         value = struct.unpack("H", c2 + c1)[0]
-        if self.opts.debugLevel >= 5:
+        if self.args.debugLevel >= 5:
             self.logger.debug("value = %i" % value)
 
         return int(value)  # End readBigEndianUShort()
@@ -326,7 +329,7 @@ class LOPC_Processor(object):
         c = binFile.read(1).decode("utf-8")
         if len(c) == 0:
             raise EndOfFileException
-        if self.opts.debugLevel >= 5:
+        if self.args.debugLevel >= 5:
             self.logger.debug("c = %s" % ord(c))
         if c == "~":
             self.frameText += c
@@ -345,9 +348,9 @@ class LOPC_Processor(object):
 
         """
 
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("-" * 81)
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("frameID = L: Read Binned Count Data")
         countList = []
         # Expecting to read 128 values.  The call to readBigEndianUShort() may raise an EndOfFrameException, in which case
@@ -356,22 +359,22 @@ class LOPC_Processor(object):
             try:
                 value = self.readBigEndianUShort(binFile)
             except EndOfFrameException:
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.warn(
                         "Reached the end of this L frame before the end (# 127) at bin # %d."
                         % i
                     )
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.warn("L Frame text = \n" + self.frameText + "\n")
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.warn("countList = \n" + str(countList))
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.warn("Raising ShortLFrameError.")
                 raise ShortLFrameError
 
             countList.append(value)
 
-            if self.opts.debugLevel >= 4:
+            if self.args.debugLevel >= 4:
                 self.logger.debug("bin: %i count = %i" % (i, value))
 
         # Peek at last several values in countList for really bin values that indicates a garbled frame
@@ -379,7 +382,7 @@ class LOPC_Processor(object):
         for c in countList[101:128]:
             if c > 1000:
                 ##raw_input("Paused with too high a value at red-end of the countList, c = %d" % c)
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.warn(
                         "Detected garbled frame with count value = %d between indices [101:128] of countList"
                         % c
@@ -392,10 +395,10 @@ class LOPC_Processor(object):
 
         # Read the rest of the values from the L data frame - use a List to maintain order and a Dict to store the values
         ##logging.getLogger("self.logger").setLevel(logging.DEBUG)
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("-" * 80)
         try:
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug("Reading scalar data:")
             for var in self.LframeScalarKeys:
                 # All but counter are 2 bytes
@@ -416,11 +419,11 @@ class LOPC_Processor(object):
                 else:
                     try:
                         # Perform QC checks on threshold and bufferStatus, save sampleCount in List that is used for timeStamp
-                        if self.opts.debugLevel >= 2:
+                        if self.args.debugLevel >= 2:
                             self.logger.debug("  %s = %d" % (var, val))
                         self.LframeScalarDict[var] = val
                         if var == "threshold" and val != 100:
-                            if self.opts.debugLevel >= 1:
+                            if self.args.debugLevel >= 1:
                                 self.logger.warn(
                                     "Detected garbled frame with threshold != 100 (%d)"
                                     % val
@@ -436,7 +439,7 @@ class LOPC_Processor(object):
                             # Append to list that is passed in and returned in call argument list
                             sampleCountList.append(val)
                         if var == "bufferStatus" and (val != 0 and val != 1):
-                            if self.opts.debugLevel >= 1:
+                            if self.args.debugLevel >= 1:
                                 self.logger.warn(
                                     "Detected garbled frame with bufferStatus != 0|1 (%d)"
                                     % val
@@ -449,11 +452,11 @@ class LOPC_Processor(object):
                         )
 
         except EndOfFrameException:
-            if self.opts.debugLevel >= 1:
+            if self.args.debugLevel >= 1:
                 self.logger.warn(
                     "Reached the end of this L frame while attempting to read the LframeScalar data."
                 )
-            if self.opts.debugLevel >= 1:
+            if self.args.debugLevel >= 1:
                 self.logger.warn(
                     "self.LframeScalarDict = " + str(self.LframeScalarDict)
                 )
@@ -462,21 +465,21 @@ class LOPC_Processor(object):
         # If we read one more character we should get an EndOfFrameException - make sure this happens
         endOfFrame = False
         while not endOfFrame:
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug("Inside 'while not endOfFrame:' loop")
             try:
                 # Read one byte at a time checking for EndOfFrame
                 val = self.readBigEndianUShort(binFile)
             except EndOfFrameException:
                 # Catch the EndOfFrameException and deal with it gracefully
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("Reached the end of this L frame.")
                 endOfFrame = True
 
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("L Frame text = \n" + self.frameText + "\n")
 
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("-" * 80)
 
         return (countList, self.LframeScalarDict)  # End readLframeData()
@@ -484,9 +487,9 @@ class LOPC_Processor(object):
     def readMframeData(self, binFile):
         """For M frame data read the repeated 6-byte chunks of 3 16-bit blocks."""
 
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("-" * 80)
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug(
                 "frameID = M: Read Mulit-Element Plankton Frame Format Data"
             )
@@ -509,7 +512,7 @@ class LOPC_Processor(object):
                 A = self.readBigEndianUShort(binFile)
                 B = self.readBigEndianUShort(binFile)
                 C = self.readBigEndianUShort(binFile)
-                if self.opts.debugLevel >= 4:
+                if self.args.debugLevel >= 4:
                     self.logger.debug(
                         "readMframeData():\n\tA = %d\n\tB = %d\n\tC = %d" % (A, B, C)
                     )
@@ -520,7 +523,7 @@ class LOPC_Processor(object):
                 e = ((A & 0x00000007) << 3) + ((B & 0x00003800) >> 11)  # element number
                 l = B & 0x000007FF  # length, aka time of flight
                 s = C & 0x0000FFFF  # scan counter time reference
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug(
                         "readMframeData():n = %d, p = %5d, e = %2d, l = %5d, s = %5d"
                         % (n, p, e, l, s)
@@ -543,13 +546,13 @@ class LOPC_Processor(object):
                     maxPartMepCount = partMepCount
 
         except EndOfFrameException:
-            if self.opts.debugLevel >= 4:
+            if self.args.debugLevel >= 4:
                 self.logger.debug(
                     "Reached the end of this M frame after reading %d groups."
                     % groupCount
                 )
 
-        if self.opts.debugLevel >= 4:
+        if self.args.debugLevel >= 4:
             self.logger.debug("M Frame text = \n" + self.frameText + "\n")
 
         return (nL, pL, eL, lL, sL, mepCount)  # End readMframeData()
@@ -594,7 +597,7 @@ class LOPC_Processor(object):
         )
 
         sqrtFC = math.sqrt(FC)
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug(
                 "sqrtFC = %f, idx = %d, a[1,idx] = %f " % (sqrtFC, idx, a[1, idx])
             )
@@ -607,7 +610,7 @@ class LOPC_Processor(object):
             )
         )
 
-        if self.opts.debugLevel >= 1:
+        if self.args.debugLevel >= 1:
             self.logger.debug("speed = %f " % speed)
 
         return speed
@@ -615,9 +618,9 @@ class LOPC_Processor(object):
     def readCframeData(self, binFile):
         """For C frame data - Parses special MBARI C frame data record that Hans writes from the MVC"""
 
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("-" * 80)
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug(
                 "frameID = C: Read CTD Data (timestamp that the mvc writes)"
             )
@@ -629,12 +632,12 @@ class LOPC_Processor(object):
                 # Read characters until end of frame
                 char = self.readChar(binFile)
                 str += char
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("char = %s" % (char))
                 nChar += 1
 
         except EndOfFrameException:
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug(
                     "Reached the end of this C frame after reading %d characters. str = %s"
                     % (nChar, str)
@@ -654,7 +657,7 @@ class LOPC_Processor(object):
                     )
                     esecs = self.missing_value
 
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("Parse from C Frame esecs = %f" % esecs)
                 return esecs
             else:
@@ -709,10 +712,10 @@ class LOPC_Processor(object):
         """
 
         self.logger.info(">>> Unpacking LOPC data from " + binFile.name)
-        self.logger.info(">>> Writing NetCDF file " + self.opts.netCDF_fileName)
+        self.logger.info(">>> Writing NetCDF file " + self.args.netCDF_fileName)
 
         if textFile != None:
-            self.logger.info(">>> Writing ASCII text file " + self.opts.text_fileName)
+            self.logger.info(">>> Writing ASCII text file " + self.args.text_fileName)
 
         recCount = 0
         self.dataStructure["lFrameCount"] = 0
@@ -776,7 +779,7 @@ class LOPC_Processor(object):
                     "Read characters until we reach the first <DLE> ('~'), then read another char to get the frameID"
                     char = binFile.read(1)
                     # char = struct.unpack("B", binFile.read(1))[0]
-                    if self.opts.debugLevel >= 3:
+                    if self.args.debugLevel >= 3:
                         self.logger.debug(
                             "char = %s, len(char) = %d" % (char, len(char))
                         )
@@ -784,9 +787,9 @@ class LOPC_Processor(object):
                         raise EndOfFileException
                     if char == b"~":
                         frameID = binFile.read(1).decode("utf-8")
-                        if self.opts.debugLevel >= 2:
+                        if self.args.debugLevel >= 2:
                             self.logger.debug("-" * 80)
-                        if self.opts.debugLevel >= 2:
+                        if self.args.debugLevel >= 2:
                             self.logger.debug(
                                 "frameID = %s (lFrameCount = %d, mFrameCount = %d)"
                                 % (
@@ -806,7 +809,7 @@ class LOPC_Processor(object):
                     )
                 except BeginLFrameWithoutEndOfPreviousFrame:
                     detectedLFrame = True
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.error(
                             "Begin of L Frame (around # %d) witout encountering end of previous frame."
                             % self.dataStructure["lFrameCount"]
@@ -815,7 +818,7 @@ class LOPC_Processor(object):
                     continue  # exit to outer while True loop
                 except BeginMFrameWithoutEndOfPreviousFrame:
                     self.countBeginMFrameWithoutEndOfPreviousFrame += 1
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.error(
                             "Begin of M Frame (around # %d) witout encountering end of previous frame."
                             % self.dataStructure["lFrameCount"]
@@ -823,7 +826,7 @@ class LOPC_Processor(object):
                     detectedMFrame = True
                     continue  # exit to outer while True loop
                 except ShortLFrameError:
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.warn(
                             "Reached the end of this L frame (around sample # %d) before expected."
                             % self.dataStructure["lFrameCount"]
@@ -856,13 +859,13 @@ class LOPC_Processor(object):
                 self.dataStructure["cFrameEsecsList"] = cFrameEsecsList
 
                 # Compute flow speed
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("Calling self.flowSpeed()")
                 self.dataStructure["flowSpeed"] = self.flowSpeed(
                     self.LframeScalarDict["flowTime"],
                     self.LframeScalarDict["flowCount"],
                 )
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug(
                         "flowSpeed = %f" % self.dataStructure["flowSpeed"]
                     )
@@ -882,16 +885,16 @@ class LOPC_Processor(object):
                     self.openNetCDFFile(opts)
 
                 # Confirm contents of Dictionary
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug(
                         "self.LframeScalarDict contents after return from readLframeData():"
                     )
                 for k in self.LframeScalarKeys:
-                    if self.opts.debugLevel >= 2:
+                    if self.args.debugLevel >= 2:
                         self.logger.debug("  %s = %d" % (k, self.LframeScalarDict[k]))
 
                 # Write ASCII L frame data, if requested
-                if self.opts.text_fileName:
+                if self.args.text_fileName:
                     self.writeTextLFrame(countList, self.LframeScalarDict, textFile)
 
                 # Pad out the list of counts returned by readLframeData so that it's the same as what we write to the netCDF file
@@ -913,27 +916,27 @@ class LOPC_Processor(object):
                 # Verify the collection: loop through all the saved data structures so far.  This debug output was added to discover
                 # the fact that Python appends a reference to the LframeScalarDict dictionary resulting in every item in the list to
                 # point to the last LframeScalarDict dictionary returned by readLframeData().  Appending a shallow copy() fixes this.
-                if self.opts.debugLevel >= 3:
+                if self.args.debugLevel >= 3:
                     self.logger.debug(
                         "Reading data from DataStructure dictionary after appending:"
                     )
                 for countList, lframeScalarDict in zip(
                     countList, self.LframeScalarDict
                 ):
-                    if self.opts.debugLevel >= 3:
+                    if self.args.debugLevel >= 3:
                         self.logger.debug("\tlen(countList) = %d" % len(countList))
-                    if self.opts.debugLevel >= 3:
+                    if self.args.debugLevel >= 3:
                         self.logger.debug(
                             "\tnumpy.sum(countList) = %d" % numpy.sum(countList)
                         )
                     for item in self.LframeScalarKeys:
-                        if self.opts.debugLevel >= 3:
+                        if self.args.debugLevel >= 3:
                             self.logger.debug(
                                 "\t%s = %d" % (item, lframeScalarDict[item])
                             )
 
                 # Verbose output table column header wait until after first frame so that openNetCDFFile ouput is printed first
-                if self.opts.verbose and self.dataStructure["lFrameCount"] == 100:
+                if self.args.verbose and self.dataStructure["lFrameCount"] == 100:
                     self.logger.info(
                         ""
                         + "".join(
@@ -990,7 +993,7 @@ class LOPC_Processor(object):
                     )
 
                 # Give a little feedback during this long read process
-                if self.opts.verbose and not self.dataStructure["lFrameCount"] % 100:
+                if self.args.verbose and not self.dataStructure["lFrameCount"] % 100:
                     lastLFrame = 2 * int(
                         self.dataStructure["tsList"][-1]
                         - self.dataStructure["tsList"][0]
@@ -1048,14 +1051,14 @@ class LOPC_Processor(object):
                 ##foo = raw_input('Got M frame')
 
                 # Write ASCII M frame data - for just this frame, if requested
-                if self.opts.text_fileName:
+                if self.args.text_fileName:
                     textFile.write(mepData.frameToASCII(nL, pL, eL, lL, sL))
 
             elif frameID == "C":
                 self.frameText = str(char) + str(
                     frameID
                 )  # Initialize global debugging text string representation of the data frame
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("C Frame text = \n" + self.frameText + "\n")
 
                 # Note that before 2010074 a C frame is probably garbled data and should not be parsed for esecs.  This logic is in readCframeData().
@@ -1063,7 +1066,7 @@ class LOPC_Processor(object):
                     esecs = self.readCframeData(binFile)
                 except BeginLFrameWithoutEndOfPreviousFrame:
                     detectedLFrame = True
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.error(
                             "Begin of L Frame (around # %d) witout encountering end of previous frame."
                             % self.dataStructure["lFrameCount"]
@@ -1072,7 +1075,7 @@ class LOPC_Processor(object):
                     continue  # exit to outer while True loop
                 except BeginMFrameWithoutEndOfPreviousFrame:
                     self.countBeginMFrameWithoutEndOfPreviousFrame += 1
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.error(
                             "Begin of M Frame (around # %d) witout encountering end of previous frame."
                             % self.dataStructure["lFrameCount"]
@@ -1080,7 +1083,7 @@ class LOPC_Processor(object):
                     detectedMFrame = True
                     continue  # exit to outer while True loop
 
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug(
                         "C frame after L Frame # %d esecs = %f"
                         % (self.dataStructure["lFrameCount"], esecs)
@@ -1091,7 +1094,7 @@ class LOPC_Processor(object):
                 pass  # Just skip this and look for the next valid frameID
 
             else:
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug(
                         "Encountered frameID = %s at L frame # %d"
                         % (frameID, self.dataStructure["lFrameCount"])
@@ -1107,26 +1110,26 @@ class LOPC_Processor(object):
                 ##raw_input('Paused at count = %d with binningInterval = %d' % (self.dataStructure['lFrameCount'], binningInterval))
 
                 ##logging.getLogger("self.logger").setLevel(logging.DEBUG)
-                ##self.opts.debugLevel = 1
+                ##self.args.debugLevel = 1
 
                 # Build the mepList in mepData from all that data that have been collected so far, this allows .count() to work.
                 mepData.build(lastMEP)
 
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug(
                         "len(mepData.mepList) = %d" % len(mepData.mepList)
                     )
 
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("SEP-only counts")
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("===============")
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug(
                         "SEP-only counts: sepCountArraySum.sum() = %d"
                         % sepCountArraySum.sum()
                     )
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("sepCountArraySum = %s" % sepCountArraySum)
 
                 # Add the MEP counts to the sepCountArray that has been summed up
@@ -1140,9 +1143,9 @@ class LOPC_Processor(object):
                 lcESDmin = 800
                 lcESDmax = 1200
                 LCcount = mepData.countLC(
-                    self.opts.LargeCopepod_AIcrit,
-                    self.opts.LargeCopepod_ESDmin,
-                    self.opts.LargeCopepod_ESDmax,
+                    self.args.LargeCopepod_AIcrit,
+                    self.args.LargeCopepod_ESDmin,
+                    self.args.LargeCopepod_ESDmax,
                 )
 
                 trAIcrit = 0.4
@@ -1152,31 +1155,31 @@ class LOPC_Processor(object):
                     sepCountArraySum + mepCountArray
                 )  # With numpy Arrays we can do element-by-element addition with '+'
 
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug(
                         "MEP-only counts: mepCountArray.sum() = %d"
                         % mepCountArray.sum()
                     )
 
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("After adding MEP counts to SEP counts")
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("=====================================")
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug(
                         "SEP+MEP counts: countArray.sum() = %d" % countArray.sum()
                     )
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug("countArray = %s" % countArray)
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug("LCcount = %d" % LCcount)
-                if self.opts.debugLevel >= 1:
+                if self.args.debugLevel >= 1:
                     self.logger.debug(
                         "transCount = %d, nonTransCount = %d"
                         % (transCount, nonTransCount)
                     )
                 if mepCountArray.sum() > 0:
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.debug(
                             "ai:   mean = %f, min = %f, max = %f, std = %f"
                             % (
@@ -1186,7 +1189,7 @@ class LOPC_Processor(object):
                                 mepData.aiArray.std(),
                             )
                         )
-                    if self.opts.debugLevel >= 1:
+                    if self.args.debugLevel >= 1:
                         self.logger.debug(
                             "esd:   mean = %f, min = %f, max = %f, std = %f"
                             % (
@@ -1198,7 +1201,7 @@ class LOPC_Processor(object):
                         )
 
                 ##logging.getLogger("self.logger").setLevel(logging.INFO)
-                ##self.opts.debugLevel = 0
+                ##self.args.debugLevel = 0
                 ##raw_input('Paused ')
                 ##if nonTransCount > 0:
                 ##  raw_input('Paused ')
@@ -1403,7 +1406,7 @@ class LOPC_Processor(object):
             # Create timestamp list that corresponds best to the frame times - uses the parosci on & off times to construct an evenly spaced timestampList
             # Used at the beginning of processing to estimate time to completion - DO NOT USE THE RESULTS OF THIS IN THE NETCDF FILE!
             deltaT = float(sensor_off_time - sensor_on_time) / float(recCount - 1)
-            if self.opts.debugLevel >= 1:
+            if self.args.debugLevel >= 1:
                 self.logger.debug("deltaT = %f [Should be 0.5 seconds]" % (deltaT))
             for i in range(recCount):
                 timestamp = sensor_on_time + i * deltaT
@@ -1831,22 +1834,22 @@ class LOPC_Processor(object):
 
         """
 
-        ncFileName = self.opts.netCDF_fileName
+        ncFileName = self.args.netCDF_fileName
         self.logger.info("Will output NetCDF file to %s" % ncFileName)
 
         # Improve long names of MEP counts based on passed in arguements
         self.MEPDataDictLongName[
             "LCcount"
         ] += " with aiCrit = %.2f, esdMinCrit = %.0f, esdMaxCrit = %.0f" % (
-            self.opts.LargeCopepod_AIcrit,
-            self.opts.LargeCopepod_ESDmin,
-            self.opts.LargeCopepod_ESDmax,
+            self.args.LargeCopepod_AIcrit,
+            self.args.LargeCopepod_ESDmin,
+            self.args.LargeCopepod_ESDmax,
         )
         self.MEPDataDictLongName["transCount"] += (
-            " with ai < %.2f" % self.opts.trans_AIcrit
+            " with ai < %.2f" % self.args.trans_AIcrit
         )
         self.MEPDataDictLongName["transCount"] += (
-            " with ai > %.2f" % self.opts.trans_AIcrit
+            " with ai > %.2f" % self.args.trans_AIcrit
         )
 
         #
@@ -1917,7 +1920,7 @@ class LOPC_Processor(object):
             else:
                 self.ncFile.createVariable(var, "i", ("time",))
 
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug("  units = %s " % self.LframeScalarDictUnits[var])
             if self.LframeScalarDictUnits[var] == None:
                 self.ncFile.variables[
@@ -1926,7 +1929,7 @@ class LOPC_Processor(object):
             else:
                 self.ncFile.variables[var].units = self.LframeScalarDictUnits[var]
 
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug(
                     "  long_name = %s " % self.LframeScalarDictLongName[var]
                 )
@@ -1989,10 +1992,10 @@ class LOPC_Processor(object):
 
         indx = outRecNumFunc()
 
-        if self.opts.debugLevel >= 1:
+        if self.args.debugLevel >= 1:
             self.logger.debug("Appending variables to time axis at index # %d:" % indx)
-        ##if self.opts.debugLevel >= 1: self.logger.debug("appending countList variable for len(countList) = %d , len(self.dataStructure['binSizeList']) = %d" % (len(countList),  len(dataStructure['binSizeList'])))
-        ##if self.opts.debugLevel >= 2: self.logger.debug("countList = %s" % countList)
+        ##if self.args.debugLevel >= 1: self.logger.debug("appending countList variable for len(countList) = %d , len(self.dataStructure['binSizeList']) = %d" % (len(countList),  len(dataStructure['binSizeList'])))
+        ##if self.args.debugLevel >= 2: self.logger.debug("countList = %s" % countList)
 
         # Make sure that the countList is the right length
         ##lenInitialbinSizeList = 128   # Hard coded for now, but if this should change we need to assign this variable when counts is created in openNetCDFFile()
@@ -2002,7 +2005,7 @@ class LOPC_Processor(object):
                 "len(countList) of %d != %d"
                 % (len(MEPDataDict["countList"]), lenInitialbinSizeList)
             )
-            if self.opts.debugLevel >= 1:
+            if self.args.debugLevel >= 1:
                 self.logger.warn(
                     "appending the last good record counts as I doubt we can trust the values that were parsed in this incomplete record."
                 )
@@ -2021,13 +2024,13 @@ class LOPC_Processor(object):
 
         # Write the countSum - making it easier for the user of the data
         countSum = numpy.sum(MEPDataDict["countList"])
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.debug("appending countSum = %d" % countSum)
         self.ncFile.variables["countSum"][indx] = countSum
 
         # Write scalar list items
         for var in self.LframeScalarKeys:
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug(
                     "appending %s = %d" % (var, self.LframeScalarDict[var])
                 )
@@ -2036,13 +2039,13 @@ class LOPC_Processor(object):
         # Write accumulated error counts
         for var in list(self.dataStructure.keys()):
             if var.startswith("count"):
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug(
                         "appending %s = %d" % (var, self.dataStructure[var])
                     )
                 self.ncFile.variables[var][indx] = self.dataStructure[var]
             if var.startswith("flow"):
-                if self.opts.debugLevel >= 2:
+                if self.args.debugLevel >= 2:
                     self.logger.debug(
                         "appending %s = %d" % (var, self.dataStructure[var])
                     )
@@ -2050,7 +2053,7 @@ class LOPC_Processor(object):
 
         # Write mvc epoch seconds if we have it
         if "cFrameEsecs" in list(self.dataStructure.keys()):
-            if self.opts.debugLevel >= 2:
+            if self.args.debugLevel >= 2:
                 self.logger.debug(
                     "appending %s = %f"
                     % ("cFrameEsecs", self.dataStructure["cFrameEsecs"])
@@ -2076,7 +2079,7 @@ class LOPC_Processor(object):
 
         # Write time axis
         self.logger.info("Writing time axis for len(tsList) = " + str(len(tsList)))
-        if self.opts.debugLevel >= 2:
+        if self.args.debugLevel >= 2:
             self.logger.info("tsList = %s" % tsList)
         self.logger.info(
             "tsList[:1] = %s, ..., tsList[-2:] = %s" % (tsList[:1], tsList[-2:])
@@ -2123,72 +2126,51 @@ class LOPC_Processor(object):
     def process_command_line(self):
         """Main routine: Parse command line options and call unpack and write functions."""
 
-        parser = OptionParser(
-            usage="""
-    Unpack binary data records from binary LOPC instrument and produce NetCDF file and optional text file for import to A. Herman processing routines.
-
-    Synopsis: %prog -i <bin_fileName> -n <netCDF_fileName> [-t <text_fileName> -v -d <level> -f]
-
-    Where: 
-        <bin_fileName> is name of lopc binary file to process
-        <netCDF_fileName> is the name of the NetCDF file to create
-
-    Options:
-        -t:         ASCII text output file name (the .dat file produced by BOT s/w)
-        -v:         verbose output
-        -d <level>: debugging output (higher the number the more detailed the output)
-        -f:         Force removal of output files
-        (Additional options for setting count criteria listed below.)
-
-    Examples:
-
-    1. A short mission useful for testing:
-    lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.00/lopc.nc
-
-    2. A complete around the bay survey:
-    lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.02/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.02/lopc.nc
-    
-    3. A communications fixed short mission C Frame epoch seconds with output to ASCII text file:
-    lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010083/2010.083.08/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010083/2010.083.08/lopc.nc -t lopc_2010_083_08.dat -v -f 
-
-    """
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawTextHelpFormatter,
+            description=__doc__,
         )
-        parser.add_option(
+
+        parser.add_argument(
             "-i",
             "--bin_fileName",
-            type="string",
             action="store",
             help="Specify an input binary data file name, e.g. /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin.",
         )
-        parser.add_option(
+        parser.add_argument(
             "-n",
             "--netCDF_fileName",
-            type="string",
             action="store",
             help="Specify a fully qualified output NetCDF file path, e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.nc",
         )
-        parser.add_option(
+        parser.add_argument(
             "-t",
             "--text_fileName",
-            type="string",
             action="store",
             help="Specify a fully qualified output ASCII text file path, e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.dat",
         )
-        parser.add_option(
+        parser.add_argument(
             "-v",
             "--verbose",
-            action="store_true",
-            default=False,
-            help="Turn on verbose output, which gives bit more processing feedback.",
+            type=int,
+            choices=range(3),
+            action="store",
+            default=0,
+            const=1,
+            nargs="?",
+            help="verbosity level: "
+            + ", ".join(
+                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+            ),
         )
-        parser.add_option(
+        parser.add_argument(
             "-d",
             "--debugLevel",
             action="store",
-            type="int",
+            type=int,
             help="Turn on debugLevel [1..3].  The higher the number, the more the output.  E.g. us '-d 1' to understand framing errors, '-d 3' for all debug statements.",
         )
-        parser.add_option(
+        parser.add_argument(
             "-f",
             "--force",
             action="store_true",
@@ -2197,87 +2179,85 @@ class LOPC_Processor(object):
         )
 
         # Additional criteria setting options
-        parser.add_option(
-            "",
+        parser.add_argument(
             "--trans_AIcrit",
-            type="float",
+            type=float,
             action="store",
             default=0.4,
             help="Criteria for Attenuation Index to separate transparent from non-transparent particles (0..1), default = 0.4",
         )
-        parser.add_option(
-            "",
+        parser.add_argument(
             "--LargeCopepod_AIcrit",
-            type="float",
+            type=float,
             action="store",
             default=0.6,
             help="Criteria for Attenuation Index to identify Large Copepod particles (0..1), default = 0.6",
         )
-        parser.add_option(
-            "",
+        parser.add_argument(
             "--LargeCopepod_ESDmin",
-            type="float",
+            type=float,
             action="store",
             default=1100,
             help="Criteria for minimum Equivalent Spherical Diameter to identify Large Copepod particles (microns), default = 1100",
         )
-        parser.add_option(
-            "",
+        parser.add_argument(
             "--LargeCopepod_ESDmax",
-            type="float",
+            type=float,
             action="store",
             default=1700.0,
             help="Criteria for maximum Equivalent Spherical Diameter to identify Large Copepod particles (microns), default = 1700",
         )
-        self.opts, args = parser.parse_args()
+        self.args = parser.parse_args()
+        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.commandline = " ".join(sys.argv)
 
     def main(self):
         #
         # unpack data according to command line options
         #
-        if self.opts.bin_fileName and self.opts.netCDF_fileName:
+        if self.args.bin_fileName and self.args.netCDF_fileName:
 
             start = time.time()
 
-            if self.opts.debugLevel:
+            if self.args.debugLevel:
                 logging.getLogger("self.logger").setLevel(logging.DEBUG)
 
             # Check for output file and offer to overwrite
-            if os.path.exists(self.opts.netCDF_fileName):
-                if self.opts.force:
-                    if os.path.exists(self.opts.netCDF_fileName):
-                        os.remove(self.opts.netCDF_fileName)
+            if os.path.exists(self.args.netCDF_fileName):
+                if self.args.force:
+                    if os.path.exists(self.args.netCDF_fileName):
+                        os.remove(self.args.netCDF_fileName)
                 else:
                     ans = input(
-                        self.opts.netCDF_fileName
+                        self.args.netCDF_fileName
                         + " file exists.\nDo you want to remove it and continue processing? (y/[N]) "
                     )
                     if ans.upper() == "Y":
-                        os.remove(self.opts.netCDF_fileName)
+                        os.remove(self.args.netCDF_fileName)
                     else:
                         sys.exit(0)
 
             textFile = None
-            if self.opts.text_fileName:
-                if os.path.exists(self.opts.text_fileName):
-                    if self.opts.force:
-                        if os.path.exists(self.opts.text_fileName):
-                            os.remove(self.opts.text_fileName)
+            if self.args.text_fileName:
+                if os.path.exists(self.args.text_fileName):
+                    if self.args.force:
+                        if os.path.exists(self.args.text_fileName):
+                            os.remove(self.args.text_fileName)
                     else:
                         ans = input(
-                            self.opts.text_fileName
+                            self.args.text_fileName
                             + " file exists.\nDo you want to remove it and continue processing? (y/[N]) "
                         )
                         if ans.upper() == "Y":
-                            os.remove(self.opts.text_fileName)
+                            os.remove(self.args.text_fileName)
                         else:
                             sys.exit(0)
 
-                textFile = open(self.opts.text_fileName, "w")
+                textFile = open(self.args.text_fileName, "w")
 
             self.logger.info("Processing begun: %s" % time.ctime())
             # Open input file
-            binFile = open(self.opts.bin_fileName, "rb")
+            binFile = open(self.args.bin_fileName, "rb")
 
             # Set flag for whether we need to look for data that Hans writes to the C Frame - implemented after 15 March 2010 (day 2010074)
             # Assume binFile.name is like: '/mbari/AUVCTD/missionlogs/2009/2009084/2009.084.02/lopc.bin'
@@ -2308,7 +2288,7 @@ class LOPC_Processor(object):
                 # On first L frame read this function opens the netCDF file for appending
                 # then calls writeNetCDFRecord at the binningInterval. self.dataStructure[] is
                 # populated with lots of information by unpackLOPCbin.
-                self.unpackLOPCbin(binFile, self.opts, textFile)
+                self.unpackLOPCbin(binFile, self.args, textFile)
             except EndOfFileException:
                 self.logger.info(">>> Done reading file.")
                 self.logger.info(
@@ -2346,7 +2326,7 @@ class LOPC_Processor(object):
             # Close the netCDF file writing the proper tsList data first
             self.closeNetCDFFile(tsList, cFrameEsecsList)
 
-            self.logger.info("Created file: %s" % self.opts.netCDF_fileName)
+            self.logger.info("Created file: %s" % self.args.netCDF_fileName)
 
             mark = time.time()
             self.logger.info(
