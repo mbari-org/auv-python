@@ -1173,19 +1173,18 @@ class Calibrate_NetCDF:
             }
 
         # Fluoresence
-        if hasattr(hs2, "bb676"):
-            fl = xr.DataArray(
+        if hasattr(hs2, "fl676"):
+            fl676 = xr.DataArray(
                 hs2.fl676.values,
                 coords=[hs2.fl676.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_fl676",
             )
-            fl.attrs = {
+            fl676.attrs = {
                 "long_name": "Fluoresence at 676 nm",
                 "coordinates": coord_str,
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
-            self.combined_nc["hs2_bb676"] = fl676
             fl = fl676
         if hasattr(hs2, "fl700"):
             fl700 = xr.DataArray(
