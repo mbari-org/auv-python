@@ -29,10 +29,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from lopcToNetCDF import LOPC_Processor
 from align import Align_NetCDF
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from resample import FREQ, Resampler
 
 
@@ -111,6 +112,29 @@ class Processor:
         auv_netcdf.logger.addHandler(self.log_handler)
         auv_netcdf.commandline = self.commandline
         auv_netcdf.download_process_logs(src_dir=src_dir)
+        # Run lopcToNetCDF.py - mimic log message from logs2netcdfs.py
+        lopc_bin = os.path.join(
+            self.args.base_path, self.vehicle, MISSIONLOGS, mission, "lopc.bin"
+        )
+        file_size = os.path.getsize(lopc_bin)
+        self.logger.info(f"Processing file {lopc_bin} ({file_size} bytes)")
+        lopc_processor = LOPC_Processor()
+        lopc_processor.args = argparse.Namespace()
+        lopc_processor.args.bin_fileName = lopc_bin
+        lopc_processor.args.netCDF_fileName = os.path.join(
+            self.args.base_path, self.vehicle, MISSIONNETCDFS, mission, "lopc.nc"
+        )
+        lopc_processor.args.text_fileName = ""
+        lopc_processor.args.trans_AIcrit = 0.4
+        lopc_processor.args.LargeCopepod_AIcrit = 0.6
+        lopc_processor.args.LargeCopepod_ESDmin = 1100.0
+        lopc_processor.args.LargeCopepod_ESDmax = 1700.0
+        lopc_processor.args.verbose = self.args.verbose
+        lopc_processor.args.debugLevel = 0
+        lopc_processor.args.force = self.args.clobber
+        lopc_processor.logger.setLevel(self._log_levels[self.args.verbose])
+        lopc_processor.logger.addHandler(self.log_handler)
+        lopc_processor.main()
 
     def calibrate(self, mission: str) -> None:
         self.logger.info("Calibration steps for %s", mission)
