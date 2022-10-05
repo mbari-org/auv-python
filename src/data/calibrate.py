@@ -345,7 +345,7 @@ class Calibrate_NetCDF:
                 setattr(sensor_info, "orig_data", xr.open_dataset(orig_netcdf_filename))
             except (FileNotFoundError, ValueError) as e:
                 self.logger.debug(
-                    f"{sensor:10}: Cannot open file" f" {orig_netcdf_filename}"
+                    f"{sensor:10}: Cannot open file" f" {orig_netcdf_filename}: {e}"
                 )
             if info["cal_filename"]:
                 cal_filename = os.path.join(logs_dir, info["cal_filename"])
@@ -1602,6 +1602,88 @@ class Calibrate_NetCDF:
             "comment": f"propRpm from {source} (convert to RPM by multiplying by 9.549297)",
         }
 
+    def _lopc_process(self, sensor):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+        except AttributeError:
+            raise EOFError(
+                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
+                    sensor,
+                    self.args.mission,
+                )
+            )
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+
+        self.combined_nc["lopc_countListSum"] = xr.DataArray(
+            orig_nc["countListSum"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_countListSum",
+        )
+        self.combined_nc["lopc_countListSum"].attrs = {
+            "long_name": orig_nc["countListSum"].attrs["long_name"],
+            "units": orig_nc["countListSum"].attrs["units"],
+            "coordinates": coord_str,
+            "comment": f"Sum of countListSum values by size class from {source}",
+        }
+
+        self.combined_nc["lopc_transCount"] = xr.DataArray(
+            orig_nc["transCount"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_transCount",
+        )
+        self.combined_nc["lopc_transCount"].attrs = {
+            "long_name": orig_nc["transCount"].attrs["long_name"],
+            "units": orig_nc["transCount"].attrs["units"],
+            "coordinates": coord_str,
+            "comment": f"transCount from {source}",
+        }
+
+        self.combined_nc["lopc_nonTransCount"] = xr.DataArray(
+            orig_nc["nonTransCount"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_nonTransCount",
+        )
+        self.combined_nc["lopc_nonTransCount"].attrs = {
+            "long_name": orig_nc["nonTransCount"].attrs["long_name"],
+            "units": orig_nc["nonTransCount"].attrs["units"],
+            "coordinates": coord_str,
+            "comment": f"nonTransCount from {source}",
+        }
+
+        self.combined_nc["lopc_LCcount"] = xr.DataArray(
+            orig_nc["LCcount"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_LCcount",
+        )
+        self.combined_nc["lopc_LCcount"].attrs = {
+            "long_name": orig_nc["LCcount"].attrs["long_name"],
+            "units": orig_nc["LCcount"].attrs["units"],
+            "coordinates": coord_str,
+            "comment": f"LCcount from {source}",
+        }
+
+        self.combined_nc["lopc_flowSpeed"] = xr.DataArray(
+            orig_nc["flowSpeed"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_flowSpeed",
+        )
+        self.combined_nc["lopc_flowSpeed"].attrs = {
+            "long_name": orig_nc["flowSpeed"].attrs["long_name"],
+            "units": orig_nc["flowSpeed"].attrs["units"],
+            "coordinates": coord_str,
+            "comment": f"flowSpeed from {source}",
+        }
+
     def _geometric_depth_correction(self, sensor, orig_nc):
         """Performs the align_geom() function from the legacy Matlab.
         Works for any sensor, but requires navigation being processed first
@@ -1645,6 +1727,8 @@ class Calibrate_NetCDF:
             self._hs2_process(sensor, logs_dir)
         elif sensor == "tailcone":
             self._tailcone_process(sensor)
+        elif sensor == "lopc":
+            self._lopc_process(sensor)
         elif sensor == "ctd" or sensor == "ctd2" or sensor == "seabird25p":
             if coeffs is not None:
                 self._ctd_process(sensor, coeffs)
