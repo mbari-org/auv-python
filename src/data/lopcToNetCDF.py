@@ -171,6 +171,8 @@ class LOPC_Processor(object):
     MEPDataDictKeys = [
         "sepCountList",
         "mepCountList",
+        "sepCountListSum",
+        "mepCountListSum",
         "countList",
         "LCcount",
         "transCount",
@@ -187,6 +189,8 @@ class LOPC_Processor(object):
     MEPDataDictUnits = {
         "sepCountList": "count",
         "mepCountList": "count",
+        "sepCountListSum": "count",
+        "mepCountListSum": "count",
         "countList": "count",
         "LCcount": "count",
         "transCount": "count",
@@ -201,9 +205,11 @@ class LOPC_Processor(object):
         "esd_std": "microns",
     }
     MEPDataDictLongName = {
-        "sepCountList": "Single Element Plankton count",
-        "mepCountList": "Multiple Element Plankton count",
-        "countList": "Total Plankton count",
+        "sepCountList": "Single Element Particle counts by size class",
+        "mepCountList": "Multiple Element Particle counts by size class",
+        "sepCountListSum": "Sum of Single Element Particle counts",
+        "mepCountListSum": "Sum of Multiple Element Particle counts",
+        "countList": "Total Particle counts by size class",
         "LCcount": "Large Copepod count",
         "transCount": "Transparent particle count",
         "nonTransCount": "Non-Transparent particle count",
@@ -491,7 +497,7 @@ class LOPC_Processor(object):
             self.logger.debug("-" * 80)
         if self.args.debugLevel >= 2:
             self.logger.debug(
-                "frameID = M: Read Mulit-Element Plankton Frame Format Data"
+                "frameID = M: Read Mulit-Element Particle Frame Format Data"
             )
 
         groupCount = 0
@@ -1211,6 +1217,8 @@ class LOPC_Processor(object):
                 MEPDataDict = {}
                 MEPDataDict["sepCountList"] = list(sepCountArraySum)
                 MEPDataDict["mepCountList"] = list(mepCountArray)
+                MEPDataDict["sepCountListSum"] = numpy.sum(list(sepCountArraySum))
+                MEPDataDict["mepCountListSum"] = numpy.sum(list(mepCountArray))
                 MEPDataDict["countList"] = list(countArray)
 
                 MEPDataDict["LCcount"] = LCcount
@@ -1837,7 +1845,7 @@ class LOPC_Processor(object):
         ncFileName = self.args.netCDF_fileName
         self.logger.info("Will output NetCDF file to %s" % ncFileName)
 
-        # Improve long names of MEP counts based on passed in arguements
+        # Improve long names of MEP counts based on passed in arguments
         self.MEPDataDictLongName[
             "LCcount"
         ] += " with aiCrit = %.2f, esdMinCrit = %.0f, esdMaxCrit = %.0f" % (
@@ -1876,8 +1884,8 @@ class LOPC_Processor(object):
         self.ncFile.keywords = (
             "plankton, particles, detritus, marine snow, particle counter"
         )
-        self.ncFile.Conventions = "CF-1.1"
-        self.ncFile.standard_name_vocabulary = "CF-1.1"
+        self.ncFile.Conventions = "CF-1.6"
+        self.ncFile.standard_name_vocabulary = "CF-1.6"
 
         # Time dimension is unlimited, we'll write variable records then write the time data at the end of processing
         self.ncFile.createDimension("time", None)  # Unlimited dimension
@@ -1905,9 +1913,12 @@ class LOPC_Processor(object):
             self.ncFile.variables[key].units = self.MEPDataDictUnits[key]
             self.ncFile.variables[key].long_name = self.MEPDataDictLongName[key]
 
-        self.logger.info("Creating variable countSum on axis time")
-        self.ncFile.createVariable("countSum", "i", ("time",))
-        self.ncFile.variables["countSum"].units = "count"
+        self.logger.info("Creating variable countListSum on axis time")
+        self.ncFile.createVariable("countListSum", "i", ("time",))
+        self.ncFile.variables["countListSum"].units = "count"
+        self.ncFile.variables[
+            "countListSum"
+        ].long_name = f"Sum of Total Particle counts"
 
         # Create scalar list item variable
         self.logger.info(
@@ -1970,9 +1981,8 @@ class LOPC_Processor(object):
                 ("time",),
                 fill_value=self.missing_value,
             )
-            self.ncFile.variables[
-                "cFrameEsecs"
-            ].units = "seconds since 1970-01-01 00:00:00"
+            # Xarray wants only one time variable with udunits, so we use epoch seconds
+            self.ncFile.variables["cFrameEsecs"].units = "epoch seconds"
             self.ncFile.variables["cFrameEsecs"].missing_value = self.missing_value
             self.ncFile.variables[
                 "cFrameEsecs"
@@ -2022,11 +2032,11 @@ class LOPC_Processor(object):
         ##self.ncFile.variables['transCount'][indx] = transCount
         ##self.ncFile.variables['nonTransCount'][indx] = nonTransCount
 
-        # Write the countSum - making it easier for the user of the data
-        countSum = numpy.sum(MEPDataDict["countList"])
+        # Write the countListSum - making it easier for the user of the data
+        countListSum = numpy.sum(MEPDataDict["countList"])
         if self.args.debugLevel >= 2:
-            self.logger.debug("appending countSum = %d" % countSum)
-        self.ncFile.variables["countSum"][indx] = countSum
+            self.logger.debug("appending countListSum = %d" % countListSum)
+        self.ncFile.variables["countListSum"][indx] = countListSum
 
         # Write scalar list items
         for var in self.LframeScalarKeys:
@@ -2111,13 +2121,15 @@ class LOPC_Processor(object):
 
         # Write time axis that is used for all the time dependent variables
         self.ncFile.createVariable("time", "d", ("time",))
-        self.ncFile.variables["time"].units = "seconds since 1970-01-01 00:00:00"
+        self.ncFile.variables["time"].units = "seconds since 1970-01-01 00:00:00Z"
+        self.ncFile.variables["time"].standard_name = "time"
         self.ncFile.variables["time"].long_name = "Time GMT"
         self.ncFile.variables["time"][:] = tsList
 
         # Write main vehicle time variable as received via C Frame
         self.ncFile.createVariable("mvctime", "f", ("time",))
-        self.ncFile.variables["mvctime"].units = "seconds since 1970-01-01 00:00:00"
+        # Xarray wants only one time variable with udunits, so we use epoch seconds
+        self.ncFile.variables["mvctime"].units = "epoch seconds"
         self.ncFile.variables["mvctime"].long_name = "Main Vehicle Computer Time GMT"
         self.ncFile.variables["mvctime"] = cFrameEsecsList
 
