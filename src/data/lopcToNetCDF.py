@@ -999,7 +999,12 @@ class LOPC_Processor(object):
                     )
 
                 # Give a little feedback during this long read process
-                if self.args.verbose and not self.dataStructure["lFrameCount"] % 100:
+                # Value of 100 is a lot, 10000 gives about 15 lines for a Diamond mission
+                lframe_interval = 10000
+                if (
+                    self.args.verbose
+                    and not self.dataStructure["lFrameCount"] % lframe_interval
+                ):
                     lastLFrame = 2 * int(
                         self.dataStructure["tsList"][-1]
                         - self.dataStructure["tsList"][0]
