@@ -53,7 +53,7 @@ class Archiver:
             src_file = f"{nc_file_base}_{ftype}"
             if os.path.exists(src_file):
                 os.system(f"rsync {src_file} {auvctd_dir}")
-                self.logger.info(f"rsync {src_file} {auvctd_dir}")
+                self.logger.info(f"rsync {src_file} {auvctd_dir} done.")
             else:
                 self.logger.warning(f"{src_file} not found")
 
