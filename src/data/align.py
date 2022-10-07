@@ -32,6 +32,10 @@ from scipy.interpolate import interp1d
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE
 
 
+class InvalidCalFile(Exception):
+    pass
+
+
 class Align_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -151,7 +155,7 @@ class Align_NetCDF:
                     fill_value="extrapolate",
                 )
             except KeyError:
-                raise EOFError(f"No nudged_latitude data in {in_fn}")
+                raise InvalidCalFile(f"No nudged_latitude data in {in_fn}")
             lon_interp = interp1d(
                 self.calibrated_nc["nudged_longitude"]
                 .get_index("time")
