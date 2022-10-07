@@ -95,6 +95,11 @@ class AUV_NetCDF(AUV):
                     short_name = ssv[2]
 
                     csv = line.split(",")
+                    if len(csv) == 1:
+                        # Likely early missions before commas were used
+                        raise ValueError(
+                            "Failed to parse long_name & units from header"
+                        )
                     long_name = csv[1].strip()
                     units = csv[2].strip()
                     if short_name == "time":
@@ -446,8 +451,14 @@ class AUV_NetCDF(AUV):
                 if self.args.use_portal:
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
                 else:
-                    self.logger.info(f"Copying {src_dir} to {logs_dir}")
-                    copytree(src_dir, logs_dir, dirs_exist_ok=True)
+                    if src_dir:
+                        self.logger.info(f"Copying {src_dir} to {logs_dir}")
+                        copytree(src_dir, logs_dir, dirs_exist_ok=True)
+                    else:
+                        self.logger.info(
+                            f"src_dir not provided, so downloading from portal"
+                        )
+                        self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
@@ -464,6 +475,8 @@ class AUV_NetCDF(AUV):
                 self._process_log_file(log_filename, netcdf_filename, src_dir)
             except (FileNotFoundError, EOFError, struct.error, IndexError) as e:
                 self.logger.debug(f"{e}")
+            except ValueError as e:
+                self.logger.warning(f"{e} in file {log_filename}")
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
 
     def update(self):
