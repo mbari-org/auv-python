@@ -429,7 +429,7 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                f"{sensor} has no orig_data - likely a zero-sized .log file in missionlogs/{self.args.mission}"
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file in missionlogs/{self.args.mission}"
             )
 
         source = self.sinfo[sensor]["data_filename"]
@@ -536,7 +536,9 @@ class Calibrate_NetCDF:
             navlat_var = "latitudeNav"
         else:
             navlat_var = None
-            self.logger.debug("Likely before late 2004 when latitude was added")
+            self.logger.debug(
+                "Likely before 2004.167.04 when latitude was added to navigation.log"
+            )
 
         if "longitude" in orig_nc:
             navlon_var = "longitude"
@@ -545,7 +547,10 @@ class Calibrate_NetCDF:
             navlon_var = "longitudeNav"
         else:
             navlon_var = None
-            self.logger.debug("Likely before late 2004 when longitude was added")
+            self.logger.error(f"Cannot find latitude & longitude variables in {source}")
+            self.logger.error(
+                "Likely before 2004.167.04 when latitude & longitude were added to navigation.log"
+            )
 
         if navlat_var is not None:
             self.combined_nc["navigation_latitude"] = xr.DataArray(
@@ -1112,8 +1117,8 @@ class Calibrate_NetCDF:
             cal_fn = os.path.join(logs_dir, self.sinfo["hs2"]["cal_filename"])
             cals = hs2_read_cal_file(cal_fn)
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
-            raise ()
+            self.logger.error(f"Cannot process HS2 data: {e}")
+            return
 
         hs2 = hs2_calc_bb(orig_nc, cals)
 
@@ -1260,7 +1265,7 @@ class Calibrate_NetCDF:
         if hasattr(hs2, "bb470"):
             self.combined_nc["hs2_bb470"] = blue_bs
         if hasattr(hs2, "bb676"):
-            self.rombined_nc["hs2_bb676"] = red_bs
+            self.combined_nc["hs2_bb676"] = red_bs
         if hasattr(hs2, "bb700"):
             self.combined_nc["hs2_bb700"] = red_bs
         if hasattr(hs2, "fl676"):
@@ -1459,23 +1464,24 @@ class Calibrate_NetCDF:
         }
         self.combined_nc[f"{sensor}_conductivity_onboard"] = conductivity_onboard
 
-        self.logger.debug("Collecting salinity_onboard")
-        salinity_onboard = xr.DataArray(
-            orig_nc["salinity"],
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name="salinity_onboard",
-        )
-        salinity_onboard.attrs = {
-            "long_name": "Salinity computed onboard the vehicle",
-            "units": "",
-            "comment": (
-                f"Salinity computed onboard the vehicle from"
-                f" calibration parameters installed on the vehicle"
-                f" at the time of deployment."
-            ),
-        }
-        self.combined_nc[f"{sensor}_salinity_onboard"] = salinity_onboard
+        if "salinity" in orig_nc:
+            self.logger.debug("Collecting salinity_onboard")
+            salinity_onboard = xr.DataArray(
+                orig_nc["salinity"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="salinity_onboard",
+            )
+            salinity_onboard.attrs = {
+                "long_name": "Salinity computed onboard the vehicle",
+                "units": "",
+                "comment": (
+                    f"Salinity computed onboard the vehicle from"
+                    f" calibration parameters installed on the vehicle"
+                    f" at the time of deployment."
+                ),
+            }
+            self.combined_nc[f"{sensor}_salinity_onboard"] = salinity_onboard
 
         # === Oxygen variables ===
         # original values in units of volts
@@ -1507,6 +1513,15 @@ class Calibrate_NetCDF:
             )
         except KeyError:
             self.logger.debug("No dissolvedO2 data in %s", self.args.mission)
+        except ValueError as e:
+            cfg_file = os.path.join(
+                MISSIONLOGS,
+                "".join(self.args.mission.split(".")[:2]),
+                self.args.mission,
+                self.sinfo["ctd"]["cal_filename"],
+            )
+            self.logger.error(f"Likely missing a calibration coefficient in {cfg_file}")
+            self.logger.error(e)
         self.logger.debug("Collecting dissolvedO2_port")
         try:
             dissolvedO2_port = xr.DataArray(
@@ -1610,10 +1625,8 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
-                    sensor,
-                    self.args.mission,
-                )
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
             )
 
         source = self.sinfo[sensor]["data_filename"]
@@ -1775,7 +1788,7 @@ class Calibrate_NetCDF:
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
             except (EOFError, ValueError) as e:
-                self.logger.warning(f"Error processing {sensor}: {e}")
+                self.logger.error(f"Error processing {sensor}: {e}")
 
         return netcdfs_dir
 
