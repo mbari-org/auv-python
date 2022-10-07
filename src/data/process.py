@@ -102,8 +102,10 @@ class Processor:
         """Return the mission directory."""
         yearyd = "".join(mission.split(".")[:2])
         path = os.path.join(self.vehicle_dir, yearyd, mission)
-        if not os.path.isdir(path):
-            raise FileNotFoundError(f"{path} does not exist")
+        if not os.path.exists(path):
+            self.logger.error("%s does not exist.", path)
+            self.logger.info(f"Is {self.mount_dir} mounted?")
+            raise FileNotFoundError(path)
         return path
 
     def download_process(self, mission: str, src_dir: str) -> None:
@@ -295,7 +297,7 @@ class Processor:
                     self.args.mission,
                     src_dir=self.get_mission_dir(self.args.mission),
                 )
-            except InvalidCalFile as e:
+            except (InvalidCalFile, FileNotFoundError, EOFError) as e:
                 self.logger.error("%s %s", self.args.mission, e)
                 self.logger.error("Cannot continue without a valid _cal.nc file")
             finally:
@@ -330,7 +332,7 @@ class Processor:
                         self.logger.exception(
                             "Timeout error processing mission %s", mission
                         )
-                    except InvalidCalFile as e:
+                    except (InvalidCalFile, FileNotFoundError, EOFError) as e:
                         self.logger.error("%s %s", self.args.mission, e)
                         self.logger.error(
                             "Cannot continue without a valid _cal.nc file"
@@ -342,7 +344,7 @@ class Processor:
                             time.time() - t_start,
                         )
                         self.logger.removeHandler(self.log_handler)
-                except InvalidCalFile as e:
+                except (InvalidCalFile, FileNotFoundError, EOFError) as e:
                     self.logger.error("%s %s", mission, e)
                     self.logger.error("Cannot continue without a valid _cal.nc file")
                 finally:
