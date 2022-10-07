@@ -37,45 +37,4 @@ if __name__ == "__main__":
 
     proc = DoradoProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR)
     proc.process_command_line()
-    if not proc.args.start_year:
-        proc.args.start_year = START_YEAR
-
-    if proc.args.mission:
-        # mission is string like: 2021.062.01
-        year = int(proc.args.mission.split(".")[0])
-        missions = proc.mission_list(start_year=year, end_year=year)
-        if proc.args.mission in missions:
-            proc.process_mission(
-                proc.args.mission,
-                src_dir=missions[proc.args.mission],
-            )
-        else:
-            proc.logger.error(
-                "Mission %s not found in missions: %s",
-                proc.args.mission,
-                missions,
-            )
-    elif proc.args.start_year and proc.args.end_year:
-        missions = proc.mission_list(
-            start_year=proc.args.start_year,
-            end_year=proc.args.end_year,
-        )
-        # TODO: Parallelize this with asyncio
-        for mission in missions:
-            if (
-                int(mission.split(".")[1]) < proc.args.start_yd
-                or int(mission.split(".")[1]) > proc.args.end_yd
-            ):
-                continue
-            try:
-                proc.process_mission(mission, src_dir=missions[mission])
-            except TimeoutError:
-                try:
-                    proc.logger.warning(
-                        "Timeout error processing mission %s, trying again", mission
-                    )
-                    proc.process_mission(mission, src_dir=missions[mission])
-                except TimeoutError:
-                    proc.logger.exception(
-                        "Timeout error processing mission %s", mission
-                    )
+    proc.process_missions(START_YEAR)

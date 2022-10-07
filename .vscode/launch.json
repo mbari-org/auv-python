@@ -17,7 +17,8 @@
             //"args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
             //"args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--noinput", "-v"]
+            //"args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--noinput", "-v"]
+            "args": ["--auv_name", "dorado", "--mission", "2003.156.09", "--noinput", "-v", "2", "--clobber"]
         },
         {
             "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
@@ -40,7 +41,8 @@
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--plot", "first1000", "-v", "2"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.104.00", "--plot",  "first1000", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--plot",  "first1000", "-v", "2"]
-            "args": ["--auv_name", "i2map", "--mission", "2018.344.01", "-v", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2018.344.01", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2003.156.09", "--plot",  "first1000", "-v", "2"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -118,7 +120,9 @@
             //"args": ["-v", "1", "--start_year", "2021", "--end_year", "2022",  "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.201.00", "--use_portal",  "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2009.084.00",  "--clobber", "--noinput"]
-            "args": ["-v", "1", "--mission", "2022.243.00",  "--calibrate", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--mission", "2022.243.00",  "--calibrate", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "1", "--use_portal", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--mission", "2003.156.09", "--clobber", "--local"]
             //"args": ["-v", "1"]
         },
         {

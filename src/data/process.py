@@ -30,11 +30,13 @@ from datetime import datetime
 from pathlib import Path
 
 from lopcToNetCDF import LOPC_Processor
-from align import Align_NetCDF
+from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
+from getpass import getuser
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from resample import FREQ, Resampler
+from socket import gethostname
 
 
 class Processor:
@@ -63,6 +65,7 @@ class Processor:
         self.mount_dir = mount_dir
 
     def mission_list(self, start_year: int, end_year: int) -> dict:
+        """Return a dictionary of source directories keyed by mission name."""
         missions = {}
         REGEX = r".*\/[0-9][0-9][0-9][0-9]\.[0-9][0-9][0-9]\.[0-9][0-9]"
         if platform.system() == "Darwin":
@@ -75,7 +78,8 @@ class Processor:
                 f"Will be looking back {self.args.last_n_days} days for new missions..."
             )
             find_cmd += f" -mtime -{self.args.last_n_days}"
-        self.logger.info("Collecting missions from %s to %s", start_year, end_year)
+        self.logger.info("Finding missions from %s to %s", start_year, end_year)
+        # Can be time consuming - use to discover missions
         lines = subprocess.getoutput(f"{find_cmd} | sort").split("\n")
         for line in lines:
             self.logger.debug(line)
@@ -93,6 +97,14 @@ class Processor:
             except ValueError:
                 self.logger.warning("Cannot parse year from %s", mission)
         return missions
+
+    def get_mission_dir(self, mission: str) -> str:
+        """Return the mission directory."""
+        yearyd = "".join(mission.split(".")[:2])
+        path = os.path.join(self.vehicle_dir, yearyd, mission)
+        if not os.path.isdir(path):
+            raise FileNotFoundError(f"{path} does not exist")
+        return path
 
     def download_process(self, mission: str, src_dir: str) -> None:
         self.logger.info("Download and processing steps for %s", mission)
@@ -112,11 +124,17 @@ class Processor:
         auv_netcdf.logger.addHandler(self.log_handler)
         auv_netcdf.commandline = self.commandline
         auv_netcdf.download_process_logs(src_dir=src_dir)
+        auv_netcdf.logger.removeHandler(self.log_handler)
+
         # Run lopcToNetCDF.py - mimic log message from logs2netcdfs.py
         lopc_bin = os.path.join(
             self.args.base_path, self.vehicle, MISSIONLOGS, mission, "lopc.bin"
         )
-        file_size = os.path.getsize(lopc_bin)
+        try:
+            file_size = os.path.getsize(lopc_bin)
+        except FileNotFoundError:
+            self.logger.warning("No lopc.bin file for %s", mission)
+            return
         self.logger.info(f"Processing file {lopc_bin} ({file_size} bytes)")
         lopc_processor = LOPC_Processor()
         lopc_processor.args = argparse.Namespace()
@@ -135,6 +153,7 @@ class Processor:
         lopc_processor.logger.setLevel(self._log_levels[self.args.verbose])
         lopc_processor.logger.addHandler(self.log_handler)
         lopc_processor.main()
+        lopc_processor.logger.removeHandler(self.log_handler)
 
     def calibrate(self, mission: str) -> None:
         self.logger.info("Calibration steps for %s", mission)
@@ -157,6 +176,7 @@ class Processor:
             cal_netcdf.write_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
             cal_netcdf.logger.error("%s %s", mission, e)
+        cal_netcdf.logger.removeHandler(self.log_handler)
 
     def align(self, mission: str) -> None:
         self.logger.info("Alignment steps for %s", mission)
@@ -175,6 +195,9 @@ class Processor:
             align_netcdf.write_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)
+            raise
+        finally:
+            align_netcdf.logger.removeHandler(self.log_handler)
 
     def resample(self, mission: str) -> None:
         self.logger.info("Resampling steps for %s", mission)
@@ -200,6 +223,8 @@ class Processor:
             resamp.resample_mission(nc_file)
         except FileNotFoundError as e:
             self.logger.error("%s %s", mission, e)
+        finally:
+            resamp.logger.removeHandler(self.log_handler)
 
     def archive(self, mission: str) -> None:
         self.logger.info("Archiving steps for %s", mission)
@@ -220,10 +245,10 @@ class Processor:
             file_name_base,
         )
         arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
+        arch.logger.removeHandler(self.log_handler)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         self.logger.info("Processing mission %s", mission)
-        t_sart = time.time()
         netcdfs_dir = os.path.join(
             self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
         )
@@ -234,7 +259,12 @@ class Processor:
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
         self.log_handler.setFormatter(self._formatter)
         self.logger.addHandler(self.log_handler)
-        self.logger.info("Processing mission %s", mission)
+        self.logger.info(
+            "Processing mission %s by user %s on host %s",
+            mission,
+            getuser(),
+            gethostname(),
+        )
         if self.args.download_process:
             self.download_process(mission, src_dir)
         elif self.args.calibrate:
@@ -251,10 +281,77 @@ class Processor:
             self.align(mission)
             self.resample(mission)
             self.archive(mission)
-        self.logger.removeHandler(self.log_handler)
-        self.logger.info(
-            "Mission %s took %.1f seconds to process", mission, time.time() - t_sart
-        )
+
+    def process_missions(self, start_year: int) -> None:
+        if not self.args.start_year:
+            self.args.start_year = start_year
+        if self.args.mission:
+            # mission is string like: 2021.062.01 and is assumed to exist
+            year = int(self.args.mission.split(".")[0])
+            # missions = self.mission_list(start_year=year, end_year=year)
+            try:
+                t_start = time.time()
+                self.process_mission(
+                    self.args.mission,
+                    src_dir=self.get_mission_dir(self.args.mission),
+                )
+            except InvalidCalFile as e:
+                self.logger.error("%s %s", self.args.mission, e)
+                self.logger.error("Cannot continue without a valid _cal.nc file")
+            finally:
+                self.logger.info(
+                    "Mission %s took %.1f seconds to process",
+                    self.args.mission,
+                    time.time() - t_start,
+                )
+                self.logger.removeHandler(self.log_handler)
+        elif self.args.start_year and self.args.end_year:
+            missions = self.mission_list(
+                start_year=self.args.start_year, end_year=self.args.end_year
+            )
+            # TODO: Parallelize this with asyncio
+            for mission in missions:
+                if (
+                    int(mission.split(".")[1]) < self.args.start_yd
+                    or int(mission.split(".")[1]) > self.args.end_yd
+                ):
+                    continue
+                try:
+                    t_start = time.time()
+                    self.process_mission(mission, src_dir=missions[mission])
+                except TimeoutError:
+                    try:
+                        self.logger.warning(
+                            "Timeout error processing mission %s, trying again", mission
+                        )
+                        t_start = time.time()
+                        self.process_mission(mission, src_dir=missions[mission])
+                    except TimeoutError:
+                        self.logger.exception(
+                            "Timeout error processing mission %s", mission
+                        )
+                    except InvalidCalFile as e:
+                        self.logger.error("%s %s", self.args.mission, e)
+                        self.logger.error(
+                            "Cannot continue without a valid _cal.nc file"
+                        )
+                    finally:
+                        self.logger.info(
+                            "Mission %s took %.1f seconds to process",
+                            self.args.mission,
+                            time.time() - t_start,
+                        )
+                        self.logger.removeHandler(self.log_handler)
+                except InvalidCalFile as e:
+                    self.logger.error("%s %s", mission, e)
+                    self.logger.error("Cannot continue without a valid _cal.nc file")
+                finally:
+                    self.logger.info(
+                        "Mission %s took %.1f seconds to process",
+                        mission,
+                        time.time() - t_start,
+                    )
+                    self.logger.removeHandler(self.log_handler)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -403,32 +500,4 @@ if __name__ == "__main__":
     MOUNT_DIR = "smb://titan.shore.mbari.org/M3"
     proc = Processor()
     proc.process_command_line()
-    if proc.args.mission:
-        # mission is string like: 2021.062.01
-        year = int(proc.args.mission.split(".")[0])
-        missions = proc.mission_list(
-            VEHICLE_DIR, MOUNT_DIR, start_year=year, end_year=year
-        )
-        if proc.args.mission in missions:
-            proc.process_mission(
-                proc.args.mission,
-                src_dir=missions[proc.args.mission],
-            )
-        else:
-            proc.logger.error(
-                "Mission %s not found in missions: %s",
-                proc.args.mission,
-                missions,
-            )
-    elif proc.args.start_year and proc.args.end_year:
-        missions = proc.mission_list(
-            start_year=proc.args.start_year,
-            end_year=proc.args.end_year,
-        )
-        for mission in missions:
-            if (
-                int(mission.split(".")[1]) < proc.args.start_yd
-                or int(mission.split(".")[1]) > proc.args.end_yd
-            ):
-                continue
-            proc.process_mission(mission, src_dir=missions[mission])
+    proc.process_missions()
