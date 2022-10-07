@@ -281,13 +281,16 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
     #
     # O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;
     tau = 0.0
-    o2_mll = np.multiply(
-        cf.SOc * ((nc[var_name].values + cf.Voff) + (tau * docdt))
-        + cf.BOc * np.exp(-0.03 * temperature.values),
-        np.multiply(
-            np.exp(cf.TCor * temperature.values + cf.PCor * pressure), oxsat.values
-        ),
-    )
+    try:
+        o2_mll = np.multiply(
+            cf.SOc * ((nc[var_name].values + cf.Voff) + (tau * docdt))
+            + cf.BOc * np.exp(-0.03 * temperature.values),
+            np.multiply(
+                np.exp(cf.TCor * temperature.values + cf.PCor * pressure), oxsat.values
+            ),
+        )
+    except AttributeError as e:
+        raise ValueError(f"Cannot calculate o2_mll: {e}")
 
     #
     # if strcmp(units,'umolkg')==1
