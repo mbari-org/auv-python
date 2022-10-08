@@ -411,9 +411,9 @@ class AUV_NetCDF(AUV):
         monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
         if (~monotonic).any():
             self.logger.info(
-                "Non-monotonic increasing time indices in %s: %s".format(
-                    log_filename, np.argwhere(~monotonic).flatten()
-                )
+                "Non-monotonic increasing time indices in %s: %s",
+                log_filename,
+                np.argwhere(~monotonic).flatten(),
             )
             self.nc_file.comment += "Non-monotonic increasing times detected."
         self.nc_file.close()
