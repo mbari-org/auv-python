@@ -429,7 +429,8 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                f"{sensor} has no orig_data - likely a missing or zero-sized .log file in missionlogs/{self.args.mission}"
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
             )
 
         source = self.sinfo[sensor]["data_filename"]
@@ -876,10 +877,8 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
-                    sensor,
-                    self.args.mission,
-                )
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
             )
 
         if self.args.mission == "2010.151.04":
@@ -1031,7 +1030,7 @@ class Calibrate_NetCDF:
         try:
             depth_filtpres_butter = signal.filtfilt(b, a, pres)
         except ValueError as e:
-            raise EOFError(f"Likely short or emypty file: {e}")
+            raise EOFError(f"Likely short or empty file: {e}")
         depth_filtdepth_butter = signal.filtfilt(b, a, orig_nc["depth"])
 
         # Use 10 points in boxcar as in processDepth.m
@@ -1340,10 +1339,8 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
-                    sensor,
-                    self.args.mission,
-                )
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
             )
 
         # Remove non-monotonic times
@@ -1595,10 +1592,8 @@ class Calibrate_NetCDF:
             return
         except AttributeError:
             raise EOFError(
-                "%s has no orig_data - likely a zero-sized .log file in missionlogs/%s".format(
-                    sensor,
-                    self.args.mission,
-                )
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
             )
 
         # Remove non-monotonic times
@@ -1797,7 +1792,7 @@ class Calibrate_NetCDF:
             self.logger.debug(f"Processing {vehicle} {name} {sensor}")
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
-            except (EOFError, ValueError) as e:
+            except (EOFError, ValueError, KeyError) as e:
                 self.logger.error(f"Error processing {sensor}: {e}")
 
         return netcdfs_dir
