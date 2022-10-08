@@ -74,7 +74,8 @@
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2020.055.01", "--freq", "2S"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
             //"args": ["-v", "2", "--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot"],
-            "args": ["--auv_name", "i2map", "--mission", "2017.017.00", "-v", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2017.017.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2004.236.00", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",
@@ -122,7 +123,7 @@
             //"args": ["-v", "1", "--mission", "2009.084.00",  "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.243.00",  "--calibrate", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "1", "--use_portal", "--clobber", "--noinput"]
-            "args": ["-v", "1", "--mission", "2003.099.05", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--mission", "2004.236.00", "--use_portal", "--clobber", "--noinput", "--local"]
             //"args": ["-v", "1"]
         },
         {

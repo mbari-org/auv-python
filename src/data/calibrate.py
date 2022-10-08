@@ -1601,6 +1601,16 @@ class Calibrate_NetCDF:
                 )
             )
 
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["tailcone_propRpm"] = xr.DataArray(
