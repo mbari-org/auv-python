@@ -114,7 +114,10 @@ class Align_NetCDF:
         vehicle = vehicle or self.args.auv_name
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         in_fn = f"{vehicle}_{name}_cal.nc"
-        self.calibrated_nc = xr.open_dataset(os.path.join(netcdfs_dir, in_fn))
+        try:
+            self.calibrated_nc = xr.open_dataset(os.path.join(netcdfs_dir, in_fn))
+        except ValueError as e:
+            raise InvalidCalFile(e)
         self.logger.info(f"Processing {in_fn} from {netcdfs_dir}")
         self.aligned_nc = xr.Dataset()
         self.min_time = datetime.utcnow()
