@@ -250,7 +250,6 @@ class Processor:
         arch.logger.removeHandler(self.log_handler)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
-        self.logger.info("Processing mission %s", mission)
         netcdfs_dir = os.path.join(
             self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
         )
@@ -260,6 +259,7 @@ class Processor:
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
         self.log_handler.setFormatter(self._formatter)
+        self.logger.info("=" * 80)
         self.logger.addHandler(self.log_handler)
         self.logger.info(
             "Processing mission %s by user %s on host %s",
@@ -306,7 +306,8 @@ class Processor:
                     self.args.mission,
                     time.time() - t_start,
                 )
-                self.logger.removeHandler(self.log_handler)
+                if hasattr(self, "log_handler"):
+                    self.logger.removeHandler(self.log_handler)
         elif self.args.start_year and self.args.end_year:
             missions = self.mission_list(
                 start_year=self.args.start_year, end_year=self.args.end_year
@@ -343,7 +344,8 @@ class Processor:
                             self.args.mission,
                             time.time() - t_start,
                         )
-                        self.logger.removeHandler(self.log_handler)
+                        if hasattr(self, "log_handler"):
+                            self.logger.removeHandler(self.log_handler)
                 except (InvalidCalFile, FileNotFoundError, EOFError) as e:
                     self.logger.error("%s %s", mission, e)
                     self.logger.error("Cannot continue without a valid _cal.nc file")
@@ -353,7 +355,8 @@ class Processor:
                         mission,
                         time.time() - t_start,
                     )
-                    self.logger.removeHandler(self.log_handler)
+                    if hasattr(self, "log_handler"):
+                        self.logger.removeHandler(self.log_handler)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(

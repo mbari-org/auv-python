@@ -1792,8 +1792,10 @@ class Calibrate_NetCDF:
             self.logger.debug(f"Processing {vehicle} {name} {sensor}")
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
-            except (EOFError, ValueError, KeyError) as e:
+            except (EOFError, ValueError) as e:
                 self.logger.error(f"Error processing {sensor}: {e}")
+            except KeyError as e:
+                self.logger.error(f"Error processing {sensor}: missing variable {e}")
 
         return netcdfs_dir
 
