@@ -2306,6 +2306,11 @@ class LOPC_Processor(object):
                 # then calls writeNetCDFRecord at the binningInterval. self.dataStructure[] is
                 # populated with lots of information by unpackLOPCbin.
                 self.unpackLOPCbin(binFile, self.args, textFile)
+            except UnicodeDecodeError as e:
+                self.logger.error("UnicodeDecodeError: %s", e)
+                self.logger.info(
+                    "Failed to decode all of lopc.bin - resulting lopc.nc file likely incomplete"
+                )
             except EndOfFileException:
                 self.logger.info(">>> Done reading file.")
                 self.logger.info(
