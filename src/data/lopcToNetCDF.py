@@ -292,7 +292,7 @@ class LOPC_Processor(object):
             self.countUnknownFrameCharacter += 1
             self.unknownFrameCharacters.append(str(ord(nextChar)))
             raise UnexpectedAreaOfCode(
-                "Encountered unexpected area of code - please notify Mike McCann"
+                "UnexpectedAreaOfCode: Encountered unexpected area of code - lopc.nc file is probably corrupt"
             )
 
     def readBigEndianUShort(self, binFile):
