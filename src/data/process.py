@@ -106,7 +106,7 @@ class Processor:
         if not os.path.exists(path):
             self.logger.error("%s does not exist.", path)
             self.logger.info(f"Is {self.mount_dir} mounted?")
-            raise FileNotFoundError(path)
+            sys.exit(1)
         return path
 
     def download_process(self, mission: str, src_dir: str) -> None:
@@ -199,8 +199,7 @@ class Processor:
         try:
             netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
-        except (FileNotFoundError, EOFError, UFuncTypeError) as e:
-            # UFuncTypeError seen in dorado 2008.010.10
+        except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)
             raise InvalidCalFile(f"{mission} {e}")
         finally:
