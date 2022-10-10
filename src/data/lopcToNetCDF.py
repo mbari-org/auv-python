@@ -2349,15 +2349,14 @@ class LOPC_Processor(object):
                     sampleCountList=self.dataStructure["sampleCountList"],
                     cFrameEsecsList=self.dataStructure["cFrameEsecsList"],
                 )
+                # Close the netCDF file writing the proper tsList data first
+                self.closeNetCDFFile(tsList, cFrameEsecsList)
             except KeyError:
                 # Happened with 2009.055.05 with 3 byte lopc.bin file
                 self.logger.error(
                     "KeyError: sampleCountList or cFrameEsecsList not found in self.dataStructure"
                 )
                 self.logger.info("No lopc.nc file created")
-
-            # Close the netCDF file writing the proper tsList data first
-            self.closeNetCDFFile(tsList, cFrameEsecsList)
 
             self.logger.info("Created file: %s" % self.args.netCDF_fileName)
 
