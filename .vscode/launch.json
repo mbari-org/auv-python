@@ -124,7 +124,7 @@
             //"args": ["-v", "1", "--mission", "2022.243.00",  "--calibrate", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "1", "--use_portal", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2007.344.00", "--use_portal", "--clobber", "--noinput"]
-            "args": ["-v", "1", "--mission", "2008.010.10", "--use_portal", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--mission", "2009.055.05", "--clobber", "--noinput"]
             //"args": ["-v", "1"]
         },
         {
@@ -136,7 +136,8 @@
             "justMyCode": false,
             //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.084.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.084.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
             //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2022.243.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2022.243.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
-            "args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2007.344.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2007.344.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
+            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2007.344.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2007.344.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
+            "args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.055.05/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.055.05/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
         },
     ]
 }

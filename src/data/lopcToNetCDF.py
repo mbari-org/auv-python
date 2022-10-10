@@ -722,7 +722,7 @@ class LOPC_Processor(object):
         """
 
         self.logger.info(">>> Unpacking LOPC data from " + binFile.name)
-        self.logger.info(">>> Writing NetCDF file " + self.args.netCDF_fileName)
+        self.logger.info(">>> Will write to NetCDF file " + self.args.netCDF_fileName)
 
         if textFile != None:
             self.logger.info(">>> Writing ASCII text file " + self.args.text_fileName)
@@ -2342,12 +2342,20 @@ class LOPC_Processor(object):
                 self.logger.info("Closing test file")
                 textFile.close()
 
-            # Make sure that tsList from the parosci.nc file and the self.dataStructure parsed from lopc.bin are the same lengths
-            (tsList, cFrameEsecsList) = self.constructTimestampList(
-                binFile,
-                sampleCountList=self.dataStructure["sampleCountList"],
-                cFrameEsecsList=self.dataStructure["cFrameEsecsList"],
-            )
+            try:
+                # Make sure that tsList from the parosci.nc file and the self.dataStructure parsed from lopc.bin are the same lengths
+                (tsList, cFrameEsecsList) = self.constructTimestampList(
+                    binFile,
+                    sampleCountList=self.dataStructure["sampleCountList"],
+                    cFrameEsecsList=self.dataStructure["cFrameEsecsList"],
+                )
+            except KeyError:
+                # Happened with 2009.055.05 with 3 byte lopc.bin file
+                self.logger.error(
+                    "KeyError: sampleCountList or cFrameEsecsList not found in self.dataStructure"
+                )
+                self.logger.info("No lopc.nc file created")
+                sys.exit(1)
 
             # Close the netCDF file writing the proper tsList data first
             self.closeNetCDFFile(tsList, cFrameEsecsList)
