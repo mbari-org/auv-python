@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
+from numpy.core._exceptions import UFuncTypeError
 from scipy.interpolate import interp1d
 
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE
@@ -145,7 +146,7 @@ class Align_NetCDF:
                     continue
             # Process mWaterSpeed, roll, pitch, & yaw and variables from
             # instruments: seabird25p, ctd1, ctd2, hs2, ...
-            self.logger.info(f"Processing {variable}")
+            self.logger.debug(f"Processing {variable}")
             self.aligned_nc[variable] = self.calibrated_nc[variable]
             # Interpolators for the non-time dimensions
             try:
@@ -184,14 +185,29 @@ class Align_NetCDF:
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
             # Use attributes from the calibrated data.
-            sample_rate = np.round(
-                1.0
-                / (
-                    np.mean(np.diff(self.calibrated_nc[f"{instr}_time"]))
-                    / np.timedelta64(1, "s")
-                ),
-                decimals=2,
-            )
+            try:
+                sample_rate = np.round(
+                    1.0
+                    / (
+                        np.mean(np.diff(self.calibrated_nc[f"{instr}_time"]))
+                        / np.timedelta64(1, "s")
+                    ),
+                    decimals=2,
+                )
+            except UFuncTypeError as e:
+                # Seen in dorado 2008.010.10 - caused by time variable missing from lopc.nc
+                self.logger.warning(f"UFuncTypeError: {e}")
+                self.logger.debug(
+                    f"type(type(self.calibrated_nc[variable].get_index(f'{instr}_time'))"
+                    f" = {type(self.calibrated_nc[variable].get_index(f'{instr}_time'))}"
+                )
+                self.logger.warning(
+                    f"{variable}: Failed to calculate sample_rate -"
+                    f" xarray wrote {instr}_time as RangeIndex rather than actual time values -"
+                    f" skipping it"
+                )
+                del self.aligned_nc[variable]
+                continue
             self.aligned_nc[variable] = xr.DataArray(
                 self.calibrated_nc[variable].values,
                 dims={f"{instr}_time"},
@@ -202,6 +218,9 @@ class Align_NetCDF:
             self.aligned_nc[variable].attrs[
                 "coordinates"
             ] = f"{instr}_time {instr}_depth {instr}_latitude {instr}_longitude"
+            self.logger.info(
+                f"{variable}: instrument_sample_rate_hz = {sample_rate:.2f}"
+            )
             self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
             self.aligned_nc[f"{instr}_depth"] = xr.DataArray(
                 depth_interp(var_time).astype(np.float64).tolist(),

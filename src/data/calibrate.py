@@ -1637,6 +1637,14 @@ class Calibrate_NetCDF:
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
 
+        # A lopc.nc file without a time variable will return a RangeIndex object
+        # from orig_nc.get_index('time') - test for presence of actual 'time' coordinate
+        if "time" not in orig_nc.coords:
+            raise EOFError(
+                f"{sensor} has no time coordinate - likely an incomplete lopc.nc file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
+            )
+
         self.combined_nc["lopc_countListSum"] = xr.DataArray(
             orig_nc["countListSum"].values,
             coords=[orig_nc.get_index("time")],
