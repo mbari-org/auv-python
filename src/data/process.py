@@ -29,12 +29,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from lopcToNetCDF import LOPC_Processor
+from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
 from getpass import getuser
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
+from numpy.core._exceptions import UFuncTypeError
 from resample import FREQ, Resampler
 from socket import gethostname
 
@@ -154,7 +155,10 @@ class Processor:
         lopc_processor.args.force = self.args.clobber
         lopc_processor.logger.setLevel(self._log_levels[self.args.verbose])
         lopc_processor.logger.addHandler(self.log_handler)
-        lopc_processor.main()
+        try:
+            lopc_processor.main()
+        except UnexpectedAreaOfCode as e:
+            self.logger.error(e)
         lopc_processor.logger.removeHandler(self.log_handler)
 
     def calibrate(self, mission: str) -> None:
@@ -195,9 +199,10 @@ class Processor:
         try:
             netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
-        except (FileNotFoundError, EOFError) as e:
+        except (FileNotFoundError, EOFError, UFuncTypeError) as e:
+            # UFuncTypeError seen in dorado 2008.010.10
             align_netcdf.logger.error("%s %s", mission, e)
-            raise
+            raise InvalidCalFile(f"{mission} {e}")
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 

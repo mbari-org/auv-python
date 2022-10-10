@@ -70,6 +70,10 @@ class GarbledLFrame(Exception):
     pass
 
 
+class UnexpectedAreaOfCode(Exception):
+    pass
+
+
 class LOPC_Processor(object):
     #
     # Make a global logging object.
@@ -287,8 +291,8 @@ class LOPC_Processor(object):
                 self.logger.warn("nextChar = " + nextChar)
             self.countUnknownFrameCharacter += 1
             self.unknownFrameCharacters.append(str(ord(nextChar)))
-            input(
-                "Encountered unexpected area of code.  Please notify Mike McCann.  Press Enter to continue..."
+            raise UnexpectedAreaOfCode(
+                "Encountered unexpected area of code - please notify Mike McCann"
             )
 
     def readBigEndianUShort(self, binFile):
