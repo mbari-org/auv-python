@@ -124,7 +124,8 @@
             //"args": ["-v", "1", "--mission", "2022.243.00",  "--calibrate", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "1", "--use_portal", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2007.344.00", "--use_portal", "--clobber", "--noinput"]
-            "args": ["-v", "1", "--mission", "2009.055.05", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--mission", "2009.055.05", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--start_year", "2009",  "--end_year", "2009", "--start_yd", "55", "--use_portal", "--clobber", "--noinput"]
             //"args": ["-v", "1"]
         },
         {

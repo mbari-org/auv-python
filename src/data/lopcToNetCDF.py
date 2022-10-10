@@ -2355,7 +2355,6 @@ class LOPC_Processor(object):
                     "KeyError: sampleCountList or cFrameEsecsList not found in self.dataStructure"
                 )
                 self.logger.info("No lopc.nc file created")
-                sys.exit(1)
 
             # Close the netCDF file writing the proper tsList data first
             self.closeNetCDFFile(tsList, cFrameEsecsList)
