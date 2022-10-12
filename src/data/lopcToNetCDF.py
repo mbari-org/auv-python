@@ -2357,8 +2357,8 @@ class LOPC_Processor(object):
                     "KeyError: sampleCountList or cFrameEsecsList not found in self.dataStructure"
                 )
                 self.logger.info("No lopc.nc file created")
-
-            self.logger.info("Created file: %s" % self.args.netCDF_fileName)
+            else:
+                self.logger.info("Created file: %s" % self.args.netCDF_fileName)
 
             mark = time.time()
             self.logger.info(
