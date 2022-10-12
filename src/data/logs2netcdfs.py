@@ -383,6 +383,41 @@ class AUV_NetCDF(AUV):
                 variable.data,
             )
 
+    def _remove_bad_values(self, netcdf_filename):
+        """Loop through all variables in self.nc_file,
+        remove `bad_indices`, and write back out"""
+        ds_orig = Dataset(netcdf_filename)
+        #  Finding < -1.0e20 works for 2010.172.01's naigation.log
+        bad_indices = np.where(ds_orig[TIME][:] < -1.0e20)[0]
+        self.logger.warning(
+            "Removing %s bad_indices from %s: %s",
+            len(bad_indices),
+            netcdf_filename,
+            bad_indices,
+        )
+        os.rename(netcdf_filename, f"{netcdf_filename}.orig")
+        self.logger.info("Renamed original file to  %s", f"{netcdf_filename}.orig")
+        self.nc_file = Dataset(netcdf_filename, "w")
+        clean_time_values = np.delete(ds_orig[TIME][:], bad_indices)
+
+        # Copy all orig file data (without bad_indices) and attributes
+        # Thanks for this! https://stackoverflow.com/a/49592545/1281657
+        # copy global attributes all at once via dictionary
+        self.nc_file.setncatts(ds_orig.__dict__)
+        # copy dimensions
+        for name, dimension in ds_orig.dimensions.items():
+            # name, (len(dimension) if not dimension.isunlimited() else None)
+            self.nc_file.createDimension(name, len(clean_time_values))
+        # copy all file data except for the excluded
+        for name, variable in ds_orig.variables.items():
+            self.nc_file.createVariable(name, variable.datatype, variable.dimensions)
+            # copy variable attributes all at once via dictionary
+            self.nc_file[name].setncatts(ds_orig[name].__dict__)
+            self.nc_file[name][:] = np.delete(ds_orig[name][:], bad_indices)
+
+        self.nc_file.close()
+        self.logger.info("Wrote (without bad values) %s", netcdf_filename)
+
     def _process_log_file(self, log_filename, netcdf_filename, src_dir=None):
         log_data = self.read(log_filename)
         if os.path.exists(netcdf_filename):
@@ -415,6 +450,7 @@ class AUV_NetCDF(AUV):
                 log_filename,
                 np.argwhere(~monotonic).flatten(),
             )
+            # Write comment here, preserving original data - corrected in calibration
             self.nc_file.comment += "Non-monotonic increasing times detected."
         self.nc_file.close()
 
@@ -478,6 +514,13 @@ class AUV_NetCDF(AUV):
                 self.logger.debug(f"{e}")
             except ValueError as e:
                 self.logger.warning(f"{e} in file {log_filename}")
+
+            if log == "navigation.log" and "2010.172.01" in log_filename:
+                # Remove egregiously bad values as found in 2010.172.01's navigation.log - Comment from processNav.m:
+                # % For Mission 2010.172.01 the first part of the time array had really large negative epoch second values.
+                # % Take only the positive time values in addition to the good depth values
+                self._remove_bad_values(netcdf_filename)
+
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
 
     def update(self):
