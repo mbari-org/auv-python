@@ -22,9 +22,9 @@ def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
     for t in time_array:
         if t > last_t:
             monotonic.append(True)
+            last_t = t
         else:
             monotonic.append(False)
-        last_t = t
     return np.array(monotonic)
 
 
