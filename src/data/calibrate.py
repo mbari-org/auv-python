@@ -30,7 +30,6 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import os
-from re import I
 import sys
 import time
 from argparse import RawTextHelpFormatter
@@ -54,6 +53,7 @@ from matplotlib import patches
 from scipy import signal
 from scipy.interpolate import interp1d
 from seawater import eos80
+from typing import List
 
 from AUV import monotonic_increasing_time_indices
 from ctd_proc import (
@@ -326,6 +326,60 @@ class Calibrate_NetCDF:
             self.sinfo["biolume"]["sensor_offset"] = SensorOffset(1.003, 0.0001)
         # ...
 
+    def _range_qc_combined_nc(self, instrument: str, variables: List[str]) -> None:
+        """For variables in combined_nc remove values that fall outside
+        of specified min, max range.  Meant to be called by instrument
+        so that the union of bad values from a set variables can be removed."""
+        Range = namedtuple("Range", "min max")
+        ranges = {
+            "navigation_depth": Range(0, 10000),
+            "navigation_roll": Range(-180, 180),
+            "navigation_pitch": Range(-180, 180),
+            "navigation_yaw": Range(-360, 360),
+            "navigation_longitude": Range(-360, 360),
+            "navigation_latitude": Range(-90, 90),
+        }
+        out_of_range_indices = np.array([], dtype=int)
+        for var in variables:
+            if var in self.combined_nc.variables:
+                if var in ranges:
+                    out_of_range = np.where(
+                        (self.combined_nc[var] < ranges[var].min)
+                        | (self.combined_nc[var] > ranges[var].max)
+                    )[0]
+                    self.logger.debug(
+                        "%s: %d out of range values = %s",
+                        var,
+                        len(self.combined_nc[var][out_of_range].values),
+                        self.combined_nc[var][out_of_range].values,
+                    )
+                    out_of_range_indices = np.union1d(
+                        out_of_range_indices,
+                        out_of_range,
+                    )
+                else:
+                    self.logger.warning(f"No Ranges set for {var}")
+
+            else:
+                self.logger.warning(f"{var} not in self.combined_nc")
+        inst_vars = []
+        for variable in self.combined_nc.variables:
+            if str(variable).startswith(f"{instrument}_"):
+                inst_vars.append(str(variable))
+        for var in inst_vars:
+            self.logger.info(
+                "%s: deleting %d indices %s",
+                var,
+                len(self.combined_nc[var][out_of_range_indices].values),
+                self.combined_nc[var][out_of_range_indices].values,
+            )
+            self.logger.debug(
+                f"{var}: deleting values {self.combined_nc[var][out_of_range_indices].values}"
+            )
+            self.combined_nc[var] = self.combined_nc[var].drop_isel(
+                out_of_range_indices
+            )
+
     def _read_data(self, logs_dir, netcdfs_dir):
         """Read in all the instrument data into member variables named by "sensor"
         Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
@@ -433,9 +487,21 @@ class Calibrate_NetCDF:
                 f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
             )
 
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        vars_to_qc = []
         # Units of these angles are radians in the original files, we want degrees
+        vars_to_qc.append("navigation_roll")
         self.combined_nc["navigation_roll"] = xr.DataArray(
             orig_nc["mPhi"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
@@ -450,6 +516,7 @@ class Calibrate_NetCDF:
             "comment": f"mPhi from {source}",
         }
 
+        vars_to_qc.append("navigation_pitch")
         self.combined_nc["navigation_pitch"] = xr.DataArray(
             orig_nc["mTheta"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
@@ -464,6 +531,7 @@ class Calibrate_NetCDF:
             "comment": f"mTheta from {source}",
         }
 
+        vars_to_qc.append("navigation_yaw")
         self.combined_nc["navigation_yaw"] = xr.DataArray(
             orig_nc["mPsi"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
@@ -504,6 +572,7 @@ class Calibrate_NetCDF:
             "comment": f"mPos_y (minus first position) from {source}",
         }
 
+        vars_to_qc.append("navigation_depth")
         self.combined_nc["navigation_depth"] = xr.DataArray(
             orig_nc["mDepth"].values,
             coords=[orig_nc.get_index("time")],
@@ -554,6 +623,7 @@ class Calibrate_NetCDF:
             )
 
         if navlat_var is not None:
+            vars_to_qc.append("navigation_latitude")
             self.combined_nc["navigation_latitude"] = xr.DataArray(
                 orig_nc[navlat_var].values * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
@@ -568,6 +638,7 @@ class Calibrate_NetCDF:
             }
 
         if navlon_var is not None:
+            vars_to_qc.append("navigation_longitude")
             self.combined_nc["navigation_longitude"] = xr.DataArray(
                 orig_nc[navlon_var].values * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
@@ -616,6 +687,10 @@ class Calibrate_NetCDF:
         self.logger.debug(f"median of positive valued depths = {np.median(pos_depths)}")
         self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
 
+        if self.args.mission == "2010.172.01":
+            self.logger.info("Performing special QC for 2010.172.01/navigation.nc")
+            self._range_qc_combined_nc(instrument="navigation", variables=vars_to_qc)
+
     def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
         they match the surface gps positions.
@@ -640,16 +715,19 @@ class Calibrate_NetCDF:
         if lon[:][segi].any():
             lon_nudged_array = lon[segi]
             lat_nudged_array = lat[segi]
-            dt_nudged = lon.index[segi]
+            dt_nudged = lon.get_index("navigation_time")[segi]
             self.logger.debug(
-                f"Filled _nudged arrays with {len(segi)} values starting at {lat.index[0]} which were before the first GPS fix at {lat_fix.index[0]}"
+                f"Filled _nudged arrays with {len(segi)} values starting at {lat.get_index('navigation_time')[0]} which were before the first GPS fix at {lat_fix.get_index('navigation_time')[0]}"
             )
         else:
             lon_nudged_array = np.array([])
             lat_nudged_array = np.array([])
             dt_nudged = np.array([], dtype="datetime64[ns]")
         if segi.any():
-            seg_min = (lat.index[segi][-1] - lat.index[segi][0]).total_seconds() / 60
+            seg_min = (
+                lat.get_index("navigation_time")[segi][-1]
+                - lat.get_index("navigation_time")[segi][0]
+            ).total_seconds() / 60
         else:
             seg_min = 0
         self.logger.info(
