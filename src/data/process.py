@@ -35,7 +35,6 @@ from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
 from getpass import getuser
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
-from numpy.core._exceptions import UFuncTypeError
 from resample import FREQ, Resampler
 from socket import gethostname
 
