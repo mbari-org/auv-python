@@ -1316,7 +1316,7 @@ class LOPC_Processor(object):
             sensor_off_time = parosci["time"][-1]
 
         self.logger.info(
-            "From associated paroscinc file: sensor_on_time = %.1f, sensor_off_time = %.1f"
+            "From associated parosci.nc file: sensor_on_time = %.1f, sensor_off_time = %.1f"
             % (sensor_on_time, sensor_off_time)
         )
         self.logger.info(
@@ -2292,6 +2292,11 @@ class LOPC_Processor(object):
 
             # Add time axis data to the data structure and estimate the number of records and time to parse
             tsList = self.constructTimestampList(binFile)
+            if not tsList:
+                self.logger.warning(
+                    "No timestamp data found in file: %s" % binFile.name
+                )
+                return
             self.dataStructure["tsList"] = tsList
             self.logger.info(
                 "Examined sibling parosci.nc file to find startTime = %s and endTime = %s with %d records expected to be read from lopc.bin"
