@@ -1085,6 +1085,16 @@ class Calibrate_NetCDF:
             self.logger.debug(f"Original data not found for {sensor}: {e}")
             return
 
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
         # From initial CVS commit in 2004 the processDepth.m file computed
         # pres from depth this way.  I don't know what is done on the vehicle
         # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
