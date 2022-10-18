@@ -37,6 +37,13 @@ class InvalidCalFile(Exception):
     pass
 
 
+MAX_EXTRAPOLATE = 1000  # Points outside of interp1d range
+
+
+class TooMuchExtrapolation(Exception):
+    pass
+
+
 class Align_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -149,6 +156,10 @@ class Align_NetCDF:
             self.logger.debug(f"Processing {variable}")
             self.aligned_nc[variable] = self.calibrated_nc[variable]
             # Interpolators for the non-time dimensions
+            # TODO: Evaluate if extrapolate is proper here. For just a few
+            # points it may be OK, but for a large number of points it will
+            # add crazy values as in dorado 2010.181.00 -- for now, just
+            # check for too many extrapolate points and raise an exception.
             try:
                 lat_interp = interp1d(
                     self.calibrated_nc["nudged_latitude"]
@@ -182,6 +193,47 @@ class Align_NetCDF:
                 .view(np.int64)
                 .tolist()
             )
+
+            # Count number of values that are outside the time range of the _interp coordinate values
+            outside_interps = np.where(
+                (
+                    self.aligned_nc[variable].get_index(f"{instr}_time")
+                    < self.calibrated_nc["depth_filtdepth"].get_index("depth_time")[0]
+                )
+                | (
+                    self.aligned_nc[variable].get_index(f"{instr}_time")
+                    > self.calibrated_nc["depth_filtdepth"].get_index("depth_time")[-1]
+                )
+            )[0]
+            outside_interps = np.union1d(
+                outside_interps,
+                np.where(
+                    (
+                        self.aligned_nc[variable].get_index(f"{instr}_time")
+                        < self.calibrated_nc["nudged_latitude"].get_index("time")[0]
+                    )
+                    | (
+                        self.aligned_nc[variable].get_index(f"{instr}_time")
+                        > self.calibrated_nc["nudged_latitude"].get_index("time")[-1]
+                    )
+                )[0],
+            )
+            if len(outside_interps) > 0:
+                self.logger.debug(
+                    f"{len(outside_interps)} value(s) outside the time range of the interpolators: {outside_interps}"
+                )
+                if depth_interp.fill_value == "extrapolate":
+                    self.logger.info(
+                        f"{variable}: Extrapolating {len(outside_interps)} value(s) at indice(s) {outside_interps}"
+                    )
+            if len(outside_interps) > MAX_EXTRAPOLATE:
+                self.logger.error(
+                    f"{variable}: Too many values would be extrapolated in call to interp1d()"
+                )
+                raise TooMuchExtrapolation(
+                    f"{len(outside_interps)} exceeds the {MAX_EXTRAPOLATE}  MAX_EXTRAPOLATE points allowed"
+                )
+
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
             # Use attributes from the calibrated data.
@@ -370,6 +422,10 @@ if __name__ == "__main__":
     align_netcdf = Align_NetCDF()
     align_netcdf.process_command_line()
     p_start = time.time()
-    netcdf_dir = align_netcdf.process_cal()
+    try:
+        netcdf_dir = align_netcdf.process_cal()
+    except TooMuchExtrapolation as e:
+        align_netcdf.logger.error(e)
+        sys.exit(1)
     align_netcdf.write_netcdf(netcdf_dir)
     align_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")

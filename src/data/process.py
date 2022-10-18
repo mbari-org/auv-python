@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
-from align import Align_NetCDF, InvalidCalFile
+from align import Align_NetCDF, InvalidCalFile, TooMuchExtrapolation
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
 from getpass import getuser
@@ -198,7 +198,7 @@ class Processor:
         try:
             netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
-        except (FileNotFoundError, EOFError) as e:
+        except (FileNotFoundError, EOFError, TooMuchExtrapolation) as e:
             align_netcdf.logger.error("%s %s", mission, e)
             raise InvalidCalFile(f"{mission} {e}")
         finally:
