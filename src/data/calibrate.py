@@ -332,7 +332,7 @@ class Calibrate_NetCDF:
         so that the union of bad values from a set variables can be removed."""
         Range = namedtuple("Range", "min max")
         ranges = {
-            "navigation_depth": Range(0, 10000),
+            "navigation_depth": Range(0, 1000),
             "navigation_roll": Range(-180, 180),
             "navigation_pitch": Range(-180, 180),
             "navigation_yaw": Range(-360, 360),
@@ -362,13 +362,14 @@ class Calibrate_NetCDF:
 
             else:
                 self.logger.warning(f"{var} not in self.combined_nc")
-        inst_vars = []
-        for variable in self.combined_nc.variables:
-            if str(variable).startswith(f"{instrument}_"):
-                inst_vars.append(str(variable))
+        inst_vars = [
+            str(var)
+            for var in self.combined_nc.variables
+            if str(var).startswith(f"{instrument}_")
+        ]
         for var in inst_vars:
             self.logger.info(
-                "%s: deleting %d indices %s",
+                "%s: deleting %d values: %s",
                 var,
                 len(self.combined_nc[var][out_of_range_indices].values),
                 self.combined_nc[var][out_of_range_indices].values,
@@ -376,9 +377,21 @@ class Calibrate_NetCDF:
             self.logger.debug(
                 f"{var}: deleting values {self.combined_nc[var][out_of_range_indices].values}"
             )
-            self.combined_nc[var] = self.combined_nc[var].drop_isel(
-                out_of_range_indices
+            coord = [k for k in self.combined_nc[var].coords][0]
+            self.combined_nc[f"{var}_qced"] = (
+                self.combined_nc[var]
+                .drop_isel({coord: out_of_range_indices})
+                .rename({"navigation_time": "navigation_time_qced"})
             )
+        self.combined_nc = self.combined_nc.drop_vars(inst_vars)
+        for var in inst_vars:
+            self.logger.debug(f"Renaming {var}_qced to {var}")
+            self.combined_nc[var] = self.combined_nc[f"{var}_qced"].rename(
+                {f"{coord}_qced": coord}
+            )
+        qced_vars = [f"{var}_qced" for var in inst_vars]
+        self.combined_nc = self.combined_nc.drop_vars(qced_vars)
+        self.logger.info(f"Done QC'ing {instrument}")
 
     def _read_data(self, logs_dir, netcdfs_dir):
         """Read in all the instrument data into member variables named by "sensor"
