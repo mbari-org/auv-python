@@ -1913,16 +1913,16 @@ class LOPC_Processor(object):
         # --- Create the record variables ---
         for key in self.MEPDataDictKeys:
             if key.endswith("List"):
-                self.logger.info("Creating variable %s on axes time and bin" % key)
+                self.logger.debug("Creating variable %s on axes time and bin" % key)
                 self.ncFile.createVariable(key, "i", ("time", "bin"))
             else:
-                self.logger.info("Creating variable %s on axes time" % key)
+                self.logger.debug("Creating variable %s on axes time" % key)
                 self.ncFile.createVariable(key, "f", ("time",))
 
             self.ncFile.variables[key].units = self.MEPDataDictUnits[key]
             self.ncFile.variables[key].long_name = self.MEPDataDictLongName[key]
 
-        self.logger.info("Creating variable countListSum on axis time")
+        self.logger.debug("Creating variable countListSum on axis time")
         self.ncFile.createVariable("countListSum", "i", ("time",))
         self.ncFile.variables["countListSum"].units = "count"
         self.ncFile.variables[
@@ -1930,11 +1930,11 @@ class LOPC_Processor(object):
         ].long_name = f"Sum of Total Particle counts"
 
         # Create scalar list item variable
-        self.logger.info(
+        self.logger.debug(
             "Creating variables from engineering data collected in LframeScalarDict:"
         )
         for var in self.LframeScalarKeys:
-            self.logger.info("Creating variable %s on axis time" % var)
+            self.logger.debug("Creating variable %s on axis time" % var)
             if var == "snapshot" or var == "bufferStatus":
                 self.ncFile.createVariable(var, "b", ("time",))
             else:
@@ -1959,18 +1959,18 @@ class LOPC_Processor(object):
                 ]
 
         # Create other (mainly Error count) variables from the self.dataStructure
-        self.logger.info(
+        self.logger.debug(
             "Creating variables from processing information collected in the self.dataStructure dictionary:"
         )
         for var in list(self.dataStructure.keys()):
-            self.logger.info("Checking var = %s" % var)
+            self.logger.debug("Checking var = %s" % var)
             if var.startswith("count"):
-                self.logger.info("Creating variable %s on axis time" % var)
+                self.logger.debug("Creating variable %s on axis time" % var)
                 self.ncFile.createVariable(var, "i", ("time",))
                 self.ncFile.variables[var].units = "count"
                 self.ncFile.variables[var].long_name = self.dataStructureLongName[var]
             if var.startswith("flowSpeed"):
-                self.logger.info("Creating variable %s on axis time" % var)
+                self.logger.debug("Creating variable %s on axis time" % var)
                 self.ncFile.createVariable(
                     var,
                     "f",
