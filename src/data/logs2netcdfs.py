@@ -387,7 +387,8 @@ class AUV_NetCDF(AUV):
         """Loop through all variables in self.nc_file,
         remove `bad_indices`, and write back out"""
         ds_orig = Dataset(netcdf_filename)
-        #  Finding < -1.0e20 works for 2010.172.01's naigation.log
+        #  Finding < -1.0e20 works for 2010.172.01's navigation.log
+        #                          and 2010.265.00's ctdDriver.log
         bad_indices = np.where(ds_orig[TIME][:] < -1.0e20)[0]
         self.logger.warning(
             "Removing %s bad_indices from %s: %s",
@@ -519,6 +520,8 @@ class AUV_NetCDF(AUV):
                 # Remove egregiously bad values as found in 2010.172.01's navigation.log - Comment from processNav.m:
                 # % For Mission 2010.172.01 the first part of the time array had really large negative epoch second values.
                 # % Take only the positive time values in addition to the good depth values
+                self._remove_bad_values(netcdf_filename)
+            if log == "ctdDriver.log" and "2010.265.00" in log_filename:
                 self._remove_bad_values(netcdf_filename)
 
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")

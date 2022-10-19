@@ -414,6 +414,13 @@ class Calibrate_NetCDF:
                 self.logger.debug(
                     f"{sensor:10}: Cannot open file" f" {orig_netcdf_filename}: {e}"
                 )
+            except OverflowError as e:
+                self.logger.error(
+                    f"{sensor:10}: Cannot open file" f" {orig_netcdf_filename}: {e}"
+                )
+                self.logger.info(
+                    "Perhaps _remove_bad_values() needs to be called for it in logs2netcdfs.py"
+                )
             if info["cal_filename"]:
                 cal_filename = os.path.join(logs_dir, info["cal_filename"])
                 self.logger.debug(
