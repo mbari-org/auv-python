@@ -93,153 +93,156 @@ class LOPC_Processor(object):
     ##logging.getLogger("logger").setLevel(logging.DEBUG)
     logging.getLogger("logger").setLevel(logging.INFO)
 
-    #
-    # Memebr Variables
-    #
-    debugLevel = 0
-    hasMBARICframeData = False  # includes timing, depth, profile information after a certain data - flag used in netCDF functions
-    WWbinningInterval = 1  # Test value
-    binningInterval = 20  # 10 second binning interval for calculated MEP data output
+    def __init__(self) -> None:
+        #
+        # Member Variables
+        #
+        self.debugLevel = 0
+        self.hasMBARICframeData = False  # includes timing, depth, profile information after a certain data - flag used in netCDF functions
+        self.WWbinningInterval = 1  # Test value
+        self.binningInterval = (
+            20  # 10 second binning interval for calculated MEP data output
+        )
 
-    missing_value = -9999  # Used in netCDF file
+        self.missing_value = -9999  # Used in netCDF file
 
-    dataStructure = dict()
+        self.dataStructure = dict()
 
-    dataStructureLongName = dict()
-    dataStructureLongName[
-        "countShortLFrameError"
-    ] = "Accumulated count of L frames that did not have the full 128 bins"
-    dataStructureLongName[
-        "countBeginLFrameWithoutEndOfPreviousFrame"
-    ] = "Accumulated count of L frames begun before an end of the previous frame"
-    dataStructureLongName[
-        "countBeginMFrameWithoutEndOfPreviousFrame"
-    ] = "Accumulated count of M frames begun before an end of the previous frame"
-    dataStructureLongName[
-        "countUnknownFrameCharacter"
-    ] = "Accumulated count of unknown frames"
-    dataStructureLongName[
-        "countGarbledLFrame"
-    ] = "Accumulated count of garbled L frames"
-    dataStructureLongName["flowSpeed"] = "Flow Speed"
+        self.dataStructureLongName = dict()
+        self.dataStructureLongName[
+            "countShortLFrameError"
+        ] = "Accumulated count of L frames that did not have the full 128 bins"
+        self.dataStructureLongName[
+            "countBeginLFrameWithoutEndOfPreviousFrame"
+        ] = "Accumulated count of L frames begun before an end of the previous frame"
+        self.dataStructureLongName[
+            "countBeginMFrameWithoutEndOfPreviousFrame"
+        ] = "Accumulated count of M frames begun before an end of the previous frame"
+        self.dataStructureLongName[
+            "countUnknownFrameCharacter"
+        ] = "Accumulated count of unknown frames"
+        self.dataStructureLongName[
+            "countGarbledLFrame"
+        ] = "Accumulated count of garbled L frames"
+        self.dataStructureLongName["flowSpeed"] = "Flow Speed"
 
-    LframeScalarKeys = [
-        "snapshot",
-        "threshold",
-        "sampleCount",
-        "flowCount",
-        "flowTime",
-        "bufferStatus",
-        "laserLevel",
-        "counter",
-        "counterPeriod",
-        "laserControl",
-    ]
-    LframeScalarDict = {
-        "snapshot": None,
-        "threshold": None,
-        "sampleCount": None,
-        "flowCount": None,
-        "flowTime": None,
-        "bufferStatus": None,
-        "laserLevel": None,
-        "counter": None,
-        "counterPeriod": None,
-        "laserControl": None,
-    }
-    LframeScalarDictUnits = {
-        "snapshot": None,
-        "threshold": "microns",
-        "sampleCount": None,
-        "flowCount": None,
-        "flowTime": "seconds",
-        "bufferStatus": None,
-        "laserLevel": None,
-        "counter": None,
-        "counterPeriod": "seconds",
-        "laserControl": None,
-    }
-    LframeScalarDictLongName = {
-        "snapshot": "1: snapshot in progress, 0: not in progress",
-        "threshold": "lower limit on signal level detection",
-        "sampleCount": "Number of sample",
-        "flowCount": "Number of flow counts in .5 second period",
-        "flowTime": "Accumulated time for all counts",
-        "bufferStatus": "1: buffer overrun, 0: no overrun",
-        "laserLevel": "Mean laser intensity",
-        "counter": "Number of pulses detected on the counter input",
-        "counterPeriod": "Period of the pulses detected on the counter input",
-        "laserControl": "Configured set value for the Laser Control Algorithm",
-    }
+        self.LframeScalarKeys = [
+            "snapshot",
+            "threshold",
+            "sampleCount",
+            "flowCount",
+            "flowTime",
+            "bufferStatus",
+            "laserLevel",
+            "counter",
+            "counterPeriod",
+            "laserControl",
+        ]
+        self.LframeScalarDict = {
+            "snapshot": None,
+            "threshold": None,
+            "sampleCount": None,
+            "flowCount": None,
+            "flowTime": None,
+            "bufferStatus": None,
+            "laserLevel": None,
+            "counter": None,
+            "counterPeriod": None,
+            "laserControl": None,
+        }
+        self.LframeScalarDictUnits = {
+            "snapshot": None,
+            "threshold": "microns",
+            "sampleCount": None,
+            "flowCount": None,
+            "flowTime": "seconds",
+            "bufferStatus": None,
+            "laserLevel": None,
+            "counter": None,
+            "counterPeriod": "seconds",
+            "laserControl": None,
+        }
+        self.LframeScalarDictLongName = {
+            "snapshot": "1: snapshot in progress, 0: not in progress",
+            "threshold": "lower limit on signal level detection",
+            "sampleCount": "Number of sample",
+            "flowCount": "Number of flow counts in .5 second period",
+            "flowTime": "Accumulated time for all counts",
+            "bufferStatus": "1: buffer overrun, 0: no overrun",
+            "laserLevel": "Mean laser intensity",
+            "counter": "Number of pulses detected on the counter input",
+            "counterPeriod": "Period of the pulses detected on the counter input",
+            "laserControl": "Configured set value for the Laser Control Algorithm",
+        }
 
-    MEPDataDictKeys = [
-        "sepCountList",
-        "mepCountList",
-        "sepCountListSum",
-        "mepCountListSum",
-        "countList",
-        "LCcount",
-        "transCount",
-        "nonTransCount",
-        "ai_mean",
-        "ai_min",
-        "ai_max",
-        "ai_std",
-        "esd_mean",
-        "esd_min",
-        "esd_max",
-        "esd_std",
-    ]
-    MEPDataDictUnits = {
-        "sepCountList": "count",
-        "mepCountList": "count",
-        "sepCountListSum": "count",
-        "mepCountListSum": "count",
-        "countList": "count",
-        "LCcount": "count",
-        "transCount": "count",
-        "nonTransCount": "count",
-        "ai_mean": "",
-        "ai_min": "",
-        "ai_max": "",
-        "ai_std": "",
-        "esd_mean": "microns",
-        "esd_min": "microns",
-        "esd_max": "microns",
-        "esd_std": "microns",
-    }
-    MEPDataDictLongName = {
-        "sepCountList": "Single Element Particle counts by size class",
-        "mepCountList": "Multiple Element Particle counts by size class",
-        "sepCountListSum": "Sum of Single Element Particle counts",
-        "mepCountListSum": "Sum of Multiple Element Particle counts",
-        "countList": "Total Particle counts by size class",
-        "LCcount": "Large Copepod count",
-        "transCount": "Transparent particle count",
-        "nonTransCount": "Non-Transparent particle count",
-        "ai_mean": "Attenuation Index mean",
-        "ai_min": "Attenuation Index minimum",
-        "ai_max": "Attenuation Index maximum",
-        "ai_std": "Attenuation Index Standard Deviation",
-        "esd_mean": "Equivalent Spherical Diameter mean",
-        "esd_min": "Equivalent Spherical Diameter minimum",
-        "esd_max": "Equivalent Spherical Diameter ",
-        "esd_std": "Equivalent Spherical Diameter Index Standard Deviation",
-        "esd_mean": "microns",
-        "esd_min": "microns",
-        "esd_max": "microns",
-        "esd_std": "microns",
-    }
+        self.MEPDataDictKeys = [
+            "sepCountList",
+            "mepCountList",
+            "sepCountListSum",
+            "mepCountListSum",
+            "countList",
+            "LCcount",
+            "transCount",
+            "nonTransCount",
+            "ai_mean",
+            "ai_min",
+            "ai_max",
+            "ai_std",
+            "esd_mean",
+            "esd_min",
+            "esd_max",
+            "esd_std",
+        ]
+        self.MEPDataDictUnits = {
+            "sepCountList": "count",
+            "mepCountList": "count",
+            "sepCountListSum": "count",
+            "mepCountListSum": "count",
+            "countList": "count",
+            "LCcount": "count",
+            "transCount": "count",
+            "nonTransCount": "count",
+            "ai_mean": "",
+            "ai_min": "",
+            "ai_max": "",
+            "ai_std": "",
+            "esd_mean": "microns",
+            "esd_min": "microns",
+            "esd_max": "microns",
+            "esd_std": "microns",
+        }
+        self.MEPDataDictLongName = {
+            "sepCountList": "Single Element Particle counts by size class",
+            "mepCountList": "Multiple Element Particle counts by size class",
+            "sepCountListSum": "Sum of Single Element Particle counts",
+            "mepCountListSum": "Sum of Multiple Element Particle counts",
+            "countList": "Total Particle counts by size class",
+            "LCcount": "Large Copepod count",
+            "transCount": "Transparent particle count",
+            "nonTransCount": "Non-Transparent particle count",
+            "ai_mean": "Attenuation Index mean",
+            "ai_min": "Attenuation Index minimum",
+            "ai_max": "Attenuation Index maximum",
+            "ai_std": "Attenuation Index Standard Deviation",
+            "esd_mean": "Equivalent Spherical Diameter mean",
+            "esd_min": "Equivalent Spherical Diameter minimum",
+            "esd_max": "Equivalent Spherical Diameter ",
+            "esd_std": "Equivalent Spherical Diameter Index Standard Deviation",
+            "esd_mean": "microns",
+            "esd_min": "microns",
+            "esd_max": "microns",
+            "esd_std": "microns",
+        }
 
-    frameText = ""
+        self.frameText = ""
 
-    countBeginLFrameWithoutEndOfPreviousFrame = 0
-    countBeginMFrameWithoutEndOfPreviousFrame = 0
-    countUnknownFrameCharacter = 0
-    countGarbledLFrame = 0
-    unknownFrameCharacters = []
-    ncFile = None
-    sampleCountList = []
+        self.countBeginLFrameWithoutEndOfPreviousFrame = 0
+        self.countBeginMFrameWithoutEndOfPreviousFrame = 0
+        self.countUnknownFrameCharacter = 0
+        self.countGarbledLFrame = 0
+        self.unknownFrameCharacters = []
+        self.ncFile = None
+        self.sampleCountList = []
 
     def checkForDLE(self, file, char):
         """Logic that is applied to each character read if a <DLE> ('~') is encounered"""
