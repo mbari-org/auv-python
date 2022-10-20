@@ -302,7 +302,8 @@ class Processor:
             self.align(mission)
             self.resample(mission)
             self.archive(mission)
-            self.cleanup(mission)
+            if not self.args.no_cleanup:
+                self.cleanup(mission)
 
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
@@ -370,6 +371,8 @@ class Processor:
                     self.logger.error("%s %s", mission, e)
                     self.logger.error("Cannot continue without a valid _cal.nc file")
                 finally:
+                    if not self.args.no_cleanup:
+                        self.cleanup(mission)
                     self.logger.info(
                         "Mission %s took %.1f seconds to process",
                         mission,
@@ -474,6 +477,11 @@ class Processor:
             "--cleanup",
             action="store_true",
             help=f"Remove {MISSIONLOGS} and {MISSIONNETCDFS} files following archive of processed mission",
+        )
+        parser.add_argument(
+            "--no_cleanup",
+            action="store_true",
+            help="Do not perform cleanup after processing mission",
         )
         parser.add_argument(
             "--mission",
