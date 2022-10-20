@@ -6,7 +6,7 @@ The sequence of steps to process data is as follows:
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure
-on the local file system is as follows:
+on the local file system's work directory is as follows:
 
     ├── data
     │   ├── auv_data
@@ -17,13 +17,13 @@ on the local file system is as follows:
     │   │   │   ├── missionnetcdfs  <- netCDF files
     │   │   │   │   ├── <mission>   <- e.g.: 2020.266.01, 2021.062.01, ...
     │   │   │   │   │   ├── <nc>    <- .nc files for each instrument created
-                                        by logs2netcdfs.py
+    |   |   |   |   |   |               by logs2netcdfs.py
     │   │   │   │   │   ├── <cal>   <- .nc file with calibrated data created
-                                        by calibrate.py
+    |   |   |   |   |   |               by calibrate.py
     │   │   │   │   │   ├── <align> <- .nc file with all measurement variables
-                                       having associated coordinate variables
-                                       at original instrument sampling rate -
-                                       created by align.py
+    |   |   |   |   |   |               having associated coordinate variables
+    |   |   |   |   |   |               at original instrument sampling rate -
+    |   |   |   |   |   |               created by align.py
     │   │   │   │   │   ├── <nS>    <- .nc file with all measurement variables
                                        resampled to a common time grid at n 
                                        Second intervals - created by resample.py
