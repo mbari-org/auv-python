@@ -12,6 +12,7 @@ Limit processing to specific steps by providing arugments:
     --calibrate
     --resample
     --archive
+    --cleanup
 If none provided then perform all steps.
 
 Uses command line arguments from logs2netcdf.py and calibrate.py.

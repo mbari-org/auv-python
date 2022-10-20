@@ -11,6 +11,7 @@ Limit processing to specific steps by providing arugments:
     --calibrate
     --resample
     --archive
+    --cleanup
 If none provided then perform all steps.
 
 Uses command line arguments from logs2netcdf.py and calibrate.py.
@@ -23,6 +24,7 @@ import argparse
 import logging
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -252,6 +254,18 @@ class Processor:
         arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
         arch.logger.removeHandler(self.log_handler)
 
+    def cleanup(self, mission: str) -> None:
+        self.logger.info(
+            "Removing %s files from %s and %s", mission, MISSIONNETCDFS, MISSIONLOGS
+        )
+        shutil.rmtree(
+            os.path.join(self.args.base_path, self.vehicle, MISSIONLOGS, mission)
+        )
+        shutil.rmtree(
+            os.path.join(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission)
+        )
+        self.logger.info("Done removing %s work files", mission)
+
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         netcdfs_dir = os.path.join(
             self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
@@ -280,12 +294,15 @@ class Processor:
             self.resample(mission)
         elif self.args.archive:
             self.archive(mission)
+        elif self.args.cleanup:
+            self.cleanup(mission)
         else:
             self.download_process(mission, src_dir)
             self.calibrate(mission)
             self.align(mission)
             self.resample(mission)
             self.archive(mission)
+            self.cleanup(mission)
 
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
@@ -454,6 +471,11 @@ class Processor:
             help="Archive the resampled netCDF file(s)",
         )
         parser.add_argument(
+            "--cleanup",
+            action="store_true",
+            help=f"Remove {MISSIONLOGS} and {MISSIONNETCDFS} files following archive of processed mission",
+        )
+        parser.add_argument(
             "--mission",
             action="store",
             help="Process only this mission",
@@ -506,6 +528,8 @@ if __name__ == "__main__":
     VEHICLE = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     MOUNT_DIR = "smb://titan.shore.mbari.org/M3"
-    proc = Processor()
+
+    # Initialize for i2MAP processing, be meant to be subclassed for other vehicles
+    proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR)
     proc.process_command_line()
     proc.process_missions()
