@@ -6,7 +6,7 @@ The sequence of steps to process data is as follows:
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure
-on the local file system is as follows:
+on the local file system's work directory is as follows:
 
     ├── data
     │   ├── auv_data
@@ -17,31 +17,36 @@ on the local file system is as follows:
     │   │   │   ├── missionnetcdfs  <- netCDF files
     │   │   │   │   ├── <mission>   <- e.g.: 2020.266.01, 2021.062.01, ...
     │   │   │   │   │   ├── <nc>    <- .nc files for each instrument created
-                                        by logs2netcdfs.py
+    |   |   |   |   |   |               by logs2netcdfs.py
     │   │   │   │   │   ├── <cal>   <- .nc file with calibrated data created
-                                        by calibrate.py
+    |   |   |   |   |   |               by calibrate.py
     │   │   │   │   │   ├── <align> <- .nc file with all measurement variables
-                                       having associated coordinate variables
-                                       at original instrument sampling rate -
-                                       created by align.py
+    |   |   |   |   |   |               having associated coordinate variables
+    |   |   |   |   |   |               at original instrument sampling rate -
+    |   |   |   |   |   |               created by align.py
     │   │   │   │   │   ├── <nS>    <- .nc file with all measurement variables
                                        resampled to a common time grid at n 
                                        Second intervals - created by resample.py
 
     logs2netcdfs.py:
         Download and convert raw .log data recorded the vehicle to netCDF files.
-        There is no modification of the original data values. The conversion
+        There is no modification of the original data values - there are some
+        exceptions where egregiously bad values are removed so that valuable 
+        data can proceed on to the next step of processing. The conversion
         is done to begin with an interoperable data format for subsequent
         processing. Metadata is drawn from information in the .log file and
         associated .cfg files for the vehicle and instruments.
-        The output files are stored in the `missionnetcdfs/` directory which
+        The output files are stored in the missionnetcdfs/ directory which
         is parallel to the original data stored in missionlogs/. The file names
         align with the type of instrument that generated the data.
 
     calibrate.py
         Apply calibration coefficients to the raw data. The calibrated data
-        are written to a new netCDF file in the `missionnetcdfs/<mission>`
-        directory ending with `_cal.nc`. The record variables in the netCDF 
+        are written to a new netCDF file in the missionnetcdfs/<mission>
+        directory ending with _cal.nc. This step also includes nudging the
+        underwater portions of the navigation positions to the GPS fixes 
+        done at the surface. Some minimal QC is done in this step, namely 
+        removal on non-monotonic times. The record variables in the netCDF 
         file have only their original coordinates, namely time associated with
         them.
 
