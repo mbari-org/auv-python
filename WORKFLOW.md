@@ -30,18 +30,23 @@ on the local file system's work directory is as follows:
 
     logs2netcdfs.py:
         Download and convert raw .log data recorded the vehicle to netCDF files.
-        There is no modification of the original data values. The conversion
+        There is no modification of the original data values - there are some
+        exceptions where egregiously bad values are removed so that valuable 
+        data can proceed on to the next step of processing. The conversion
         is done to begin with an interoperable data format for subsequent
         processing. Metadata is drawn from information in the .log file and
         associated .cfg files for the vehicle and instruments.
-        The output files are stored in the `missionnetcdfs/` directory which
+        The output files are stored in the missionnetcdfs/ directory which
         is parallel to the original data stored in missionlogs/. The file names
         align with the type of instrument that generated the data.
 
     calibrate.py
         Apply calibration coefficients to the raw data. The calibrated data
-        are written to a new netCDF file in the `missionnetcdfs/<mission>`
-        directory ending with `_cal.nc`. The record variables in the netCDF 
+        are written to a new netCDF file in the missionnetcdfs/<mission>
+        directory ending with _cal.nc. This step also includes nudging the
+        underwater portions of the navigation positions to the GPS fixes 
+        done at the surface. Some minimal QC is done in this step, namely 
+        removal on non-monotonic times. The record variables in the netCDF 
         file have only their original coordinates, namely time associated with
         them.
 
