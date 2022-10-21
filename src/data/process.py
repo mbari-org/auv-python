@@ -258,13 +258,16 @@ class Processor:
         self.logger.info(
             "Removing %s files from %s and %s", mission, MISSIONNETCDFS, MISSIONLOGS
         )
-        shutil.rmtree(
-            os.path.join(self.args.base_path, self.vehicle, MISSIONLOGS, mission)
-        )
-        shutil.rmtree(
-            os.path.join(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission)
-        )
-        self.logger.info("Done removing %s work files", mission)
+        try:
+            shutil.rmtree(
+                os.path.join(self.args.base_path, self.vehicle, MISSIONLOGS, mission)
+            )
+            shutil.rmtree(
+                os.path.join(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission)
+            )
+            self.logger.info("Done removing %s work files", mission)
+        except FileNotFoundError as e:
+            self.logger.info("Directory %s work not found", mission)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         netcdfs_dir = os.path.join(
@@ -322,7 +325,8 @@ class Processor:
                 self.logger.error("%s %s", self.args.mission, e)
                 self.logger.error("Cannot continue without a valid _cal.nc file")
             finally:
-                self.archive(mission)
+                if not self.args.no_cleanup:
+                    self.cleanup(mission)
                 self.logger.info(
                     "Mission %s took %.1f seconds to process",
                     self.args.mission,
@@ -344,38 +348,10 @@ class Processor:
                 try:
                     t_start = time.time()
                     self.process_mission(mission, src_dir=missions[mission])
-                except TimeoutError:
-                    try:
-                        self.logger.warning(
-                            "Timeout error processing mission %s, trying again", mission
-                        )
-                        t_start = time.time()
-                        self.process_mission(mission, src_dir=missions[mission])
-                    except TimeoutError:
-                        self.logger.exception(
-                            "Timeout error processing mission %s", mission
-                        )
-                    except (InvalidCalFile, FileNotFoundError, EOFError) as e:
-                        self.logger.error("%s %s", self.args.mission, e)
-                        self.logger.error(
-                            "Cannot continue without a valid _cal.nc file"
-                        )
-                    finally:
-                        self.archive(mission)
-                        if not self.args.no_cleanup:
-                            self.cleanup(mission)
-                        self.logger.info(
-                            "Mission %s took %.1f seconds to process",
-                            self.args.mission,
-                            time.time() - t_start,
-                        )
-                        if hasattr(self, "log_handler"):
-                            self.logger.removeHandler(self.log_handler)
                 except (InvalidCalFile, FileNotFoundError, EOFError) as e:
                     self.logger.error("%s %s", mission, e)
                     self.logger.error("Cannot continue without a valid _cal.nc file")
                 finally:
-                    self.archive(mission)
                     if not self.args.no_cleanup:
                         self.cleanup(mission)
                     self.logger.info(
