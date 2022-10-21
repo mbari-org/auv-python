@@ -322,6 +322,7 @@ class Processor:
                 self.logger.error("%s %s", self.args.mission, e)
                 self.logger.error("Cannot continue without a valid _cal.nc file")
             finally:
+                self.archive(mission)
                 self.logger.info(
                     "Mission %s took %.1f seconds to process",
                     self.args.mission,
@@ -360,6 +361,9 @@ class Processor:
                             "Cannot continue without a valid _cal.nc file"
                         )
                     finally:
+                        self.archive(mission)
+                        if not self.args.no_cleanup:
+                            self.cleanup(mission)
                         self.logger.info(
                             "Mission %s took %.1f seconds to process",
                             self.args.mission,
@@ -371,6 +375,7 @@ class Processor:
                     self.logger.error("%s %s", mission, e)
                     self.logger.error("Cannot continue without a valid _cal.nc file")
                 finally:
+                    self.archive(mission)
                     if not self.args.no_cleanup:
                         self.cleanup(mission)
                     self.logger.info(
