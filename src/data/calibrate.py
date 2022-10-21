@@ -1684,6 +1684,40 @@ class Calibrate_NetCDF:
         except KeyError:
             self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
 
+        # === flow variables ===
+        self.logger.debug("Collecting flow1")
+        try:
+            flow1 = xr.DataArray(
+                orig_nc["flow1"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="flow1",
+            )
+            flow1.attrs = {
+                "long_name": "Flow sensor on ctd1",
+                "units": "Volts",
+                "comment": f"flow1 from {source}",
+            }
+            self.combined_nc[f"{sensor}_flow1"] = flow1
+        except KeyError:
+            self.logger.debug("No flow1 data in %s", self.args.mission)
+        self.logger.debug("Collecting flow2")
+        try:
+            flow2 = xr.DataArray(
+                orig_nc["flow2"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="flow2",
+            )
+            flow2.attrs = {
+                "long_name": "Flow sensor on ctd1",
+                "units": "Volts",
+                "comment": f"flow2 from {source}",
+            }
+            self.combined_nc[f"{sensor}_flow2"] = flow2
+        except KeyError:
+            self.logger.debug("No flow2 data in %s", self.args.mission)
+
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )

@@ -22,6 +22,18 @@
             "args": ["--auv_name", "dorado", "--mission", "2010.172.01", "--noinput", "-v", "2", "--clobber", "--local"]
         },
         {
+            "name": "1.1 - lopcToNetCDF",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/lopcToNetCDF.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.084.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.084.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
+            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2022.243.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2022.243.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
+            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2007.344.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2007.344.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
+            "args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.055.05/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.055.05/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
+        },
+        {
             "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
             "type": "python",
             "request": "launch",
@@ -44,9 +56,10 @@
             //"args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--plot",  "first1000", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.344.01", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2010.172.01", "--plot",  "first1000", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2010.181.00", "--plot",  "first1000", "-v", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2010.181.00", "--plot",  "first1000", "-v", "1"]
             // OverflowError: time values outside range of 64 bit signed integers in calibrate.py:413
             //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--plot",  "first1000", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2022.243.00", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -63,7 +76,7 @@
             "console": "integratedTerminal",
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.109.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.243.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.172.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
         },
@@ -81,7 +94,7 @@
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
             //"args": ["-v", "2", "--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot"],
             //"args": ["--auv_name", "i2map", "--mission", "2017.017.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2004.236.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2022.243.00", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",
@@ -89,7 +102,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
+            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.243.00", "--AUVCTD"],
         },
         {
             "name": "process_i2map",
@@ -136,20 +150,9 @@
             //"args": ["-v", "1", "--mission", "2010.181.00", "--local", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2010.286.02", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "286", "--local", "--clobber", "--noinput"]
-            "args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "167", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "167", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--mission", "2022.243.00", "--use_portal",  "--clobber", "--noinput", "--no_cleanup"]
             //"args": ["-v", "1"]
-        },
-        {
-            "name": "lopcToNetCDF",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/lopcToNetCDF.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.084.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.084.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
-            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2022.243.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2022.243.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
-            //"args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2007.344.00/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2007.344.00/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
-            "args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.055.05/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.055.05/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
         },
     ]
 }
