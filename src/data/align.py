@@ -223,8 +223,19 @@ class Align_NetCDF:
                     f"{len(outside_interps)} value(s) outside the time range of the interpolators: {outside_interps}"
                 )
                 if depth_interp.fill_value == "extrapolate":
-                    self.logger.info(
+                    self.logger.debug(
                         f"{variable}: Extrapolating {len(outside_interps)} value(s) at indice(s) {outside_interps}"
+                    )
+                    self.logger.info(
+                        "%s: Extrapolating %d value(s) between %s and %s",
+                        variable,
+                        len(outside_interps),
+                        self.aligned_nc[variable]
+                        .get_index(f"{instr}_time")[outside_interps]
+                        .values[0],
+                        self.aligned_nc[variable]
+                        .get_index(f"{instr}_time")[outside_interps]
+                        .values[-1],
                     )
             if len(outside_interps) > MAX_EXTRAPOLATE:
                 self.logger.error(

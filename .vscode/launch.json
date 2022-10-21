@@ -63,9 +63,9 @@
             "console": "integratedTerminal",
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
-            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.109.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.109.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.172.01"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
         },
         {
             "name": "4.0 - resample.py",
