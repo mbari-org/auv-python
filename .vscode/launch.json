@@ -151,7 +151,8 @@
             //"args": ["-v", "1", "--mission", "2010.286.02", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "286", "--local", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "167", "--clobber", "--noinput"]
-            "args": ["-v", "1", "--mission", "2022.243.00", "--use_portal",  "--clobber", "--noinput", "--no_cleanup"]
+            //"args": ["-v", "1", "--mission", "2022.243.00", "--use_portal",  "--clobber", "--noinput", "--no_cleanup"]
+            "args": ["-v", "1", "--start_year", "2016",  "--end_year", "2016", "--start_yd", "160", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
             //"args": ["-v", "1"]
         },
     ]

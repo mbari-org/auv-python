@@ -247,7 +247,7 @@ class Calibrate_NetCDF:
                     },
                 ),
                 (
-                    "ctd",
+                    "ctd1",
                     {
                         "data_filename": "ctdDriver.nc",
                         "cal_filename": "ctdDriver.cfg",
@@ -1897,7 +1897,7 @@ class Calibrate_NetCDF:
             self._tailcone_process(sensor)
         elif sensor == "lopc":
             self._lopc_process(sensor)
-        elif sensor == "ctd" or sensor == "ctd2" or sensor == "seabird25p":
+        elif sensor == "ctd1" or sensor == "ctd2" or sensor == "seabird25p":
             if coeffs is not None:
                 self._ctd_process(sensor, coeffs)
             else:
