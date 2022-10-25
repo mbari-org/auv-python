@@ -65,6 +65,7 @@ from hs2_proc import hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = "time"
+Range = namedtuple("Range", "min max")
 
 
 def align_geom(sensor_offset, pitches):
@@ -326,20 +327,14 @@ class Calibrate_NetCDF:
             self.sinfo["biolume"]["sensor_offset"] = SensorOffset(1.003, 0.0001)
         # ...
 
-    def _range_qc_combined_nc(self, instrument: str, variables: List[str]) -> None:
+    def _range_qc_combined_nc(
+        self, instrument: str, variables: List[str], ranges: dict
+    ) -> None:
         """For variables in combined_nc remove values that fall outside
         of specified min, max range.  Meant to be called by instrument
         so that the union of bad values from a set variables can be removed."""
-        Range = namedtuple("Range", "min max")
-        ranges = {
-            "navigation_depth": Range(0, 1000),
-            "navigation_roll": Range(-180, 180),
-            "navigation_pitch": Range(-180, 180),
-            "navigation_yaw": Range(-360, 360),
-            "navigation_longitude": Range(-360, 360),
-            "navigation_latitude": Range(-90, 90),
-        }
         out_of_range_indices = np.array([], dtype=int)
+        vars_checked = []
         for var in variables:
             if var in self.combined_nc.variables:
                 if var in ranges:
@@ -357,8 +352,9 @@ class Calibrate_NetCDF:
                         out_of_range_indices,
                         out_of_range,
                     )
+                    vars_checked.append(var)
                 else:
-                    self.logger.warning(f"No Ranges set for {var}")
+                    self.logger.debug(f"No Ranges set for {var}")
 
             else:
                 self.logger.warning(f"{var} not in self.combined_nc")
@@ -369,7 +365,11 @@ class Calibrate_NetCDF:
         ]
         for var in inst_vars:
             self.logger.info(
-                "%s: deleting %d values: %s",
+                "Checked for data outside of these variables and ranges: %s",
+                [(v, ranges[v]) for v in vars_checked],
+            )
+            self.logger.info(
+                "%s: deleting %d values found outside of above ranges: %s",
                 var,
                 len(self.combined_nc[var][out_of_range_indices].values),
                 self.combined_nc[var][out_of_range_indices].values,
@@ -381,7 +381,7 @@ class Calibrate_NetCDF:
             self.combined_nc[f"{var}_qced"] = (
                 self.combined_nc[var]
                 .drop_isel({coord: out_of_range_indices})
-                .rename({"navigation_time": "navigation_time_qced"})
+                .rename({f"{instrument}_time": f"{instrument}_time_qced"})
             )
         self.combined_nc = self.combined_nc.drop_vars(inst_vars)
         for var in inst_vars:
@@ -709,7 +709,29 @@ class Calibrate_NetCDF:
 
         if self.args.mission == "2010.172.01":
             self.logger.info("Performing special QC for 2010.172.01/navigation.nc")
-            self._range_qc_combined_nc(instrument="navigation", variables=vars_to_qc)
+            self._range_qc_combined_nc(
+                instrument="navigation",
+                variables=vars_to_qc,
+                ranges={
+                    "navigation_depth": Range(0, 1000),
+                    "navigation_roll": Range(-180, 180),
+                    "navigation_pitch": Range(-180, 180),
+                    "navigation_yaw": Range(-360, 360),
+                    "navigation_longitude": Range(-360, 360),
+                    "navigation_latitude": Range(-90, 90),
+                },
+            )
+
+        if self.args.mission == "2016.348.00":
+            self.logger.info("Performing special QC for 2016.384.00/navigation.nc")
+            self._range_qc_combined_nc(
+                instrument="navigation",
+                variables=vars_to_qc,
+                ranges={
+                    "navigation_longitude": Range(-122.1, -121.7),
+                    "navigation_latitude": Range(36, 37),
+                },
+            )
 
     def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
@@ -773,13 +795,35 @@ class Calibrate_NetCDF:
             end_sec_diff = (
                 float(lat_fix.cf["T"].data[i + 1] - lat.cf["T"].data[segi[-1]]) / 1.0e9
             )
-            if abs(end_sec_diff) > max_sec_diff_at_end:
-                self.logger.warning(
-                    f"abs(end_sec_diff) ({end_sec_diff}) > max_sec_diff_at_end ({max_sec_diff_at_end})"
-                )
 
             end_lon_diff = float(lon_fix[i + 1]) - float(lon[segi[-1]])
             end_lat_diff = float(lat_fix[i + 1]) - float(lat[segi[-1]])
+            if abs(end_lon_diff) > 1 or abs(end_lat_diff) > 1:
+                # It's a problem if we have more than 1 degree difference at the end of the segment.
+                # This is usually because the GPS fix is bad, but sometimes it's because the
+                # dead reckoned position is bad.  Or sometimes it's both as in dorado 2016.384.00.
+                # Early QC by calling _range_qc_combined_nc() can remove the bad points.
+                self.logger.error(
+                    "End of underwater segment dead reckoned position is too different from GPS fix: "
+                    f"abs(end_lon_diff) ({end_lon_diff}) > 1 or abs(end_lat_diff) ({end_lat_diff}) > 1"
+                )
+                self.logger.info(
+                    "Fix this error by calling _range_qc_combined_nc() for gps and/or navigation variables"
+                )
+                raise ValueError(
+                    f"abs(end_lon_diff) ({end_lon_diff}) > 1 or abs(end_lat_diff) ({end_lat_diff}) > 1"
+                )
+            if abs(end_sec_diff) > max_sec_diff_at_end:
+                # Happens in dorado 2016.348.00 because of a bad GPS fixes being removed
+                self.logger.warning(
+                    f"abs(end_sec_diff) ({end_sec_diff}) > max_sec_diff_at_end ({max_sec_diff_at_end})"
+                )
+                self.logger.info(
+                    f"Overriding end_lon_diff ({end_lon_diff}) and end_lat_diff ({end_lat_diff}) by setting them to 0"
+                )
+                end_lon_diff = 0
+                end_lat_diff = 0
+
             seg_min = (
                 float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
                 / 1.0e9
@@ -997,52 +1041,13 @@ class Calibrate_NetCDF:
         else:
             lon = orig_nc["longitude"] * 180.0 / np.pi
 
-        # Filter out positions outside of operational box
-        if (
-            self.args.mission == "2010.151.04"
-            or self.args.mission == "2010.153.01"
-            or self.args.mission == "2010.154.01"
-        ):
-            lat_min = 26
-            lat_max = 40
-            lon_min = -124
-            lon_max = -70
-        else:
-            lat_min = 30
-            lat_max = 40
-            lon_min = -124
-            lon_max = -114
-
-        self.logger.debug(
-            f"Finding positions outside of longitude: {lon_min},"
-            f" {lon_max} and latitide: {lat_min}, {lat_max}"
-        )
-        mlat = np.ma.masked_invalid(lat)
-        mlat = np.ma.masked_outside(mlat, lat_min, lat_max)
-        mlon = np.ma.masked_invalid(lon)
-        mlon = np.ma.masked_outside(mlon, lon_min, lon_max)
-        pm = np.logical_and(mlat, mlon)
-        bad_pos = [
-            f"{lo}, {la}"
-            for lo, la in zip(lon.values[:][pm.mask], lat.values[:][pm.mask])
-        ]
-
         gps_time_to_save = orig_nc.get_index("time")
         lat_to_save = lat
         lon_to_save = lon
-        if bad_pos:
-            self.logger.info(
-                f"Number of bad {sensor} positions:" f" {len(lat.values[:][pm.mask])}"
-            )
-            self.logger.debug(
-                f"Removing bad {sensor} positions (indices,"
-                f" (lon, lat)): {np.where(pm.mask)[0]}, {bad_pos}"
-            )
-            gps_time_to_save = orig_nc.get_index("time")[:][~pm.mask]
-            lat_to_save = lat[:][~pm.mask]
-            lon_to_save = lon[:][~pm.mask]
 
         source = self.sinfo[sensor]["data_filename"]
+        vars_to_qc = []
+        vars_to_qc.append("gps_latitude")
         self.combined_nc["gps_latitude"] = xr.DataArray(
             lat_to_save.values,
             coords=[gps_time_to_save],
@@ -1056,6 +1061,7 @@ class Calibrate_NetCDF:
             "comment": f"latitude from {source}",
         }
 
+        vars_to_qc.append("gps_longitude")
         self.combined_nc["gps_longitude"] = xr.DataArray(
             lon_to_save.values,
             coords=[gps_time_to_save],
@@ -1072,6 +1078,16 @@ class Calibrate_NetCDF:
             "units": "degrees_east",
             "comment": f"longitude from {source}",
         }
+        if self.args.mission == "2016.348.00":
+            self.logger.info("Performing special QC for 2016.348.00/gps.nc")
+            self._range_qc_combined_nc(
+                instrument="gps",
+                variables=vars_to_qc,
+                ranges={
+                    "gps_latitude": Range(36, 37),
+                    "gps_longitude": Range(-122.1, -121.7),
+                },
+            )
 
         # TODO: Put this in a separate module like match_to_gps.py or something
         # With navigation dead reckoned positions available in self.combined_nc
@@ -1685,6 +1701,7 @@ class Calibrate_NetCDF:
             self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
 
         # === flow variables ===
+        # A lot of 0.0 values in Dorado missions until about 2020.282.01
         self.logger.debug("Collecting flow1")
         try:
             flow1 = xr.DataArray(
