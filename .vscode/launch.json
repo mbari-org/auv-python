@@ -59,7 +59,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2010.181.00", "--plot",  "first1000", "-v", "1"]
             // OverflowError: time values outside range of 64 bit signed integers in calibrate.py:413
             //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--plot",  "first1000", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2022.243.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2016.348.00", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -76,7 +76,7 @@
             "console": "integratedTerminal",
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.243.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2016.348.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.172.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
         },
@@ -94,7 +94,7 @@
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--freq", "2S"],
             //"args": ["-v", "2", "--auv_name", "Dorado389", "--mission", "2020.245.00", "--plot"],
             //"args": ["--auv_name", "i2map", "--mission", "2017.017.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2022.243.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2016.348.00", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",
@@ -103,7 +103,7 @@
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.243.00", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2016.348.00", "--AUVCTD"],
         },
         {
             "name": "process_i2map",
@@ -152,7 +152,8 @@
             //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "286", "--local", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "167", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.243.00", "--use_portal",  "--clobber", "--noinput", "--no_cleanup"]
-            "args": ["-v", "1", "--start_year", "2016",  "--end_year", "2016", "--start_yd", "160", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
+            //`"args": ["-v", "1", "--start_year", "2016",  "--end_year", "2016", "--start_yd", "160", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
+            "args": ["-v", "1", "--mission", "2016.348.00", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1"]
         },
     ]
