@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-Base classes for reading and writing data for MBARI's Dorado class AUVs.
+Base classes and utility functions for reading and writing data for MBARI's
+Dorado class AUVs.
 
 --
 Mike McCann
