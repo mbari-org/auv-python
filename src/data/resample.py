@@ -10,6 +10,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
+import git
 import logging
 import os
 import re
@@ -50,6 +51,8 @@ class Resampler:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
+        repo = git.Repo(search_parent_directories=True)
+        gitcommit = repo.head.object.hexsha
         iso_now = datetime.utcnow().isoformat() + "Z"
 
         metadata = {}
@@ -108,19 +111,21 @@ class Resampler:
                 + f"{self.args.mission.split('.')[0]}/netcdf/"
                 + f"{self.args.auv_name}_{self.args.mission}_processing.log"
             )
-            # Append shortened location of original data files to title
-            metadata["title"] += (
-                ", "
-                + "original data in /mbari/M3/master/i2MAP/: "
-                + matches.group(1)
-                .replace("Original log files copied from ", "")
-                .replace("/Volumes/M3/master/i2MAP/", "")
-            )
-        metadata["comment"] = (
+            if self.args.auv_name.lower() == "i2map":
+                # Append shortened location of original data files to title
+                # Useful for I2Map data as it's in a YYYY/MM directory structure
+                metadata["title"] += (
+                    ", "
+                    + "original data in /mbari/M3/master/i2MAP/: "
+                    + matches.group(1)
+                    .replace("Original log files copied from ", "")
+                    .replace("/Volumes/M3/master/i2MAP/", "")
+                )
+        metadata["source"] = (
             f"MBARI Dorado-class AUV data produced from aligned data"
             f" with execution of '{self.commandline}' at {iso_now} on"
-            f" host {gethostname()}. Software available at"
-            f" 'https://github.com/mbari-org/auv-python'"
+            f" host {gethostname()} using git commit {gitcommit} from"
+            f" software at 'https://github.com/mbari-org/auv-python'"
         )
 
         return metadata
