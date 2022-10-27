@@ -10,7 +10,6 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
-import git
 import logging
 import os
 import re
@@ -21,10 +20,12 @@ from datetime import datetime
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
+import git
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
+from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE
 
 MF_WIDTH = 3
@@ -46,26 +47,27 @@ class Resampler:
     def __init__(self) -> None:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
+        iso_now = datetime.utcnow().isoformat().split(".")[0] + "Z"
+        # Common static attributes for all auv platforms
+        self.metadata = {}
+        self.metadata["netcdf_version"] = "4"
+        self.metadata["Conventions"] = "CF-1.6"
+        self.metadata["date_created"] = iso_now
+        self.metadata["date_update"] = iso_now
+        self.metadata["date_modified"] = iso_now
+        self.metadata["featureType"] = "trajectory"
 
-    def global_metadata(self):
-        """Use instance variables to return a dictionary of
-        metadata specific for the data that are written
+    def _build_global_metadata(self) -> None:
+        """
+        Call following saving of coordinates and variables from resample_mission()
         """
         repo = git.Repo(search_parent_directories=True)
         gitcommit = repo.head.object.hexsha
-        iso_now = datetime.utcnow().isoformat() + "Z"
-
-        metadata = {}
-        metadata["netcdf_version"] = "4"
-        metadata["Conventions"] = "CF-1.6"
-        metadata["date_created"] = iso_now
-        metadata["date_update"] = iso_now
-        metadata["date_modified"] = iso_now
-        metadata["featureType"] = "trajectory"
-
-        metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
-        metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
-        metadata["time_coverage_duration"] = str(
+        iso_now = datetime.utcnow().isoformat().split(".")[0] + "Z"
+        # Common dynamic attributes for all auv platforms
+        self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
+        self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
+        self.metadata["time_coverage_duration"] = str(
             datetime.utcfromtimestamp(
                 max(self.resampled_nc.time.values).astype("float64") / 1.0e9
             )
@@ -73,30 +75,60 @@ class Resampler:
                 min(self.resampled_nc.time.values).astype("float64") / 1.0e9
             )
         )
-        metadata["geospatial_vertical_min"] = min(self.resampled_nc.cf["depth"].values)
-        metadata["geospatial_vertical_max"] = max(self.resampled_nc.cf["depth"].values)
-        metadata["geospatial_lat_min"] = min(self.resampled_nc.cf["latitude"].values)
-        metadata["geospatial_lat_max"] = max(self.resampled_nc.cf["latitude"].values)
-        metadata["geospatial_lon_min"] = min(self.resampled_nc.cf["longitude"].values)
-        metadata["geospatial_lon_max"] = max(self.resampled_nc.cf["longitude"].values)
-        metadata[
-            "distribution_statement"
-        ] = "Any use requires prior approval from MBARI"
-        metadata["license"] = metadata["distribution_statement"]
-        metadata[
-            "useconst"
-        ] = "Not intended for legal use. Data may contain inaccuracies."
-        metadata["history"] = f"Created by {self.commandline} on {iso_now}"
-
-        metadata["title"] = (
-            f"Calibrated, aligned, and resampled AUV sensor data from"
-            f" {self.args.auv_name} mission {self.args.mission}"
+        self.metadata["geospatial_vertical_min"] = min(
+            self.resampled_nc.cf["depth"].values
         )
-        metadata["summary"] = (
+        self.metadata["geospatial_vertical_max"] = max(
+            self.resampled_nc.cf["depth"].values
+        )
+        self.metadata["geospatial_lat_min"] = min(
+            self.resampled_nc.cf["latitude"].values
+        )
+        self.metadata["geospatial_lat_max"] = max(
+            self.resampled_nc.cf["latitude"].values
+        )
+        self.metadata["geospatial_lon_min"] = min(
+            self.resampled_nc.cf["longitude"].values
+        )
+        self.metadata["geospatial_lon_max"] = max(
+            self.resampled_nc.cf["longitude"].values
+        )
+        self.metadata["license"] = "Any use requires prior approval from MBARI"
+        self.metadata["history"] = f"Created by {self.commandline} on {iso_now}"
+
+        if "process_" in self.commandline:
+            # Either process_i2map.py or process_dorado.py was used which
+            # means the starting point was the original log files
+            from_data = "original log files"
+        else:
+            # Otherwise if resample.py was used, the starting point is _align.nc
+            from_data = "aligned data"
+        self.metadata["source"] = (
+            f"MBARI Dorado-class AUV data produced from {from_data}"
+            f" with execution of '{self.commandline}' at {iso_now} on"
+            f" host {gethostname()} using git commit {gitcommit} from"
+            f" software at 'https://github.com/mbari-org/auv-python'"
+        )
+        self.metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
             f" Underwater Vehicle mission with measurements sampled at"
             f" {self.args.freq} intervals."
             f" Data processed using MBARI's auv-python software."
+        )
+
+    def dorado_global_metadata(self) -> dict:
+        """Use instance variables to return a dictionary of
+        metadata specific for the data that are written
+        """
+        if dorado_info[self.args.mission].get("program"):
+            self.metadata[
+                "title"
+            ] = f"{dorado_info[self.args.mission]['program']} program calibrated, "
+        else:
+            self.metadata["title"] = f"Calibrated, "
+        self.metadata["title"] += (
+            f"aligned, and resampled AUV sensor data from"
+            f" {self.args.auv_name} mission {self.args.mission}"
         )
         # Append location of original data files to summary
         matches = re.search(
@@ -104,7 +136,7 @@ class Resampler:
             self.ds.attrs["summary"],
         )
         if matches:
-            metadata["summary"] += (
+            self.metadata["summary"] += (
                 " "
                 + matches.group(1)
                 + ".  Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
@@ -114,21 +146,53 @@ class Resampler:
             if self.args.auv_name.lower() == "i2map":
                 # Append shortened location of original data files to title
                 # Useful for I2Map data as it's in a YYYY/MM directory structure
-                metadata["title"] += (
+                self.metadata["title"] += (
                     ", "
                     + "original data in /mbari/M3/master/i2MAP/: "
                     + matches.group(1)
                     .replace("Original log files copied from ", "")
                     .replace("/Volumes/M3/master/i2MAP/", "")
                 )
-        metadata["source"] = (
-            f"MBARI Dorado-class AUV data produced from aligned data"
-            f" with execution of '{self.commandline}' at {iso_now} on"
-            f" host {gethostname()} using git commit {gitcommit} from"
-            f" software at 'https://github.com/mbari-org/auv-python'"
-        )
 
-        return metadata
+        if dorado_info[self.args.mission].get("program"):
+            self.metadata["program"] = dorado_info[self.args.mission].get("program")
+        if dorado_info[self.args.mission].get("comment"):
+            self.metadata["comment"] = dorado_info[self.args.mission].get("comment")
+
+        return self.metadata
+
+    def i2map_global_metadata(self) -> dict:
+        """Use instance variables to return a dictionary of
+        metadata specific for the data that are written
+        """
+        self.metadata["title"] = (
+            f"Calibrated, aligned, and resampled AUV sensor data from"
+            f" {self.args.auv_name} mission {self.args.mission}"
+        )
+        # Append location of original data files to summary
+        matches = re.search(
+            "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
+            self.ds.attrs["summary"],
+        )
+        if matches:
+            self.metadata["summary"] += (
+                " "
+                + matches.group(1)
+                + ".  Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
+                + f"{self.args.mission.split('.')[0]}/netcdf/"
+                + f"{self.args.auv_name}_{self.args.mission}_processing.log"
+            )
+            # Append shortened location of original data files to title
+            # Useful for I2Map data as it's in a YYYY/MM directory structure
+            self.metadata["title"] += (
+                ", "
+                + "original data in /mbari/M3/master/i2MAP/: "
+                + matches.group(1)
+                .replace("Original log files copied from ", "")
+                .replace("/Volumes/M3/master/i2MAP/", "")
+            )
+
+        return self.metadata
 
     def instruments_variables(self, nc_file: str) -> dict:
         """
@@ -364,7 +428,11 @@ class Resampler:
                 self.save_variable(variable, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_variable(instr, variable, freq, plot_seconds)
-        self.resampled_nc.attrs = self.global_metadata()
+        self._build_global_metadata()
+        if self.args.auv_name.lower() == "dorado":
+            self.resampled_nc.attrs = self.dorado_global_metadata()
+        elif self.args.auv_name.lower() == "i2map":
+            self.resampled_nc.attrs = self.i2map_global_metadata()
         self.resampled_nc["time"].attrs = {
             "standard_name": "time",
             "long_name": "Time (UTC)",
