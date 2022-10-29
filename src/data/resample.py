@@ -120,12 +120,16 @@ class Resampler:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
-        if dorado_info[self.args.mission].get("program"):
-            self.metadata[
-                "title"
-            ] = f"{dorado_info[self.args.mission]['program']} program calibrated, "
-        else:
-            self.metadata["title"] = f"Calibrated, "
+        self.metadata["title"] = f"Calibrated, "
+        try:
+            if dorado_info[self.args.mission].get("program"):
+                self.metadata[
+                    "title"
+                ] = f"{dorado_info[self.args.mission]['program']} program - calibrated, "
+        except KeyError:
+            self.logger.warning(
+                f"No entry for for mission {self.args.mission}in dorado_info.py"
+            )
         self.metadata["title"] += (
             f"aligned, and resampled AUV sensor data from"
             f" {self.args.auv_name} mission {self.args.mission}"
@@ -154,10 +158,15 @@ class Resampler:
                     .replace("/Volumes/M3/master/i2MAP/", "")
                 )
 
-        if dorado_info[self.args.mission].get("program"):
-            self.metadata["program"] = dorado_info[self.args.mission].get("program")
-        if dorado_info[self.args.mission].get("comment"):
-            self.metadata["comment"] = dorado_info[self.args.mission].get("comment")
+        try:
+            if dorado_info[self.args.mission].get("program"):
+                self.metadata["program"] = dorado_info[self.args.mission].get("program")
+            if dorado_info[self.args.mission].get("comment"):
+                self.metadata["comment"] = dorado_info[self.args.mission].get("comment")
+        except KeyError:
+            self.logger.warning(
+                f"No entry for for mission {self.args.mission}in dorado_info.py"
+            )
 
         return self.metadata
 
