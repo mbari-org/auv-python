@@ -304,11 +304,11 @@ dorado_info["2017.068.00"] = {
     "comment": ("Around-the-bay overnight tow-out mission"),
 }
 dorado_info["2017.108.01"] = {
-    "program": f"{CANONSPRING2017} {DIAMOND}",
+    "program": f"{CANONAPR2017} {DIAMOND}",
     "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
 }
 dorado_info["2017.121.00"] = {
-    "program": f"{CANONSPRING2017} {DIAMOND}",
+    "program": f"{CANONAPR2017} {DIAMOND}",
     "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
 }
 dorado_info["2017.124.00"] = {
