@@ -2,7 +2,7 @@
 
 The sequence of steps to process data is as follows:
 
-    logs2netcdfs.py → calibrate.py → align.py → resample.py → archive.py
+  logs2netcdfs.py → calibrate.py → align.py → resample.py → archive.py → plot.py
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure

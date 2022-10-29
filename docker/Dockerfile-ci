@@ -39,10 +39,11 @@ ENV TARGET_ENV=production
 
 COPY --from=builder-base $VENV_PATH $VENV_PATH
 
-# Need rsync in final production image for use by src/data/process_i2map.py
-RUN apt-get update && apt-get install -y rsync
+# Need git & rsync in final production image for use by src/data/process_i2map.py
+RUN apt-get update && apt-get install -y git rsync
 
 COPY ./src /src
+COPY ./.git /.git
 
 # Make WORKDIR / so that relative paths (e.g. src/data/process_i2map.py) work
 WORKDIR /

@@ -43,14 +43,15 @@ RUN adduser docker_user --uid $DOCKER_USER_ID --gid 100 --disabled-password --ge
 
 COPY --from=builder-base $VENV_PATH $VENV_PATH
 
-# Need rsync in final production image for use by src/data/process_i2map.py
-RUN apt-get update && apt-get install -y rsync
+# Need git & rsync in final production image for use by src/data/process_i2map.py
+RUN apt-get update && apt-get install -y git rsync
 
 # Make sure the uid used in production (docker_user) can write to /data
 RUN mkdir /data && chown docker_user:100 /data
 USER docker_user
 
 COPY ./src /src
+COPY ./.git /.git
 
 # Make WORKDIR / so that relative paths (e.g. src/data/process_i2map.py) work
 WORKDIR /
