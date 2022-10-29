@@ -7,7 +7,6 @@
 # http://wiki.esipfed.org/index.php/Attribute_Convention_for_Data_Discovery_1-3
 
 # Attempt to use a controlled vocabulary for the program names
-from socket import ALG_OP_SIGN
 
 
 OCCO = "OCCO"
@@ -28,7 +27,8 @@ CANONAPR2014 = "CANON April 2014"
 CANONSEP2014 = "CANON September 2014"
 CANONMAY2015 = "CANON May 2015"
 CANONSEP2016 = "CANON September 2016"
-CANONSPRING2017 = "CANON Spring 2017"
+CANONAPR2017 = "CANON April 2017"
+CANONPS2017 = "CANON Post Season 2017"
 CANONSEP2017 = "CANON September 2017"
 CANONMAY2018 = "CANON May 2018"
 CANONSEP2018 = "CANON September 2018"
@@ -239,6 +239,119 @@ dorado_info["2003.340.02"] = {
 }
 
 # ----------------------------- 2004 ---------------------------------------
+dorado_info["2004.028.05"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD: Processed 10/4/04 - no metadata loaded anywhere, re-portaled & processed 7/26/05"
+    ),
+}
+dorado_info["2004.029.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "2004.029.03: parosci interp1 problem - multigenerateNetcdf failed to create navigation.nc file because of '#' problem"
+        "# begin"
+        "#<binary_data>"
+        "Will need to rerun the portal with the fix to set byteOffset."
+        "Re-portaled & processed 7/26/05"
+        "According to GPS data AUV is in Mexico beginning: 29 Jan 2004 19:37:36 GMT	1.0754050561900759E9	0.4733113223544617"
+        "*** Need to reprocess with just the .03 mission and not include the data equal to and after this time ***"
+        "Had bad nav point - processed 8/10/05"
+    ),
+}
+dorado_info["2004.029.05"] = {
+    "program": AUVCTD,
+    "comment": ("Re-portaled & processed 7/26/05"),
+}
+
+
+# ----------------------------- 2016 ---------------------------------------
+dorado_info["2016.161.00"] = {
+    "program": DIAMOND,
+    "comment": ("Mini CANON - 1/4 mission completed: diamond between C1 and M1"),
+}
+dorado_info["2016.179.01"] = {
+    "program": DIAMOND,
+    "comment": (
+        "Mini CANON - 1/4 mission completed: diamond between C1 and M1, recovered in Monterey"
+    ),
+}
+dorado_info["2016.181.00"] = {
+    "program": DIAMOND,
+    "comment": (""),
+}
+dorado_info["2016.270.00"] = {
+    "program": f"{CANONSEP2016} {DIAMOND}",
+    "comment": ("CANON"),
+}
+dorado_info["2016.307.00"] = {
+    "program": DIAMOND,
+    "comment": ("Successful around-the-bay overnight tow-out mission"),
+}
+dorado_info["2016.348.00"] = {
+    "program": DIAMOND,
+    "comment": ("Around-the-bay overnight tow-out mission"),
+}
+
+# ----------------------------- 2017 ---------------------------------------
+dorado_info["2017.044.00"] = {
+    "program": DIAMOND,
+    "comment": (
+        "Around-the-bay overnight tow-out mission - messed up CTD data on ctd1 and ctd2 - flow problems?"
+    ),
+}
+dorado_info["2017.068.00"] = {
+    "program": DIAMOND,
+    "comment": ("Around-the-bay overnight tow-out mission"),
+}
+dorado_info["2017.108.01"] = {
+    "program": f"{CANONSPRING2017} {DIAMOND}",
+    "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
+}
+dorado_info["2017.121.00"] = {
+    "program": f"{CANONSPRING2017} {DIAMOND}",
+    "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
+}
+dorado_info["2017.124.00"] = {
+    "program": f"{CANONAPR2017} {DIAMOND}",
+    "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
+}
+dorado_info["2017.157.00"] = {
+    "program": f"{CANONPS2017} {DIAMOND}",
+    "comment": ("Around-the-bay diamondovernight tow-out mission for June 2017"),
+}
+dorado_info["2017.248.01"] = {
+    "program": f"{CANONSEP2017} {DIAMOND}",
+    "comment": ("Around-the-bay diamondovernight tow-out mission for September 2017"),
+}
+dorado_info["2017.269.01"] = {
+    "program": f"{CANONSEP2017}",
+    "comment": (
+        "Overnight lawn-mower pattern during CPF deployment for CANON September 2017"
+    ),
+}
+dorado_info["2017.275.01"] = {
+    "program": f"{CANONSEP2017} {DIAMOND}",
+    "comment": (
+        "Overnight diamond pattern during CPF deployment for CANON September 2017"
+    ),
+}
+dorado_info["2017.284.00"] = {
+    "program": f"{CANONSEP2017} {DIAMOND}",
+    "comment": (
+        "Overnight diamond pattern for CANON September 2017"
+        "*** TIME IS WRONG ON THE MVC FOR THE 284.00 mission !!! ***"
+    ),
+}
+dorado_info["2017.304.00"] = {
+    "program": f"{CANONSEP2017} {DIAMOND}",
+    "comment": ("Overnight diamond pattern for CANON September 2017"),
+}
+dorado_info["2017.347.00"] = {
+    "program": f"{CANONSEP2017} {DIAMOND}",
+    "comment": ("December Dorado run with 60 cartridge ESP in the water"),
+}
+
+# ----------------------------- 2018 ---------------------------------------
 
 # ----------------------------- 2019 ---------------------------------------
 dorado_info["2019.276.02"] = {
