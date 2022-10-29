@@ -15,12 +15,13 @@ import os
 import platform
 import sys
 import time
-from shutil import copyfile, copytree
+from pathlib import Path
 
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS
 from resample import FREQ
 
 LOG_NAME = "processing.log"
+AUVCTD_VOL = "/Volumes/AUVCTD"
 
 
 class Archiver:
@@ -36,26 +37,41 @@ class Archiver:
 
     def copy_to_AUVTCD(self, nc_file_base: str, freq: str = FREQ) -> None:
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
-        auvctd_dir = "/Volumes/AUVCTD/surveys"
+        surveys_dir = os.path.join(AUVCTD_VOL, "surveys")
         try:
-            os.stat(auvctd_dir)
+            os.stat(surveys_dir)
         except FileNotFoundError:
             self.logger.error(
-                f"{auvctd_dir} not found. Is cifs://atlas.shore.mbari.org/AUVCTD mounted?"
+                f"{surveys_dir} not found. Is cifs://atlas.shore.mbari.org/AUVCTD mounted?"
             )
             return
         year = self.args.mission.split(".")[0]
-        auvctd_dir = os.path.join(auvctd_dir, year, "netcdf")
-        self.logger.info(f"Copying {nc_file_base} files to {auvctd_dir}")
+        surveys_dir = os.path.join(surveys_dir, year, "netcdf")
+        self.logger.info(f"Copying {nc_file_base} files to {surveys_dir}")
         # To avoid "fchmod failed: Permission denied" message use rsync instead cp
         # https://apple.stackexchange.com/a/206251
         for ftype in (f"{freq}.nc", "cal.nc", "align.nc", LOG_NAME):
             src_file = f"{nc_file_base}_{ftype}"
             if os.path.exists(src_file):
-                os.system(f"rsync {src_file} {auvctd_dir}")
-                self.logger.info(f"rsync {src_file} {auvctd_dir} done.")
+                os.system(f"rsync {src_file} {surveys_dir}")
+                self.logger.info(f"rsync {src_file} {surveys_dir} done.")
             else:
                 self.logger.warning(f"{src_file} not found")
+
+        # Copy intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
+        YYYYJJJ = "".join(self.args.mission.split(".")[:2])
+        missionnetcdfs_dir = os.path.join(
+            AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission
+        )
+        Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
+        src_dir = "/".join(nc_file_base.split("/")[:-1])
+        for log in LOG_FILES:
+            src_file = os.path.join(src_dir, f"{log.replace('.log', '')}.nc")
+            if os.path.exists(src_file):
+                os.system(f"rsync {src_file} {missionnetcdfs_dir}")
+                self.logger.info(f"rsync {src_file} {missionnetcdfs_dir} done.")
+            else:
+                self.logger.debug(f"{src_file} not found")
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
