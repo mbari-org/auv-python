@@ -9,8 +9,6 @@
 # Attempt to use a controlled vocabulary for the program names
 
 
-
-
 OCCO = "OCCO"
 BIOLUME = "BIOLUME"
 AUVCTD = "AUVCTD"
@@ -457,15 +455,13 @@ dorado_info["2018.191.00"] = {
 dorado_info["2018.220.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "MBTS mission - Overnight diamond in Monterey Bay
-        " QC note: Best CTD is ctd2"
+        "MBTS mission - Overnight diamond in Monterey Bay" " QC note: Best CTD is ctd2"
     ),
 }
 dorado_info["2018.253.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "MBTS mission - Overnight diamond in Monterey Bay"
-        " QC note: Best CTD is ctd2"
+        "MBTS mission - Overnight diamond in Monterey Bay" " QC note: Best CTD is ctd2"
     ),
 }
 
@@ -473,8 +469,7 @@ dorado_info["2018.253.00"] = {
 dorado_info["2019.029.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "MBTS mission - Overnight diamond in Monterey Bay"
-        " QC note: Best CTD is ctd2"
+        "MBTS mission - Overnight diamond in Monterey Bay" " QC note: Best CTD is ctd2"
     ),
 }
 dorado_info["2019.042.00"] = {
@@ -501,8 +496,7 @@ dorado_info["2019.093.01"] = {
 dorado_info["2019.176.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "MBTS mission - Overnight diamond in Monterey Bay"
-        " QC note: Best CTD is ctd2"
+        "MBTS mission - Overnight diamond in Monterey Bay" " QC note: Best CTD is ctd2"
     ),
 }
 dorado_info["2019.196.04"] = {
@@ -551,8 +545,7 @@ dorado_info["2019.350.01"] = {
 dorado_info["2020.006.06"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "Monterey Bay Diamond Mission - aMBTS2001"
-        " QC note: Best CTD is ctd1"
+        "Monterey Bay Diamond Mission - aMBTS2001" " QC note: Best CTD is ctd1"
     ),
 }
 dorado_info["2020.035.00"] = {
@@ -565,29 +558,26 @@ dorado_info["2020.035.00"] = {
 dorado_info["2020.064.10"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "Monterey Bay Diamond Mission - aMBTS2003"
-        " QC note: Best CTD is ctd1"
-        ),
+        "Monterey Bay Diamond Mission - aMBTS2003" " QC note: Best CTD is ctd1"
+    ),
 }
 dorado_info["2020.218.03"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "Monterey Bay Diamond Mission - looks like gulps were adaptive sampled - CN20S-2"
         " QC note: Best CTD is ctd1"
-        ),
+    ),
 }
 dorado_info["2020.231.01"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "Monterey Bay Diamond Mission - 23120G"
         " QC note: Best CTD is ctd1, a few profiles should be removed (around 280-300)"
-        ),
+    ),
 }
 dorado_info["2020.233.14"] = {
     "program": f"{AUVCTD}",
-    "comment": (
-        "Overnight compass evaluation mission"
-    ),
+    "comment": ("Overnight compass evaluation mission"),
 }
 dorado_info["2020.245.00"] = {
     "program": f"{DIAMOND}",
@@ -607,10 +597,7 @@ dorado_info["2020.245.01"] = {
 }
 dorado_info["2020.282.01"] = {
     "program": f"{CANONOCT2020} {DIAMOND}",
-    "comment": (
-        "Monterey Bay Diamond Mission - 28220G"
-        " QC note: Best CTD is ctd2"
-        ),
+    "comment": ("Monterey Bay Diamond Mission - 28220G" " QC note: Best CTD is ctd2"),
 }
 dorado_info["2020.286.00"] = {
     "program": f"{CANONOCT2020} {DIAMOND}",
@@ -663,5 +650,5 @@ dorado_info["2020.337.00"] = {
         "Monterey Bay MBTS Mission - 33720G. 45 hour mission to M2 and back. No lisst data."
         " Possible plumbing issue with the CTD2 chain, which includes CTD2, DO, and the ISUS."
         " The tube between the DO and the ISUS was poorly seated."
-    )
+    ),
 }
