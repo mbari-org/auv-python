@@ -38,6 +38,7 @@ CANONJUL2020 = "CANON July 2020"
 CANONOCT2020 = "CANON October 2020"
 CANONOCT2022 = "CANON October 2022"
 MBTSLINE = "MBTS Line"
+REMOVE = "REMOVE from analysis"
 
 # ----------------------------- 2003 ---------------------------------------
 dorado_info = {}
@@ -303,7 +304,7 @@ dorado_info["2017.044.00"] = {
     "program": DIAMOND,
     "comment": (
         "Around-the-bay overnight tow-out mission - messed up CTD data on ctd1 and ctd2 - flow problems?"
-        " QC notes: Best CTD is ctd1, Temp is bad, ctd2 is bad too (high sediments survey), REMOVE from analysis"
+        f" QC notes: Best CTD is ctd1, Temp is bad, ctd2 is bad too (high sediments survey), {REMOVE}"
     ),
 }
 dorado_info["2017.068.00"] = {
@@ -395,7 +396,7 @@ dorado_info["2017.347.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "December Dorado run with 60 cartridge ESP in the water"
-        " QC note: Best CTD is ctd2, ctd2 not great but better for salt although a couple screwey profiles in temp, REMOVE from analysis"
+        f" QC note: Best CTD is ctd2, ctd2 not great but better for salt although a couple screwey profiles in temp, {REMOVE}"
     ),
 }
 
@@ -404,7 +405,7 @@ dorado_info["2018.030.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "MBTS mission - Overnight diamond in Monterey Bay - Gulpers failed to fire"
-        " QC note: Best CTD is ctd2?, still issues in ctd2 so would loose temp data and would need to be cleaned up for salt, REMOVE from analysis"
+        f" QC note: Best CTD is ctd2?, still issues in ctd2 so would loose temp data and would need to be cleaned up for salt, {REMOVE}"
     ),
 }
 dorado_info["2018.059.00"] = {
@@ -412,7 +413,7 @@ dorado_info["2018.059.00"] = {
     "comment": (
         "MBTS mission - Overnight diamond in Monterey Bay"
         " QC note: Best CTD is ctd2, still issues in ctd2 so would loose temp data and would need to be cleaned up for salt."
-        " Only the first half is good for ctd2 salt, but 1 is screwy. REMOVE from analysis"
+        f" Only the first half is good for ctd2 salt, but 1 is screwy. {REMOVE}"
     ),
 }
 dorado_info["2018.079.00"] = {
@@ -427,14 +428,14 @@ dorado_info["2018.099.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "MBTS mission - Overnight diamond in Monterey Bay"
-        " QC note: Best CTD is ctd1, ctd1 is bad in salt, ctd2 is worse. REMOVE from analysis"
+        f" QC note: Best CTD is ctd1, ctd1 is bad in salt, ctd2 is worse. {REMOVE}"
     ),
 }
 dorado_info["2018.156.00"] = {
     "program": f"{CANONMAY2018} {DIAMOND}",
     "comment": (
         "CANON May 2018 - Overnight diamond run"
-        " QC note: Best CTD is ctd2?, marginal improvement, maybe just remove. REMOVE from analysis"
+        f" QC note: Best CTD is ctd2?, marginal improvement, maybe just remove. {REMOVE}"
     ),
 }
 dorado_info["2018.164.00"] = {
@@ -641,7 +642,7 @@ dorado_info["2020.335.01"] = {
     "comment": (
         "Monterey Bay Diamond Mission - 33520G. The hs2 instrument is returned from the vendor with new calibrations in the hs2Calibration.dat file."
         " The lisst-100x instrument was not running due to a cabling issue. Inlet tubes for both CTDs were clogged with sediment upon recovery."
-        " QC note: Best CTD is none, temp is bad, REMOVE from analysis"
+        f" QC note: Best CTD is none, temp is bad, {REMOVE}"
     ),
 }
 dorado_info["2020.337.00"] = {
