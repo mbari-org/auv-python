@@ -8,7 +8,7 @@ def test_oxsat(mission_data):
     # mission_data and calibration are fixtures from the conftest.py module;
     # they are automatically loaded by pytest
     md = mission_data
-    oxsat = _oxsat(md.ctd.orig_data["temperature"], md.ctd.orig_data["salinity"])
+    oxsat = _oxsat(md.ctd1.orig_data["temperature"], md.ctd1.orig_data["salinity"])
 
     # K>> T(1:5)
     #
