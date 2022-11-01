@@ -9,6 +9,8 @@
 # Attempt to use a controlled vocabulary for the program names
 
 
+
+
 OCCO = "OCCO"
 BIOLUME = "BIOLUME"
 AUVCTD = "AUVCTD"
@@ -277,19 +279,24 @@ dorado_info["2016.179.01"] = {
 }
 dorado_info["2016.181.00"] = {
     "program": DIAMOND,
-    "comment": (""),
+    "comment": ("QC notes: Best CTD is ctd1"),
 }
 dorado_info["2016.270.00"] = {
     "program": f"{CANONSEP2016} {DIAMOND}",
-    "comment": ("CANON"),
+    "comment": ("CANON" " QC notes: Best CTD is ctd1"),
 }
 dorado_info["2016.307.00"] = {
     "program": DIAMOND,
-    "comment": ("Successful around-the-bay overnight tow-out mission"),
+    "comment": (
+        "Successful around-the-bay overnight tow-out mission"
+        " QC notes: Best CTD is ctd1"
+    ),
 }
 dorado_info["2016.348.00"] = {
     "program": DIAMOND,
-    "comment": ("Around-the-bay overnight tow-out mission"),
+    "comment": (
+        "Around-the-bay overnight tow-out mission" " QC notes: Best CTD is ctd1"
+    ),
 }
 
 # ----------------------------- 2017 ---------------------------------------
@@ -297,31 +304,49 @@ dorado_info["2017.044.00"] = {
     "program": DIAMOND,
     "comment": (
         "Around-the-bay overnight tow-out mission - messed up CTD data on ctd1 and ctd2 - flow problems?"
+        " QC notes: Best CTD is ctd1, Temp is bad, ctd2 is bad too (high sediments survey), REMOVE from analysis"
     ),
 }
 dorado_info["2017.068.00"] = {
     "program": DIAMOND,
-    "comment": ("Around-the-bay overnight tow-out mission"),
+    "comment": (
+        "Around-the-bay overnight tow-out mission" " QC notes: Best CTD is ctd1"
+    ),
 }
 dorado_info["2017.108.01"] = {
     "program": f"{CANONAPR2017} {DIAMOND}",
-    "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
+    "comment": (
+        "Around-the-bay diamondovernight tow-out mission for CANON April 2017"
+        " QC notes: Best CTD is ctd1"
+    ),
 }
 dorado_info["2017.121.00"] = {
     "program": f"{CANONAPR2017} {DIAMOND}",
-    "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
+    "comment": (
+        "Around-the-bay diamondovernight tow-out mission for CANON April 2017"
+        " QC notes: Best CTD is ctd1"
+    ),
 }
 dorado_info["2017.124.00"] = {
     "program": f"{CANONAPR2017} {DIAMOND}",
-    "comment": ("Around-the-bay diamondovernight tow-out mission for CANON April 2017"),
+    "comment": (
+        "Around-the-bay diamondovernight tow-out mission for CANON April 2017"
+        " QC note: Best CTD is ctd1, not great but ctd2 worse"
+    ),
 }
 dorado_info["2017.157.00"] = {
     "program": f"{CANONPS2017} {DIAMOND}",
-    "comment": ("Around-the-bay diamondovernight tow-out mission for June 2017"),
+    "comment": (
+        "Around-the-bay diamondovernight tow-out mission for June 2017"
+        " QC note: Best CTD is ctd2"
+    ),
 }
 dorado_info["2017.248.01"] = {
     "program": f"{CANONSEP2017} {DIAMOND}",
-    "comment": ("Around-the-bay diamondovernight tow-out mission for September 2017"),
+    "comment": (
+        "Around-the-bay diamondovernight tow-out mission for September 2017"
+        " QC note: Best CTD is ctd2"
+    ),
 }
 dorado_info["2017.269.01"] = {
     "program": f"{CANONSEP2017}",
@@ -333,30 +358,192 @@ dorado_info["2017.275.01"] = {
     "program": f"{CANONSEP2017} {DIAMOND}",
     "comment": (
         "Overnight diamond pattern during CPF deployment for CANON September 2017"
+        " QC note: Best CTD is ctd2"
     ),
 }
-dorado_info["2017.284.00"] = {
+# This mission will not be found in the directory scan because it has been renamed
+# to AUVCTD/missionlogs/2017/2017284_incorrect_times_use_2017297
+# dorado_info["2017.284.00"] = {
+#    "program": f"{CANONSEP2017} {DIAMOND}",
+#    "comment": (
+#        "Overnight diamond pattern for CANON September 2017"
+#        " *** TIME IS WRONG ON THE MVC FOR THE 284.00 mission !!! ***"
+#        " Do not use this mission for any analysis - instead use 2017.297.00"
+#    ),
+# }
+
+dorado_info["2017.297.00"] = {
     "program": f"{CANONSEP2017} {DIAMOND}",
     "comment": (
-        "Overnight diamond pattern for CANON September 2017"
-        "*** TIME IS WRONG ON THE MVC FOR THE 284.00 mission !!! ***"
+        "Overnight diamond pattern for CANON September 2017."
+        " The 2017.297.00 logs were converted from logs originally collected in 2017.284.00 -"
+        " those original logs are in /mbari/AUVCTD/missionlogs/2017/2017284_incorrect_times_use_2017297."
+        " Times corrected with auv-python/correct_log_times.py, see"
+        " https://bitbucket.org/mbari/auv-python/issues/6/dorado_2017_284_00-clock-is-wrong"
+        "QC note: Best CTD is ctd2"
     ),
 }
+
 dorado_info["2017.304.00"] = {
-    "program": f"{CANONSEP2017} {DIAMOND}",
-    "comment": ("Overnight diamond pattern for CANON September 2017"),
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Overnight diamond pattern for CANON September 2017"
+        " Bad blocks in hs2 data"
+        " QC note: Best CTD is ctd2, ctd2 not great but better for salt although a couple screwey profiles in temp"
+    ),
 }
 dorado_info["2017.347.00"] = {
-    "program": f"{CANONSEP2017} {DIAMOND}",
-    "comment": ("December Dorado run with 60 cartridge ESP in the water"),
+    "program": f"{DIAMOND}",
+    "comment": (
+        "December Dorado run with 60 cartridge ESP in the water"
+        " QC note: Best CTD is ctd2, ctd2 not great but better for salt although a couple screwey profiles in temp, REMOVE from analysis"
+    ),
 }
 
 # ----------------------------- 2018 ---------------------------------------
+dorado_info["2018.030.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay - Gulpers failed to fire"
+        " QC note: Best CTD is ctd2?, still issues in ctd2 so would loose temp data and would need to be cleaned up for salt, REMOVE from analysis"
+    ),
+}
+dorado_info["2018.059.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2, still issues in ctd2 so would loose temp data and would need to be cleaned up for salt."
+        " Only the first half is good for ctd2 salt, but 1 is screwy. REMOVE from analysis"
+    ),
+}
+dorado_info["2018.079.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay - aborted after M1 due to a 'frozen' battery, but good Gulps"
+        " Use ctd2 per Monique - 29 July 2021"
+        " QC note: Best CTD is ctd2"
+    ),
+}
+dorado_info["2018.099.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd1, ctd1 is bad in salt, ctd2 is worse. REMOVE from analysis"
+    ),
+}
+dorado_info["2018.156.00"] = {
+    "program": f"{CANONMAY2018} {DIAMOND}",
+    "comment": (
+        "CANON May 2018 - Overnight diamond run"
+        " QC note: Best CTD is ctd2?, marginal improvement, maybe just remove. REMOVE from analysis"
+    ),
+}
+dorado_info["2018.164.00"] = {
+    "program": f"{CANONMAY2018}",
+    "comment": ("Criss-cross pattern in Monterey Bay for CANON May 2018"),
+}
+dorado_info["2018.170.00"] = {
+    "program": f"{CANONMAY2018}",
+    "comment": ("Criss-cross pattern in Monterey Bay for CANON May 2018"),
+}
+dorado_info["2018.191.00"] = {
+    "program": f"{CANONMAY2018}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay while mpm was in Cologne, Germany"
+        " QC note: Best CTD is ctd1, not great but probably sufficiently OK"
+    ),
+}
+dorado_info["2018.220.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay
+        " QC note: Best CTD is ctd2"
+    ),
+}
+dorado_info["2018.253.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2"
+    ),
+}
 
 # ----------------------------- 2019 ---------------------------------------
+dorado_info["2019.029.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2"
+    ),
+}
+dorado_info["2019.042.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2, marginal improvement but a bit better"
+    ),
+}
+dorado_info["2019.066.02"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2, marginal improvement but a bit better"
+    ),
+}
+dorado_info["2019.093.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2?, ctd2 temp & salt bad for the last 1/3 of survey, ctd1 salt bad at all times"
+    ),
+}
+dorado_info["2019.176.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2"
+    ),
+}
+dorado_info["2019.196.04"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd2, some bad ctd2 data around profiles 250-300 but ctd1 salt is really bad"
+    ),
+}
+dorado_info["2019.219.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay"
+        " QC note: Best CTD is ctd1, ctd1 better but still bad"
+    ),
+}
 dorado_info["2019.276.02"] = {
-    "program": CANONFALL2019,
+    "program": f"{CANONFALL2019}",
     "comment": (
         "Mission for CANON Fall 2019 around DEIMOS - no water collected by Gulpers"
     ),
 }
+dorado_info["2019.303.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - aMBTS1909 - ISUS data incomplete due to full memory card"
+        " QC note: Best CTD is ctd2?, remove at least last part (good until profile ~ 240) - ctd2 may be marginally better but not enough to reprocess"
+    ),
+}
+dorado_info["2019.316.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - aMBTS1910 (Bad raw conductivity data - probably had some intense jelly action)"
+        " QC note: Best CTD is ctd2, remove last profiles"
+    ),
+}
+dorado_info["2019.350.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Aborted Monterey Bay Diamond Mission - 10 Gulpers taken, though - aMBTS1911*"
+        " QC note: Best CTD is ctd1"
+    ),
+}
+
+# ----------------------------- 2020 ---------------------------------------
