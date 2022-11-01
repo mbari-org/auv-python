@@ -113,7 +113,7 @@ class Resampler:
             f"Observational oceanographic data obtained from an Autonomous"
             f" Underwater Vehicle mission with measurements sampled at"
             f" {self.args.freq} intervals."
-            f" Data processed using MBARI's auv-python software."
+            f" Data processed at {iso_now} using MBARI's auv-python software."
         )
 
     def dorado_global_metadata(self) -> dict:
