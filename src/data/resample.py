@@ -134,30 +134,6 @@ class Resampler:
             f"aligned, and resampled AUV sensor data from"
             f" {self.args.auv_name} mission {self.args.mission}"
         )
-        # Append location of original data files to summary
-        matches = re.search(
-            "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
-            self.ds.attrs["summary"],
-        )
-        if matches:
-            self.metadata["summary"] += (
-                " "
-                + matches.group(1)
-                + ".  Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
-                + f"{self.args.mission.split('.')[0]}/netcdf/"
-                + f"{self.args.auv_name}_{self.args.mission}_processing.log"
-            )
-            if self.args.auv_name.lower() == "i2map":
-                # Append shortened location of original data files to title
-                # Useful for I2Map data as it's in a YYYY/MM directory structure
-                self.metadata["title"] += (
-                    ", "
-                    + "original data in /mbari/M3/master/i2MAP/: "
-                    + matches.group(1)
-                    .replace("Original log files copied from ", "")
-                    .replace("/Volumes/M3/master/i2MAP/", "")
-                )
-
         try:
             if dorado_info[self.args.mission].get("program"):
                 self.metadata["program"] = dorado_info[self.args.mission].get("program")
