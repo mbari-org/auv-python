@@ -267,7 +267,7 @@ class Processor:
             )
             self.logger.info("Done removing %s work files", mission)
         except FileNotFoundError as e:
-            self.logger.info("Directory %s work not found", mission)
+            self.logger.info("File not found: %s", e)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         netcdfs_dir = os.path.join(
