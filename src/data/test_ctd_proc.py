@@ -57,11 +57,11 @@ def test_calibrated_O2_from_volts(mission_data):
     md = mission_data
     oxy_mll, oxy_umolkg = _calibrated_O2_from_volts(
         md.combined_nc,
-        md.ctd.cals,
-        md.ctd.orig_data,
+        md.ctd1.cals,
+        md.ctd1.orig_data,
         "dissolvedO2",
-        md.ctd.orig_data["temperature"],
-        md.ctd.orig_data["salinity"],
+        md.ctd1.orig_data["temperature"],
+        md.ctd1.orig_data["salinity"],
     )
 
     # K>> dbstep
