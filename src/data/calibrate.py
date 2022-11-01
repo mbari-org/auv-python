@@ -1078,8 +1078,18 @@ class Calibrate_NetCDF:
             "units": "degrees_east",
             "comment": f"longitude from {source}",
         }
-        if self.args.mission == "2016.348.00":
+        if self.args.mission == "2016.348.00" or self.args.mission == "2017.297.00":
             self.logger.info("Performing special QC for 2016.348.00/gps.nc")
+            self._range_qc_combined_nc(
+                instrument="gps",
+                variables=vars_to_qc,
+                ranges={
+                    "gps_latitude": Range(36, 37),
+                    "gps_longitude": Range(-122.1, -121.7),
+                },
+            )
+        if self.args.mission == "2017.297.00":
+            self.logger.info("Performing special QC for 2017.297.00/gps.nc")
             self._range_qc_combined_nc(
                 instrument="gps",
                 variables=vars_to_qc,
