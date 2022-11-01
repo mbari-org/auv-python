@@ -22,7 +22,6 @@ Uses command line arguments from logs2netcdf.py and calibrate.py.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 
-from asyncio.exceptions import TimeoutError
 from process import Processor
 
 
