@@ -39,6 +39,7 @@ CANONFALL2019 = "CANON Fall 2019"
 CANONJUL2020 = "CANON July 2020"
 CANONOCT2020 = "CANON October 2020"
 CANONOCT2022 = "CANON October 2022"
+MBTSLINE = "MBTS Line"
 
 # ----------------------------- 2003 ---------------------------------------
 dorado_info = {}
@@ -547,3 +548,120 @@ dorado_info["2019.350.01"] = {
 }
 
 # ----------------------------- 2020 ---------------------------------------
+dorado_info["2020.006.06"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - aMBTS2001"
+        " QC note: Best CTD is ctd1"
+    ),
+}
+dorado_info["2020.035.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - aMBTS2002"
+        " QC note: Best CTD is ctd1, remove last profiles"
+    ),
+}
+dorado_info["2020.064.10"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - aMBTS2003"
+        " QC note: Best CTD is ctd1"
+        ),
+}
+dorado_info["2020.218.03"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - looks like gulps were adaptive sampled - CN20S-2"
+        " QC note: Best CTD is ctd1"
+        ),
+}
+dorado_info["2020.231.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 23120G"
+        " QC note: Best CTD is ctd1, a few profiles should be removed (around 280-300)"
+        ),
+}
+dorado_info["2020.233.14"] = {
+    "program": f"{AUVCTD}",
+    "comment": (
+        "Overnight compass evaluation mission"
+    ),
+}
+dorado_info["2020.245.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay - first one with ecopuck instrument: FLBBCD2K -"
+        " had to restart mission, 2 missions (245.00 and 245.01) required to complete the diamond"
+        " QC note: Best CTD is ctd1"
+    ),
+}
+dorado_info["2020.245.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "MBTS mission - Overnight diamond in Monterey Bay - first one with ecopuck instrument: FLBBCD2K -"
+        " had to restart mission, 2 missions (245.00 and 245.01) required to complete the diamond"
+        " QC note: Best CTD is ctd1"
+    ),
+}
+dorado_info["2020.282.01"] = {
+    "program": f"{CANONOCT2020} {DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 28220G"
+        " QC note: Best CTD is ctd2"
+        ),
+}
+dorado_info["2020.286.00"] = {
+    "program": f"{CANONOCT2020} {DIAMOND}",
+    "comment": (
+        "CANON CN20F mission - Overnight diamond in Monterey Bay - The vehicle was stuck in the surface at the northern waypoint and at the end of the mission."
+        " The port side CTD (ctd2 - ctdDriver2.log) had a lot of sand in the tube, also found sand in the LISST."
+        " QC note: Best CTD is ctd1"
+    ),
+}
+dorado_info["2020.301.03"] = {
+    "program": f"{CANONOCT2020} {DIAMOND}",
+    "comment": (
+        "Post CANON CN20F mission - Overnight diamond in Monterey Bay - HS2 turned off - 30120G"
+        " QC note: Best CTD is ?, a few screwy profiles in each"
+    ),
+}
+dorado_info["2020.308.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Post post CANON CN20F mission - Overnight 48 hour diamond in Monterey Bay - 30820G"
+        " QC note: Best CTD is ctd1, I think ctd1 is better?? not by much."
+    ),
+}
+dorado_info["2020.314.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 31420G"
+        " QC note: Best CTD is ctd1, likely screwy between 210-240 or so but ctd2 worse anyways"
+    ),
+}
+dorado_info["2020.323.01"] = {
+    "program": f"{AUVCTD}",
+    "comment": (
+        "Engineering test mssion out to M2 and back, with nightime profile at M1 and dayttime profiles at C1 and M2."
+        " Gulper samples were discarded. No HS2 (this will be getting reinstalled before next run with new calibrations)."
+        " We were carrying the FLBB instrument for fluorescence and backscatter. No water flow through LOPC or CDOM"
+    ),
+}
+dorado_info["2020.335.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 33520G. The hs2 instrument is returned from the vendor with new calibrations in the hs2Calibration.dat file."
+        " The lisst-100x instrument was not running due to a cabling issue. Inlet tubes for both CTDs were clogged with sediment upon recovery."
+        " QC note: Best CTD is none, temp is bad, REMOVE from analysis"
+    ),
+}
+dorado_info["2020.337.00"] = {
+    "program": f"{MBTSLINE}",
+    "comment": (
+        "Monterey Bay MBTS Mission - 33720G. 45 hour mission to M2 and back. No lisst data."
+        " Possible plumbing issue with the CTD2 chain, which includes CTD2, DO, and the ISUS."
+        " The tube between the DO and the ISUS was poorly seated."
+    )
+}
