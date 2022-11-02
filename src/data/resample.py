@@ -134,6 +134,12 @@ class Resampler:
             f"aligned, and resampled AUV sensor data from"
             f" {self.args.auv_name} mission {self.args.mission}"
         )
+        self.metadata["summary"] += (
+            " Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
+            f"{self.args.mission.split('.')[0]}/netcdf/"
+            f"{self.args.auv_name}_{self.args.mission}_processing.log"
+        )
+
         try:
             if dorado_info[self.args.mission].get("program"):
                 self.metadata["program"] = dorado_info[self.args.mission].get("program")
