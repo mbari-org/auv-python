@@ -36,6 +36,7 @@ CANONMAY2019 = "CANON May 2019"
 CANONFALL2019 = "CANON Fall 2019"
 CANONJUL2020 = "CANON July 2020"
 CANONOCT2020 = "CANON October 2020"
+CANONAPR2021 = "CANON April 2021"
 CANONOCT2022 = "CANON October 2022"
 MBTSLINE = "MBTS Line"
 REMOVE = "REMOVE from analysis"
@@ -651,5 +652,78 @@ dorado_info["2020.337.00"] = {
         "Monterey Bay MBTS Mission - 33720G. 45 hour mission to M2 and back. No lisst data."
         " Possible plumbing issue with the CTD2 chain, which includes CTD2, DO, and the ISUS."
         " The tube between the DO and the ISUS was poorly seated."
+    ),
+}
+
+# ----------------------------- 2021 ---------------------------------------
+dorado_info["2021.102.02"] = {
+    "program": f"{CANONAPR2021} {DIAMOND}",
+    "comment": (
+        "CANON CN21S mission - Monterey Bay Diamond Mission - 10221G - ISUS sampling at 10 seconds"
+        " QC note: Best CTD is ctd2"
+    ),
+}
+dorado_info["2021.104.00"] = {
+    "program": f"{CANONAPR2021} {DIAMOND}",
+    "comment": (
+        "CANON CN21S mission - Monterey Bay Diamond Mission - 10421G"
+        " - Visibly clogged port side intake, starboard CTD had a hose that came apart"
+        " - ISUS sampling at 10 seconds"
+        f" QC note: Best CTD is ctd2, iffy - bad after profile ~ 280 in T&S, not great in salt after ~ 190 and suspiscious around ~ 70-120, {REMOVE}"
+    ),
+}
+dorado_info["2021.109.00"] = {
+    "program": f"{CANONAPR2021} {DIAMOND}",
+    "comment": (
+        "CANON CN21S mission - Monterey Bay Diamond Mission - 10921G - ISUS sampling at 10 seconds"
+        " QC note: Best CTD is ctd1, iffy, consider removing if bad results"
+    ),
+}
+dorado_info["2021.111.00"] = {
+    "program": f"{CANONAPR2021} {DIAMOND}",
+    "comment": (
+        "CANON CN21S mission - Monterey Bay Diamond Mission - 11121G - No isus data; instrument did not talk during checkout - it was turned off."
+        " QC note: Best CTD is ctd2, bad salt, {REMOVE}"
+    ),
+}
+dorado_info["2021.139.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 13921G - No isus data"
+        " QC note: Best CTD is ctd1, a bit iffy but may be OK in 2sec resolution"
+    ),
+}
+dorado_info["2021.153.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 15321G - ISUS sampling at 10 seconds"
+        " QC note: Best CTD is ctd1"  # REMOVE color in Google sheet, but just a few bad profiles
+    ),
+}
+dorado_info["2021.181.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 18121G - No isus data"
+        " QC note: Best CTD is ctd1"
+    ),
+}
+dorado_info["2021.278.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 27821G - Some issues with the DVL, the vehicle hit the bottom several times, both CTD inlets clogged with mud upon recovery."
+        " QC note: Best CTD is ctd1"
+    ),
+}
+dorado_info["2021.301.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 30121G - Vehicle running with 2 new CTDs, no evidence of mud in inlets"
+        " QC note: Best CTD is none, temp is bad, according to Mike, {REMOVE}"
+    ),
+}
+dorado_info["2021.334.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 33421G - ctd1 data bad the entire survey, ctd2 data becomes bad 65 km into the survey"
     ),
 }
