@@ -727,3 +727,51 @@ dorado_info["2021.334.00"] = {
         "Monterey Bay Diamond Mission - 33421G - ctd1 data bad the entire survey, ctd2 data becomes bad 65 km into the survey"
     ),
 }
+
+# ----------------------------- 2022 ---------------------------------------
+dorado_info["2022.006.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 00622G"),
+}
+dorado_info["2022.054.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 05422G"),
+}
+dorado_info["2022.075.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 07522G"),
+}
+dorado_info["2022.110.13"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 11022G"),
+}
+dorado_info["2022.138.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 13822G"),
+}
+dorado_info["2022.158.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 15822G"),
+}
+dorado_info["2022.201.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 20122G"),
+}
+dorado_info["2022.243.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 24322G - First time using integrated Dorado code"
+    ),
+}
+dorado_info["2022.284.00"] = {
+    "program": f"{CANONOCT2022} {DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 28422G - During CANON October 2022 campaign"
+    ),
+}
+dorado_info["2022.286.01"] = {
+    "program": f"{CANONOCT2022} {DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 28622G - During CANON October 2022 campaign"
+    ),
+}
