@@ -305,8 +305,6 @@ class Processor:
             self.align(mission)
             self.resample(mission)
             self.archive(mission)
-            if not self.args.no_cleanup:
-                self.cleanup(mission)
 
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
