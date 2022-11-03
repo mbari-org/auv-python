@@ -106,6 +106,14 @@
             "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2017.297.00", "--AUVCTD"],
         },
         {
+            "name": "gulper.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/gulper.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "2", "--mission", "2008.287.05", "--start_esecs", "1223937948.55043"],
+        },
+        {
             "name": "process_i2map",
             "type": "python",
             "request": "launch",
@@ -153,9 +161,9 @@
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "167", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.243.00", "--use_portal",  "--clobber", "--noinput", "--no_cleanup"]
             //"args": ["-v", "1", "--start_year", "2016",  "--end_year", "2016", "--start_yd", "160", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
-            //"args": ["-v", "1", "--mission", "2016.270.00", "--clobber", "--noinput", "--no_cleanup", "--local"]
+            "args": ["-v", "1", "--mission", "2008.287.05", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2017",  "--end_year", "2017", "--start_yd", "280", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
-            "args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
+            //"args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal",  "--no_cleanup"]
             //"args": ["-v", "1"]
         },
     ]
