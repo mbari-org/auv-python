@@ -770,8 +770,8 @@ dorado_info["2022.284.00"] = {
     ),
 }
 dorado_info["2022.286.01"] = {
-    "program": f"{CANONOCT2022} {DIAMOND}",
+    "program": f"{CANONOCT2022}",
     "comment": (
-        "Monterey Bay Diamond Mission - 28622G - During CANON October 2022 campaign"
+        "Trip out to MARS location near where makai_ESPmv1 sampled - 28622G - During CANON October 2022 campaign"
     ),
 }
