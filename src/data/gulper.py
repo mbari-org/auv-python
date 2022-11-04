@@ -16,7 +16,11 @@ import requests
 import sys
 import xarray as xr
 
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
+BASE_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../data/auv_data")
+)
+MISSIONLOGS = "missionlogs"
+MISSIONNETCDFS = "missionnetcdfs"
 
 VEHICLE = "dorado"
 DODS_SERVER = "https://dods.mbari.org/data/auvctd/"
@@ -45,7 +49,7 @@ class Gulper:
                 BASE_PATH, VEHICLE, MISSIONNETCDFS, self.args.mission, "navigation.nc"
             )
         else:
-            # Relies on auv-ctd having processed the mission
+            # Relies on auv-python having processed the mission
             url = os.path.join(
                 OPENDAP_SERVER,
                 "missionnetcdfs",
@@ -60,11 +64,14 @@ class Gulper:
 
     def parse_gulpers(self) -> dict:
         "Parse the Gulper times and bottle numbers from the auvctd syslog file"
-        mission_dir = os.path.join(BASE_PATH, VEHICLE, MISSIONLOGS, self.args.mission)
 
         if self.args.local:
-            self.logger.info(f"Reading local file {syslog_file}")
+            # Read from local file - useful for testing in auv-python
+            mission_dir = os.path.join(
+                BASE_PATH, VEHICLE, MISSIONLOGS, self.args.mission
+            )
             syslog_file = os.path.join(mission_dir, "syslog")
+            self.logger.info(f"Reading local file {syslog_file}")
             if not os.path.exists(syslog_file):
                 self.logger.error(f"{syslog_file} not found")
                 raise FileNotFoundError(syslog_file)
