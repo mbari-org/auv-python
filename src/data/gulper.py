@@ -14,10 +14,13 @@ import os
 import re
 import requests
 import sys
+import xarray as xr
 
-from logs2netcdfs import BASE_PATH, MISSIONLOGS
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 VEHICLE = "dorado"
+DODS_SERVER = "https://dods.mbari.org/data/auvctd/"
+OPENDAP_SERVER = "https://dods.mbari.org/opendap/data/auvctd/"
 
 
 class Gulper:
@@ -31,21 +34,46 @@ class Gulper:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    def mission_start_esecs(self) -> float:
+        "Return the start time of the mission in epoch seconds"
+        if self.args.start_esecs:
+            return self.args.start_esecs
+
+        # Get the first time record from mission's navigation.nc file
+        if self.args.local:
+            url = os.path.join(
+                BASE_PATH, VEHICLE, MISSIONNETCDFS, self.args.mission, "navigation.nc"
+            )
+        else:
+            # Relies on auv-ctd having processed the mission
+            url = os.path.join(
+                OPENDAP_SERVER,
+                "missionnetcdfs",
+                self.args.mission.split(".")[0],
+                self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
+                self.args.mission,
+                "navigation.nc",
+            )
+        self.logger.info(f"Reading mission start time from {url}")
+        ds = xr.open_dataset(url)
+        return ds.time[0].values.astype("float64") / 1e9
+
     def parse_gulpers(self) -> dict:
         "Parse the Gulper times and bottle numbers from the auvctd syslog file"
         mission_dir = os.path.join(BASE_PATH, VEHICLE, MISSIONLOGS, self.args.mission)
-        syslog_file = os.path.join(mission_dir, "syslog")
-        if not os.path.exists(syslog_file):
-            self.logger.error(f"{syslog_file} not found")
-            return
 
         if self.args.local:
             self.logger.info(f"Reading local file {syslog_file}")
+            syslog_file = os.path.join(mission_dir, "syslog")
+            if not os.path.exists(syslog_file):
+                self.logger.error(f"{syslog_file} not found")
+                raise FileNotFoundError(syslog_file)
             with open(syslog_file, mode="r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
         else:
             syslog_url = os.path.join(
-                "https://dods.mbari.org/data/auvctd/missionlogs/",
+                DODS_SERVER,
+                "missionlogs",
                 self.args.mission.split(".")[0],
                 self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
                 self.args.mission,
@@ -57,8 +85,10 @@ class Gulper:
                     self.logger.error(
                         f"Cannot read {syslog_url}, resp.status_code = {resp.status_code}"
                     )
-                    return
+                    raise FileNotFoundError(f"Cannot read {syslog_url}")
                 lines = [line.decode(errors="ignore") for line in resp.iter_lines()]
+
+        mission_start_esecs = self.mission_start_esecs()
 
         # Starting with 2005.299.12 and continuing through 2022.286.01 and later
         # Used to get mission elapsed time (etime) - matches 'changed state' messages too
@@ -87,12 +117,13 @@ class Gulper:
 
         # Logic translated to here from parseGulperLog.pl Perl script
         bottles = {}
+        number = None
         for line in lines:
             if "t = 0.000000" in line:
                 # The navigation.nc file has the best match to mission start time.
                 # Use that to match to this zero elapsed mission time.
                 self.logger.debug(
-                    f"Mission {self.args.mission} started at {self.args.start_esecs}"
+                    f"Mission {self.args.mission} started at {mission_start_esecs}"
                 )
             if match := fire_the_gulper_re.search(line):
                 # .+t =\s+([\d\.]+)\).+Behavior FireTheGulper
@@ -115,20 +146,20 @@ class Gulper:
                 self.logger.debug(f"eseconds = {eses}, number = {number}")
                 if etime:
                     # After first instance of bottle number undef $etime so we don't re-set it
-                    bottles[number] = etime + self.args.start_esecs
+                    bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
+                        f"Saving time {etime + mission_start_esecs} for bottle number {number}"
                     )
                     etime = None
                 bottles[number] = esecs
             elif match := gulper_state_finished_re.search(line):
                 # t = ([\d\.]+)\) Behavior FireTheGulper:-1 has changed to state Finished
-                if number:
+                if number is not None:
                     etime = float(match.group(1))
                     # After first instance of bottle number undef $etime so we don't re-set it
-                    bottles[number] = etime + self.args.start_esecs
+                    bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
+                        f"Saving time {etime + mission_start_esecs} for bottle number {number}"
                     )
                     etime = None
             elif match := fire_gulper_cmd_re.search(line):
@@ -136,9 +167,9 @@ class Gulper:
                 number = int(match.group(1))
                 if etime:
                     # After first instance of bottle number undef $etime so we don't re-set it
-                    bottles[number] = etime + self.args.start_esecs
+                    bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
+                        f"Saving time {etime + mission_start_esecs} for bottle number {number}"
                     )
                     etime = None
         return bottles
