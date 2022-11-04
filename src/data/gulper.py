@@ -12,6 +12,7 @@ import argparse
 import logging
 import os
 import re
+import requests
 import sys
 
 from logs2netcdfs import BASE_PATH, MISSIONLOGS
@@ -38,81 +39,26 @@ class Gulper:
             self.logger.error(f"{syslog_file} not found")
             return
 
-        self.logger.info(f"Reading {syslog_file}")
-        with open(syslog_file, mode="r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-
-        #
-        # Get potential mission elapsed time for the gulper firing.  When followed by a bottle
-        # number match then this time will be used
-        #
-        # if ( /.+t =\s+([\d\.]+)\).+Behavior FireTheGulper/ ) {
-        # 	print if $debug;
-        # 	$etime = $1;
-        # 	print "etime = $etime\n" if $debug;
-        # }
-        #
-        # Get potential Gulper number, needed for when we see "...FireTheGulper:-1 has changed to state Finished"
-        # if ( /GulperServer - firing gulper (\d+)/ ) {
-        #    $number = $1;
-        # }
-        #
-        #
-        # Get line with the bottle number.  Staring 15 Oct 2008 with 20008.289.08 we have epoch
-        # seconds on this line.  Parse that record with the 2nd if block
-        #
-        # if ( /: (\d+) Gulper::fireGulper - cmd is \$(\d\d)1Fff/ ) {
-        # 	print if $debug;
-        # 	$esecs = $1;
-        # 	$number = sprintf("%d",$2);             # Gets rid of leading 0.
-        # 	print "esecs = $esecs, number = $number\n" if $debug;
-        #
-        # 	#
-        # 	# After first instance of bottle number undef $etime so we don't re-set it
-        # 	#
-        # 	if ( $etime ) {
-        # 		print "Saving this bottle time $etime for bottle number $number\n" if $debug;
-        # 		print "Adding $etime to $startEsecs to get " if $debug;
-        # 		$bottles{$number} = $etime + $startEsecs;
-        # 		print "$bottles{$number}\n" if $debug;
-        # 		print "Epoch seconds from syslog file for bottle = $esecs\n" if $debug;
-        # 		print "Difference = ", $bottles{$number} - $esecs, "\n" if $debug;
-        # 		undef $etime;
-        # 	}
-        #
-        # 	$bottles{$number} = $esecs if $esecs;
-        # }
-        # elsif ( defined $number && /\(t = ([\d\.]+)\) Behavior FireTheGulper:-1 has changed to state Finished/ ) {
-        #    $etime = $1;
-        #
-        # After first instance of bottle number undef $etime so we don't re-set it
-        #
-        # 	if ( $etime ) {
-        # 		print "Saving this bottle time $etime for bottle number $number\n" if $debug;
-        # 		print "Adding $etime to $startEsecs to get " if $debug;
-        # 		$bottles{$number} = $etime + $startEsecs;
-        # 		print "$bottles{$number}\n" if $debug;
-        # 		print "Epoch seconds from syslog file for bottle = $esecs\n" if $debug;
-        # 		print "Difference = ", $bottles{$number} - $esecs, "\n" if $debug;
-        # 		undef $etime;
-        # 	}
-        # }
-        #
-        # elsif ( /: Gulper::fireGulper - cmd is \$(\d\d)1Fff/ ) {
-        # 	print if $debug;
-        # 	$number = sprintf("%d",$1);		# Gets rid of leading 0.
-        # 	print "number = $number\n" if $debug;
-        #
-        # 	#
-        # 	# After first instance of bottle number undef $etime so we don't re-set it
-        # 	#
-        # 	if ( $etime ) {
-        # 		print "Saving this bottle time $etime for bottle number $number\n" if $debug;
-        # 		print "Adding $etime to $startEsecs\n" if $debug;
-        # 		$bottles{$number} = $etime + $startEsecs;
-        # 		undef $etime;
-        # 	}
-        # }
+        if self.args.local:
+            self.logger.info(f"Reading local file {syslog_file}")
+            with open(syslog_file, mode="r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+        else:
+            syslog_url = os.path.join(
+                "https://dods.mbari.org/data/auvctd/missionlogs/",
+                self.args.mission.split(".")[0],
+                self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
+                self.args.mission,
+                "syslog",
+            )
+            self.logger.info(f"Reading {syslog_url}")
+            with requests.get(syslog_url, stream=True) as resp:
+                if resp.status_code != 200:
+                    self.logger.error(
+                        f"Cannot read {syslog_url}, resp.status_code = {resp.status_code}"
+                    )
+                    return
+                lines = [line.decode(errors="ignore") for line in resp.iter_lines()]
 
         # Starting with 2005.299.12 and continuing through 2022.286.01 and later
         # Used to get mission elapsed time (etime) - matches 'changed state' messages too
@@ -206,6 +152,7 @@ class Gulper:
         parser.add_argument(
             "--start_esecs", help="Start time of mission in epoch seconds", type=float
         )
+        parser.add_argument("--local", help="Read local files", action="store_true")
 
         parser.add_argument(
             "-v",
