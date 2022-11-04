@@ -15,10 +15,7 @@ import re
 import sys
 
 from logs2netcdfs import BASE_PATH, MISSIONLOGS
-from resample import FREQ
 
-LOG_NAME = "processing.log"
-AUVCTD_VOL = "/Volumes/AUVCTD"
 VEHICLE = "dorado"
 
 
@@ -117,36 +114,96 @@ class Gulper:
         # 	}
         # }
 
+        # Starting with 2005.299.12 and continuing through 2022.286.01 and later
+        # Used to get mission elapsed time (etime) - matches 'changed state' messages too
         fire_the_gulper_re = re.compile(".+t =\s+([\d\.]+)\).+Behavior FireTheGulper")
-        gulper_number_re = re.compile("GulperServer - firing gulper (\d+)")
+
+        # Starting with 2008.281.03 and continuing through 2021.111.00 and later
         adaptive_gulper_re = re.compile(
             "Adaptive Sampler has fired gulper (\d+) at t =\s+([\d\.]+)"
         )
-        gulper_times = []
-        gulper_bottles = []
-        mission_started = False
+
+        # Starting with 2008.289.03 and continuing through 2014.212.00
+        num_fire_gulper_cmd_re = re.compile(
+            ": (\d+) Gulper::fireGulper - cmd is \$(\d\d)1Fff"
+        )
+
+        # Starting with 2007.120.00 and continuing through 2022.286.01 and later
+        gulper_state_finished_re = re.compile(
+            "\(t = ([\d\.]+)\) Behavior FireTheGulper:-1 has changed to state Finished"
+        )
+
+        # Starting with 2007.093.12 and continuing through 2009.342.04
+        fire_gulper_cmd_re = re.compile(": Gulper::fireGulper - cmd is \$(\d\d)1Fff")
+
+        # Starting with 2014.266.04 and continuing through 2022.286.01 and later
+        gulper_number_re = re.compile("GulperServer - firing gulper (\d+)")
+
+        # Logic translated to here from parseGulperLog.pl Perl script
+        bottles = {}
         for line in lines:
             if "t = 0.000000" in line:
-                mission_started = True
+                # The navigation.nc file has the best match to mission start time.
+                # Use that to match to this zero elapsed mission time.
+                self.logger.debug(
+                    f"Mission {self.args.mission} started at {self.args.start_esecs}"
+                )
             if match := fire_the_gulper_re.search(line):
-                etime = match.group(1)
+                # .+t =\s+([\d\.]+)\).+Behavior FireTheGulper
+                etime = float(match.group(1))
                 self.logger.debug(f"etime = {etime}")
             if match := gulper_number_re.search(line):
-                number = match.group(1)
+                # GulperServer - firing gulper (\d+)
+                number = int(match.group(1))
                 self.logger.debug(f"number = {number}")
             if match := adaptive_gulper_re.search(line):
-                number = match.group(1)
-                etime = match.group(2)
-                self.logger.debug(f"number = {number}, etime = {etime}")
+                # Adaptive Sampler has fired gulper (\d+) at t =\s+([\d\.]+)
+                number = int(match.group(1))
+                esecs = float(match.group(2))
+                self.logger.debug(f"number = {number}, esecs = {esecs}")
 
-    def process_command_line(self):
+            if match := num_fire_gulper_cmd_re.search(line):
+                # ": (\d+) Gulper::fireGulper - cmd is \$(\d\d)1Fff
+                esecs = float(match.group(1))
+                number = int(match.group(2))
+                self.logger.debug(f"eseconds = {eses}, number = {number}")
+                if etime:
+                    # After first instance of bottle number undef $etime so we don't re-set it
+                    bottles[number] = etime + self.args.start_esecs
+                    self.logger.debug(
+                        f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
+                    )
+                    etime = None
+                bottles[number] = esecs
+            elif match := gulper_state_finished_re.search(line):
+                # t = ([\d\.]+)\) Behavior FireTheGulper:-1 has changed to state Finished
+                if number:
+                    etime = float(match.group(1))
+                    # After first instance of bottle number undef $etime so we don't re-set it
+                    bottles[number] = etime + self.args.start_esecs
+                    self.logger.debug(
+                        f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
+                    )
+                    etime = None
+            elif match := fire_gulper_cmd_re.search(line):
+                # : Gulper::fireGulper - cmd is \$(\d\d)1Fff
+                number = int(match.group(1))
+                if etime:
+                    # After first instance of bottle number undef $etime so we don't re-set it
+                    bottles[number] = etime + self.args.start_esecs
+                    self.logger.debug(
+                        f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
+                    )
+                    etime = None
+
+    def process_command_line(self) -> None:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
             description=__doc__,
         )
         parser.add_argument("--mission", help="Mission directory, e.g.: 2020.064.10")
         parser.add_argument(
-            "--start_esecs", help="Start time of mission in epoch seconds"
+            "--start_esecs", help="Start time of mission in epoch seconds", type=float
         )
 
         parser.add_argument(
@@ -171,10 +228,7 @@ class Gulper:
 
 
 if __name__ == "__main__":
-    VEHICLE_DIR = "/Volumes/AUVCTD/missionlogs"
-    MOUNT_DIR = "cifs://atlas.shore.mbari.org/AUVCTD"
-    START_YEAR = 2007  # First Gulper was on 2007.120.01
-
+    # First Gulper was on 2007.120.01
     gulper = Gulper()
     gulper.process_command_line()
     gulper.parse_gulpers()
