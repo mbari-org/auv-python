@@ -2,10 +2,11 @@
 """
 Parse auvctd syslog file for gulper times and bottle numbers
 This is a utility script for pulling out Gulper information from 
-the auvctd syslog files.  A copy of it will be used by the STOQS
-loader for adding dorado_Gulper Activities to the Campaign.  This 
-will achieve better harmony with the way other Samples (Sipper, ESP)
-are loaded and accessible in STOQS. 
+the auvctd syslog files. Developed for the auv-python project.
+
+A copy of it will be used by the STOQS loader for adding dorado_Gulper
+Activities to the Campaign.  This will achieve better harmony with the
+way other Samples (Sipper, ESP) are loaded and accessible in STOQS. 
 """
 
 import argparse
@@ -23,8 +24,8 @@ MISSIONLOGS = "missionlogs"
 MISSIONNETCDFS = "missionnetcdfs"
 
 VEHICLE = "dorado"
-DODS_SERVER = "https://dods.mbari.org/data/auvctd/"
-OPENDAP_SERVER = "https://dods.mbari.org/opendap/data/auvctd/"
+DODS_SERVER = "http://dods.mbari.org/data/auvctd/"
+OPENDAP_SERVER = "http://dods.mbari.org/opendap/data/auvctd/"
 
 
 class Gulper:
@@ -186,7 +187,9 @@ class Gulper:
             formatter_class=argparse.RawTextHelpFormatter,
             description=__doc__,
         )
-        parser.add_argument("--mission", help="Mission directory, e.g.: 2020.064.10")
+        parser.add_argument(
+            "--mission", help="Mission directory, e.g.: 2020.064.10", required=True
+        )
         parser.add_argument(
             "--start_esecs", help="Start time of mission in epoch seconds", type=float
         )
