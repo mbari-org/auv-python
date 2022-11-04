@@ -30,7 +30,7 @@ class Gulper:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def parse_gulpers(self):
+    def parse_gulpers(self) -> dict:
         "Parse the Gulper times and bottle numbers from the auvctd syslog file"
         mission_dir = os.path.join(BASE_PATH, VEHICLE, MISSIONLOGS, self.args.mission)
         syslog_file = os.path.join(mission_dir, "syslog")
@@ -195,6 +195,7 @@ class Gulper:
                         f"Saving time {etime + self.args.start_esecs} for bottle number {number}"
                     )
                     etime = None
+        return bottles
 
     def process_command_line(self) -> None:
         parser = argparse.ArgumentParser(
@@ -231,4 +232,7 @@ if __name__ == "__main__":
     # First Gulper was on 2007.120.01
     gulper = Gulper()
     gulper.process_command_line()
-    gulper.parse_gulpers()
+    gulper_times = gulper.parse_gulpers()
+    gulper.logger.info(f"number, epoch seconds")
+    for number, esecs in gulper_times.items():
+        gulper.logger.info(f"{number}, {esecs}")
