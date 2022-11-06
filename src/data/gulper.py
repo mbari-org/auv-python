@@ -17,16 +17,6 @@ import requests
 import sys
 import xarray as xr
 
-BASE_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../data/auv_data")
-)
-MISSIONLOGS = "missionlogs"
-MISSIONNETCDFS = "missionnetcdfs"
-
-VEHICLE = "dorado"
-DODS_SERVER = "http://dods.mbari.org/data/auvctd/"
-OPENDAP_SERVER = "http://dods.mbari.org/opendap/data/auvctd/"
-
 
 class Gulper:
     logger = logging.getLogger(__name__)
@@ -46,13 +36,20 @@ class Gulper:
 
         # Get the first time record from mission's navigation.nc file
         if self.args.local:
+            base_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../../data/auv_data")
+            )
             url = os.path.join(
-                BASE_PATH, VEHICLE, MISSIONNETCDFS, self.args.mission, "navigation.nc"
+                base_path,
+                "dorado",
+                "missionnetcdfs",
+                self.args.mission,
+                "navigation.nc",
             )
         else:
             # Relies on auv-python having processed the mission
             url = os.path.join(
-                OPENDAP_SERVER,
+                "http://dods.mbari.org/opendap/data/auvctd/",
                 "missionnetcdfs",
                 self.args.mission.split(".")[0],
                 self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
@@ -68,8 +65,11 @@ class Gulper:
 
         if self.args.local:
             # Read from local file - useful for testing in auv-python
+            base_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../../data/auv_data")
+            )
             mission_dir = os.path.join(
-                BASE_PATH, VEHICLE, MISSIONLOGS, self.args.mission
+                base_path, "dorado", "missionlogs", self.args.mission
             )
             syslog_file = os.path.join(mission_dir, "syslog")
             self.logger.info(f"Reading local file {syslog_file}")
@@ -80,7 +80,7 @@ class Gulper:
                 lines = f.readlines()
         else:
             syslog_url = os.path.join(
-                DODS_SERVER,
+                "http://dods.mbari.org/data/auvctd/",
                 "missionlogs",
                 self.args.mission.split(".")[0],
                 self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
