@@ -252,19 +252,224 @@ dorado_info["2004.029.03"] = {
     "program": AUVCTD,
     "comment": (
         "2004.029.03: parosci interp1 problem - multigenerateNetcdf failed to create navigation.nc file because of '#' problem"
-        "# begin"
-        "#<binary_data>"
-        "Will need to rerun the portal with the fix to set byteOffset."
-        "Re-portaled & processed 7/26/05"
-        "According to GPS data AUV is in Mexico beginning: 29 Jan 2004 19:37:36 GMT	1.0754050561900759E9	0.4733113223544617"
-        "*** Need to reprocess with just the .03 mission and not include the data equal to and after this time ***"
-        "Had bad nav point - processed 8/10/05"
+        " # begin"
+        " #<binary_data>"
+        " Will need to rerun the portal with the fix to set byteOffset."
+        " Re-portaled & processed 7/26/05"
+        " According to GPS data AUV is in Mexico beginning: 29 Jan 2004 19:37:36 GMT	1.0754050561900759E9	0.4733113223544617"
+        " *** Need to reprocess with just the .03 mission and not include the data equal to and after this time ***"
+        " Had bad nav point - processed 8/10/05"
     ),
 }
 dorado_info["2004.029.05"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled & processed 7/26/05"),
+    "comment": dorado_info["2004.029.03"]["comment"],
 }
+dorado_info["2004.035.05"] = {
+    "program": AUVCTD,
+    "comment": ("Portaled 8/9/05"),
+}
+dorado_info["2004.069.03"] = {
+    "program": AUVCTD,
+    "comment": ("Isus data (nitrate) is missing for 069.03 - re-portaled 8/9/05"),
+}
+dorado_info["2004.094.04"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Something whaky with lat lon calculations start at (237.77744, 36.94086) and end at (255.1847, 53.14181)"
+    ),
+}
+dorado_info["2004.095.02"] = {
+    "program": BIOLUME,
+    "comment": ("Missing netCDF files, cant process yet - re-portaled 8/10/05"),
+}
+for mission_number in (3, 5, 6):
+    dorado_info[f"2004.096.{mission_number:02d}"] = {
+        "program": BIOLUME,
+        "comment": ("Portaled 8/10/05"),
+    }
+dorado_info["2004.111.04"] = {
+    "program": AUVCTD,
+    "comment": ("Portaled 8/11/05"),
+}
+dorado_info["2004.112.02"] = {
+    "program": AUVCTD,
+    "comment": ("Portaled 8/11/05"),
+}
+dorado_info["2004.167.04"] = {
+    "program": AUVCTD,
+    "comment": (
+        "??? Reference to non-existent field 'depth'."
+        " Error in ==> /u/ssdsadmin/dev/auv_ctd/src/matlab/doradosdp/process/build_auv_survey.m"
+        " On line 118  ==>                hs2depth=[hs2depth;HS2.depth];"
+        " No variables in the hydroscatlog.nc file, hydroscat.log file is 0 size"
+        " Will need to get those data"
+        " Portaled 8/11/05 - no hs2 data"
+    ),
+}
+dorado_info["2004.168.03"] = {
+    "program": AUVCTD,
+    "comment": ("Portaled 8/11/05"),
+}
+for mission_number in range(1, 4):
+    dorado_info[f"2004.169.{mission_number:02d}"] = {
+        "program": BIOLUME,
+        "comment": ("SDP 10/6/04 - re-portaled 8/11/05"),
+    }
+for mission_number in range(2, 4):
+    dorado_info[f"2004.196.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("re-portaled 8/11/05"),
+    }
+for mission_number in range(1, 3):
+    dorado_info[f"2004.197.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "Not processed 11/1/04 - Re-portaled 8/11/05" "hydroscatlog.log is 0 size."
+        ),
+    }
+dorado_info["2004.208.01"] = {
+    "program": AUVCTD,
+    "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05"),
+}
+dorado_info["2004.209.03"] = {
+    "program": AUVCTD,
+    "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05"),
+}
+dorado_info["2004.211.01"] = {
+    "program": BIOLUME,
+    "comment": ("Re-portaled 8/12/05"),
+}
+dorado_info["2004.233.01"] = {
+    "program": OCCO,
+    "comment": ("Re-portaled 8/16/05"),
+}
+dorado_info["2004.236.00"] = {
+    "program": OCCO,
+    "comment": ("Re-portaled 8/16/05"),
+}
+dorado_info["2004.237.00"] = {
+    "program": OCCO,
+    "comment": ("Re-portaled 8/16/05"),
+}
+dorado_info["2004.238.00"] = {
+    "program": OCCO,
+    "comment": ("Re-portaled 8/16/05"),
+}
+dorado_info["2004.239.01"] = {
+    "program": OCCO,
+    "comment": ("Re-portaled 8/16/05"),
+}
+dorado_info["2004.240.00"] = {
+    "program": OCCO,
+    "comment": ("Re-portaled 8/18/05"),
+}
+dorado_info["2004.251.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Added 20 December 2004 in response to Carole's email question"
+        " Fails in plotting because of missing O2 (?)"
+        " Re-portaled 8/18/05"
+        " Added 20 Dec 2004 in response to Carole's email question. Fails in plotting because of missing O2 (?)"
+    ),
+}
+dorado_info["2004.252.00"] = {
+    "program": AUVCTD,
+    "comment": ("Re-portaled 8/18/05"),
+}
+dorado_info["2004.254.00"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Problem with navigation.nc time array - all bogus because of '#' as first byte of data - fixed."
+        " Re-portaled 8/18/05"
+    ),
+}
+dorado_info["2004.261.00"] = {
+    "program": OCCO,
+    "comment": (
+        "Mistake made at initial portal run, should be OCCO, not LOCO"
+        " Reportaled 3/9/05 with OCCO"
+        " Re-portaled 8/18/05"
+    ),
+}
+dorado_info["2004.271.00"] = {
+    "program": OCCO,
+    "comment": (
+        "Must have missed this one, added 8 March 2005 w/ recacled isuslog"
+        " Re-portaled 8/18/05"
+    ),
+}
+dorado_info["2004.272.01"] = {
+    "program": AUVCTD,
+    "comment": ("SDP on 29 Sep 2004" " Re-portaled 8/18/05"),
+}
+for mission_number in range(0, 2):
+    dorado_info[f"2004.273.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("Added 10 March 2005 Re-portaled 8/19/05"),
+    }
+dorado_info["2004.274.00"] = {
+    "program": AUVCTD,
+    "comment": ("Added 11 March 2005 Re-portaled 8/19/05"),
+}
+dorado_info["2004.275.00"] = {
+    "program": AUVCTD,
+    "comment": ("Added 11 March 2005 Re-portaled 8/19/05"),
+}
+dorado_info["2004.295.03"] = {
+    "program": AUVCTD,
+    "comment": ("SDP on 1 Nov 2004 Re-portaled 8/19/05"),
+}
+for mission_number in range(3, 5):
+    dorado_info[f"2004.296.{mission_number:02d}"] = {
+        "program": BIOLUME,
+        "comment": (
+            "Hardware failure, no ctdDriver2 data.  Flow was bad for both CTDs."
+            " Re-portaled 8/19/05"
+            " Failed because no ctdDriver2.cfg for 296.03."
+        ),
+    }
+dorado_info["2004.314.00"] = {
+    "program": AUVCTD,
+    "comment": ("Portaled 8/19/05"),
+}
+for mission_number in range(0, 3):
+    dorado_info[f"2004.315.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("Processed fine on prey, a volume survey Re-portaled 8/21/05"),
+    }
+for mission_number in range(0, 3):
+    dorado_info[f"2004.317.{mission_number:02d}"] = {
+        "program": BIOLUME,
+        "comment": ("Re-portaled 8/21/05"),
+    }
+dorado_info["2004.321.00"] = {
+    "program": BIOLUME,
+    "comment": ("Re-portaled 8/22/05"),
+}
+for mission_number in range(5, 8):
+    dorado_info[f"2004.344.{mission_number:02d}"] = {
+        "program": OCCO,
+        "comment": ("Re-portaled 8/22/05"),
+    }
+for mission_number in range(1, 9):
+    dorado_info[f"2004.345.{mission_number:02d}"] = {
+        "program": OCCO,
+        "comment": ("Re-portaled 8/22/05"),
+    }
+dorado_info["2004.348.00"] = {
+    "program": BIOLUME,
+    "comment": ("Re-portaled 8/22/05"),
+}
+dorado_info["2004.349.00"] = {
+    "program": BIOLUME,
+    "comment": ("Re-portaled 8/22/05"),
+}
+for mission_number in range(0, 2):
+    dorado_info[f"2004.352.{mission_number:02d}"] = {
+        "program": BIOLUME,
+        "comment": ("Re-portaled 8/22/05"),
+    }
 
 
 # ----------------------------- 2016 ---------------------------------------
