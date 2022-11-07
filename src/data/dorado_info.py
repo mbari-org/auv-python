@@ -859,6 +859,168 @@ dorado_info["2006.348.01"] = {
     ),
 }
 
+# ----------------------------- 2007 ---------------------------------------
+dorado_info["2007.009.06"] = {
+    "program": LOCO,
+    "comment": (
+        "LOCO mission - 12 m isobath - after Iridium SBD service turned off"
+        " Got 'Error in plot_sections (line 852)' when reprocessing attempted on 30 May 2018"
+    ),
+}
+dorado_info["2007.029.11"] = {
+    "program": BIOLUME,
+    "comment": (
+        "BIOLUME mission - Filled sensors with sand half-way through survey at 17m; data after that is bad"
+        " Got 'Error in plot_sections (line 852)' when reprocessing attempted on 30 May 2018"
+    ),
+}
+dorado_info["2007.061.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Test AUVCTD mission - First mission with new blunt nose cone"
+        " Got 'Error in plot_sections (line 852)' when reprocessing attempted on 30 May 2018"
+    ),
+}
+dorado_info["2007.067.01"] = {
+    "program": BIOLUME,
+    "comment": (
+        "BIOLUME mission - First real mission with new blunt nose cone - Zephr attended to dorado at M1 in the morning"
+    ),
+}
+dorado_info["2007.085.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Short survey at M1"),
+}
+for mission_number in [0, 1]:
+    dorado_info[f"2007.120.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("AUVCTD mission - Volume survey around M0 for Scholin"),
+    }
+for mission_number in [5, 7]:
+    dorado_info[f"2007.123.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("AUVCTD mission - Volume survey around M0 for Scholin"),
+    }
+for mission_number in [4, 6, 7, 9]:
+    dorado_info[f"2007.134.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD missions - Bellingham looking for internal waves in Southern MB"
+        ),
+    }
+dorado_info["2007.142.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - C1 to M2 & back - gulper tripped at nephaloid layers (we hope!)"
+    ),
+}
+dorado_info["2007.144.02"] = {
+    "program": BIOLUME,
+    "comment": ("BIOLUME mission"),
+}
+dorado_info["2007.149.02"] = {
+    "program": BIOLUME,
+    "comment": ("BIOLUME mission"),
+}
+dorado_info["2007.171.04"] = {
+    "program": BIOLUME,
+    "comment": (
+        "BIOLUME mission - reverse path, starting from the north.  Stopped near M1."
+    ),
+}
+dorado_info["2007.211.02"] = {
+    "program": BIOLUME,
+    "comment": (
+        "AUVCTD mission - Canyon Axis with Gulper, no flow cell on main CTD1 line"
+    ),
+}
+dorado_info["2007.234.05"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Canyon Axis"),
+}
+dorado_info["2007.235.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Northern shelf, then cross-bay"),
+}
+dorado_info["2007.239.03"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Internal wave study near Monterey"),
+}
+dorado_info["2007.239.05"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Internal wave study near Monterey"),
+}
+dorado_info["2007.247.05"] = {
+    "program": OCCO,
+    "comment": (
+        "OCCO mission - Incubation area flux track - CTD1 clogged or something at end - in conjunction with ESP deployments"
+    ),
+}
+dorado_info["2007.248.00"] = {
+    "program": OCCO,
+    "comment": (
+        "OCCO mission - Nighttime run, Iridium not working - no data from Isus - in conjunction with ESP deployments"
+    ),
+}
+dorado_info["2007.249.00"] = {
+    "program": OCCO,
+    "comment": (
+        " OCCO mission - Iridium not working - in conjunction with ESP deployments"
+    ),
+}
+dorado_info["2007.253.02"] = {
+    "program": OCCO,
+    "comment": ("OCCO mission - Tight box survey about ESP site"),
+}
+dorado_info["2007.254.01"] = {
+    "program": OCCO,
+    "comment": ("OCCO mission - Canyon axis survey"),
+}
+dorado_info["2007.255.01"] = {
+    "program": OCCO,
+    "comment": ("OCCO mission - Northern shelf and cross-bay chevron survey"),
+}
+for day, mission_number in [(260, 0), (261, 1), (263, 1)]:
+    dorado_info[f"2007.{day:02d}.{mission_number:01d}"] = {
+        "program": OCCO,
+        "comment": ("OCCO mission - Northern shelf survey about ESP deployments"),
+    }
+dorado_info["2007.264.09"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Kanna control tests around M0"),
+}
+for day, mission_number in [
+    (267, 4),
+    (268, 1),
+]:
+    dorado_info[f"2007.{day:02d}.{mission_number:01d}"] = {
+        "program": OCCO,
+        "comment": ("OCCO mission - Tight box survey about ESP site"),
+    }
+dorado_info["2007.269.00"] = {
+    "program": OCCO,
+    "comment": ("OCCO mission - Last one for Sept 2007"),
+}
+dorado_info["2007.325.16"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Kanna control tests south of M0"),
+}
+dorado_info["2007.330.05"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Bellingham internal waves near MISO"),
+}
+dorado_info["2007.344.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission -  Canyon Axis with Gulper"),
+}
+dorado_info["2007.346.00"] = {
+    "program": BIOLUME,
+    "comment": (
+        "AUVCTD mission -  Northern shelf then chevron pattern across bay to Monterey"
+    ),
+}
+
+# ----------------------------- 2008 ---------------------------------------
 
 
 # ----------------------------- 2016 ---------------------------------------
