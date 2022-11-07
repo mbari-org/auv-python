@@ -725,6 +725,140 @@ dorado_info["2006.065.12"] = {
         "Core dumps on _2column.png with headless print - 18 July 2007"
     ),
 }
+dorado_info["2006.073.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Second unattended mission done- this one to M2!  Outbound at depth, return yo-yo."
+    ),
+}
+dorado_info["2006.088.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Third unattended mission done- this one to M2.  Outbound at depth, return yo-yo."
+    ),
+}
+dorado_info["2006.108.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Fourth unattended mission done- this one to M2.  Outbound at depth , return yo-yo.  (A little slower than normal.)"
+    ),
+}
+dorado_info["2006.117.05"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Unattended BIOLUME mission - Monterey to Soquel, then sawtooth at canyon edge back to M0"
+    ),
+}
+dorado_info["2006.130.00"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Unattended BIOLUME mission - Monterey to Soquel, then one sawtooth at canyon picked up early for next mission"
+    ),
+}
+dorado_info["2006.130.01"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Unattended BIOLUME mission - C1 to M2 and back - a lot of data collecetd in the last 48 hours. (After strong wind event.)"
+    ),
+}
+dorado_info["2006.200.01"] = {
+    "program": LOCO,
+    "comment": ("LOCO mission - as part of MB06 - John Ryan"),
+}
+dorado_info["2006.206.38"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - as part of MB06 - John Ryan"),
+}
+dorado_info["2006.214.01"] = {
+    "program": BIOLUME,
+    "comment": (
+        "BIOLUME mission - as part of MB06 - Finished up on LOCO line, Missed some Iridium points (???))"
+    ),
+}
+dorado_info["2006.219.08"] = {
+    "program": LOCO,
+    "comment": (
+        "LOCO mission - as part of MB06 - Ryan line on way to a Chavez survey for MB06"
+    ),
+}
+for day, mission_number in [(219, 10), (220, 0), (221, 0)]:
+    dorado_info[f"2006.{day:03d}.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD mission - as part of MB06 - Chavez survey for MB06 to fill in spots where glider's aren't going"
+        ),
+    }
+dorado_info["2006.227.08"] = {
+    "program": BIOLUME,
+    "comment": (
+        "BIOUME mission - as part of MB06 - Standard Haddock section (split out DAllanB iridium messages)"
+    ),
+}
+dorado_info["2006.227.09"] = {
+    "program": BIOLUME,
+    "comment": ("AUVCTD mission - as part of MB06 - Standard C1 to M2 and back"),
+}
+dorado_info["2006.234.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - as part of MB06 - Chavez survey for MB06 to fill in spots where glider's aren't going"
+    ),
+}
+dorado_info["2006.235.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - as part of MB06 - Chavez survey for MB06 to fill in spots where glider's aren't going"
+        " Had problem processing O2, no ISUS data (maybe some wierd bug whend there is no ISUS data)"
+    ),
+}
+dorado_info["2006.249.01"] = {
+    "program": BIOLUME,
+    "comment": ("BIOLUME mission"),
+}
+dorado_info["2006.249.03"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - out to between M1 & M2"),
+}
+dorado_info["2006.264.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - out to between M1 & M2"),
+}
+dorado_info["2006.270.00"] = {
+    "program": BIOLUME,
+    "comment": ("AUVCTD mission - Standard Biolume run.  CTD1 was noisey"),
+}
+dorado_info["2006.270.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - out to between M1 & M2.  CTD1 was noisey"),
+}
+dorado_info["2006.291.03"] = {
+    "program": BIOLUME,
+    "comment": ("AUVCTD mission - Standard Biolume run.  CTD1 was noisey"),
+}
+dorado_info["2006.291.04"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - out to M1 and back"),
+}
+dorado_info["2006.324.11"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - out to between M1 & M2"),
+}
+dorado_info["2006.331.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - out to between M1 & M2"),
+}
+dorado_info["2006.347.05"] = {
+    "program": LOCO,
+    "comment": ("LOCO mission - HAB incubator area (off Soquel)"),
+}
+dorado_info["2006.348.01"] = {
+    "program": LOCO,
+    "comment": (
+        "LOCO mission - HAB incubator area (off Soquel) - Zephyr prop damage to nosecone"
+        " Got 'Error in plot_sections (line 852)' when reprocessed on 30 May 2018"
+    ),
+}
+
 
 
 # ----------------------------- 2016 ---------------------------------------
