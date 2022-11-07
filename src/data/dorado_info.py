@@ -11,6 +11,7 @@
 
 OCCO = "OCCO"
 BIOLUME = "BIOLUME"
+LOCO = "LOCO"
 AUVCTD = "AUVCTD"
 AOSN = "AOSN"
 DIAMOND = "Monterey Bay Diamond"
@@ -491,11 +492,13 @@ for mission_number in range(0, 5):
         "program": BIOLUME,
         "comment": ("BIOLUME night missions, touched bottom on mission .00"),
     }
-for mission_number in (0, 2, 3, 4, 5)
+for mission_number in (0, 2, 3, 4, 5):
     dorado_info[f"2005.020.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Elkhorn Slough plume racetrack Monterey triangle (missing short mission 01)"),
-    }   
+        "comment": (
+            "Elkhorn Slough plume racetrack Monterey triangle (missing short mission 01)"
+        ),
+    }
 for mission_number in range(0, 5):
     dorado_info[f"2005.021.{mission_number:02d}"] = {
         "program": OCCO,
@@ -509,14 +512,16 @@ for mission_number in range(0, 18):
 for mission_number in range(7, 9):
     dorado_info[f"2005.096.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("M1.5 to C1.5.for Dr. Chavez - first missions since drop weight installed"),
+        "comment": (
+            "M1.5 to C1.5.for Dr. Chavez - first missions since drop weight installed"
+        ),
     }
 for mission_number in range(1, 3):
     dorado_info[f"2005.103.{mission_number:02d}"] = {
         "program": BIOLUME,
         "comment": ("Night-time survey that hit mud near Pt. Pinos."),
     }
-doarado_info["2005.118.05"] = {
+dorado_info["2005.118.05"] = {
     "program": AUVCTD,
     "comment": ("M1.5 to M1 Hans mentioned goofy data from hydroscat on this"),
 }
@@ -525,31 +530,31 @@ for mission_number in (16, 19):
         "program": AUVCTD,
         "comment": (""),
     }
-doarado_info["2005.122.00"] = {
+dorado_info["2005.122.00"] = {
     "program": AUVCTD,
     "comment": (""),
 }
-doarado_info["2005.123.01"] = {
+dorado_info["2005.123.01"] = {
     "program": AUVCTD,
     "comment": (""),
 }
-doarado_info["2005.125.00"] = {
+dorado_info["2005.125.00"] = {
     "program": AUVCTD,
     "comment": (""),
 }
-doarado_info["2005.133.00"] = {
+dorado_info["2005.133.00"] = {
     "program": BIOLUME,
     "comment": (""),
 }
-doarado_info["2005.137.00"] = {
+dorado_info["2005.137.00"] = {
     "program": BIOLUME,
     "comment": (""),
 }
-doarado_info["2005.140.00"] = {
+dorado_info["2005.140.00"] = {
     "program": BIOLUME,
     "comment": (""),
 }
-doarado_info["2005.159.00"] = {
+dorado_info["2005.159.00"] = {
     "program": AUVCTD,
     "comment": (""),
 }
@@ -558,17 +563,21 @@ for mission_number in range(0, 3):
         "program": BIOLUME,
         "comment": ("First mission (161.00) failed to make netCDFs by SSDS (??)"),
     }
-doarado_info["2005.175.00"] = {
+dorado_info["2005.175.00"] = {
     "program": BIOLUME,
-    "comment": ("dynamicControl log data has device info.  isusLog.cfg has information now."),
+    "comment": (
+        "dynamicControl log data has device info.  isusLog.cfg has information now."
+    ),
 }
-doarado_info["2005.179.01"] = {
+dorado_info["2005.179.01"] = {
     "program": AUVCTD,
     "comment": ("Portaled 7/8/05"),
 }
-doarado_info["2005.180.00"] = {
+dorado_info["2005.180.00"] = {
     "program": LOCO,
-    "comment": ("Portaled 7/8/05: 4 missions after this aborted then had bad GPS, on;y this one portaled over."),
+    "comment": (
+        "Portaled 7/8/05: 4 missions after this aborted then had bad GPS, on;y this one portaled over."
+    ),
 }
 for mission_number in range(0, 2):
     dorado_info[f"2005.182.{mission_number:02d}"] = {
@@ -581,7 +590,9 @@ dorado_info[f"2005.194.00"] = {
 }
 dorado_info[f"2005.196.00"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 7/26/05:  196.01 had battery failure - do not include in survey"),
+    "comment": (
+        "Portaled 7/26/05:  196.01 had battery failure - do not include in survey"
+    ),
 }
 dorado_info[f"2005.201.00"] = {
     "program": AUVCTD,
@@ -601,44 +612,63 @@ for mission_number in range(0, 2):
         "program": AUVCTD,
         "comment": ("Portaled 8/30/05"),
     }
-doarado_info["2005.224.00"] = {
+dorado_info["2005.224.00"] = {
     "program": BIOLUME,
     "comment": ("Portaled 8/16/05"),
 }
-for day, mission_number in [(230, 0), (237, 0), (237, 2), (238, 0), (238, 1),
-                            (238, 2), (239, 0), (239, 1), (239, 2), (240, 0),
-                            (240, 1), (240, 2), (241, 2), (241, 3), (241, 5),
-                            (242, 0), (242, 1), (243, 0), (243, 2), (243, 3),
-                            (244, 1), (244, 1),]:
+for day, mission_number in [
+    (230, 0),
+    (237, 0),
+    (237, 2),
+    (238, 0),
+    (238, 1),
+    (238, 2),
+    (239, 0),
+    (239, 1),
+    (239, 2),
+    (240, 0),
+    (240, 1),
+    (240, 2),
+    (241, 2),
+    (241, 3),
+    (241, 5),
+    (242, 0),
+    (242, 1),
+    (243, 0),
+    (243, 2),
+    (243, 3),
+    (244, 1),
+    (244, 1),
+]:
     dorado_info[f"2005.{day:03d}.{mission_number:02d}"] = {
-        program": LOCO,
+        "program": LOCO,
         "comment": ("Conducted from the Sproul on John Ryan's LOCO project"),
     }
-doarado_info["2005.249.00"] = {
+dorado_info["2005.249.00"] = {
     "program": LOCO,
     "comment": ("Portaled by DMO 9/6/05"),
 }
-doarado_info["2005.250.00"] = {
+dorado_info["2005.250.00"] = {
     "program": LOCO,
     "comment": ("Portaled by DMO 9/7/05"),
 }
-doarado_info["2005.257.00"] = {
+dorado_info["2005.257.00"] = {
     "program": AUVCTD,
     "comment": ("Portaled by DMO 9/14/05"),
 }
-doarado_info["2005.259.00"] = {
+dorado_info["2005.259.00"] = {
     "program": BIOLUME,
     "comment": ("Portaled by DMO 9/16/05"),
 }
-doarado_info["2005.299.12"] = {
-    program": AUVCTD,
+dorado_info["2005.299.12"] = {
+    "program": AUVCTD,
     "comment": ("Portaled by DMO 10/26/05"),
 }
-doarado_info["2005.301.00"] = {
+dorado_info["2005.301.00"] = {
     "program": BIOLUME,
     "comment": ("Portaled by DMO 10/28/05"),
 }
-doarado_info["2005.306.00"] = {
+dorado_info["2005.306.00"] = {
     "program": AUVCTD,
     "comment": ("Portaled by DMO 10/28/05"),
 }
@@ -647,8 +677,8 @@ for mission_number in range(0, 2):
         "program": BIOLUME,
         "comment": ("Portaled by DMO 10/28/05"),
     }
-doarado_info["2005.324.03"] = {
-    program": AUVCTD,
+dorado_info["2005.324.03"] = {
+    "program": AUVCTD,
     "comment": ("Portaled by DMO 11/22/05"),
 }
 for mission_number in range(0, 5):
@@ -656,24 +686,45 @@ for mission_number in range(0, 5):
         "program": AUVCTD,
         "comment": ("Portaled by DMO 11/28/05"),
     }
-doarado_info["2005.334.03"] = {
-    program": AUVCTD,
+dorado_info["2005.334.03"] = {
+    "program": AUVCTD,
     "comment": ("Portaled by DMO 11/28/05"),
 }
-doarado_info["2005.342.00"] = {
+dorado_info["2005.342.00"] = {
     "program": BIOLUME,
     "comment": ("Portaled by DMO 11/28/05"),
 }
-doarado_info["2005.348.00"] = {
+dorado_info["2005.348.00"] = {
     "program": AUVCTD,
     "comment": ("Portaled by DMO 12/14/05"),
 }
-doarado_info["2005.350.03"] = {
-    program": BIOLUME,
-    "comment": ("Portaled by DMO 12/16/05  'Error in plot_survey_stats (line 139)' when reprocessing"),
+dorado_info["2005.350.03"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Portaled by DMO 12/16/05  'Error in plot_survey_stats (line 139)' when reprocessing"
+    ),
 }
 
-
+# ----------------------------- 2006 ---------------------------------------
+dorado_info["2006.052.06"] = {
+    "program": AUVCTD,
+    "comment": (
+        "PPortal  executed from Eclipse to get through ingest/ruminate - multiple Ruminate proble"
+    ),
+}
+dorado_info["2006.054.00"] = {
+    "program": BIOLUME,
+    "comment": (
+        "Portal by Duane on 2/23/06 failed, executed from Eclipse to get through ingest/ruminate - multiple Ruminate problem"
+    ),
+}
+dorado_info["2006.065.12"] = {
+    "program": AUVCTD,
+    "comment": (
+        "First unattended mission done overnight!  Multiple transects in this one mission file"
+        "Core dumps on _2column.png with headless print - 18 July 2007"
+    ),
+}
 
 
 # ----------------------------- 2016 ---------------------------------------
