@@ -1020,13 +1020,12 @@ dorado_info["2007.346.00"] = {
     ),
 }
 
-
 # ----------------------------- 2008 ---------------------------------------
 for mission_number in [7, 8, 10]:
     dorado_info[f"2008.010.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
-            "AUVCTD mission - Autonomy group missions over canyon axis between M0 & M1 (gulper trips in nice layers) - process separately below"
+            "AUVCTD mission - Autonomy group missions over canyon axis between M0 & M1 (gulper trips in nice layers)"
         ),
     }
 dorado_info["2008.107.02"] = {
@@ -1099,6 +1098,128 @@ for day, mission_number in [(315, 1), (318, 1), (318, 2)]:
     }
 
 # ----------------------------- 2009 ---------------------------------------
+dorado_info["2009.055.05"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Ryan along canyon transect - CTD1 had some issues we're looking into (software probably)"
+    ),
+}
+dorado_info["2009.084.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan short mission, Gulpers fired"),
+}
+dorado_info["2009.084.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan short mission, Gulpers fired"),
+}
+dorado_info["2009.085.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan along north coast across bay overnight"),
+}
+dorado_info["2009.111.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - On N-S line by M0 for ESP deployment - very short mission - one Gulper fired"
+        " Returns 'Error in plot_sections (line 852)' when reprocessing attemped on 29 May 2018"
+    ),
+}
+dorado_info["2009.111.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment"),
+}
+dorado_info["2009.112.07"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment"),
+}
+dorado_info["2009.113.08"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment"),
+}
+dorado_info["2009.124.03"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Autonomy mission"),
+}
+dorado_info["2009.125.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Canyon transect"),
+}
+dorado_info["2009.126.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Single dive to trip bottles at M1"),
+}
+dorado_info["2009.127.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Autonomy mission - mvc crashed, some files may be corrupted - fails with 'Error in processNav (line 43)'"
+    ),
+}
+for day, mission_number in [(152, 0), (153, 1), (154, 0), (155, 3)]:
+    dorado_info[f"2009.{day:02d}.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": ("AUVCTD mission - Ryan - around ESP"),
+    }
+dorado_info["2009.182.01"] = {
+    "program": AUVCTD,
+    "comment": ("UVCTD mission - TREX"),
+}
+dorado_info["2009.272.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Yanwu's detection - bottle tripping algorithm"),
+}
+dorado_info["2009.274.03"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Yanwu's detection - bottle tripping algorithm"),
+}
+for mission_number in [1, 2]:
+    dorado_info[f"2009.278.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD mission - Short missions, The .01 mission was very short but two gulpers fired"
+        ),
+    }
+dorado_info["2009.279.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Truncated section for some reason..."),
+}
+dorado_info["2009.280.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission -  Problem in mergeDVL with GPS reoutine where survey distance got shortened"
+    ),
+}
+dorado_info["2009.281.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - "),
+}
+dorado_info["2009.308.04"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Kanna mission"),
+}
+for mission_number in range(0, 4):
+    dorado_info[f"2009.309.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD mission - Kanna mission - Even though the thursdays runs (3 of them) are very short (~30mn  each) the first one at leas had the gulper fired so it is of relevance  for further science analysis."
+        ),
+    }
+dorado_info["2009.313.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Kanna mission"),
+}
+dorado_info["2009.342.04"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Kanna mission"),
+}
+dorado_info["2009.348.05"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Kanna mission"),
+}
+
+# ----------------------------- 2010 ---------------------------------------
+dorado_info["2010.081.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Autonomy mission"),
+}
 
 
 # ----------------------------- 2016 ---------------------------------------
