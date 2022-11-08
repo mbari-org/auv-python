@@ -1020,7 +1020,85 @@ dorado_info["2007.346.00"] = {
     ),
 }
 
+
 # ----------------------------- 2008 ---------------------------------------
+for mission_number in [7, 8, 10]:
+    dorado_info[f"2008.010.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD mission - Autonomy group missions over canyon axis between M0 & M1 (gulper trips in nice layers) - process separately below"
+        ),
+    }
+dorado_info["2008.107.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Canyon axis (after 3 months off)"),
+}
+for mission_number in [4, 5]:
+    dorado_info[f"2008.133.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("AUVCTD mission - Autonomy TREX mission"),
+    }
+dorado_info["2008.140.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Autonomy TREX mission"),
+}
+dorado_info["2008.154.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan - ESP inner northern shelf"),
+}
+dorado_info["2008.155.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan - ESP inner northern shelf"),
+}
+dorado_info["2008.161.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Ryan - ESP inner northern shelf (something hit AUV just before midnight)"
+    ),
+}
+dorado_info["2008.168.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan - ESP inner northern shelf"),
+}
+dorado_info["2008.178.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Autonomy TREX around M0"),
+}
+for mission_number in [1, 2]:
+    dorado_info[f"2008.261.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD mission - Autonomy TREX around M0 - CTD2 wasn't pumped, there was a piece of tubing that came off. "
+        ),
+    }
+dorado_info["2008.281.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Rob McEwen's software with gulper trigger at 2e-3 Chlor"
+    ),
+}
+dorado_info["2008.281.04"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Rob McEwen's software with gulper trigger at 2e-3 Chlor"
+    ),
+}
+dorado_info["2008.287.05"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - North bay shelf survey"),
+}
+for day, mission_number in [(288, 0), (289, 3), (295, 1), (296, 0), (297, 0), (297, 1)]:
+    dorado_info[f"2008.{day:02d}.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": ("AUVCTD mission - North bay shelf survey"),
+    }
+for day, mission_number in [(315, 1), (318, 1), (318, 2)]:
+    dorado_info[f"2008.{day:02d}.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": ("AUVCTD mission - Kanna trex mission"),
+    }
+
+# ----------------------------- 2009 ---------------------------------------
 
 
 # ----------------------------- 2016 ---------------------------------------
