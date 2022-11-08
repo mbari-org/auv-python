@@ -1503,6 +1503,78 @@ dorado_info["2011.164.05"] = {
         "First mission for June 2011 CANON - only down to 25m not to the bottom on the outbound leg"
     ),
 }
+dorado_info["2011.165.00"] = {
+    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "comment": (
+        "Second mission for June 2011 CANON - strong upwelling front, still not all the way to the bottom"
+    ),
+}
+dorado_info["2011.166.00"] = {
+    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "comment": (
+        "Third mission for June 2011 CANON - strong upwelling front, still not all the way to the bottom"
+    ),
+}
+dorado_info["2011.171.01"] = {
+    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "comment": (
+        "TREX mission going back and forth on 36.9 line around weak salinity front - aborted early, maybe because of a trex cron job"
+    ),
+}
+dorado_info["2011.172.00"] = {
+    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "comment": (
+        "TREX mission going back and forth on 36.9 line around weak salinity front"
+    ),
+}
+dorado_info["2011.249.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": ("TREX mission - first of Sept 2011 CANON aborted due to software"),
+}
+dorado_info["2011.250.01"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": ("TREX mission - M0 around M1 corner then out to upwelling region"),
+}
+dorado_info["2011.255.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": ("TREX mission - Following SIO_WWL_1 for September 2011 CANON"),
+}
+for mission_num in [2, 3]:
+    dorado_info[f"2011.256.{mission_num:02}"] = {
+        "program": f"{AUVCTD} + {CANONSEP2011}",
+        "comment": ("TREX mission - Following SIO_WWL_1 for September 2011 CANON"),
+    }
+dorado_info["2011.257.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": ("TREX mission - Following Lagrangian mission - no upwelling yet"),
+}
+dorado_info["2011.262.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": (
+        "TREX mission - Following Lagrangian mission around M0 - no upwelling yet"
+    ),
+}
+dorado_info["2011.263.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": (
+        "TREX mission - Following Lagrangian mission around M0 - no upwelling yet"
+    ),
+}
+dorado_info["2011.264.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": (
+        "TREX mission - Following Lagrangian mission around M0 - no upwelling yet"
+    ),
+}
+dorado_info["2011.285.01"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": ("TREX mission - Maria Fox's algorithm in Monterey Bay"),
+}
+dorado_info["2011.286.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "comment": ("TREX mission - Maria Fox's algorithm in Monterey Bay"),
+}
+# ----------------------------- 2012 ---------------------------------------
 
 
 # ----------------------------- 2016 ---------------------------------------
