@@ -722,7 +722,7 @@ class Calibrate_NetCDF:
                 },
             )
 
-        if self.args.mission == "2016.348.00":
+        if self.args.mission == "2016.348.00" or self.args.mission == "2017.304.00":
             self.logger.info("Performing special QC for 2016.384.00/navigation.nc")
             self._range_qc_combined_nc(
                 instrument="navigation",
