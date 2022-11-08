@@ -1220,6 +1220,203 @@ dorado_info["2010.081.02"] = {
     "program": AUVCTD,
     "comment": ("AUVCTD mission - Autonomy mission"),
 }
+dorado_info["2010.082.02"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Autonomy mission"),
+}
+dorado_info["2010.083.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Processing requested by Yanwu (Kevin helped with SSDS ingest/portal)"
+    ),
+}
+dorado_info["2010.083.08"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Processing requested by Yanwu (Kevin helped with SSDS ingest/portal)"
+    ),
+}
+dorado_info["2010.118.00"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan mission"),
+}
+dorado_info["2010.119.01"] = {
+    "program": AUVCTD,
+    "comment": ("AUVCTD mission - Ryan mission"),
+}
+dorado_info["2010.151.04"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Gulf of Mexico mission without GPS data (USBL fixes provided in a separate file)"
+    ),
+}
+dorado_info["2010.153.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Gulf of Mexico mission - down to 1200 m a few yo-yos at depth strong backscatter signal"
+    ),
+}
+dorado_info["2010.154.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Gulf of Mexico mission - perhaps a better volume survey than on the previous day"
+    ),
+}
+dorado_info["2010.172.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM - bad times in Nav.time ( -4.7749e+307) - won't process (bad mission?)"
+    ),
+}
+dorado_info["2010.173.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM  - won't process"
+    ),
+}
+dorado_info["2010.174.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM  - won't process"
+    ),
+}
+for day, mission_number in [(180, 5), (181, 1), (181, 2), (182, 2)]:
+    dorado_info[f"2010.{day:02d}.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "AUVCTD mission - Kanna missions in Monterey Bay rhodamine sensor replaces CDOM  - around time of Board meeting"
+        ),
+    }
+for day, mission_number in [
+    (257, 1),
+    (257, 2),
+    (257, 10),
+    (257, 11),
+    (258, 0),
+    (258, 1),
+    (258, 2),
+    (258, 3),
+    (258, 4),
+    (258, 5),
+    (258, 6),
+    (258, 8),
+    (259, 0),
+    (259, 1),
+    (259, 2),
+    (259, 3),
+    (260, 0),
+    (261, 0),
+]:
+    dorado_info[f"2010.{day:02d}.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "ESP drifter missions out at station 67-70 with Flyer doing casts and ESP drifting south"
+            " toward Davidson Seamount - no gulpers (Frederic sent me note about survey grouping)"
+            " Faulty parosci lead to several mission depth aborts at beginning of this set of volume surveys"
+        ),
+    }
+dorado_info["2010.265.00"] = {
+    "program": AUVCTD,
+    "comment": ("Cross-bay survey in preparation for BloomEx in October 2010"),
+}
+dorado_info["2010.277.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey first one for BloomEx in October 2010 - Doug said there was a lot of stuff out there.  It was trailing kelp when they picked it up."
+    ),
+}
+dorado_info["2010.278.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey second one for BloomEx in October 2010 - Aborted at midnight local for not geting sufficient GPS fixes, possibly because of surfacing into a big jellyfish"
+    ),
+}
+dorado_info["2010.279.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey third one for BloomEx in October 2010 - Tight survey around stell drifters"
+    ),
+}
+dorado_info["2010.280.01"] = {
+    "program": AUVCTD,
+    "comment": ("Inner-bay survey fourth day-time one for BloomEx in October 2010"),
+}
+dorado_info["2010.284.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey fifth - M0 to LatMix, aborted at 2000 local - serial interface hardware failure first rhodamin.log file"
+    ),
+}
+dorado_info["2010.285.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey sixth - M0 to LatMix, aborted at 0500 local - 8 laps rqn out of battery"
+    ),
+}
+for mission_number in [1, 2]:
+    dorado_info[f"2010.286.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "Inner-bay survey seventh - TREX lagrangian mission near M0 and stella104 drifter"
+        ),
+    }
+dorado_info["2010.287.00"] = {
+    "program": AUVCTD,
+    "comment": ("Inner-bay survey eigth - Lap around LatMix array"),
+}
+dorado_info["2010.291.00"] = {
+    "program": AUVCTD,
+    "comment": ("Inner-bay survey ninth - Overnight after the bay was flushed"),
+}
+dorado_info["2010.292.01"] = {
+    "program": AUVCTD,
+    "comment": ("Inner-bay survey tenth - Overnight"),
+}
+dorado_info["2010.293.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey eleveth - Overnight TREX mission following CHL_PATCH"
+    ),
+}
+dorado_info["2010.294.01"] = {
+    "program": AUVCTD,
+    "comment": ("Inner-bay survey twelfth - Daytime short misison around LatMix"),
+}
+dorado_info["2010.298.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey thirteenth - Overnight mirroring waveglider N-S across Monterey Bay"
+    ),
+}
+dorado_info["2010.299.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey fourteenth - Overnight north end of Bay looking for the bloom"
+    ),
+}
+dorado_info["2010.300.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Inner-bay survey fifteenth - Overnight north end of Bay looking for the bloom"
+    ),
+}
+dorado_info["2010.301.00"] = {
+    "program": AUVCTD,
+    "comment": ("Inner-bay survey fifteenth - Daytime run"),
+}
+for day, mission_number in [(340, 0), (340, 1), (341, 0), (341, 1)]:
+    dorado_info[f"2010.{day:02d}.{mission_number:01d}"] = {
+        "program": AUVCTD,
+        "comment": ("Out and back from M1"),
+    }
+dorado_info["2010.342.04"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Kanna mission with automated forwarding of stella103 position to TREX via MBARITracking/scripts/drifter.py software"
+    ),
+}
+
+# ----------------------------- 2011 ---------------------------------------
 
 
 # ----------------------------- 2016 ---------------------------------------
