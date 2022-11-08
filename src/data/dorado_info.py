@@ -1576,6 +1576,48 @@ dorado_info["2011.286.00"] = {
 }
 # ----------------------------- 2012 ---------------------------------------
 
+for day, mission_num in [(142, 1), (142, 2), (143, 7), (143, 8)]:
+    dorado_info[f"2012.{day:03}.{mission_num:02}"] = {
+        "program": f"{AUVCTD}",
+        "comment": ("TREX missions - Initial engineering test from Yanwu & Frederic"),
+    }
+for day, mission_num in [(150, 0), (151, 0), (152, 0), (157, 7), (158, 0)]:
+    dorado_info[f"2012.{day:03}.{mission_num:02}"] = {
+        "program": f"{AUVCTD} + {CANONMAY2012}",
+        "comment": ("For CANON May 2012 - yoyo along 36.9N"),
+    }
+dorado_info["2012.256.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "comment": (
+        "CANON September 2012 - laps around ESP drifter - battery problems - less than 1/3 of a normal mission"
+    ),
+}
+dorado_info["2012.257.01"] = {
+    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "comment": ("CANON September 2012 - laps around ESP drifter"),
+}
+dorado_info["2012.258.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "comment": (
+        "CANON September 2012 - laps around ESP drifter - last one for this campaign"
+    ),
+}
+dorado_info["2012.268.07"] = {
+    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "comment": (
+        "CANON September 2012 - laps around ESP drifter - last one for this campaign"
+    ),
+}
+dorado_info["2012.269.00"] = {
+    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "comment": ("CANON September 2012 - Distributed Autonomy"),
+}
+dorado_info["2012.270.04"] = {
+    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "comment": ("CANON September 2012 - Distributed Autonomy"),
+}
+# ----------------------------- 2013 ---------------------------------------
+
 
 # ----------------------------- 2016 ---------------------------------------
 dorado_info["2016.161.00"] = {
