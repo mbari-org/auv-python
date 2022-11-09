@@ -28,6 +28,8 @@ CANONSEP2013 = "CANON September 2013"
 CANONAPR2014 = "CANON April 2014"
 CANONSEP2014 = "CANON September 2014"
 CANONMAY2015 = "CANON May 2015"
+CANONSEP2015 = "CANON September 2015"
+CANONOS2016 = "CANON Off Season 2016"
 CANONSEP2016 = "CANON September 2016"
 CANONAPR2017 = "CANON April 2017"
 CANONPS2017 = "CANON Post Season 2017"
@@ -45,7 +47,7 @@ REMOVE = "REMOVE from analysis"
 SIMZAUG2013 = "SIMZ August 2013"
 SIMZOCT2013 = "SIMZ October 2013"
 SIMZSPRING2014 = "SIMZ Spring 2014"
-SIMZJUK2014 = "SIMZ July 2014"
+SIMZJUL2014 = "SIMZ July 2014"
 SIMZOCT2014 = "SIMZ October 2014"
 
 # ----------------------------- 2003 ---------------------------------------
@@ -1720,8 +1722,71 @@ for day, mission_num in [
         "comment": ("SIMZ October 2013 in Soquel Bight"),
     }
 # ----------------------------- 2014 ---------------------------------------
+for day, mission_num in [(50, 0), (50, 1), (71, 1), (71, 2), (72, 0), (72, 1)]:
+    dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
+        "program": f"{SIMZSPRING2014}",
+        "comment": ("SIMZ Spring 2014 in Soquel Bight"),
+    }
+for day, mission_num in [
+    (102, 0),
+    (103, 0),
+    (103, 1),
+    (104, 1),
+    (107, 0),
+    (108, 1),
+    (108, 2),
+    (109, 0),
+    (109, 1),
+]:
+    dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
+        "program": f"{CANONAPR2014}",
+        "comment": ("San Pedro Bay CANON-ECOHAB"),
+    }
+for day, mission_num in [(210, 1), (210, 2), (211, 2), (211, 3), (212, 0)]:
+    dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
+        "program": f"{SIMZJUL2014}",
+        "comment": ("SIMZ Summer 2014 in Bodega Bay"),
+    }
+for day, mission_num in [
+    (265, 3),
+    (266, 4),
+    (266, 5),
+    (267, 7),
+    (268, 5),
+    (280, 1),
+    (281, 0),
+    (282, 2),
+    (282, 3),
+]:
+    dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
+        "program": f"{CANONSEP2014}",
+        "comment": (
+            "CANON-ECOHAB September 2014 with rhodamine sensor on ctdDriver2, channel 1"
+        ),
+    }
+for day, mission_num in [(289, 4), (290, 0), (293, 0), (294, 0), (295, 0)]:
+    dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
+        "program": f"{SIMZOCT2014}",
+        "comment": ("SIMZ October 2014 Northern Monterey Bay gulper missions"),
+    }
+
+# ----------------------------- 2015 ---------------------------------------
+for day, mission_num in [(132, 4), (148, 1), (156, 0)]:
+    dorado_info[f"2015.{day:03}.{mission_num:02}"] = {
+        "program": f"{CANONMAY2015}",
+        "comment": ("CANON-ECOHAB Spring 2015"),
+    }
+for day, mission_num in [(265, 3), (267, 1), (285, 0), (286, 0), (287, 0)]:
+    dorado_info[f"2015.{day:03}.{mission_num:02}"] = {
+        "program": f"{CANONSEP2015}",
+        "comment": ("CANON September 2015"),
+    }
 
 # ----------------------------- 2016 ---------------------------------------
+dorado_info["2016.090.01"] = {
+    "program": f"{CANONOS2016}",
+    "comment": ("Mini CANON - 20 gulper fires C1 to M1"),
+}
 dorado_info["2016.161.00"] = {
     "program": DIAMOND,
     "comment": ("Mini CANON - 1/4 mission completed: diamond between C1 and M1"),
