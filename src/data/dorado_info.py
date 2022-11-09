@@ -42,6 +42,11 @@ CANONAPR2021 = "CANON April 2021"
 CANONOCT2022 = "CANON October 2022"
 MBTSLINE = "MBTS Line"
 REMOVE = "REMOVE from analysis"
+SIMZAUG2013 = "SIMZ August 2013"
+SIMZOCT2013 = "SIMZ October 2013"
+SIMZSPRING2014 = "SIMZ Spring 2014"
+SIMZJUK2014 = "SIMZ July 2014"
+SIMZOCT2014 = "SIMZ October 2014"
 
 # ----------------------------- 2003 ---------------------------------------
 dorado_info = {}
@@ -1498,80 +1503,80 @@ dorado_info["2011.158.00"] = {
     ),
 }
 dorado_info["2011.164.05"] = {
-    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "program": f"{CANONJUN2011}",
     "comment": (
         "First mission for June 2011 CANON - only down to 25m not to the bottom on the outbound leg"
     ),
 }
 dorado_info["2011.165.00"] = {
-    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "program": f"{CANONJUN2011}",
     "comment": (
         "Second mission for June 2011 CANON - strong upwelling front, still not all the way to the bottom"
     ),
 }
 dorado_info["2011.166.00"] = {
-    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "program": f"{CANONJUN2011}",
     "comment": (
         "Third mission for June 2011 CANON - strong upwelling front, still not all the way to the bottom"
     ),
 }
 dorado_info["2011.171.01"] = {
-    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "program": f"{CANONJUN2011}",
     "comment": (
         "TREX mission going back and forth on 36.9 line around weak salinity front - aborted early, maybe because of a trex cron job"
     ),
 }
 dorado_info["2011.172.00"] = {
-    "program": f"{AUVCTD} + {CANONJUN2011}",
+    "program": f"{CANONJUN2011}",
     "comment": (
         "TREX mission going back and forth on 36.9 line around weak salinity front"
     ),
 }
 dorado_info["2011.249.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": ("TREX mission - first of Sept 2011 CANON aborted due to software"),
 }
 dorado_info["2011.250.01"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": ("TREX mission - M0 around M1 corner then out to upwelling region"),
 }
 dorado_info["2011.255.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": ("TREX mission - Following SIO_WWL_1 for September 2011 CANON"),
 }
 for mission_num in [2, 3]:
     dorado_info[f"2011.256.{mission_num:02}"] = {
-        "program": f"{AUVCTD} + {CANONSEP2011}",
+        "program": f"{CANONSEP2011}",
         "comment": ("TREX mission - Following SIO_WWL_1 for September 2011 CANON"),
     }
 dorado_info["2011.257.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": ("TREX mission - Following Lagrangian mission - no upwelling yet"),
 }
 dorado_info["2011.262.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": (
         "TREX mission - Following Lagrangian mission around M0 - no upwelling yet"
     ),
 }
 dorado_info["2011.263.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": (
         "TREX mission - Following Lagrangian mission around M0 - no upwelling yet"
     ),
 }
 dorado_info["2011.264.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": (
         "TREX mission - Following Lagrangian mission around M0 - no upwelling yet"
     ),
 }
 dorado_info["2011.285.01"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": ("TREX mission - Maria Fox's algorithm in Monterey Bay"),
 }
 dorado_info["2011.286.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2011}",
+    "program": f"{CANONSEP2011}",
     "comment": ("TREX mission - Maria Fox's algorithm in Monterey Bay"),
 }
 # ----------------------------- 2012 ---------------------------------------
@@ -1583,41 +1588,138 @@ for day, mission_num in [(142, 1), (142, 2), (143, 7), (143, 8)]:
     }
 for day, mission_num in [(150, 0), (151, 0), (152, 0), (157, 7), (158, 0)]:
     dorado_info[f"2012.{day:03}.{mission_num:02}"] = {
-        "program": f"{AUVCTD} + {CANONMAY2012}",
+        "program": f"{CANONMAY2012}",
         "comment": ("For CANON May 2012 - yoyo along 36.9N"),
     }
 dorado_info["2012.256.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "program": f"{CANONSEP2012}",
     "comment": (
         "CANON September 2012 - laps around ESP drifter - battery problems - less than 1/3 of a normal mission"
     ),
 }
 dorado_info["2012.257.01"] = {
-    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "program": f"{CANONSEP2012}",
     "comment": ("CANON September 2012 - laps around ESP drifter"),
 }
 dorado_info["2012.258.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "program": f"{CANONSEP2012}",
     "comment": (
         "CANON September 2012 - laps around ESP drifter - last one for this campaign"
     ),
 }
 dorado_info["2012.268.07"] = {
-    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "program": f"{CANONSEP2012}",
     "comment": (
         "CANON September 2012 - laps around ESP drifter - last one for this campaign"
     ),
 }
 dorado_info["2012.269.00"] = {
-    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "program": f"{CANONSEP2012}",
     "comment": ("CANON September 2012 - Distributed Autonomy"),
 }
 dorado_info["2012.270.04"] = {
-    "program": f"{AUVCTD} + {CANONSEP2012}",
+    "program": f"{CANONSEP2012}",
     "comment": ("CANON September 2012 - Distributed Autonomy"),
 }
-# ----------------------------- 2013 ---------------------------------------
 
+# ----------------------------- 2013 ---------------------------------------
+dorado_info["2013.074.02"] = {
+    "program": f"{CANONMAR2013}",
+    "comment": ("ECOHAB - CANON March 2013 - outbound mission, Gulpers did not fire"),
+}
+for mission_num in [5, 6]:
+    dorado_info[f"2013.075.{mission_num:02}"] = {
+        "program": f"{CANONMAR2013}",
+        "comment": (
+            "ECOHAB - CANON March 2013 - drifter tracking T-REX mission, 2 Gulpers on .05 , 8 Gulpers on .06 - stitched together"
+        ),
+    }
+for mission_num in [1, 2]:
+    dorado_info[f"2013.076.{mission_num:02}"] = {
+        "program": f"{CANONMAR2013}",
+        "comment": (
+            "ECOHAB - CANON March 2013 - inbound mission, Gulper 0 fired on .01 mission and Gulpers 1 through 6 fired on .02"
+        ),
+    }
+dorado_info["2013.079.00"] = {
+    "program": f"{CANONMAR2013}",
+    "comment": (
+        "ECOHAB - CANON March 2013 - Tiny test mission with change in parosci.log format. Nav data on deck, did not process"
+    ),
+}
+dorado_info["2013.079.04"] = {
+    "program": f"{CANONMAR2013}",
+    "comment": ("ECOHAB - CANON March 2013 - Outbound mission, 7 Gulpers fired"),
+}
+dorado_info["2013.081.05"] = {
+    "program": f"{CANONMAR2013}",
+    "comment": (
+        "ECOHAB - CANON March 2013 - Outbound mission, JD's adaptive samping algorithm (niche model), 7 Gulpers fired"
+    ),
+}
+dorado_info["2013.081.06"] = {
+    "program": f"{CANONMAR2013}",
+    "comment": (
+        "ECOHAB - CANON March 2013 - Inbound mission, Yanwu's adaptive samping algorithm, all 9 Gulpers fired"
+    ),
+}
+for day, mission_num in [
+    (224, 2),
+    (225, 0),
+    (225, 1),
+    (226, 1),
+    (226, 3),
+    (227, 0),
+    (227, 1),
+    (228, 0),
+    (228, 1),
+]:
+    dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
+        "program": f"{SIMZAUG2013}",
+        "comment": ("SIMZ Molecular Ecology - August 2013 - North Monterey Bay "),
+    }
+for day, mission_num in [
+    (259, 0),
+    (260, 0),
+    (261, 1),
+    (262, 0),
+    (262, 1),
+    (268, 0),
+    (273, 0),
+    (274, 0),
+    (274, 1),
+    (275, 0),
+    (275, 1),
+    (276, 0),
+    (280, 1),
+]:
+    dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
+        "program": f"{CANONSEP2013}",
+        "comment": ("CANON September 2013 in Monterey Bay "),
+    }
+for day, mission_num in [(282, 0), (283, 0), (287, 0), (287, 1), (287, 2), (290, 0)]:
+    dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
+        "program": f"{AUVCTD}",
+        "comment": ("Autonomy group's short missions in Soquel Bight"),
+    }
+for day, mission_num in [
+    (295, 0),
+    (295, 1),
+    (296, 0),
+    (296, 1),
+    (297, 1),
+    (297, 2),
+    (298, 0),
+    (298, 1),
+    (301, 2),
+    (301, 3),
+    (301, 4),
+]:
+    dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
+        "program": f"{SIMZOCT2013}",
+        "comment": ("SIMZ October 2013 in Soquel Bight"),
+    }
+# ----------------------------- 2014 ---------------------------------------
 
 # ----------------------------- 2016 ---------------------------------------
 dorado_info["2016.161.00"] = {
