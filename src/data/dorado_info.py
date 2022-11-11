@@ -2294,3 +2294,7 @@ dorado_info["2022.286.01"] = {
         "Trip out to MARS location near where makai_ESPmv1 sampled - 28622G - During CANON October 2022 campaign"
     ),
 }
+dorado_info["2022.313.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 31322G"),
+}
