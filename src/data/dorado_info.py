@@ -316,6 +316,9 @@ dorado_info["2004.167.04"] = {
         " Portaled 8/11/05 - no hs2 data"
     ),
 }
+dorado_info["2004.168.01"] = {
+    "program": AUVCTD,
+}
 dorado_info["2004.168.03"] = {
     "program": AUVCTD,
     "comment": ("Portaled 8/11/05"),

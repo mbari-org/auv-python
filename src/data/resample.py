@@ -128,7 +128,7 @@ class Resampler:
                 ] = f"{dorado_info[self.args.mission]['program']} program - calibrated, "
         except KeyError:
             self.logger.warning(
-                f"No entry for for mission {self.args.mission}in dorado_info.py"
+                f"No entry for for mission {self.args.mission} program in dorado_info.py"
             )
         self.metadata["title"] += (
             f"aligned, and resampled AUV sensor data from"
@@ -147,13 +147,18 @@ class Resampler:
                 self.metadata["comment"] = dorado_info[self.args.mission].get("comment")
         except KeyError:
             self.logger.warning(
-                f"No entry for for mission {self.args.mission}in dorado_info.py"
+                f"No entry for for mission {self.args.mission} program or comment in dorado_info.py"
             )
-        # Parse from ctd1_depth comment: "using SensorOffset(x=1.003, y=0.0001)"
-        self.metadata["comment"] += (
-            f". Variable depth pitch corrected using"
-            f" {self.ds['ctd1_depth'].attrs['comment'].split('using ')[1]}"
-        )
+        try:
+            # Parse from ctd1_depth comment: "using SensorOffset(x=1.003, y=0.0001)"
+            self.metadata["comment"] += (
+                f". Variable depth pitch corrected using"
+                f" {self.ds['ctd1_depth'].attrs['comment'].split('using ')[1]}"
+            )
+        except KeyError:
+            self.logger.warning(
+                f"No entry for for mission {self.args.mission} comment in dorado_info.py"
+            )
 
         return self.metadata
 
