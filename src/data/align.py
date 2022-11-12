@@ -179,14 +179,29 @@ class Align_NetCDF:
                 self.calibrated_nc["nudged_longitude"].values,
                 fill_value="extrapolate",
             )
-            depth_interp = interp1d(
-                self.calibrated_nc["depth_filtdepth"]
-                .get_index("depth_time")
-                .view(np.int64)
-                .tolist(),
-                self.calibrated_nc["depth_filtdepth"].values,
-                fill_value="extrapolate",
-            )
+            try:
+                depth_interp = interp1d(
+                    self.calibrated_nc[f"{instr}_depth"]
+                    .get_index(f"{instr}_time")
+                    .view(np.int64)
+                    .tolist(),
+                    self.calibrated_nc[f"{instr}_depth"].values,
+                    fill_value="extrapolate",
+                )
+                self.logger.info(
+                    f"Using pitch corrected {instr}_depth: {self.calibrated_nc[f'{instr}_depth'].attrs['comment']}"
+                )
+            except KeyError:
+                # No SensorInfo offset for this instr
+                depth_interp = interp1d(
+                    self.calibrated_nc["depth_filtdepth"]
+                    .get_index("depth_time")
+                    .view(np.int64)
+                    .tolist(),
+                    self.calibrated_nc["depth_filtdepth"].values,
+                    fill_value="extrapolate",
+                )
+
             var_time = (
                 self.aligned_nc[variable]
                 .get_index(f"{instr}_time")
@@ -291,13 +306,14 @@ class Align_NetCDF:
                 coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
                 name=f"{instr}_depth",
             )
-            self.aligned_nc[f"{instr}_depth"].attrs = self.calibrated_nc[
-                "depth_filtdepth"
-            ].attrs
-            self.aligned_nc[f"{instr}_depth"].attrs["comment"] += (
-                f". Variable depth_filtdepth from {in_fn} file linearly"
-                f" interpolated onto {variable.split('_')[0]} time values."
-            )
+            try:
+                self.aligned_nc[f"{instr}_depth"].attrs = self.calibrated_nc[
+                    f"{instr}_depth"
+                ].attrs
+            except KeyError:
+                self.logger.debug(
+                    f"{variable}: {instr}_depth not found in {self.calibrated_nc}"
+                )
             self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
             self.aligned_nc[f"{instr}_depth"].attrs[
                 "instrument_sample_rate_hz"

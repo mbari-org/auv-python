@@ -41,17 +41,19 @@ on the local file system's work directory is as follows:
         align with the type of instrument that generated the data.
 
     calibrate.py
-        Apply calibration coefficients to the raw data. The calibrated data
+        Apply calibration coefficients to the original data. The calibrated data
         are written to a new netCDF file in the missionnetcdfs/<mission>
         directory ending with _cal.nc. This step also includes nudging the
         underwater portions of the navigation positions to the GPS fixes 
-        done at the surface. Some minimal QC is done in this step, namely 
+        done at the surface and applying pitch corrections to the sensor
+        depth for those sensors (instruments) for which offset values are
+        specified in SensorInfo. Some minimal QC is done in this step, namely 
         removal on non-monotonic times. The record variables in the netCDF 
         file have only their original coordinates, namely time associated with
         them.
 
     align.py
-        Interpolate corrected coordinate variables to the original sampling
+        Interpolate corrected lat/lon variables to the original sampling
         intervals for each instrument's record variables. This format is 
         analogous to the .nc4 files produced by the LRAUV unserialize
         process. These are the best files to use for the highest temporal 

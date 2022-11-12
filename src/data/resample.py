@@ -149,6 +149,11 @@ class Resampler:
             self.logger.warning(
                 f"No entry for for mission {self.args.mission}in dorado_info.py"
             )
+        # Parse from ctd1_depth comment: "using SensorOffset(x=1.003, y=0.0001)"
+        self.metadata["comment"] += (
+            f". Variable depth pitch corrected using"
+            f" {self.ds['ctd1_depth'].attrs['comment'].split('using ')[1]}"
+        )
 
         return self.metadata
 
@@ -251,6 +256,10 @@ class Resampler:
         )
         # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
         aggregator = ".mean() aggregator"
+        # This is the common depth for all the instruments - the instruments that
+        # matter (ctds, hs2, biolume, lopc) are all in the nose of the vehicle
+        # (at least in November 2020)
+        # and we want to use the same pitch corrected depth for all of them.
         self.df_r["depth"] = (
             self.df_o[f"{instr}_depth_mf"].shift(0.5, freq=freq).resample(freq).mean()
         )
@@ -280,9 +289,9 @@ class Resampler:
         self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
         self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
         self.resampled_nc["depth"].attrs["comment"] += (
-            f" Variable {instr}_depth from {in_fn}"
-            f" median filtered with {mf_width} samples"
-            f" and resampled with {aggregator} to {freq} intervals."
+            f". {self.ds['ctd1_depth'].attrs['comment']}"
+            f" mean sampled at {self.args.freq} intervals following"
+            f" {self.args.mf_width} point median filter."
         )
         self.resampled_nc["latitude"].attrs = self.ds[f"{instr}_latitude"].attrs
         self.resampled_nc["latitude"].attrs["comment"] += (
@@ -406,7 +415,10 @@ class Resampler:
             if icount == 0:
                 self.df_o = pd.DataFrame()  # original dataframe
                 self.df_r = pd.DataFrame()  # resampled dataframe
-                aggregator = self.resample_coordinates(instr, mf_width, freq)
+                # Choose an instrument to use for the resampled coordinates
+                # All the instruments we care about are in the nose of the vehicle
+                # Use the pitch corrected depth coordinate for 'ctd1'
+                aggregator = self.resample_coordinates("ctd1", mf_width, freq)
                 self.save_coordinates(instr, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)

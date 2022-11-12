@@ -170,7 +170,7 @@ class Calibrate_NetCDF:
         metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
             f" Underwater Vehicle mission with measurements at"
-            f" original sampling intervals. The data have been calibrated "
+            f" original sampling intervals. The data have been calibrated"
             f" by MBARI's auv-python software."
         )
         if self.summary_fields:
@@ -206,6 +206,8 @@ class Calibrate_NetCDF:
     def _define_sensor_info(self, start_datetime):
         # TODO: Refactor this to use for multiple vehicles & changes over time
         # Horizontal and vertical distance from origin in meters
+        # The origin of the x, y coordinate system is location of the
+        # vehicle's paroscientific depth sensor in the tailcone.
         SensorOffset = namedtuple("SensorOffset", "x y")
 
         # Original configuration of Dorado389 - Modify below with changes over time
@@ -1207,7 +1209,7 @@ class Calibrate_NetCDF:
             "standard_name": "depth",
             "units": "m",
             "comment": (
-                f"Original {sample_rate} Hz depth data filtered using"
+                f"Original {sample_rate:.3f} Hz depth data filtered using"
                 f" Butterworth window with cutoff frequency of {cutoff_freq} Hz"
             ),
         }
@@ -1223,7 +1225,7 @@ class Calibrate_NetCDF:
             "standard_name": "sea_water_pressure",
             "units": "dbar",
             "comment": (
-                f"Original {sample_rate} Hz pressure data filtered using"
+                f"Original {sample_rate:.3f} Hz pressure data filtered using"
                 f" Butterworth window with cutoff frequency of {cutoff_freq} Hz"
             ),
         }
@@ -1410,16 +1412,29 @@ class Calibrate_NetCDF:
 
         # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
         # Hobilabs modified the instrument in 2009 to now give:         bb420, bb700, and fl700,
-        # apparently giving a better measurement of chlorophyl.
+        # apparently giving a better measurement of chlorophyll.
         #
-        # Detect the difference in this code and keep the mamber names descriptive in the survey data so
+        # Detect the difference in this code and keep the member names descriptive in the survey data so
         # the the end user knows the difference.
 
         # Align Geometry, correct for pitch
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
-        # TODO: Add latitude & longitude coordinates
+        out_fn = f"{self.args.auv_name}_{self.args.mission}_cal.nc"
+        self.combined_nc[f"{sensor}_depth"].attrs = {
+            "long_name": "Depth",
+            "units": "m",
+            "comment": (
+                f"Variable depth_filtdepth from {out_fn} linearly interpolated"
+                f" to {sensor}_time and corrected for pitch using"
+                f" {self.sinfo[sensor]['sensor_offset']}"
+            ),
+        }
+
+        # Coordinates latitude & longitude are interpolated to the sensor time
+        # in the align.py code.  Here we add the sensor depths as this is where
+        # the sensor offset is applied with _geometric_depth_correction().
 
     def _calibrated_oxygen(
         self,
@@ -1750,6 +1765,16 @@ class Calibrate_NetCDF:
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
+        out_fn = f"{self.args.auv_name}_{self.args.mission}_cal.nc"
+        self.combined_nc[f"{sensor}_depth"].attrs = {
+            "long_name": "Depth",
+            "units": "m",
+            "comment": (
+                f"Variable depth_filtdepth from {out_fn} linearly interpolated"
+                f" to {sensor}_time and corrected for pitch using"
+                f" {self.sinfo[sensor]['sensor_offset']}"
+            ),
+        }
 
         # === PAR variables ===
 
@@ -1905,7 +1930,14 @@ class Calibrate_NetCDF:
         orig_depth = d_interp(orig_nc["time"].values.tolist())
         offs_depth = align_geom(self.sinfo[sensor]["sensor_offset"], pitch)
 
-        return orig_depth - offs_depth
+        corrected_depth = xr.DataArray(
+            (orig_depth + offs_depth).astype(np.float64).tolist(),
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_depth",
+        )
+
+        return corrected_depth
 
     def _process(self, sensor, logs_dir, netcdfs_dir):
         coeffs = None

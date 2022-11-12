@@ -37,7 +37,7 @@ from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
 from getpass import getuser
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
-from resample import FREQ, Resampler
+from resample import FREQ, MF_WIDTH, Resampler
 from socket import gethostname
 
 
@@ -214,6 +214,7 @@ class Processor:
         resamp.args.mission = mission
         resamp.args.plot = None
         resamp.args.freq = self.args.freq
+        resamp.args.mf_width = self.args.mf_width
         resamp.commandline = self.commandline
         resamp.args.verbose = self.args.verbose
         resamp.logger.setLevel(self._log_levels[self.args.verbose])
@@ -472,6 +473,13 @@ class Processor:
             action="store",
             default=FREQ,
             help="Resample freq",
+        )
+        parser.add_argument(
+            "--mf_width",
+            action="store",
+            default=MF_WIDTH,
+            type=int,
+            help="Median filter width",
         )
         parser.add_argument(
             "--use_portal",
