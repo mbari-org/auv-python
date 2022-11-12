@@ -201,6 +201,9 @@ class Align_NetCDF:
                     self.calibrated_nc["depth_filtdepth"].values,
                     fill_value="extrapolate",
                 )
+            except ValueError as e:
+                # Likely x and y arrays must have at least 2 entries
+                raise InvalidCalFile(f"Cannot interpolate depth: {e}")
 
             var_time = (
                 self.aligned_nc[variable]
