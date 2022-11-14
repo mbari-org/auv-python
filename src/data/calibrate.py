@@ -725,7 +725,13 @@ class Calibrate_NetCDF:
             )
 
         if (
-            self.args.mission == "2016.348.00"
+            self.args.mission == "2004.345.00"
+            or self.args.mission == "2005.240.00"
+            or self.args.mission == "2007.134.09"
+            or self.args.mission == "2010.293.00"
+            or self.args.mission == "2011.116.00"
+            or self.args.mission == "2013.227.00"
+            or self.args.mission == "2016.348.00"
             or self.args.mission == "2017.121.00"
             or self.args.mission == "2017.269.01"
             or self.args.mission == "2017.297.00"
@@ -1092,7 +1098,13 @@ class Calibrate_NetCDF:
             "comment": f"longitude from {source}",
         }
         if (
-            self.args.mission == "2016.348.00"
+            self.args.mission == "2004.345.00"
+            or self.args.mission == "2005.240.00"
+            or self.args.mission == "2007.134.09"
+            or self.args.mission == "2010.293.00"
+            or self.args.mission == "2011.116.00"
+            or self.args.mission == "2013.227.00"
+            or self.args.mission == "2016.348.00"
             or self.args.mission == "2017.121.00"
             or self.args.mission == "2017.269.01"
             or self.args.mission == "2017.297.00"
