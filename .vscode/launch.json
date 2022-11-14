@@ -169,7 +169,7 @@
             //"args": ["-v", "1", "--mission", "2008.287.05", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2017",  "--end_year", "2017", "--start_yd", "280", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
             //"args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal",  "--no_cleanup"]
-            "args": ["-v", "1", "--mission", "2004.345.00", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
+            "args": ["-v", "1", "--mission", "2017.121.00", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1"]
         },
     ]
