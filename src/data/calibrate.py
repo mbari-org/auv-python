@@ -727,6 +727,7 @@ class Calibrate_NetCDF:
         if (
             self.args.mission == "2016.348.00"
             or self.args.mission == "2017.121.00"
+            or self.args.mission == "2017.269.01"
             or self.args.mission == "2017.297.00"
             or self.args.mission == "2017.304.00"
         ):
@@ -817,7 +818,9 @@ class Calibrate_NetCDF:
                     f"abs(end_lon_diff) ({end_lon_diff}) > 1 or abs(end_lat_diff) ({end_lat_diff}) > 1"
                 )
                 self.logger.info(
-                    "Fix this error by calling _range_qc_combined_nc() for gps and/or navigation variables"
+                    "Fix this error by calling _range_qc_combined_nc() for gps and/or navigation variables for %s %s",
+                    self.args.auv_name,
+                    self.args.mission,
                 )
                 raise ValueError(
                     f"abs(end_lon_diff) ({end_lon_diff}) > 1 or abs(end_lat_diff) ({end_lat_diff}) > 1"
@@ -1090,6 +1093,7 @@ class Calibrate_NetCDF:
         if (
             self.args.mission == "2016.348.00"
             or self.args.mission == "2017.121.00"
+            or self.args.mission == "2017.269.01"
             or self.args.mission == "2017.297.00"
             or self.args.mission == "2017.304.00"
         ):
