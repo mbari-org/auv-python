@@ -1839,35 +1839,35 @@ dorado_info["2017.068.00"] = {
 dorado_info["2017.108.01"] = {
     "program": f"{CANONAPR2017} {DIAMOND}",
     "comment": (
-        "Around-the-bay diamondovernight tow-out mission for CANON April 2017"
+        "Around-the-bay diamond overnight tow-out mission for CANON April 2017"
         " QC notes: Best CTD is ctd1"
     ),
 }
 dorado_info["2017.121.00"] = {
     "program": f"{CANONAPR2017} {DIAMOND}",
     "comment": (
-        "Around-the-bay diamondovernight tow-out mission for CANON April 2017"
+        "Around-the-bay diamond overnight tow-out mission for CANON April 2017"
         " QC notes: Best CTD is ctd1"
     ),
 }
 dorado_info["2017.124.00"] = {
     "program": f"{CANONAPR2017} {DIAMOND}",
     "comment": (
-        "Around-the-bay diamondovernight tow-out mission for CANON April 2017"
+        "Around-the-bay diamond overnight tow-out mission for CANON April 2017"
         " QC note: Best CTD is ctd1, not great but ctd2 worse"
     ),
 }
 dorado_info["2017.157.00"] = {
     "program": f"{CANONPS2017} {DIAMOND}",
     "comment": (
-        "Around-the-bay diamondovernight tow-out mission for June 2017"
+        "Around-the-bay diamond overnight tow-out mission for June 2017"
         " QC note: Best CTD is ctd2"
     ),
 }
 dorado_info["2017.248.01"] = {
     "program": f"{CANONSEP2017} {DIAMOND}",
     "comment": (
-        "Around-the-bay diamondovernight tow-out mission for September 2017"
+        "Around-the-bay diamond overnight tow-out mission for September 2017"
         " QC note: Best CTD is ctd2"
     ),
 }
