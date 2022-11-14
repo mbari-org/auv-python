@@ -729,6 +729,7 @@ class Calibrate_NetCDF:
             or self.args.mission == "2017.121.00"
             or self.args.mission == "2017.269.01"
             or self.args.mission == "2017.297.00"
+            or self.args.mission == "2017.347.00"
             or self.args.mission == "2017.304.00"
         ):
             self.logger.info(
@@ -1095,6 +1096,7 @@ class Calibrate_NetCDF:
             or self.args.mission == "2017.121.00"
             or self.args.mission == "2017.269.01"
             or self.args.mission == "2017.297.00"
+            or self.args.mission == "2017.347.00"
             or self.args.mission == "2017.304.00"
         ):
             self.logger.info(

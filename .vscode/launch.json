@@ -60,7 +60,7 @@
             // OverflowError: time values outside range of 64 bit signed integers in calibrate.py:413
             //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--plot",  "first1000", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2017.269.01", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2017.347.00", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
