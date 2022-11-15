@@ -356,7 +356,7 @@ class Processor:
                     self.logger.error("Cannot continue without a valid _cal.nc file")
                 finally:
                     # Still need to archive the mission, especially the processing.log file
-                    self.archive(self.args.mission)
+                    self.archive(mission)
                     if not self.args.no_cleanup:
                         self.cleanup(mission)
                     self.logger.info(
