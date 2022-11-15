@@ -280,7 +280,9 @@ class Processor:
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
         self.log_handler.setFormatter(self._formatter)
-        self.logger.info("=" * 80)
+        self.logger.info(
+            "====================================================================================================================="
+        )
         self.logger.addHandler(self.log_handler)
         self.logger.info(
             "Processing mission %s by user %s on host %s",
@@ -353,6 +355,8 @@ class Processor:
                     self.logger.error("%s %s", mission, e)
                     self.logger.error("Cannot continue without a valid _cal.nc file")
                 finally:
+                    # Still need to archive the mission, especially the processing.log file
+                    self.archive(self.args.mission)
                     if not self.args.no_cleanup:
                         self.cleanup(mission)
                     self.logger.info(
