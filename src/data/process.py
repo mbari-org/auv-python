@@ -307,7 +307,7 @@ class Processor:
             self.calibrate(mission)
             self.align(mission)
             self.resample(mission)
-            self.archive(mission)
+            # self.archive() is called in finally: blocks in process_missions()
 
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
