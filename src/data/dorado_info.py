@@ -2064,6 +2064,13 @@ dorado_info["2019.350.01"] = {
         " QC note: Best CTD is ctd1"
     ),
 }
+dorado_info["2019.351.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission during LRAUV ESP test deployments - aMBTS1911"
+        " QC note: Best CTD is ctd1"
+    ),
+}
 
 # ----------------------------- 2020 ---------------------------------------
 dorado_info["2020.006.06"] = {
