@@ -1020,9 +1020,36 @@ dorado_info["2007.330.05"] = {
     "program": AUVCTD,
     "comment": ("AUVCTD mission - Bellingham internal waves near MISO"),
 }
+
+# From: Monique Messié <monique@mbari.org>
+# Subject: Dorado changes
+# Date: November 15, 2022 at 3:08:37 PM PST
+# To: Mike McCann <mccann@mbari.org>
+#
+# Hi Mike,
+#
+# Sorry - I realized I forgot to send you the changes I know of for Dorado. Here it is:
+#
+# From Hans's email (on Dec 14, 2016):
+# The change from side mounting to nose mounting occurred when we change to the new nose
+# with the LOPC and other instruments. The first mission for the new nose was 2007.344.00,
+# so any data prior to that was in the side mounted configuration. The last mission with
+# the UCSB biolume sensor was 2010.081.02. It developed pump problems after this mission
+# and was removed from the vehicle. We took delivery of the UBAT from Wetlabs on July 29 2010
+# (this was per an email shipment notification I received from Wetlabs). The first mission
+# I show data from this UBAT was 2010.277.01, on October 4 2010. This can be determined by
+# inspecting the biolume.log files for the mission. The Wetlabs log files have some extra
+# fields in their log files (avg_biolume, system_voltage, HV, and reserved).
+#
+# Monique
+
+
 dorado_info["2007.344.00"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission -  Canyon Axis with Gulper"),
+    "comment": (
+        "AUVCTD mission - Canyon Axis with Gulper"
+        " New nose with the LOPC and other instruments"
+    ),
 }
 dorado_info["2007.346.00"] = {
     "program": BIOLUME,
@@ -1229,7 +1256,9 @@ dorado_info["2009.348.05"] = {
 # ----------------------------- 2010 ---------------------------------------
 dorado_info["2010.081.02"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Autonomy mission"),
+    "comment": (
+        "AUVCTD mission - Autonomy mission" " Last mission with the UCSB biolume sensor"
+    ),
 }
 dorado_info["2010.082.02"] = {
     "program": AUVCTD,
@@ -1333,7 +1362,9 @@ dorado_info["2010.265.00"] = {
 dorado_info["2010.277.01"] = {
     "program": AUVCTD,
     "comment": (
-        "Inner-bay survey first one for BloomEx in October 2010 - Doug said there was a lot of stuff out there.  It was trailing kelp when they picked it up."
+        "Inner-bay survey first one for BloomEx in October 2010 -"
+        " Doug said there was a lot of stuff out there.  It was trailing kelp when they picked it up."
+        " The first mission with the UBAT"
     ),
 }
 dorado_info["2010.278.01"] = {
