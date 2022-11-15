@@ -2106,16 +2106,16 @@ dorado_info["2020.233.14"] = {
 dorado_info["2020.245.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "MBTS mission - Overnight diamond in Monterey Bay - first one with ecopuck instrument: FLBBCD2K -"
-        " had to restart mission, 2 missions (245.00 and 245.01) required to complete the diamond"
+        "MBTS mission - Overnight diamond in Monterey Bay - 24520G - first one with ecopuck instrument: FLBBCD2K -"
+        " had to restart mission, 2 missions (245.00 and 246.01) required to complete the diamond"
         " QC note: Best CTD is ctd1"
     ),
 }
-dorado_info["2020.245.01"] = {
+dorado_info["2020.246.01"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "MBTS mission - Overnight diamond in Monterey Bay - first one with ecopuck instrument: FLBBCD2K -"
-        " had to restart mission, 2 missions (245.00 and 245.01) required to complete the diamond"
+        "MBTS mission - Overnight diamond in Monterey Bay - 24520G - first one with ecopuck instrument: FLBBCD2K -"
+        " had to restart mission, 2 missions (245.00 and 246.01) required to complete the diamond"
         " QC note: Best CTD is ctd1"
     ),
 }
