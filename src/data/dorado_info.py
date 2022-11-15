@@ -2167,7 +2167,7 @@ dorado_info["2020.323.01"] = {
         " We were carrying the FLBB instrument for fluorescence and backscatter. No water flow through LOPC or CDOM"
     ),
 }
-dorado_info["2020.335.01"] = {
+dorado_info["2020.335.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "Monterey Bay Diamond Mission - 33520G. The hs2 instrument is returned from the vendor with new calibrations in the hs2Calibration.dat file."
