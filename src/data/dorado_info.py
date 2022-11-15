@@ -1970,7 +1970,7 @@ dorado_info["2018.170.00"] = {
     "comment": ("Criss-cross pattern in Monterey Bay for CANON May 2018"),
 }
 dorado_info["2018.191.00"] = {
-    "program": f"{CANONMAY2018}",
+    "program": f"{CANONMAY2018} {DIAMOND}",
     "comment": (
         "MBTS mission - Overnight diamond in Monterey Bay while mpm was in Cologne, Germany"
         " QC note: Best CTD is ctd1, not great but probably sufficiently OK"
