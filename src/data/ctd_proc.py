@@ -306,3 +306,54 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
     o2_umolkg = np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))
 
     return o2_mll, o2_umolkg
+
+
+def _beam_transmittance_from_volts(combined_nc, nc) -> (float, float):
+    # ----------------------------------------------
+    # From: robs <robs@mbari.org>
+    # Subject: Fwd: Merging i2MAP nav and CTD with VARS
+    # Date: November 14, 2022 at 10:53:04 AM PST
+    # To: Mike McCann <mccann@mbari.org>
+    #
+    # Oops, I’m sorry! Apparently I sent this to myself (ah, Monday)….
+    #
+    # Begin forwarded message:
+    #
+    # From: robs <robs@mbari.org>
+    # Subject: Re: Merging i2MAP nav and CTD with VARS
+    # Date: November 14, 2022 at 8:34:22 AM PST
+    # To: Rob Sherlock <robs@mbari.org>
+    #
+    # Here is the Cal-sheet for the Transmissometer if you need it:
+    # <pdf file transcribed>
+    # C-Star Calibration
+    # Date 11.25.14
+    # S/N# CST-1694DR
+    # Pathlength 25 cm
+    #                     Analog Output   Digital Output
+    # Vd                        0.006 V         0 counts
+    # Vair                      4.830 V     15867 counts
+    # Vref                      4.701 V     15443 counts
+
+    # Relationship of transmittance (Tr) to beam attenuation coefficient (c), and pathlength (x, in meters): Tr = exp(-c*x)
+
+    # To determine beam transmittance: Tr = (Vsig - Vd) / (Vref - Vd)
+    # To determine beam attenuation coefficient: c = -1/x * ln (Tr)
+
+    # Vd Meter output with the beam blocked. This is the offset.
+    # Vair Meter output in air with a clear beam path.
+    # Vref Meter output with clean water in the path.
+    # Temperature of calibration water: temperature of clean water used to obtain Vref. Ambient temperature: meter temperature in air during the calibration.
+    # Vsig Measured signal output of meter.
+    # </pdf file transcribed>
+
+    # Hard-coded values from the calibration sheet, but when they are available
+    # in the .cfg file, they should be read from cf instead.
+    Vd = 0.006
+    Vref = 4.701
+    #
+    # Return beam transmittance (Tr) and beam attenuation coefficient (c)
+    Tr = (nc["transmissometer"] - Vd) / (Vref - Vd)
+    c = -1 / 0.25 * np.log(Tr)
+
+    return Tr, c
