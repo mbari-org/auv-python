@@ -192,6 +192,23 @@ class Resampler:
                 .replace("Original log files copied from ", "")
                 .replace("/Volumes/M3/master/i2MAP/", "")
             )
+        try:
+            # Parse from seabird25p_depth comment: "using SensorOffset(x=1.003, y=0.0001)"
+            self.metadata["comment"] = self.metadata.get("comment", "")
+            if self.metadata["comment"]:
+                self.metadata["comment"] = ". "
+            self.metadata["comment"] += (
+                f"Variable depth pitch corrected using"
+                f" {self.ds['seabird25p_depth'].attrs['comment'].split('using ')[1]}"
+            )
+            self.metadata["comment"] += (
+                f"Variable depth pitch corrected using"
+                f" {self.ds['seabird25p_depth'].attrs['comment'].split('using ')[1]}"
+            )
+        except KeyError:
+            self.logger.warning(
+                f"No entry for for mission {self.args.mission} comment in dorado_info.py"
+            )
 
         return self.metadata
 
@@ -294,7 +311,7 @@ class Resampler:
         self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
         self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
         self.resampled_nc["depth"].attrs["comment"] += (
-            f". {self.ds['ctd1_depth'].attrs['comment']}"
+            f". {self.ds[f'{instr}_depth'].attrs['comment']}"
             f" mean sampled at {self.args.freq} intervals following"
             f" {self.args.mf_width} point median filter."
         )
@@ -422,8 +439,14 @@ class Resampler:
                 self.df_r = pd.DataFrame()  # resampled dataframe
                 # Choose an instrument to use for the resampled coordinates
                 # All the instruments we care about are in the nose of the vehicle
-                # Use the pitch corrected depth coordinate for 'ctd1'
-                aggregator = self.resample_coordinates("ctd1", mf_width, freq)
+                # Use the pitch corrected depth coordinate for 'ctd1' for dorado,
+                # 'seabird25p' for i2map.
+                pitch_corrected_instr = "ctd1"
+                if pitch_corrected_instr not in self.ds:
+                    pitch_corrected_instr = "seabird25p"
+                aggregator = self.resample_coordinates(
+                    pitch_corrected_instr, mf_width, freq
+                )
                 self.save_coordinates(instr, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)

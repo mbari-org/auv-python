@@ -36,7 +36,7 @@ from argparse import RawTextHelpFormatter
 from collections import OrderedDict, namedtuple
 from datetime import datetime
 from socket import gethostname
-from typing import Tuple
+from typing import List, Tuple
 
 try:
     import cartopy.crs as ccrs
@@ -44,25 +44,25 @@ try:
 except ModuleNotFoundError:
     # cartopy is not installed, will not be able to plot maps
     pass
+
 import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
+from AUV import monotonic_increasing_time_indices
+from ctd_proc import (
+    _beam_transmittance_from_volts,
+    _calibrated_O2_from_volts,
+    _calibrated_sal_from_cond_frequency,
+    _calibrated_temp_from_frequency,
+)
+from hs2_proc import hs2_calc_bb, hs2_read_cal_file
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 from matplotlib import patches
 from scipy import signal
 from scipy.interpolate import interp1d
 from seawater import eos80
-from typing import List
-
-from AUV import monotonic_increasing_time_indices
-from ctd_proc import (
-    _calibrated_sal_from_cond_frequency,
-    _calibrated_temp_from_frequency,
-    _calibrated_O2_from_volts,
-)
-from hs2_proc import hs2_calc_bb, hs2_read_cal_file
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
 
 TIME = "time"
 Range = namedtuple("Range", "min max")
@@ -1782,6 +1782,27 @@ class Calibrate_NetCDF:
         except KeyError:
             self.logger.debug("No flow2 data in %s", self.args.mission)
 
+        (
+            beam_transmittance,
+            _,  # beam_attenuation_coefficient
+        ) = _beam_transmittance_from_volts(self.combined_nc, orig_nc)
+        try:
+            beam_transmittance = xr.DataArray(
+                beam_transmittance * 100.0,
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="beam_transmittance",
+            )
+            beam_transmittance.attrs = {
+                "long_name": "Beam Transmittance",
+                "units": "%",
+                "comment": f"Calibrated Beam Transmittance from {source}'s transmissometer variable",
+            }
+            self.combined_nc[f"{sensor}_beam_transmittance"] = beam_transmittance
+
+        except KeyError:
+            self.logger.debug("No transmissometer data in %s", self.args.mission)
+
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
         )
@@ -1978,7 +1999,7 @@ class Calibrate_NetCDF:
             self._tailcone_process(sensor)
         elif sensor == "lopc":
             self._lopc_process(sensor)
-        elif sensor == "ctd1" or sensor == "ctd2" or sensor == "seabird25p":
+        elif sensor in ("ctd1", "ctd2", "seabird25p"):
             if coeffs is not None:
                 self._ctd_process(sensor, coeffs)
             else:

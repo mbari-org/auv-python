@@ -60,7 +60,7 @@
             // OverflowError: time values outside range of 64 bit signed integers in calibrate.py:413
             //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--plot",  "first1000", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2017.347.00", "-v", "1"]
+            "args": ["--auv_name", "i2map", "--mission", "2022.094.01", "-v", "2"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -132,7 +132,7 @@
             //"args": ["-v", "1", "--start_year", "2020", "--end_year", "2022", "--noinput"],
             //"args": ["-v", "1", "--start_year", "2019", "--start_yd", "281", "--end_year", "2019", "--noinput"],
             // Zero-sized seabird .log file in 2021.307.02
-            "args": ["-v", "1", "--mission", "2017.017.00", "--local", "--noinput"],
+            "args": ["-v", "2", "--mission", "2022.094.01", "--noinput", "--local"],
             //"args": ["-v", "1", "--local", "--noinput"],
             //"args": ["-v", "1", "--last_n_days", "80", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.061.01", "--calibrate", "--noinput"],
