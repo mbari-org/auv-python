@@ -201,10 +201,6 @@ class Resampler:
                 f"Variable depth pitch corrected using"
                 f" {self.ds['seabird25p_depth'].attrs['comment'].split('using ')[1]}"
             )
-            self.metadata["comment"] += (
-                f"Variable depth pitch corrected using"
-                f" {self.ds['seabird25p_depth'].attrs['comment'].split('using ')[1]}"
-            )
         except KeyError:
             self.logger.warning(
                 f"No entry for for mission {self.args.mission} comment in dorado_info.py"
