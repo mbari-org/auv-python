@@ -102,12 +102,26 @@ class Processor:
 
     def get_mission_dir(self, mission: str) -> str:
         """Return the mission directory."""
-        yearyd = "".join(mission.split(".")[:2])
-        path = os.path.join(self.vehicle_dir, yearyd, mission)
-        if not os.path.exists(path):
+        if not os.path.exists(self.vehicle_dir):
             self.logger.error("%s does not exist.", path)
             self.logger.info(f"Is {self.mount_dir} mounted?")
             sys.exit(1)
+        if self.vehicle.lower() == "dorado":
+            yearyd = "".join(mission.split(".")[:2])
+            path = os.path.join(self.vehicle_dir, yearyd, mission)
+        elif self.vehicle.lower() == "i2map":
+            year = int(mission.split(".")[0])
+            # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
+            # but use the mission_list() method to find the mission dir instead
+            missions = self.mission_list(start_year=year, end_year=year)
+            if mission in missions:
+                path = missions[mission]
+            else:
+                self.logger.error("Cannot find %s in %s", mission, self.vehicle_dir)
+                raise FileNotFoundError(f"Cannot find {mission} in {self.vehicle_dir}")
+        if not os.path.exists(path):
+            self.logger.error("%s does not exist.", path)
+            raise FileNotFoundError(f"{path} does not exist.")
         return path
 
     def download_process(self, mission: str, src_dir: str) -> None:

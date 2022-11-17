@@ -24,20 +24,6 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 from process import Processor
 
 
-TEST_LIST = [
-    # "2020.008.00",
-    "2020.041.02",
-    "2020.041.02",
-    "2020.055.01",
-    "2020.181.02",
-    "2020.210.03",
-    "2020.224.04",
-    "2020.258.01",
-    "2020.266.01",
-    "2021.264.03",
-]
-
-
 class I2mapProcessor(Processor):
     pass
 
@@ -50,33 +36,4 @@ if __name__ == "__main__":
 
     proc = I2mapProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR)
     proc.process_command_line()
-    if not proc.args.start_year:
-        proc.args.start_year = START_YEAR
-
-    if proc.args.mission:
-        # mission is string like: 2021.062.01
-        year = int(proc.args.mission.split(".")[0])
-        missions = proc.mission_list(start_year=year, end_year=year)
-        if proc.args.mission in missions:
-            proc.process_mission(
-                proc.args.mission,
-                src_dir=missions[proc.args.mission],
-            )
-        else:
-            proc.logger.error(
-                "Mission %s not found in missions: %s",
-                proc.args.mission,
-                missions,
-            )
-    elif proc.args.start_year and proc.args.end_year:
-        missions = proc.mission_list(
-            start_year=proc.args.start_year,
-            end_year=proc.args.end_year,
-        )
-        for mission in missions:
-            if (
-                int(mission.split(".")[1]) < proc.args.start_yd
-                or int(mission.split(".")[1]) > proc.args.end_yd
-            ):
-                continue
-            proc.process_mission(mission, src_dir=missions[mission])
+    proc.process_missions(START_YEAR)
