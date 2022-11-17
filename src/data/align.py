@@ -386,7 +386,7 @@ class Align_NetCDF:
         out_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}_align.nc")
         self.logger.info(f"Writing aligned data to {out_fn}")
         if os.path.exists(out_fn):
-            self.logger.debug(f"Removinf file {out_fn}")
+            self.logger.debug(f"Removing file {out_fn}")
             os.remove(out_fn)
         self.aligned_nc.to_netcdf(out_fn)
         self.logger.info(

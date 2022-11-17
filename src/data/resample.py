@@ -33,6 +33,10 @@ FREQ = "1S"
 PLOT_SECONDS = 300
 
 
+class InvalidAlignFile(Exception):
+    pass
+
+
 class Resampler:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -232,7 +236,18 @@ class Resampler:
             f" frequency {freq} following {mf_width} point median filter "
         )
         # Original
-        self.df_o[f"{instr}_depth"] = self.ds[f"{instr}_depth"].to_pandas()
+        try:
+            self.df_o[f"{instr}_depth"] = self.ds[f"{instr}_depth"].to_pandas()
+        except KeyError:
+            self.logger.warning(
+                f"Variable {instr}_depth not found in {self.args.mission} align.nc file"
+            )
+            self.logger.info(
+                "Cannot continue without a pitch corrected depth coordinate"
+            )
+            raise InvalidAlignFile(
+                f"{instr}_depth not found in {self.args.auv_name}_{self.args.mission}_align.nc"
+            )
         self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
         self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
         # Median Filtered - back & forward filling nan values at ends

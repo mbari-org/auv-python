@@ -29,16 +29,16 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from getpass import getuser
 from pathlib import Path
+from socket import gethostname
 
-from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from align import Align_NetCDF, InvalidCalFile, TooMuchExtrapolation
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
-from getpass import getuser
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
-from resample import FREQ, MF_WIDTH, Resampler
-from socket import gethostname
+from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
+from resample import FREQ, MF_WIDTH, InvalidAlignFile, Resampler
 
 
 class Processor:
@@ -103,7 +103,7 @@ class Processor:
     def get_mission_dir(self, mission: str) -> str:
         """Return the mission directory."""
         if not os.path.exists(self.vehicle_dir):
-            self.logger.error("%s does not exist.", path)
+            self.logger.error("%s does not exist.", self.vehicle_dir)
             self.logger.info(f"Is {self.mount_dir} mounted?")
             sys.exit(1)
         if self.vehicle.lower() == "dorado":
@@ -336,20 +336,21 @@ class Processor:
                     self.args.mission,
                     src_dir=self.get_mission_dir(self.args.mission),
                 )
-            except (InvalidCalFile, FileNotFoundError, EOFError) as e:
+            except (InvalidCalFile, InvalidAlignFile, FileNotFoundError, EOFError) as e:
                 self.logger.error("%s %s", self.args.mission, e)
-                self.logger.error("Cannot continue without a valid _cal.nc file")
+                self.logger.error("Cannot continue without a valid upstream file")
             finally:
-                # Still need to archive the mission, especially the processing.log file
-                self.archive(self.args.mission)
-                if not self.args.no_cleanup:
-                    self.cleanup(self.args.mission)
-                self.logger.info(
-                    "Mission %s took %.1f seconds to process",
-                    self.args.mission,
-                    time.time() - t_start,
-                )
                 if hasattr(self, "log_handler"):
+                    # If no log_handler then process_mission() failed, likely due to missing mount
+                    # Always archive the mission, especially the processing.log file
+                    self.archive(self.args.mission)
+                    if not self.args.no_cleanup:
+                        self.cleanup(self.args.mission)
+                    self.logger.info(
+                        "Mission %s took %.1f seconds to process",
+                        self.args.mission,
+                        time.time() - t_start,
+                    )
                     self.logger.removeHandler(self.log_handler)
         elif self.args.start_year and self.args.end_year:
             missions = self.mission_list(
