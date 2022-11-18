@@ -41,10 +41,9 @@ class Archiver:
         try:
             os.stat(surveys_dir)
         except FileNotFoundError:
-            self.logger.error(
-                f"{surveys_dir} not found. Is cifs://atlas.shore.mbari.org/AUVCTD mounted?"
-            )
-            return
+            self.logger.error(f"{surveys_dir} not found")
+            self.logger.info("Is cifs://atlas.shore.mbari.org/AUVCTD mounted?")
+            sys.exit(1)
         year = self.args.mission.split(".")[0]
         surveys_dir = os.path.join(surveys_dir, year, "netcdf")
         self.logger.info(f"Copying {nc_file_base} files to {surveys_dir}")

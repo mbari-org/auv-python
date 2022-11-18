@@ -304,6 +304,12 @@ class Processor:
             getuser(),
             gethostname(),
         )
+        if self.args.clobber:
+            if self.args.noinput:
+                self.cleanup(mission)
+            else:
+                if input("Do you want to remove all work files? [y/N] ").lower() == "y":
+                    self.cleanup(mission)
         if self.args.download_process:
             self.download_process(mission, src_dir)
         elif self.args.calibrate:
