@@ -453,7 +453,7 @@ class Resampler:
                 # Use the pitch corrected depth coordinate for 'ctd1' for dorado,
                 # 'seabird25p' for i2map.
                 pitch_corrected_instr = "ctd1"
-                if pitch_corrected_instr not in self.ds:
+                if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
                 aggregator = self.resample_coordinates(
                     pitch_corrected_instr, mf_width, freq

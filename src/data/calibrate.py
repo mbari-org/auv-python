@@ -333,8 +333,8 @@ class Calibrate_NetCDF:
         self, instrument: str, variables: List[str], ranges: dict
     ) -> None:
         """For variables in combined_nc remove values that fall outside
-        of specified min, max range.  Meant to be called by instrument
-        so that the union of bad values from a set variables can be removed."""
+        of specified min, max range.  Meant to be called by instrument so
+        that the union of bad values from a set of variables can be removed."""
         out_of_range_indices = np.array([], dtype=int)
         vars_checked = []
         for var in variables:
@@ -710,7 +710,9 @@ class Calibrate_NetCDF:
         self.logger.debug(f"Finding depths less than '{maxGoodDepth}' and times > 0'")
 
         if self.args.mission == "2010.172.01":
-            self.logger.info("Performing special QC for 2010.172.01/navigation.nc")
+            self.logger.info(
+                f"Performing special QC for {self.args.mission}/navigation.nc"
+            )
             self._range_qc_combined_nc(
                 instrument="navigation",
                 variables=vars_to_qc,
@@ -1530,6 +1532,7 @@ class Calibrate_NetCDF:
 
         # === Temperature and salinity variables ===
         # Seabird specific calibrations
+        vars_to_qc = []
         self.logger.debug("Calling _calibrated_temp_from_frequency()")
         temperature = xr.DataArray(
             _calibrated_temp_from_frequency(cf, orig_nc),
@@ -1575,6 +1578,7 @@ class Calibrate_NetCDF:
             ),
         }
         self.combined_nc[f"{sensor}_conductivity"] = conductivity
+        vars_to_qc.append(f"{sensor}_salinity")
         salinity = xr.DataArray(
             cal_salinity,
             coords=[orig_nc.get_index("time")],
@@ -1782,11 +1786,10 @@ class Calibrate_NetCDF:
         except KeyError:
             self.logger.debug("No flow2 data in %s", self.args.mission)
 
-        (
-            beam_transmittance,
-            _,  # beam_attenuation_coefficient
-        ) = _beam_transmittance_from_volts(self.combined_nc, orig_nc)
         try:
+            beam_transmittance, _ = _beam_transmittance_from_volts(
+                self.combined_nc, orig_nc
+            )
             beam_transmittance = xr.DataArray(
                 beam_transmittance * 100.0,
                 coords=[orig_nc.get_index("time")],
@@ -1801,7 +1804,9 @@ class Calibrate_NetCDF:
             self.combined_nc[f"{sensor}_beam_transmittance"] = beam_transmittance
 
         except KeyError:
-            self.logger.debug("No transmissometer data in %s", self.args.mission)
+            self.logger.debug(
+                "No transmissometer data in %s/%s.nc", self.args.mission, sensor
+            )
 
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
@@ -1816,6 +1821,17 @@ class Calibrate_NetCDF:
                 f" {self.sinfo[sensor]['sensor_offset']}"
             ),
         }
+
+        self.logger.info(
+            f"Performing QC for {vars_to_qc} in {self.args.mission}/{sensor}.nc"
+        )
+        self._range_qc_combined_nc(
+            instrument=sensor,
+            variables=vars_to_qc,
+            ranges={
+                f"{sensor}_salinity": Range(30, 40),
+            },
+        )
 
         # === PAR variables ===
 
