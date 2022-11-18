@@ -140,7 +140,8 @@
             //"args": ["-v", "1", "--mission", "2022.061.01", "--align", "--noinput"],
             //"args": ["-v", "1", "--mission", "2022.061.01", "--resample", "--noinput"],
             //"args": ["-v", "1", "--mission", "2022.061.01", "--archive", "--noinput"],
-            "args": ["-v", "1", "--mission", "2018.344.03", "--use_portal", "--no_cleanup"],
+            //"args": ["-v", "1", "--mission", "2018.344.01", "--use_portal", "--no_cleanup", "--noinput"],
+            "args": ["-v", "1", "--start_year", "2018", "--end_year", "2018", "--start_yd", "344", "--use_portal", "--no_cleanup", "--noinput", "--clobber"],
         },
         {
             "name": "process_dorado",

@@ -328,8 +328,6 @@ class Processor:
             self.args.start_year = start_year
         if self.args.mission:
             # mission is string like: 2021.062.01 and is assumed to exist
-            year = int(self.args.mission.split(".")[0])
-            # missions = self.mission_list(start_year=year, end_year=year)
             try:
                 t_start = time.time()
                 self.process_mission(
@@ -338,7 +336,7 @@ class Processor:
                 )
             except (InvalidCalFile, InvalidAlignFile, FileNotFoundError, EOFError) as e:
                 self.logger.error("%s %s", self.args.mission, e)
-                self.logger.error("Cannot continue without a valid upstream file")
+                self.logger.error("Cannot continue without valid upstream file(s)")
             finally:
                 if hasattr(self, "log_handler"):
                     # If no log_handler then process_mission() failed, likely due to missing mount
@@ -366,9 +364,14 @@ class Processor:
                 try:
                     t_start = time.time()
                     self.process_mission(mission, src_dir=missions[mission])
-                except (InvalidCalFile, FileNotFoundError, EOFError) as e:
+                except (
+                    InvalidCalFile,
+                    InvalidAlignFile,
+                    FileNotFoundError,
+                    EOFError,
+                ) as e:
                     self.logger.error("%s %s", mission, e)
-                    self.logger.error("Cannot continue without a valid _cal.nc file")
+                    self.logger.error("Cannot continue without valid file(s)")
                 finally:
                     # Still need to archive the mission, especially the processing.log file
                     self.archive(mission)
