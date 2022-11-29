@@ -273,7 +273,7 @@ class Calibrate_NetCDF:
                         "data_filename": "seabird25p.nc",
                         "cal_filename": "seabird25p.cfg",
                         "lag_secs": None,
-                        "sensor_offset": SensorOffset(1.003, 0.0001),
+                        "sensor_offset": SensorOffset(4.04, 0.0),
                     },
                 ),
                 (
@@ -325,9 +325,17 @@ class Calibrate_NetCDF:
         )
 
         # Changes over time
-        if start_datetime.year >= 2003:
-            self.sinfo["biolume"]["sensor_offset"] = SensorOffset(1.003, 0.0001)
-        # ...
+        if self.args.auv_name.lower().startswith("dorado"):
+            self.sinfo["depth"]["sensor_offset"] = None
+            if start_datetime >= datetime(2007, 4, 30):
+                # First missions with 10 Gulpers: 2007.120.00 & 2007.120.01
+                for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
+                    # TODO: Verify the length of the 10-Gulper midsection
+                    self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
+            if start_datetime >= datetime(2014, 9, 21):
+                # First mission with 20 Gulpers: 2014.265.03
+                for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
+                    self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
 
     def _range_qc_combined_nc(
         self, instrument: str, variables: List[str], ranges: dict
@@ -1988,11 +1996,30 @@ class Calibrate_NetCDF:
         offs_depth = align_geom(self.sinfo[sensor]["sensor_offset"], pitch)
 
         corrected_depth = xr.DataArray(
-            (orig_depth + offs_depth).astype(np.float64).tolist(),
+            (orig_depth - offs_depth).astype(np.float64).tolist(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_depth",
         )
+        if self.args.plot:
+            plt.figure(figsize=(18, 6))
+            plt.plot(
+                orig_nc["time"].values,
+                orig_depth,
+                "-",
+                orig_nc["time"].values,
+                corrected_depth,
+                "--",
+                orig_nc["time"].values,
+                pitch,
+                ".",
+            )
+            plt.ylabel("Depth (m) & Pitch (deg)")
+            plt.legend(("Original depth", "Pitch corrected depth", "Pitch"))
+            plt.title(
+                f"Original and pitch corrected depth for {self.args.auv_name} {self.args.mission}"
+            )
+            plt.show()
 
         return corrected_depth
 
@@ -2135,6 +2162,8 @@ if __name__ == "__main__":
     cal_netcdf = Calibrate_NetCDF()
     cal_netcdf.process_command_line()
     p_start = time.time()
+    # Set process_gps=False to skip time consuming _nudge_pos() processing
+    # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
     netcdf_dir = cal_netcdf.process_logs()
     cal_netcdf.write_netcdf(netcdf_dir)
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
