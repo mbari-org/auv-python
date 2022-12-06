@@ -1841,8 +1841,6 @@ class Calibrate_NetCDF:
             },
         )
 
-        # === PAR variables ===
-
     def _tailcone_process(self, sensor):
         # As requested by Rob Sherlock capture propRpm for comparison with
         # mWaterSpeed from navigation.log
@@ -1881,6 +1879,135 @@ class Calibrate_NetCDF:
             "units": "rad/s",
             "coordinates": coord_str,
             "comment": f"propRpm from {source} (convert to RPM by multiplying by 9.549297)",
+        }
+
+    def _ecopuck_process(self, sensor):
+        # ecpouck's first mission 2020.245.00 - email dialog on 5 Dec 2022 discussing
+        # using it for developing an HS2 transfer function and comparison with LRAUV data
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+        except AttributeError:
+            raise EOFError(
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
+            )
+
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_BB_Sig"] = xr.DataArray(
+            orig_nc["BB_Sig"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_BB_Sig",
+        )
+        self.combined_nc["ecopuck_BB_Sig"].attrs = {
+            "long_name": "Backscatter signal ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"BB_Sig from {source}",
+        }
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_CDOM_Sig"] = xr.DataArray(
+            orig_nc["CDOM_Sig"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_CDOM_Sig",
+        )
+        self.combined_nc["ecopuck_CDOM_Sig"].attrs = {
+            "long_name": "Colored Dissolved Organic Matter signal ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"CDOM_Sig from {source}",
+        }
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_Chl_Sig"] = xr.DataArray(
+            orig_nc["Chl_Sig"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_Chl_Sig",
+        )
+        self.combined_nc["ecopuck_Chl_Sig"].attrs = {
+            "long_name": "Chlorophyll signal ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"Chl_Sig from {source}",
+        }
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_NU_bb"] = xr.DataArray(
+            orig_nc["NU_bb"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_NU_bb",
+        )
+        self.combined_nc["ecopuck_NU_bb"].attrs = {
+            "long_name": "Null Backscatter signal ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"NU_bb from {source}",
+        }
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_NU_CDOM"] = xr.DataArray(
+            orig_nc["NU_CDOM"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_NU_CDOM",
+        )
+        self.combined_nc["ecopuck_NU_CDOM"].attrs = {
+            "long_name": "Null Colored Dissolved Organic Matter signal ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"NU_CDOM from {source}",
+        }
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_NU_Chl"] = xr.DataArray(
+            orig_nc["NU_Chl"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_NU_Chl",
+        )
+        self.combined_nc["ecopuck_NU_Chl"].attrs = {
+            "long_name": "Backscatter signal ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"NU_Chl from {source}",
+        }
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        self.combined_nc["ecopuck_Thermister"] = xr.DataArray(
+            orig_nc["Thermister"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_Thermister",
+        )
+        self.combined_nc["ecopuck_Thermister"].attrs = {
+            "long_name": "Temperature ??",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"Thermister from {source}",
         }
 
     def _lopc_process(self, sensor):
@@ -2036,6 +2163,8 @@ class Calibrate_NetCDF:
             self._gps_process(sensor)
         elif sensor == "depth":
             self._depth_process(sensor)
+        elif sensor == "ecopuck":
+            self._ecopuck_process(sensor)
         elif sensor == "hs2":
             self._hs2_process(sensor, logs_dir)
         elif sensor == "tailcone":
