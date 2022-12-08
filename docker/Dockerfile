@@ -1,5 +1,5 @@
 # Adapted from from https://github.com/MBARIMike/ur_l/python_docker/Dockerfile
-FROM python:3.8.1-slim as python-base
+FROM python:3.11.1-slim as python-base
 # Set DOCKER_USER_ID in shell, e.g. export DOCKER_USER_ID=$(id -u)
 ARG DOCKER_USER_ID
 ENV PYTHONUNBUFFERED=1 \
@@ -23,7 +23,7 @@ RUN apt-get update \
         build-essential
 
 # Freeze poetry version to avoid breaking changes
-ENV POETRY_VERSION=1.1.6
+ENV POETRY_VERSION=1.2.2
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # We copy our Python requirements here to cache them
