@@ -1920,7 +1920,6 @@ class Calibrate_NetCDF:
             "comment": f"BB_Sig from {source}",
         }
 
-        source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_CDOM_Sig"] = xr.DataArray(
             orig_nc["CDOM_Sig"].values,
@@ -1935,7 +1934,6 @@ class Calibrate_NetCDF:
             "comment": f"CDOM_Sig from {source}",
         }
 
-        source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_Chl_Sig"] = xr.DataArray(
             orig_nc["Chl_Sig"].values,
@@ -1950,7 +1948,7 @@ class Calibrate_NetCDF:
             "comment": f"Chl_Sig from {source}",
         }
 
-        source = self.sinfo[sensor]["data_filename"]
+        """ NU_ variables likely mean that they are Not Used based N/U text in WETLabs docs
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_NU_bb"] = xr.DataArray(
             orig_nc["NU_bb"].values,
@@ -1965,7 +1963,6 @@ class Calibrate_NetCDF:
             "comment": f"NU_bb from {source}",
         }
 
-        source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_NU_CDOM"] = xr.DataArray(
             orig_nc["NU_CDOM"].values,
@@ -1980,7 +1977,6 @@ class Calibrate_NetCDF:
             "comment": f"NU_CDOM from {source}",
         }
 
-        source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_NU_Chl"] = xr.DataArray(
             orig_nc["NU_Chl"].values,
@@ -1995,20 +1991,21 @@ class Calibrate_NetCDF:
             "comment": f"NU_Chl from {source}",
         }
 
-        source = self.sinfo[sensor]["data_filename"]
+        # Values from 2020.245.00 seem stuck arounnd 538
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
-        self.combined_nc["ecopuck_Thermister"] = xr.DataArray(
-            orig_nc["Thermister"].values,
+        self.combined_nc["ecopuck_Thermistor"] = xr.DataArray(
+            orig_nc["Thermistor"].values,
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
-            name=f"{sensor}_Thermister",
+            name=f"{sensor}_Thermistor",
         )
-        self.combined_nc["ecopuck_Thermister"].attrs = {
+        self.combined_nc["ecopuck_Thermistor"].attrs = {
             "long_name": "Temperature ??",
             "units": "",
             "coordinates": coord_str,
-            "comment": f"Thermister from {source}",
+            "comment": f"Thermistor from {source}",
         }
+        """
 
     def _lopc_process(self, sensor):
         try:

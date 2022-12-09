@@ -110,7 +110,7 @@
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2017.297.00", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2020.245.00", "--AUVCTD"],
         },
         {
             "name": "gulper.py",
@@ -178,7 +178,7 @@
             //"args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal",  "--no_cleanup"]
             //"args": ["-v", "1", "--mission", "2017.269.01", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2003", "--end_year", "2003", "--start_yd", "98", "--end_yd", "105", "--use_portal",  "--no_cleanup"]
-            "args": ["-v", "1", "--mission", "2020.245.00", "--noinput", "--no_cleanup", "--use_portal"]
+            "args": ["-v", "1", "--mission", "2020.245.00", "--noinput", "--no_cleanup", "--use_portal", "--clobber"]
             //"args": ["-v", "1"]
         },
     ]
