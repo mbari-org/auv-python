@@ -44,6 +44,7 @@ bokeh = "^2.4.1"
 PyQt5 = "^5.15.6"
 ipympl = "^0.9.1"
 GitPython = "^3.1.29"
+pyarrow = "^10.0.1"
 
 
 [tool.poetry.dev-dependencies]
