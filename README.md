@@ -35,8 +35,8 @@ configured for your system. See https://bitbucket.org/account/settings/ssh-keys
 
 To install on a workstation:
 
-* Install Python 3.8 on your system (Brew, Anaconda, etc)
-* On a Mac install necessary brew packages: netcdf4, geos, proj
+* Install Python 3.10 on your system (Brew, Anaconda, etc)
+* On a Mac install necessary brew packages: netcdf4, geos, proj, ...
 * Install Poetry (https://python-poetry.org/docs/#installation)
 * mkdir ~/dev   # create a directory for your repositories
 * cd ~/dev
@@ -77,8 +77,10 @@ The following commands are available:
 * src/data/process_i2map.py --help      # Process i2MAP data 
 * src/data/process_dorado.py --help     # Process Dorado/Gulper data 
 
-To use VS Code, make sure that the poetry shell is selected with the Command
-palette command: "Python: select interpreter".
+There are also Jupyter Notebooks in the notebooks directory that can be used.
+
+To use in VS Code, make sure that the proper poetry shell is selected with the
+Command palette command: "Python: select interpreter".
 
 --
 

@@ -1367,10 +1367,7 @@ optional = false
 python-versions = ">=3.8"
 
 [package.dependencies]
-numpy = [
-    {version = ">=1.21.0", markers = "python_version >= \"3.10\""},
-    {version = ">=1.23.2", markers = "python_version >= \"3.11\""},
-]
+numpy = {version = ">=1.21.0", markers = "python_version >= \"3.10\""}
 python-dateutil = ">=2.8.1"
 pytz = ">=2020.1"
 
@@ -2172,8 +2169,8 @@ multidict = ">=4.0"
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.10"  # Compatible python versions must be declared here
-content-hash = "5207644920f6f3ef21864c26491e864c0c5aa62615096e742a904c65a79770a0"
+python-versions = "3.10.8"  # Compatible python versions must be declared here
+content-hash = "7ef0bb5c54d1b9db621184de32ab48a13670b6d323b651c65b680e5d6d70fa6a"
 
 [metadata.files]
 aiohttp = [

@@ -12,3 +12,7 @@ They are named in the order of processing and kept specific to their purpose:
     3.0-mpm-align.ipynb
     4.0-mpm-resample.ipynb
     4.1-mpm-resample-matlab.ipynb
+
+The begining of Machine Learning operations performed on the processed data
+
+    5.0-mpm-stoqs2parquet.ipynb
