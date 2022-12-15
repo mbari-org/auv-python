@@ -2339,3 +2339,7 @@ dorado_info["2022.313.01"] = {
     "program": f"{DIAMOND}",
     "comment": ("Monterey Bay Diamond Mission - 31322G"),
 }
+dorado_info["2022.348.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 34822G"),
+}
