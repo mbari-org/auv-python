@@ -83,7 +83,8 @@
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2017.297.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.172.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2007.120.00"],
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2007.120.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2020.245.00"],
         },
         {
             "name": "4.0 - resample.py",
@@ -102,7 +103,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2007.120.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.344.03", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2017.304.00", "-v", "2"]
+            //"args": ["--auv_name", "dorado", "--mission", "2017.304.00", "-v", "2"]
+            "args": ["--auv_name", "dorado", "--mission", "2020.245.00", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",

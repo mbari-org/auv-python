@@ -24,9 +24,8 @@ import git
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
-
 from dorado_info import dorado_info
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -342,10 +341,13 @@ class Resampler:
     def resample_variable(
         self, instr: str, variable: str, mf_width: int, freq: str
     ) -> None:
+        timevar = f"{instr}_{TIME}"
+        if instr == "biolume" and variable == "biolume_raw":
+            timevar = f"{instr}_{TIME60HZ}"
         self.df_o[variable] = self.ds[variable].to_pandas()
         self.df_o[f"{variable}_mf"] = (
             self.ds[variable]
-            .rolling(**{instr + "_time": mf_width}, center=True)
+            .rolling(**{timevar: mf_width}, center=True)
             .median()
             .to_pandas()
         )
