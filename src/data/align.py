@@ -27,17 +27,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
 from numpy.core._exceptions import UFuncTypeError
 from scipy.interpolate import interp1d
-
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE
 
 
 class InvalidCalFile(Exception):
     pass
 
 
-MAX_EXTRAPOLATE = 1000  # Points outside of interp1d range
+MAX_EXTRAPOLATE = 4000  # Points outside of interp1d range
 
 
 class TooMuchExtrapolation(Exception):
@@ -179,10 +178,14 @@ class Align_NetCDF:
                 self.calibrated_nc["nudged_longitude"].values,
                 fill_value="extrapolate",
             )
+            timevar = f"{instr}_{TIME}"
+            if variable == "biolume_raw":
+                # biolume_raw is unique with its own time variable
+                timevar = f"{instr}_{TIME60HZ}"
             try:
                 depth_interp = interp1d(
                     self.calibrated_nc[f"{instr}_depth"]
-                    .get_index(f"{instr}_time")
+                    .get_index(timevar)
                     .view(np.int64)
                     .tolist(),
                     self.calibrated_nc[f"{instr}_depth"].values,
@@ -206,20 +209,17 @@ class Align_NetCDF:
                 raise InvalidCalFile(f"Cannot interpolate depth: {e}")
 
             var_time = (
-                self.aligned_nc[variable]
-                .get_index(f"{instr}_time")
-                .view(np.int64)
-                .tolist()
+                self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
             )
 
             # Count number of values that are outside the time range of the _interp coordinate values
             outside_interps = np.where(
                 (
-                    self.aligned_nc[variable].get_index(f"{instr}_time")
+                    self.aligned_nc[variable].get_index(timevar)
                     < self.calibrated_nc["depth_filtdepth"].get_index("depth_time")[0]
                 )
                 | (
-                    self.aligned_nc[variable].get_index(f"{instr}_time")
+                    self.aligned_nc[variable].get_index(timevar)
                     > self.calibrated_nc["depth_filtdepth"].get_index("depth_time")[-1]
                 )
             )[0]
@@ -227,11 +227,11 @@ class Align_NetCDF:
                 outside_interps,
                 np.where(
                     (
-                        self.aligned_nc[variable].get_index(f"{instr}_time")
+                        self.aligned_nc[variable].get_index(timevar)
                         < self.calibrated_nc["nudged_latitude"].get_index("time")[0]
                     )
                     | (
-                        self.aligned_nc[variable].get_index(f"{instr}_time")
+                        self.aligned_nc[variable].get_index(timevar)
                         > self.calibrated_nc["nudged_latitude"].get_index("time")[-1]
                     )
                 )[0],
@@ -245,15 +245,10 @@ class Align_NetCDF:
                         f"{variable}: Extrapolating {len(outside_interps)} value(s) at indice(s) {outside_interps}"
                     )
                     self.logger.info(
-                        "%s: Extrapolating %d value(s) between %s and %s",
+                        "%s: Extrapolating %d value(s) at indices %s",
                         variable,
                         len(outside_interps),
-                        self.aligned_nc[variable]
-                        .get_index(f"{instr}_time")[outside_interps]
-                        .values[0],
-                        self.aligned_nc[variable]
-                        .get_index(f"{instr}_time")[outside_interps]
-                        .values[-1],
+                        outside_interps,
                     )
             if len(outside_interps) > MAX_EXTRAPOLATE:
                 self.logger.error(
@@ -270,7 +265,7 @@ class Align_NetCDF:
                 sample_rate = np.round(
                     1.0
                     / (
-                        np.mean(np.diff(self.calibrated_nc[f"{instr}_time"]))
+                        np.mean(np.diff(self.calibrated_nc[timevar]))
                         / np.timedelta64(1, "s")
                     ),
                     decimals=2,
@@ -291,8 +286,8 @@ class Align_NetCDF:
                 continue
             self.aligned_nc[variable] = xr.DataArray(
                 self.calibrated_nc[variable].values,
-                dims={f"{instr}_time"},
-                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                dims={timevar},
+                coords=[self.calibrated_nc[variable].get_index(timevar)],
                 name=variable,
             )
             self.aligned_nc[variable].attrs = self.calibrated_nc[variable].attrs
@@ -305,8 +300,8 @@ class Align_NetCDF:
             self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
             self.aligned_nc[f"{instr}_depth"] = xr.DataArray(
                 depth_interp(var_time).astype(np.float64).tolist(),
-                dims={f"{instr}_time"},
-                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                dims={timevar},
+                coords=[self.calibrated_nc[variable].get_index(timevar)],
                 name=f"{instr}_depth",
             )
             try:
@@ -324,8 +319,8 @@ class Align_NetCDF:
 
             self.aligned_nc[f"{instr}_latitude"] = xr.DataArray(
                 lat_interp(var_time).astype(np.float64).tolist(),
-                dims={f"{instr}_time"},
-                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                dims={timevar},
+                coords=[self.calibrated_nc[variable].get_index(timevar)],
                 name=f"{instr}_latitude",
             )
             self.aligned_nc[f"{instr}_latitude"].attrs = self.calibrated_nc[
@@ -342,8 +337,8 @@ class Align_NetCDF:
 
             self.aligned_nc[f"{instr}_longitude"] = xr.DataArray(
                 lon_interp(var_time).astype(np.float64).tolist(),
-                dims={f"{instr}_time"},
-                coords=[self.calibrated_nc[variable].get_index(f"{instr}_time")],
+                dims={timevar},
+                coords=[self.calibrated_nc[variable].get_index(timevar)],
                 name=f"{instr}_longitude",
             )
             self.aligned_nc[f"{instr}_longitude"].attrs = self.calibrated_nc[
@@ -360,10 +355,10 @@ class Align_NetCDF:
 
             # Update spatial temporal bounds for the global metadata
             # https://github.com/pydata/xarray/issues/4917#issue-809708107
-            if self.aligned_nc[f"{instr}_time"][0] < pd.to_datetime(self.min_time):
-                self.min_time = self.aligned_nc[f"{instr}_time"][0].values
-            if self.aligned_nc[f"{instr}_time"][-1] > pd.to_datetime(self.max_time):
-                self.max_time = self.aligned_nc[f"{instr}_time"][-1].values
+            if self.aligned_nc[timevar][0] < pd.to_datetime(self.min_time):
+                self.min_time = self.aligned_nc[timevar][0].values
+            if self.aligned_nc[timevar][-1] > pd.to_datetime(self.max_time):
+                self.max_time = self.aligned_nc[timevar][-1].values
             if self.aligned_nc[f"{instr}_depth"][0] < self.min_depth:
                 self.min_depth = self.aligned_nc[f"{instr}_depth"][0].values
             if self.aligned_nc[f"{instr}_depth"][-1] > self.max_depth:
