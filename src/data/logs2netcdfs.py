@@ -18,16 +18,15 @@ import struct
 import sys
 import time
 from pathlib import Path
+from shutil import copytree
 from typing import List
 
 import numpy as np
 import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
-from netCDF4 import Dataset
-from shutil import copytree
-
 from AUV import AUV, monotonic_increasing_time_indices
+from netCDF4 import Dataset
 from readauvlog import log_record
 
 LOG_FILES = (
@@ -41,6 +40,7 @@ LOG_FILES = (
     "seabird25p.log",
     "FLBBCD2K.log",
     "tailCone.log",
+    "biolume.log",
 )
 BASE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../data/auv_data")
@@ -50,6 +50,7 @@ MISSIONLOGS = "missionlogs"
 MISSIONNETCDFS = "missionnetcdfs"
 PORTAL_BASE = "http://portal.shore.mbari.org:8080/auvdata/v1"
 TIME = "time"
+TIME60HZ = "time60hz"
 TIMEOUT = 240
 SUMMARY_SOURCE = "Original log files copied from {}"
 
@@ -71,7 +72,12 @@ class AUV_NetCDF(AUV):
         byte_offset = 0
         records = []
         (byte_offset, records) = self._read_header(file)
-        self._read_data(file, records, byte_offset)
+        if "biolume" in file:
+            (byte_offset, records) = self._read_biolume_header(file)
+            self._read_biolume_data(file, records, byte_offset)
+        else:
+            (byte_offset, records) = self._read_header(file)
+            self._read_data(file, records, byte_offset)
 
         return records
 
@@ -93,6 +99,61 @@ class AUV_NetCDF(AUV):
                     ssv = line.split(" ")
                     data_type = ssv[1]
                     short_name = ssv[2]
+
+                    csv = line.split(",")
+                    if len(csv) == 1:
+                        # Likely early missions before commas were used
+                        raise ValueError(
+                            "Failed to parse long_name & units from header"
+                        )
+                    long_name = csv[1].strip()
+                    units = csv[2].strip()
+                    if short_name == "time":
+                        units = "seconds since 1970-01-01 00:00:00Z"
+                    r = log_record(
+                        data_type, short_name, long_name, units, instrument_name, []
+                    )
+                    records.append(r)
+
+                line = f.readline()
+                byte_offset = f.tell()
+
+            return (byte_offset, records)
+
+    def _read_biolume_header(self, file: str):
+        """Parses the ASCII header of the log file, collapse all the raw_
+        variables into a single 60 hz raw variable"""
+        with open(file, "r", encoding="ISO-8859-15") as f:
+            byte_offset = 0
+            records = []
+            instrument_name = os.path.basename(f.name)
+
+            # Yes, read 2 lines here.
+            line = f.readline()
+            line = f.readline()
+            seen_raw = False
+            while line:
+                if "raw_" in line:
+                    if not seen_raw:
+                        # No need to read the raw_ variables. On first encounter
+                        # create a single raw variable for all the 60 hz raw_ data
+                        # and break out of the loop
+                        r = log_record(
+                            "integer",
+                            "raw",
+                            "Original 60 hz raw data",
+                            "photons s^-1",
+                            instrument_name,
+                            [],
+                        )
+                        records.append(r)
+                        seen_raw = True
+                elif "begin" in line:
+                    # Breaking here results in byte_offset being correct
+                    break
+                else:
+                    # parse non-raw_ line
+                    _, data_type, short_name, _ = line.split(" ", maxsplit=3)
 
                     csv = line.split(",")
                     if len(csv) == 1:
@@ -164,6 +225,76 @@ class AUV_NetCDF(AUV):
                             self.logger.error("No records uppacked")
                             raise
                     r.data.append(v)
+                rec_count += 1
+
+        self.logger.debug(
+            f"bytes read = {byte_offset + len_sum}" f" file size = {file_size}"
+        )
+
+    def _read_biolume_data(
+        self, file: str, records: List[log_record], byte_offset: int
+    ):
+        """Parse the binary section of the log file, collecting the 60 hz
+        raw values into a 60 hz time series"""
+        if byte_offset == 0:
+            raise EOFError(f"{file}: 0 sized file")
+        file_size = os.path.getsize(file)
+
+        ok = True
+        rec_count = 0
+        len_sum = 0
+        with open(file, "rb") as f:
+            f.seek(byte_offset)
+            while ok:
+                for r in records:
+                    try:
+                        if r.short_name == "raw":
+                            for _ in range(60):
+                                b = f.read(r.length())
+                                len_sum += r.length()
+                                if not b:
+                                    ok = False
+                                    len_sum -= r.length()
+                                    break
+                                v = struct.unpack("<i", b)[0]
+                                r.data.append(v)
+                        else:
+                            b = f.read(r.length())
+                            len_sum += r.length()
+                            if not b:
+                                ok = False
+                                len_sum -= r.length()
+                                break
+                            s = "<d"
+                            if r.data_type == "float":
+                                s = "<f"
+                            elif r.data_type == "integer":
+                                s = "<i"
+                            elif r.data_type == "short":
+                                s = "<h"
+                            v = struct.unpack(s, b)[0]
+                            r.data.append(v)
+                    except struct.error as e:
+                        self.logger.warning(
+                            f"{e}, b = {b} at record {rec_count},"
+                            f" for {r.short_name} in file {file}"
+                        )
+                        self.logger.info(
+                            f"bytes read = {byte_offset + len_sum}"
+                            f" file size = {file_size}"
+                        )
+                        self.logger.info(
+                            f"Tried to read {r.length()} bytes, but"
+                            f" only {byte_offset+len_sum-file_size}"
+                            f" bytes remaining"
+                        )
+                        if rec_count > 0:
+                            self.logger.info(
+                                f"Successfully unpacked {rec_count} records"
+                            )
+                        else:
+                            self.logger.error("No records uppacked")
+                            raise
                 rec_count += 1
 
         self.logger.debug(
@@ -310,17 +441,20 @@ class AUV_NetCDF(AUV):
 
     def _get_standard_name(self, short_name, long_name):
         standard_name = ""
-        self.logger.debug(
-            f"Using a rough heuristic to set a standard_name for {long_name}"
-        )
-        if short_name.lower() == "time":
+        if short_name.lower() == "time" or short_name.lower() == "time60hz":
             standard_name = "time"
         elif short_name.lower() == "temperature":
             standard_name = "sea_water_temperature"
+        if standard_name:
+            self.logger.debug(
+                f"Setting standard_name = {standard_name} for {long_name}"
+            )
 
         return standard_name
 
-    def _create_variable(self, data_type, short_name, long_name, units, data):
+    def _create_variable(
+        self, data_type, short_name, long_name, units, data, time_axis=TIME
+    ):
         if data_type == "short":
             nc_data_type = "h"
         elif data_type == "integer":
@@ -339,7 +473,7 @@ class AUV_NetCDF(AUV):
         setattr(
             self,
             short_name,
-            self.nc_file.createVariable(short_name, nc_data_type, (TIME,)),
+            self.nc_file.createVariable(short_name, nc_data_type, (time_axis,)),
         )
         if standard_name := self._get_standard_name(short_name, long_name):
             setattr(getattr(self, short_name), "standard_name", standard_name)
@@ -370,18 +504,48 @@ class AUV_NetCDF(AUV):
 
     def write_variables(self, log_data, netcdf_filename):
         log_data = self._correct_dup_short_names(log_data)
+        self.nc_file.createDimension(TIME, len(log_data[0].data))
         for variable in log_data:
             self.logger.debug(
                 f"Creating Variable {variable.short_name}:"
                 f" {variable.long_name} ({variable.units})"
             )
-            self._create_variable(
-                variable.data_type,
-                variable.short_name,
-                variable.long_name,
-                variable.units,
-                variable.data,
-            )
+            if "biolume" in netcdf_filename and variable.short_name == "raw":
+                # The "raw" log is the last one in the list, and time is the first
+                assert "raw" == log_data[-1].short_name
+                self.nc_file.createDimension(TIME60HZ, len(log_data[0].data) * 60)
+                assert "timeTag" == log_data[0].data_type
+                self.logger.info(
+                    "Expanding original timeTag to time60Hz variable for raw data"
+                )
+                self._create_variable(
+                    "timeTag",
+                    TIME60HZ,
+                    "60Hz time",
+                    "seconds since 1970-01-01 00:00:00Z",
+                    [
+                        tv + frac
+                        for tv in log_data[0].data
+                        for frac in np.arange(0, 1, 1 / 60)
+                    ],
+                    time_axis=TIME60HZ,
+                )
+                self._create_variable(
+                    variable.data_type,
+                    variable.short_name,
+                    variable.long_name,
+                    variable.units,
+                    variable.data,
+                    time_axis=TIME60HZ,
+                )
+            else:
+                self._create_variable(
+                    variable.data_type,
+                    variable.short_name,
+                    variable.long_name,
+                    variable.units,
+                    variable.data,
+                )
 
     def _remove_bad_values(self, netcdf_filename):
         """Loop through all variables in self.nc_file,
@@ -425,7 +589,6 @@ class AUV_NetCDF(AUV):
             # xarray's Dataset raises permission denied error if file exists
             os.remove(netcdf_filename)
         self.nc_file = Dataset(netcdf_filename, "w")
-        self.nc_file.createDimension(TIME, len(log_data[0].data))
         self.write_variables(log_data, netcdf_filename)
 
         # Add the global metadata, overriding with command line options provided

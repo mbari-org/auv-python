@@ -291,7 +291,7 @@ class Calibrate_NetCDF:
                         "data_filename": "biolume.nc",
                         "cal_filename": None,
                         "lag_secs": None,
-                        "sensor_offset": SensorOffset(-0.889, -0.0508),
+                        "sensor_offset": SensorOffset(4.04, 0.0),
                     },
                 ),
                 (
@@ -1920,7 +1920,6 @@ class Calibrate_NetCDF:
             "comment": f"BB_Sig from {source}",
         }
 
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_CDOM_Sig"] = xr.DataArray(
             orig_nc["CDOM_Sig"].values,
             coords=[orig_nc.get_index("time")],
@@ -1934,7 +1933,6 @@ class Calibrate_NetCDF:
             "comment": f"CDOM_Sig from {source}",
         }
 
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_Chl_Sig"] = xr.DataArray(
             orig_nc["Chl_Sig"].values,
             coords=[orig_nc.get_index("time")],
@@ -1949,7 +1947,6 @@ class Calibrate_NetCDF:
         }
 
         """ NU_ variables likely mean that they are Not Used based N/U text in WETLabs docs
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_NU_bb"] = xr.DataArray(
             orig_nc["NU_bb"].values,
             coords=[orig_nc.get_index("time")],
@@ -1963,7 +1960,6 @@ class Calibrate_NetCDF:
             "comment": f"NU_bb from {source}",
         }
 
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_NU_CDOM"] = xr.DataArray(
             orig_nc["NU_CDOM"].values,
             coords=[orig_nc.get_index("time")],
@@ -1977,7 +1973,6 @@ class Calibrate_NetCDF:
             "comment": f"NU_CDOM from {source}",
         }
 
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_NU_Chl"] = xr.DataArray(
             orig_nc["NU_Chl"].values,
             coords=[orig_nc.get_index("time")],
@@ -1992,7 +1987,6 @@ class Calibrate_NetCDF:
         }
 
         # Values from 2020.245.00 seem stuck arounnd 538
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_Thermistor"] = xr.DataArray(
             orig_nc["Thermistor"].values,
             coords=[orig_nc.get_index("time")],
@@ -2006,6 +2000,73 @@ class Calibrate_NetCDF:
             "comment": f"Thermistor from {source}",
         }
         """
+
+    def _biolume_process(self, sensor):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+        except AttributeError:
+            raise EOFError(
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
+            )
+
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
+        # TODO: Check this
+        self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
+            sensor, orig_nc
+        )
+
+        source = self.sinfo[sensor]["data_filename"]
+        self.combined_nc["biolume_flow"] = xr.DataArray(
+            orig_nc["flow"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_flow",
+        )
+        self.combined_nc["biolume_flow"].attrs = {
+            "long_name": "Bioluminesence pump flow rate",
+            "units": "RPM",
+            "coordinates": f"{sensor}_time {sensor}_depth",
+            "comment": f"flow from {source}",
+        }
+
+        self.combined_nc["biolume_avg_biolume"] = xr.DataArray(
+            orig_nc["avg_biolume"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_avg_biolume",
+        )
+        self.combined_nc["biolume_avg_biolume"].attrs = {
+            "long_name": "Bioluminesence Average of 60Hz data",
+            "units": "photons s^-1",
+            "coordinates": f"{sensor}_time {sensor}_depth",
+            "comment": f"avg_biolume from {source}",
+        }
+
+        self.combined_nc["biolume_raw"] = xr.DataArray(
+            orig_nc["raw"].values,
+            coords=[orig_nc.get_index("time60hz")],
+            dims={f"{sensor}_time60hz"},
+            name=f"{sensor}_raw",
+        )
+        self.combined_nc["biolume_raw"].attrs = {
+            "long_name": "Raw 60 hz biolume data",
+            # xarray writes out its own units attribute
+            "coordinates": f"{sensor}_time60hz {sensor}_depth60hz",
+            "comment": f"raw values from {source}",
+        }
 
     def _lopc_process(self, sensor):
         try:
@@ -2174,6 +2235,8 @@ class Calibrate_NetCDF:
             else:
                 if hasattr(getattr(self, sensor), "orig_data"):
                     self.logger.warning(f"No calibration information for {sensor}")
+        elif sensor == "biolume":
+            self._biolume_process(sensor)
         else:
             if hasattr(getattr(self, sensor), "orig_data"):
                 self.logger.warning(f"No method (yet) to process {sensor}")
