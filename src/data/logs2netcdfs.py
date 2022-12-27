@@ -18,7 +18,6 @@ import struct
 import sys
 import time
 from pathlib import Path
-from shutil import copytree
 from typing import List
 
 import numpy as np
@@ -653,8 +652,8 @@ class AUV_NetCDF(AUV):
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
                 else:
                     if src_dir:
-                        self.logger.info(f"Copying {src_dir} to {logs_dir}")
-                        copytree(src_dir, logs_dir, dirs_exist_ok=True)
+                        self.logger.info(f"Rsyncing {src_dir} to {logs_dir}")
+                        os.system(f"rsync -av {src_dir} {os.path.dirname(logs_dir)}")
                     else:
                         self.logger.info(
                             f"src_dir not provided, so downloading from portal"
