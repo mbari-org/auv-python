@@ -248,6 +248,7 @@ class AUV_NetCDF(AUV):
                 for r in records:
                     try:
                         if r.short_name == "raw":
+                            assert records[2].short_name == "cal_striing"
                             for _ in range(60):
                                 b = f.read(r.length())
                                 len_sum += r.length()
@@ -256,7 +257,8 @@ class AUV_NetCDF(AUV):
                                     len_sum -= r.length()
                                     break
                                 v = struct.unpack("<i", b)[0]
-                                r.data.append(v)
+                                # raw data is multiplied by cal_striing
+                                r.data.append(v * records[2].data[-1])
                         else:
                             b = f.read(r.length())
                             len_sum += r.length()
@@ -530,7 +532,7 @@ class AUV_NetCDF(AUV):
                     time_axis=TIME60HZ,
                 )
                 self._create_variable(
-                    variable.data_type,
+                    "float",
                     variable.short_name,
                     variable.long_name,
                     variable.units,

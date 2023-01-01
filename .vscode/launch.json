@@ -48,6 +48,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/calibrate.py",
             "console": "integratedTerminal",
+            "justMyCode": false,
             //"args": ["--auv_name", "dorado327", "--mission", "2003.223.02", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.065.02", "-v", "2"]
@@ -63,7 +64,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2022.094.01", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.025.00", "-v", "2"]
-            "args": ["--auv_name", "dorado", "--mission", "2020.245.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -78,13 +79,14 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/align.py",
             "console": "integratedTerminal",
+            "justMyCode": false,
             //"args": ["-v", "2", "--auv_name", "i2map", "--mission", "2020.055.01"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2017.297.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.172.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2007.120.00"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2020.245.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02"],
         },
         {
             "name": "4.0 - resample.py",
@@ -104,7 +106,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2007.120.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.344.03", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.304.00", "-v", "2"]
-            "args": ["--auv_name", "dorado", "--mission", "2020.245.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",
@@ -113,7 +115,7 @@
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2020.245.00", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02", "--AUVCTD"],
         },
         {
             "name": "gulper.py",
@@ -181,7 +183,7 @@
             //"args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal",  "--no_cleanup"]
             //"args": ["-v", "1", "--mission", "2017.269.01", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2003", "--end_year", "2003", "--start_yd", "98", "--end_yd", "105", "--use_portal",  "--no_cleanup"]
-            "args": ["-v", "1", "--mission", "2021.102.02", "--noinput", "--no_cleanup", "--clobber"]
+            "args": ["-v", "1", "--mission", "2021.102.02", "--noinput", "--no_cleanup", "--clobber", "--use_portal"]
             //"args": ["-v", "1"]
         },
     ]
