@@ -482,7 +482,7 @@ class Resampler:
             "long_name": "Time (UTC)",
         }
         out_fn = nc_file.replace("_align.nc", f"_{freq}.nc")
-        self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF3_CLASSIC")
+        self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")
         self.logger.info(f"Saved resampled mission to {out_fn}")
 
     def process_command_line(self):
