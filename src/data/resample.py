@@ -342,24 +342,55 @@ class Resampler:
         self, instr: str, variable: str, mf_width: int, freq: str
     ) -> None:
         timevar = f"{instr}_{TIME}"
-        if instr == "biolume" and variable == "biolume_raw":
+        if variable == "biolume_raw":
+            # WIP... not sure if this is the right way to do this
+            # Compute the background envelope according to Appendix B in
+            # "Using fluorescence and bioluminescence sensors to characterize
+            # auto- and heterotrophic plankton communities" by Messie et al."
+            # https://www.sciencedirect.com/science/article/pii/S0079661118300478
+            # Converted to Xarray/Pandas from the Matlab code at:
+            # https://bitbucket.org/messiem/toolbox_blprocess/src/master/bl_proxies_biolum.m
             timevar = f"{instr}_{TIME60HZ}"
-        self.df_o[variable] = self.ds[variable].to_pandas()
-        self.df_o[f"{variable}_mf"] = (
-            self.ds[variable]
-            .rolling(**{timevar: mf_width}, center=True)
-            .median()
-            .to_pandas()
-        )
-        # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
-        aggregator = ".mean() aggregator"
-        self.logger.info(
-            f"Resampling {variable} with frequency {freq} following {mf_width} point median filter "
-        )
-        self.df_r[variable] = (
-            self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
-        )
-        return aggregator
+            # 5 second rolling min and median, then 3 point median filter, before resampling to 1 Hz
+            min_bg = self.ds["biolume_raw"].rolling(**{timevar: 300}, center=True).min()
+            min_bg_mf = (
+                min_bg.rolling(**{timevar: mf_width}, center=True).median().to_pandas()
+            )
+            med_bg = (
+                self.ds["biolume_raw"].rolling(**{timevar: 300}, center=True).median()
+            )
+            med_bg_mf = (
+                med_bg.rolling(**{timevar: mf_width}, center=True).median().to_pandas()
+            )
+
+            self.logger.info(f"Creating biolume_min_bg using method from PiO paper")
+            self.df_r["biolume_min_bg"] = (
+                min_bg_mf.shift(0.5, freq=freq).resample(freq).mean()
+            )
+            self.logger.info(f"Creating biolume_med_bg using method from PiO paper")
+            self.df_r["biolume_med_bg"] = (
+                med_bg_mf.shift(0.5, freq=freq).resample(freq).mean()
+            )
+            self.logger.info(f"Creating biolume_above_bg using method from PiO paper")
+            self.df_r["biolume_above_bg"] = (
+                2 * self.df_r["biolume_med_bg"] - self.df_r["biolume_min_bg"]
+            )
+        else:
+            self.df_o[variable] = self.ds[variable].to_pandas()
+            self.df_o[f"{variable}_mf"] = (
+                self.ds[variable]
+                .rolling(**{timevar: mf_width}, center=True)
+                .median()
+                .to_pandas()
+            )
+            # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
+            self.logger.info(
+                f"Resampling {variable} with frequency {freq} following {mf_width} point median filter "
+            )
+            self.df_r[variable] = (
+                self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
+            )
+        return ".mean() aggregator"
 
     def save_variable(
         self, variable: str, mf_width: int, freq: str, aggregator: str
