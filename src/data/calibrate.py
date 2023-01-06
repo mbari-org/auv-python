@@ -292,6 +292,14 @@ class Calibrate_NetCDF:
                         "cal_filename": None,
                         "lag_secs": None,
                         "sensor_offset": SensorOffset(4.04, 0.0),
+                        # From https://bitbucket.org/messiem/matlab_libraries/src/master/data_access/donnees_insitu/MBARI/AUV/charge_Dorado.m
+                        # % UBAT flow conversion
+                        # if time>=datenum(2010,6,29), flow_conversion=4.49E-04;
+                        # else, flow_conversion=4.5E-04;			% calibration on 2/2/2009 but unknown before
+                        # end
+                        # flow_conversion=flow_conversion*1E3;	% using flow in mL/s
+                        # flow1Hz=rpm*flow_conversion;
+                        "flow_conversion": 4.5e-4 * 1e3,  # conversion to mL/s
                     },
                 ),
                 (
@@ -336,6 +344,8 @@ class Calibrate_NetCDF:
                 # First mission with 20 Gulpers: 2014.265.03
                 for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
                     self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
+            if start_datetime >= datetime(2010, 6, 29):
+                self.sinfo["biolume"]["flow_conversion"] = 4.49e-4 * 1e3
 
     def _range_qc_combined_nc(
         self, instrument: str, variables: List[str], ranges: dict
@@ -2030,14 +2040,14 @@ class Calibrate_NetCDF:
 
         source = self.sinfo[sensor]["data_filename"]
         self.combined_nc["biolume_flow"] = xr.DataArray(
-            orig_nc["flow"].values,
+            orig_nc["flow"].values * self.sinfo["biolume"]["flow_conversion"],
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_flow",
         )
         self.combined_nc["biolume_flow"].attrs = {
             "long_name": "Bioluminesence pump flow rate",
-            "units": "RPM",
+            "units": "mL/s",
             "coordinates": f"{sensor}_time {sensor}_depth",
             "comment": f"flow from {source}",
         }
