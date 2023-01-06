@@ -41,13 +41,13 @@ class Filter:
         background_ = self.filter(data_, filt_func)
 
         # shift the filtered data to the left by half the window size
-        # background_ = np.roll(background_, int(-self.window_size / 2))
+        background_ = np.roll(background_, int(-self.window_size / 2))
 
         # append the filtered data form the current record
         data_filt_ = np.concatenate([data_filt_, background_])
 
         # shift the filtered data to the left by half the window size
-        # data_filt_ = np.roll(data_filt_, int(-self.window_size / 2))
+        data_filt_ = np.roll(data_filt_, int(-self.window_size / 2))
 
         # apply mean filter and extract filtered data relevant to the current record
         background_smooth_ = self.filter(data_filt_, Mean)
