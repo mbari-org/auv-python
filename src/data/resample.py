@@ -22,10 +22,14 @@ from socket import gethostname
 import cf_xarray  # Needed for the .cf accessor
 import git
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import rolling
 import xarray as xr
+from BLFilter import Filter
 from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
+from scipy import signal
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -338,43 +342,84 @@ class Resampler:
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
+    def add_biolume_proxies(self, freq, window_size_secs: int = 15) -> None:
+        # Add variables via the calculations according to Appendix B in
+        # "Using fluorescence and bioluminescence sensors to characterize
+        # auto- and heterotrophic plankton communities" by Messie et al."
+        # https://www.sciencedirect.com/science/article/pii/S0079661118300478
+
+        # (1) Dinoflagellate and zooplankton proxies
+
+        sample_rate = 60  # Assume all biolume_raw data is sampled at 60 Hz
+        window_size = window_size_secs * sample_rate
+        s_biolume_raw = self.ds["biolume_raw"].to_pandas()
+
+        # Compute background biolumenesence envelope
+        filt = Filter(window_size=window_size, target_record_size=len(s_biolume_raw))
+        self.logger.debug("Applying rolling min filter")
+        _, min_bg = filt.apply_filter((s_biolume_raw, []), rolling.Min)
+        self.logger.debug("Applying rolling median filter")
+        _, med_bg = filt.apply_filter((s_biolume_raw, []), rolling.Median)
+        above_bg = med_bg * 2.0 - min_bg
+
+        # Find the high and low peaks
+        flash_threshold = 1.0e11
+        peaks, _ = signal.find_peaks(s_biolume_raw, height=above_bg)
+        s_peaks = pd.Series(s_biolume_raw[peaks], index=s_biolume_raw.index[peaks])
+        nbflash_high = s_peaks[s_peaks > flash_threshold]
+        nbflash_low = s_peaks[s_peaks <= flash_threshold]
+
+        # Construct full time series of flashes with NaNs for non-flash values
+        s_nbflash_high = pd.Series(np.nan, index=s_biolume_raw.index)
+        s_nbflash_high.loc[nbflash_high.index] = nbflash_high
+        s_nbflash_low = pd.Series(np.nan, index=s_biolume_raw.index)
+        s_nbflash_low.loc[nbflash_low.index] = nbflash_low
+
+        # Count the number of flashes per second
+        nbflash_high_counts = (
+            s_nbflash_high.rolling(60, step=60, min_periods=0)
+            .count()
+            .resample(freq)
+            .mean()
+        )
+        nbflash_low_counts = (
+            s_nbflash_low.rolling(60, step=60, min_periods=0)
+            .count()
+            .resample(freq)
+            .mean()
+        )
+
+        # Compute flashes per liter
+        flow = (
+            self.ds[["biolume_flow"]]
+            .sel(biolume_time=slice("2021-04-13 10:00:00", "2021-04-13 10:10:00"))[
+                "biolume_flow"
+            ]
+            .to_pandas()
+            .resample("1S")
+            .mean()
+        )
+        self.logger.info("Computing flashes per liter: nbflash_high, nbflash_low")
+        self.df_r["biolume_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_high"].attrs["comment"] = (
+            f" number of flashes > {flash_threshold} per liter from"
+            f" {sample_rate} Hz biolume_raw variable in {freq} intervals."
+        )
+
+        self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_high"].attrs["comment"] = (
+            f" number of flashes <= {flash_threshold} per liter from"
+            f" {sample_rate} Hz biolume_raw variable in {freq} intervals."
+        )
+
     def resample_variable(
         self, instr: str, variable: str, mf_width: int, freq: str
     ) -> None:
         timevar = f"{instr}_{TIME}"
-        if variable == "biolume_raw":
-            # WIP... not sure if this is the right way to do this
-            # Compute the background envelope according to Appendix B in
-            # "Using fluorescence and bioluminescence sensors to characterize
-            # auto- and heterotrophic plankton communities" by Messie et al."
-            # https://www.sciencedirect.com/science/article/pii/S0079661118300478
-            # Converted to Xarray/Pandas from the Matlab code at:
-            # https://bitbucket.org/messiem/toolbox_blprocess/src/master/bl_proxies_biolum.m
-            timevar = f"{instr}_{TIME60HZ}"
-            # 5 second rolling min and median, then 3 point median filter, before resampling to 1 Hz
-            min_bg = self.ds["biolume_raw"].rolling(**{timevar: 300}, center=True).min()
-            min_bg_mf = (
-                min_bg.rolling(**{timevar: mf_width}, center=True).median().to_pandas()
-            )
-            med_bg = (
-                self.ds["biolume_raw"].rolling(**{timevar: 300}, center=True).median()
-            )
-            med_bg_mf = (
-                med_bg.rolling(**{timevar: mf_width}, center=True).median().to_pandas()
-            )
-
-            self.logger.info(f"Creating biolume_min_bg using method from PiO paper")
-            self.df_r["biolume_min_bg"] = (
-                min_bg_mf.shift(0.5, freq=freq).resample(freq).mean()
-            )
-            self.logger.info(f"Creating biolume_med_bg using method from PiO paper")
-            self.df_r["biolume_med_bg"] = (
-                med_bg_mf.shift(0.5, freq=freq).resample(freq).mean()
-            )
-            self.logger.info(f"Creating biolume_above_bg using method from PiO paper")
-            self.df_r["biolume_above_bg"] = (
-                2 * self.df_r["biolume_med_bg"] - self.df_r["biolume_min_bg"]
-            )
+        if instr == "biolume" and variable == "biolume_raw":
+            # Only biolume_avg_biolume and biolume_flow treated like other data
+            # All other biolume variables in self.df_r[] are computed from biolume_raw
+            self.add_biolume_proxies(freq)
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
             self.df_o[f"{variable}_mf"] = (
@@ -391,20 +436,6 @@ class Resampler:
                 self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
             )
         return ".mean() aggregator"
-
-    def save_variable(
-        self, variable: str, mf_width: int, freq: str, aggregator: str
-    ) -> None:
-        self.df_r[variable].index.rename("time", inplace=True)
-        self.resampled_nc[variable] = self.df_r[variable].to_xarray()
-        self.resampled_nc[variable].attrs = self.ds[variable].attrs
-        self.resampled_nc[variable].attrs[
-            "coordinates"
-        ] = "time depth latitude longitude"
-        self.resampled_nc[variable].attrs["comment"] += (
-            f" median filtered with {mf_width} samples"
-            f" and resampled with {aggregator} to {freq} intervals."
-        )
 
     def plot_coordinates(self, instr: str, freq: str, plot_seconds: float) -> None:
         self.logger.info("Plotting resampled data")
@@ -499,10 +530,31 @@ class Resampler:
                 self.df_o = pd.DataFrame()
                 self.df_r = pd.DataFrame()
             for variable in variables:
-                aggregator = self.resample_variable(instr, variable, mf_width, freq)
-                self.save_variable(variable, mf_width, freq, aggregator)
-                if self.args.plot:
-                    self.plot_variable(instr, variable, freq, plot_seconds)
+                if instr == "biolume" and variable == "biolume_raw":
+                    # resample_variable() creates new proxy variables not in the original align.nc file
+                    self.resample_variable(instr, variable, mf_width, freq)
+                    for var in self.df_r.keys():
+                        if var not in variables:
+                            # save new proxy variable
+                            self.df_r[var].index.rename("time", inplace=True)
+                            self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var].attrs[
+                                "coordinates"
+                            ] = "time depth latitude longitude"
+                else:
+                    aggregator = self.resample_variable(instr, variable, mf_width, freq)
+                    self.df_r[variable].index.rename("time", inplace=True)
+                    self.resampled_nc[variable] = self.df_r[variable].to_xarray()
+                    self.resampled_nc[variable].attrs = self.ds[variable].attrs
+                    self.resampled_nc[variable].attrs[
+                        "coordinates"
+                    ] = "time depth latitude longitude"
+                    self.resampled_nc[variable].attrs["comment"] += (
+                        f" median filtered with {mf_width} samples"
+                        f" and resampled with {aggregator} to {freq} intervals."
+                    )
+                    if self.args.plot:
+                        self.plot_variable(instr, variable, freq, plot_seconds)
         self._build_global_metadata()
         if self.args.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
