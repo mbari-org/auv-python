@@ -391,13 +391,7 @@ class Resampler:
 
         # Compute flashes per liter
         flow = (
-            self.ds[["biolume_flow"]]
-            .sel(biolume_time=slice("2021-04-13 10:00:00", "2021-04-13 10:10:00"))[
-                "biolume_flow"
-            ]
-            .to_pandas()
-            .resample("1S")
-            .mean()
+            self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1S").mean()
         )
         self.logger.info("Computing flashes per liter: nbflash_high, nbflash_low")
         self.df_r["biolume_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
