@@ -1959,6 +1959,17 @@ pure-eval = "*"
 tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 
 [[package]]
+name = "suntime"
+version = "1.2.5"
+description = "Simple sunset and sunrise time calculation python library"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+python-dateutil = "*"
+
+[[package]]
 name = "terminado"
 version = "0.17.1"
 description = "Tornado websocket backend for the Xterm.js Javascript terminal emulator library."
@@ -2178,7 +2189,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "3.10.*"  # datashader can't be installed with python 3.11 yet
-content-hash = "51ae8756a5ecb43436d05c7c3c8001f6e389b1b785584273b0a61decbe9b4e16"
+content-hash = "2a33db1bae9a5c44f6fbb78f3da905b5a2787bd7d257fa40b2966872e5ef50e2"
 
 [metadata.files]
 aiohttp = [
@@ -3790,6 +3801,10 @@ soupsieve = [
 stack-data = [
     {file = "stack_data-0.6.2-py3-none-any.whl", hash = "sha256:cbb2a53eb64e5785878201a97ed7c7b94883f48b87bfb0bbe8b623c74679e4a8"},
     {file = "stack_data-0.6.2.tar.gz", hash = "sha256:32d2dd0376772d01b6cb9fc996f3c8b57a357089dec328ed4b6553d037eaf815"},
+]
+suntime = [
+    {file = "suntime-1.2.5-py3-none-any.whl", hash = "sha256:d957e9ca786ab3cd80bf624b007fed7d07f07c6fa33f3ccc5ec34c9bb0c380c6"},
+    {file = "suntime-1.2.5.tar.gz", hash = "sha256:e4df651dfcde332f905e57da6be49a1cc696499f11853fb0395df29104274649"},
 ]
 terminado = [
     {file = "terminado-0.17.1-py3-none-any.whl", hash = "sha256:8650d44334eba354dd591129ca3124a6ba42c3d5b70df5051b6921d506fdaeae"},
