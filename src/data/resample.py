@@ -24,9 +24,7 @@ import git
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import rolling
 import xarray as xr
-from BLFilter import Filter
 from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
 from scipy import signal
@@ -350,20 +348,36 @@ class Resampler:
 
         # (1) Dinoflagellate and zooplankton proxies
 
+        self.logger.info("Adding biolume proxy variables computed from biolume_raw")
         sample_rate = 60  # Assume all biolume_raw data is sampled at 60 Hz
         window_size = window_size_secs * sample_rate
         s_biolume_raw = self.ds["biolume_raw"].to_pandas()
 
         # Compute background biolumenesence envelope
-        filt = Filter(window_size=window_size, target_record_size=len(s_biolume_raw))
         self.logger.debug("Applying rolling min filter")
-        _, min_bg = filt.apply_filter((s_biolume_raw, []), rolling.Min)
+        min_bg_unsmoothed = s_biolume_raw.rolling(
+            window_size, min_periods=0, center=True
+        ).min()
+        min_bg = (
+            min_bg_unsmoothed.rolling(window_size, min_periods=0, center=True)
+            .mean()
+            .values
+        )
+
         self.logger.debug("Applying rolling median filter")
-        _, med_bg = filt.apply_filter((s_biolume_raw, []), rolling.Median)
+        med_bg_unsmoothed = s_biolume_raw.rolling(
+            window_size, min_periods=0, center=True
+        ).median()
+        med_bg = (
+            med_bg_unsmoothed.rolling(window_size, min_periods=0, center=True)
+            .mean()
+            .values
+        )
         above_bg = med_bg * 2.0 - min_bg
 
         # Find the high and low peaks
         flash_threshold = 1.0e11
+        self.logger.debug("Finding peaks")
         peaks, _ = signal.find_peaks(s_biolume_raw, height=above_bg)
         s_peaks = pd.Series(s_biolume_raw[peaks], index=s_biolume_raw.index[peaks])
         nbflash_high = s_peaks[s_peaks > flash_threshold]
@@ -376,6 +390,7 @@ class Resampler:
         s_nbflash_low.loc[nbflash_low.index] = nbflash_low
 
         # Count the number of flashes per second
+        self.logger.debug("Counting flashes")
         nbflash_high_counts = (
             s_nbflash_high.rolling(60, step=60, min_periods=0)
             .count()
