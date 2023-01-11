@@ -16,7 +16,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
@@ -24,6 +24,7 @@ import git
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import suntime
 import xarray as xr
 from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
@@ -351,7 +352,24 @@ class Resampler:
         self.logger.info("Adding biolume proxy variables computed from biolume_raw")
         sample_rate = 60  # Assume all biolume_raw data is sampled at 60 Hz
         window_size = window_size_secs * sample_rate
-        s_biolume_raw = self.ds["biolume_raw"].to_pandas()
+
+        sun = suntime.Sun(
+            lat=float(self.ds["navigation_latitude"].median()),
+            lon=float(self.ds["navigation_longitude"].median()),
+        )
+        sunrise = sun.get_sunrise_time(self.ds["biolume_time"].to_pandas().min())
+        sunset = sun.get_sunset_time(self.ds["biolume_time"].to_pandas().min())
+        if sunset < sunrise:
+            # https://github.com/SatAgro/suntime/issues/12#issuecomment-621755084
+            sunrise += timedelta(days=1)
+        self.logger.info(
+            f"Extracting data between sunset {sunset} and sunrise {sunrise}"
+        )
+        s_biolume_raw = (
+            self.ds["biolume_raw"]
+            .sel(biolume_time60hz=slice(sunset, sunrise))
+            .to_pandas()
+        )
 
         # Compute background biolumenesence envelope
         self.logger.debug("Applying rolling min filter")
