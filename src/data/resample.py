@@ -16,7 +16,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
@@ -24,11 +24,11 @@ import git
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import suntime
 import xarray as xr
 from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
 from scipy import signal
+from pysolar.solar import get_altitude
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -341,6 +341,57 @@ class Resampler:
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
+    def select_nighttime_bl_raw(self, stride: int = 3000) -> pd.Series:
+        # Select only the nighttime biolume_raw data
+        # Default stride of 3000 give 10 minute resolution from 5 hz navigation data
+        lat = float(self.ds["navigation_latitude"].median())
+        lon = float(self.ds["navigation_longitude"].median())
+        self.logger.debug("Getting sun altitudes for nighttime selection")
+        sun_alts = []
+        for ts in self.ds["navigation_time"].values[::stride]:
+            # About 10 minute resolution from 5 hz navigation data
+            sun_alts.append(
+                get_altitude(
+                    lat,
+                    lon,
+                    datetime.utcfromtimestamp(ts.astype(int) / 1.0e9).replace(
+                        tzinfo=timezone.utc
+                    ),
+                )
+            )
+        # Find sunset and sunrise - where alt changes sign
+        sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
+        ss_sr_times = (
+            self.ds["navigation_time"]
+            .isel({"navigation_time": sign_changes * stride})
+            .values
+        )
+        self.logger.debug(f"Sunset sunrise times {ss_sr_times}")
+        sunset = None
+        sunrise = None
+        if np.sign(sun_alts[0]) == 1:
+            if len(ss_sr_times) == 2:
+                sunset, sunrise = ss_sr_times
+            elif len(ss_sr_times) == 1:
+                sunset = ss_sr_times[0]
+            else:
+                self.logger.warning(
+                    f"Not just one sunset and one sunrise in this mission: ss_sr_times = {ss_sr_times}"
+                )
+        else:
+            self.logger.warning(
+                f"Sun is not up at start of mission: {ss_sr_times[0]}: alt = {sun_alts[0]}"
+            )
+
+        self.logger.info(
+            f"Extracting biolume_raw data between sunset {sunset} and sunrise {sunrise}"
+        )
+        return (
+            self.ds["biolume_raw"]
+            .sel(biolume_time60hz=slice(sunset, sunrise))
+            .to_pandas()
+        )
+
     def add_biolume_proxies(self, freq, window_size_secs: int = 15) -> None:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
@@ -352,24 +403,7 @@ class Resampler:
         self.logger.info("Adding biolume proxy variables computed from biolume_raw")
         sample_rate = 60  # Assume all biolume_raw data is sampled at 60 Hz
         window_size = window_size_secs * sample_rate
-
-        sun = suntime.Sun(
-            lat=float(self.ds["navigation_latitude"].median()),
-            lon=float(self.ds["navigation_longitude"].median()),
-        )
-        sunrise = sun.get_sunrise_time(self.ds["biolume_time"].to_pandas().min())
-        sunset = sun.get_sunset_time(self.ds["biolume_time"].to_pandas().min())
-        if sunset < sunrise:
-            # https://github.com/SatAgro/suntime/issues/12#issuecomment-621755084
-            sunrise += timedelta(days=1)
-        self.logger.info(
-            f"Extracting data between sunset {sunset} and sunrise {sunrise}"
-        )
-        s_biolume_raw = (
-            self.ds["biolume_raw"]
-            .sel(biolume_time60hz=slice(sunset, sunrise))
-            .to_pandas()
-        )
+        s_biolume_raw = self.select_nighttime_bl_raw()
 
         # Compute background biolumenesence envelope
         self.logger.debug("Applying rolling min filter")
