@@ -16,7 +16,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
@@ -27,8 +27,8 @@ import pandas as pd
 import xarray as xr
 from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
-from scipy import signal
 from pysolar.solar import get_altitude
+from scipy import signal
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -342,8 +342,10 @@ class Resampler:
         )
 
     def select_nighttime_bl_raw(self, stride: int = 3000) -> pd.Series:
-        # Select only the nighttime biolume_raw data
-        # Default stride of 3000 give 10 minute resolution from 5 hz navigation data
+        # Select only the nighttime biolume_raw data,
+        # one hour past sunset to one before sunrise
+        # Default stride of 3000 give 10 minute resolution
+        # from 5 hz navigation data
         lat = float(self.ds["navigation_latitude"].median())
         lon = float(self.ds["navigation_longitude"].median())
         self.logger.debug("Getting sun altitudes for nighttime selection")
@@ -372,8 +374,11 @@ class Resampler:
         if np.sign(sun_alts[0]) == 1:
             if len(ss_sr_times) == 2:
                 sunset, sunrise = ss_sr_times
+                sunset += timedelta(hours=1)
+                sunrise -= timedelta(hours=1)
             elif len(ss_sr_times) == 1:
                 sunset = ss_sr_times[0]
+                sunset += timedelta(hours=1)
             else:
                 self.logger.warning(
                     f"Not just one sunset and one sunrise in this mission: ss_sr_times = {ss_sr_times}"
