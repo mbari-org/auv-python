@@ -1,6 +1,6 @@
 # Dockerfile-ci: Modified to not use DOCKER_USER_ID
 # Adapted from from https://github.com/MBARIMike/ur_l/python_docker/Dockerfile
-FROM python:3.11.1-slim as python-base
+FROM python:3.10.9 as python-base
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=off \
