@@ -16,7 +16,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
@@ -374,11 +374,11 @@ class Resampler:
         if np.sign(sun_alts[0]) == 1:
             if len(ss_sr_times) == 2:
                 sunset, sunrise = ss_sr_times
-                sunset += timedelta(hours=1)
-                sunrise -= timedelta(hours=1)
+                sunset += pd.to_timedelta(1, "h")
+                sunrise -= pd.to_timedelta(1, "h")
             elif len(ss_sr_times) == 1:
                 sunset = ss_sr_times[0]
-                sunset += timedelta(hours=1)
+                sunset += pd.to_timedelta(1, "h")
             else:
                 self.logger.warning(
                     f"Not just one sunset and one sunrise in this mission: ss_sr_times = {ss_sr_times}"
@@ -393,7 +393,10 @@ class Resampler:
         )
         return (
             self.ds["biolume_raw"]
-            .sel(biolume_time60hz=slice(sunset, sunrise))
+            .where(
+                (self.ds["biolume_time60hz"] > sunset)
+                & (self.ds["biolume_time60hz"] < sunrise)
+            )
             .to_pandas()
         )
 
