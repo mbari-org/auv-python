@@ -23,7 +23,7 @@ from datetime import datetime
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor
-import matplotlib.pyplot as plt
+import git
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -58,6 +58,8 @@ class Align_NetCDF:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
+        repo = git.Repo(search_parent_directories=True)
+        gitcommit = repo.head.object.hexsha
         iso_now = datetime.utcnow().isoformat() + "Z"
 
         metadata = {}
@@ -92,6 +94,13 @@ class Align_NetCDF:
         metadata["title"] = (
             f"Calibrated and aligned AUV sensor data from"
             f" {self.args.auv_name} mission {self.args.mission}"
+        )
+        from_data = "calibrated data"
+        metadata["source"] = (
+            f"MBARI Dorado-class AUV data produced from {from_data}"
+            f" with execution of '{self.commandline}' at {iso_now} on"
+            f" host {gethostname()} using git commit {gitcommit} from"
+            f" software at 'https://github.com/mbari-org/auv-python'"
         )
         metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
