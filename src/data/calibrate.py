@@ -452,6 +452,11 @@ class Calibrate_NetCDF:
                         setattr(sensor_info, "cals", self._read_cfg(cal_filename))
                     except FileNotFoundError as e:
                         self.logger.debug(f"{e}")
+                elif cal_filename.endswith(".dev"):
+                    try:
+                        setattr(sensor_info, "cals", self._read_eco_dev(cal_filename))
+                    except FileNotFoundError as e:
+                        self.logger.debug(f"{e}")
 
             setattr(self, sensor, sensor_info)
             if hasattr(sensor_info, "orig_data"):
@@ -504,6 +509,46 @@ class Calibrate_NetCDF:
                             setattr(coeffs, coeff, float(value.split(";")[0]))
                     except ValueError as e:
                         self.logger.debug(f"{e}")
+        return coeffs
+
+    def _read_eco_dev(self, dev_filename):
+        """Read calibration informtation from the file associated with the
+        ecopck log data. The number match what are in the cal sheets in
+        https://bitbucket.org/messiem/auv-biolum/src/master/DATA/sensors%20%26%20calibration/FLBBCD2K_Dorado/
+
+        As of 13 January 2023 the contents of all the FLBBCD2K-3695.dev files are the same:
+        ECO 	FLBBCD2K-3695
+        Created on: 	10/29/2014
+
+        COLUMNS=9
+        N/U=1
+        N/U=2
+        N/U=3
+        CHL=4		0.0073		45
+        N/U=5
+        Lambda=6	1.633E-06	46	700	700
+        N/U=7
+        CDOM=8		0.0909		45
+        N/U=9
+        """
+        # Read the calibration coefficients from the .dev file, in case they change
+        coeffs = Coeffs()
+        with open(dev_filename) as fh:
+            for line in fh:
+                if line.startswith("CHL"):
+                    # CHL (μg/l) = Scale Factor * (Output - Dark counts)
+                    setattr(coeffs, "chl_scale_factor", float(line.split()[1]))
+                    setattr(coeffs, "chl_dark_counts", float(line.split()[2]))
+                elif line.startswith("Lambda"):
+                    # From Scattering Meter Calibration Sheet - wavelength 700 nm
+                    # "Lambda" == "bbp700" ?
+                    # β(θc) m-1 sr-1 = Scale Factor x (Output - Dark Counts)
+                    setattr(coeffs, "bbp700_scale_factor", float(line.split()[1]))
+                    setattr(coeffs, "bbp700_dark_counts", float(line.split()[2]))
+                elif line.startswith("CDOM"):
+                    # CDOM (ppb) = Scale Factor x (Output - Dark Counts)
+                    setattr(coeffs, "cdom_scale_factor", float(line.split()[1]))
+                    setattr(coeffs, "cdom_dark_counts", float(line.split()[2]))
         return coeffs
 
     def _navigation_process(self, sensor):
@@ -1891,7 +1936,7 @@ class Calibrate_NetCDF:
             "comment": f"propRpm from {source} (convert to RPM by multiplying by 9.549297)",
         }
 
-    def _ecopuck_process(self, sensor):
+    def _ecopuck_process(self, sensor, cf):
         # ecpouck's first mission 2020.245.00 - email dialog on 5 Dec 2022 discussing
         # using it for developing an HS2 transfer function and comparison with LRAUV data
         try:
@@ -1917,99 +1962,44 @@ class Calibrate_NetCDF:
 
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
-        self.combined_nc["ecopuck_BB_Sig"] = xr.DataArray(
-            orig_nc["BB_Sig"].values,
+        self.combined_nc["ecopuck_bbp700"] = xr.DataArray(
+            cf.bbp700_scale_factor * (orig_nc["BB_Sig"].values - cf.bbp700_dark_counts),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
-            name=f"{sensor}_BB_Sig",
+            name=f"{sensor}_bbp700",
         )
-        self.combined_nc["ecopuck_BB_Sig"].attrs = {
-            "long_name": "Backscatter signal ??",
-            "units": "",
+        self.combined_nc["ecopuck_bbp700"].attrs = {
+            "long_name": "Backscatter at 700 nm",
+            "units": "m^-1 sr^-1",
             "coordinates": coord_str,
-            "comment": f"BB_Sig from {source}",
+            "comment": f"BB_Sig from {source} converted to bbp700 using scale factor {cf.bbp700_scale_factor} and dark counts {cf.bbp700_dark_counts}",
         }
 
-        self.combined_nc["ecopuck_CDOM_Sig"] = xr.DataArray(
-            orig_nc["CDOM_Sig"].values,
+        self.combined_nc["ecopuck_cdom"] = xr.DataArray(
+            cf.cdom_scale_factor * (orig_nc["CDOM_Sig"].values - cf.cdom_dark_counts),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
-            name=f"{sensor}_CDOM_Sig",
+            name=f"{sensor}_cdom",
         )
-        self.combined_nc["ecopuck_CDOM_Sig"].attrs = {
-            "long_name": "Colored Dissolved Organic Matter signal ??",
-            "units": "",
+        self.combined_nc["ecopuck_cdom"].attrs = {
+            "long_name": "Colored Dissolved Organic Matter",
+            "units": "ppb",
             "coordinates": coord_str,
-            "comment": f"CDOM_Sig from {source}",
+            "comment": f"CDOM_Sig from {source} converted to cdom using scale factor {cf.cdom_scale_factor} and dark counts {cf.cdom_dark_counts}",
         }
 
-        self.combined_nc["ecopuck_Chl_Sig"] = xr.DataArray(
-            orig_nc["Chl_Sig"].values,
+        self.combined_nc["ecopuck_chl"] = xr.DataArray(
+            cf.chl_scale_factor * (orig_nc["Chl_Sig"].values - cf.chl_dark_counts),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
-            name=f"{sensor}_Chl_Sig",
+            name=f"{sensor}_chl",
         )
-        self.combined_nc["ecopuck_Chl_Sig"].attrs = {
-            "long_name": "Chlorophyll signal ??",
-            "units": "",
+        self.combined_nc["ecopuck_chl"].attrs = {
+            "long_name": "Chlorophyll",
+            "units": "ug/l",
             "coordinates": coord_str,
-            "comment": f"Chl_Sig from {source}",
+            "comment": f"Chl_Sig from {source} converted to chl using scale factor {cf.chl_scale_factor} and dark counts {cf.chl_dark_counts}",
         }
-
-        """ NU_ variables likely mean that they are Not Used based N/U text in WETLabs docs
-        self.combined_nc["ecopuck_NU_bb"] = xr.DataArray(
-            orig_nc["NU_bb"].values,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name=f"{sensor}_NU_bb",
-        )
-        self.combined_nc["ecopuck_NU_bb"].attrs = {
-            "long_name": "Null Backscatter signal ??",
-            "units": "",
-            "coordinates": coord_str,
-            "comment": f"NU_bb from {source}",
-        }
-
-        self.combined_nc["ecopuck_NU_CDOM"] = xr.DataArray(
-            orig_nc["NU_CDOM"].values,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name=f"{sensor}_NU_CDOM",
-        )
-        self.combined_nc["ecopuck_NU_CDOM"].attrs = {
-            "long_name": "Null Colored Dissolved Organic Matter signal ??",
-            "units": "",
-            "coordinates": coord_str,
-            "comment": f"NU_CDOM from {source}",
-        }
-
-        self.combined_nc["ecopuck_NU_Chl"] = xr.DataArray(
-            orig_nc["NU_Chl"].values,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name=f"{sensor}_NU_Chl",
-        )
-        self.combined_nc["ecopuck_NU_Chl"].attrs = {
-            "long_name": "Backscatter signal ??",
-            "units": "",
-            "coordinates": coord_str,
-            "comment": f"NU_Chl from {source}",
-        }
-
-        # Values from 2020.245.00 seem stuck arounnd 538
-        self.combined_nc["ecopuck_Thermistor"] = xr.DataArray(
-            orig_nc["Thermistor"].values,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name=f"{sensor}_Thermistor",
-        )
-        self.combined_nc["ecopuck_Thermistor"].attrs = {
-            "long_name": "Temperature ??",
-            "units": "",
-            "coordinates": coord_str,
-            "comment": f"Thermistor from {source}",
-        }
-        """
 
     def _biolume_process(self, sensor):
         try:
@@ -2232,7 +2222,7 @@ class Calibrate_NetCDF:
         elif sensor == "depth":
             self._depth_process(sensor)
         elif sensor == "ecopuck":
-            self._ecopuck_process(sensor)
+            self._ecopuck_process(sensor, coeffs)
         elif sensor == "hs2":
             self._hs2_process(sensor, logs_dir)
         elif sensor == "tailcone":
