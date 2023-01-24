@@ -1197,7 +1197,7 @@ test = ["ipykernel", "ipython", "ipywidgets", "nbconvert (>=7.0.0)", "pytest (>=
 
 [[package]]
 name = "nbconvert"
-version = "7.2.6"
+version = "7.2.9"
 description = "Converting Jupyter Notebooks"
 category = "main"
 optional = false
@@ -1222,11 +1222,11 @@ traitlets = ">=5.0"
 
 [package.extras]
 all = ["nbconvert[docs,qtpdf,serve,test,webpdf]"]
-docs = ["ipykernel", "ipython", "myst-parser", "nbsphinx (>=0.2.12)", "pydata-sphinx-theme", "sphinx (==5.0.2)"]
+docs = ["ipykernel", "ipython", "myst-parser", "nbsphinx (>=0.2.12)", "pydata-sphinx-theme", "sphinx (==5.0.2)", "sphinxcontrib-spelling"]
 qtpdf = ["nbconvert[qtpng]"]
 qtpng = ["pyqtwebengine (>=5.15)"]
 serve = ["tornado (>=6.1)"]
-test = ["ipykernel", "ipywidgets (>=7)", "pre-commit", "pyppeteer (>=1,<1.1)", "pytest", "pytest-dependency"]
+test = ["ipykernel", "ipywidgets (>=7)", "pre-commit", "pytest", "pytest-dependency"]
 webpdf = ["pyppeteer (>=1,<1.1)"]
 
 [[package]]
@@ -2186,7 +2186,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "3.10.*"  # datashader can't be installed with python 3.11 yet
-content-hash = "cf83a178f3860b2fd22c849b03fea1bf0d4e4039bddaf2e91c5dcfd06c0ebdd6"
+content-hash = "8e60749c8853b3c9897bdfd870ae2b8bccf6a7456d815a0f784b9802297e00d4"
 
 [metadata.files]
 aiohttp = [
@@ -3168,8 +3168,8 @@ nbclient = [
     {file = "nbclient-0.7.2.tar.gz", hash = "sha256:884a3f4a8c4fc24bb9302f263e0af47d97f0d01fe11ba714171b320c8ac09547"},
 ]
 nbconvert = [
-    {file = "nbconvert-7.2.6-py3-none-any.whl", hash = "sha256:f933e82fe48b9a421e4252249f6c0a9a9940dc555642b4729f3f1f526bb16779"},
-    {file = "nbconvert-7.2.6.tar.gz", hash = "sha256:c9c0e4b26326f7658ebf4cda0acc591b9727c4e3ee3ede962f70c11833b71b40"},
+    {file = "nbconvert-7.2.9-py3-none-any.whl", hash = "sha256:495638c5e06005f4a5ce828d8a81d28e34f95c20f4384d5d7a22254b443836e7"},
+    {file = "nbconvert-7.2.9.tar.gz", hash = "sha256:a42c3ac137c64f70cbe4d763111bf358641ea53b37a01a5c202ed86374af5234"},
 ]
 nbformat = [
     {file = "nbformat-5.7.0-py3-none-any.whl", hash = "sha256:1b05ec2c552c2f1adc745f4eddce1eac8ca9ffd59bb9fd859e827eaa031319f9"},
