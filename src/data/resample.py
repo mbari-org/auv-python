@@ -391,14 +391,14 @@ class Resampler:
         self.logger.info(
             f"Extracting biolume_raw data between sunset {sunset} and sunrise {sunrise}"
         )
-        return (
-            self.ds["biolume_raw"]
-            .where(
+        nighttime_bl_raw = (
+            self.ds["biolume_raw"].where(
                 (self.ds["biolume_time60hz"] > sunset)
                 & (self.ds["biolume_time60hz"] < sunrise)
             )
-            .to_pandas()
-        )
+        ).to_pandas()
+
+        return nighttime_bl_raw
 
     def add_biolume_proxies(self, freq, window_size_secs: int = 15) -> None:
         # Add variables via the calculations according to Appendix B in
@@ -464,22 +464,30 @@ class Resampler:
             .mean()
         )
 
-        # Compute flashes per liter
         flow = (
             self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1S").mean()
         )
+
+        # Compute flashes per liter - pandas.Series.divide() will match indexes
         self.logger.info("Computing flashes per liter: nbflash_high, nbflash_low")
         self.df_r["biolume_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
         self.df_r["biolume_nbflash_high"].attrs["comment"] = (
             f" number of flashes > {flash_threshold} per liter from"
             f" {sample_rate} Hz biolume_raw variable in {freq} intervals."
         )
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
-        self.df_r["biolume_nbflash_high"].attrs["comment"] = (
+        self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
+        self.df_r["biolume_nbflash_low"].attrs["comment"] = (
             f" number of flashes <= {flash_threshold} per liter from"
             f" {sample_rate} Hz biolume_raw variable in {freq} intervals."
         )
+
+        # Make med_bg a 1S pd.Series so that we can divide by flow, matching indexes
+        bg_biolume = pd.Series(med_bg, index=s_biolume_raw.index).resample("1S").mean()
+        self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
+        self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
 
     def resample_variable(
         self, instr: str, variable: str, mf_width: int, freq: str
@@ -607,6 +615,7 @@ class Resampler:
                             # save new proxy variable
                             self.df_r[var].index.rename("time", inplace=True)
                             self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var].attrs = self.df_r[var].attrs
                             self.resampled_nc[var].attrs[
                                 "coordinates"
                             ] = "time depth latitude longitude"
