@@ -86,7 +86,7 @@
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.172.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.181.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2007.120.00"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.018.03"],
         },
         {
             "name": "4.0 - resample.py",
@@ -115,7 +115,7 @@
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.018.03", "--AUVCTD"],
         },
         {
             "name": "gulper.py",
