@@ -106,7 +106,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2007.120.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.344.03", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.304.00", "-v", "2"]
-            "args": ["--auv_name", "dorado", "--mission", "2023.018.03", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",

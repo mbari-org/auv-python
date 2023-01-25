@@ -18,6 +18,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from socket import gethostname
+from typing import Tuple
 
 import cf_xarray  # Needed for the .cf accessor
 import git
@@ -341,7 +342,9 @@ class Resampler:
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
-    def select_nighttime_bl_raw(self, stride: int = 3000) -> pd.Series:
+    def select_nighttime_bl_raw(
+        self, stride: int = 3000
+    ) -> Tuple[pd.Series, datetime, datetime]:
         # Select only the nighttime biolume_raw data,
         # one hour past sunset to one before sunrise
         # Default stride of 3000 give 10 minute resolution
@@ -398,20 +401,21 @@ class Resampler:
             )
         ).to_pandas()
 
-        return nighttime_bl_raw
+        return nighttime_bl_raw, sunset, sunrise
 
     def add_biolume_proxies(self, freq, window_size_secs: int = 15) -> None:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
         # auto- and heterotrophic plankton communities" by Messie et al."
         # https://www.sciencedirect.com/science/article/pii/S0079661118300478
+        # Translation to Python demonstrated in notebooks/5.2-mpm-bg_biolume-PiO-paper.ipynb
 
         # (1) Dinoflagellate and zooplankton proxies
 
         self.logger.info("Adding biolume proxy variables computed from biolume_raw")
         sample_rate = 60  # Assume all biolume_raw data is sampled at 60 Hz
         window_size = window_size_secs * sample_rate
-        s_biolume_raw = self.select_nighttime_bl_raw()
+        s_biolume_raw, sunset, sunrise = self.select_nighttime_bl_raw()
 
         # Compute background biolumenesence envelope
         self.logger.debug("Applying rolling min filter")
@@ -488,6 +492,34 @@ class Resampler:
         bg_biolume = pd.Series(med_bg, index=s_biolume_raw.index).resample("1S").mean()
         self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
+
+        # (2) Phytoplankton proxies
+        fluo = (
+            self.ds["hs2_fl700"]
+            .where((self.ds["hs2_time"] > sunset) & (self.ds["hs2_time"] < sunrise))
+            .to_pandas()
+            .resample(freq)
+            .mean()
+        )
+        proxy_ratio_adinos = self.df_r["biolume_bg_biolume"].quantile(
+            0.99
+        ) / fluo.quantile(0.99)
+        proxy_cal_factor = 1.0
+        self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.2e}")
+        self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.2f}")
+        pseudo_fluorescence = self.df_r["biolume_bg_biolume"] / proxy_ratio_adinos
+        self.df_r["biolume_proxy_adinos"] = (
+            np.minimum(fluo, pseudo_fluorescence) / proxy_cal_factor
+        )
+        self.df_r["biolume_proxy_adinos"].attrs[
+            "comment"
+        ] = f"Autotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.2e} and proxy_cal_factor = {proxy_cal_factor:.2f}"
+        self.df_r["biolume_proxy_hdinos"] = (
+            pseudo_fluorescence - np.minimum(fluo, pseudo_fluorescence)
+        ) / proxy_cal_factor
+        self.df_r["biolume_proxy_hdinos"].attrs[
+            "comment"
+        ] = f"Heterotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.2e} and proxy_cal_factor = {proxy_cal_factor:.2f}"
 
     def resample_variable(
         self, instr: str, variable: str, mf_width: int, freq: str
