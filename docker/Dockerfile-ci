@@ -30,7 +30,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 
 WORKDIR $PYSETUP_PATH
 COPY ./poetry.lock ./pyproject.toml ./
-RUN poetry self update $POETRY_VERSION && poetry install --no-dev
+RUN poetry self update $POETRY_VERSION && poetry install --only main
 
 # 'production' stage uses the clean 'python-base' stage and copies
 # in only our runtime deps that were installed in the 'builder-base'
