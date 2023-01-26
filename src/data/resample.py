@@ -375,6 +375,7 @@ class Resampler:
         sunset = None
         sunrise = None
         if np.sign(sun_alts[0]) == 1:
+            # Sun is up at start of mission
             if len(ss_sr_times) == 2:
                 sunset, sunrise = ss_sr_times
                 sunset += pd.to_timedelta(1, "h")
@@ -382,24 +383,32 @@ class Resampler:
             elif len(ss_sr_times) == 1:
                 sunset = ss_sr_times[0]
                 sunset += pd.to_timedelta(1, "h")
-            else:
+                sunrise = self.ds["biolume_time60hz"].values[-1]
                 self.logger.warning(
-                    f"Not just one sunset and one sunrise in this mission: ss_sr_times = {ss_sr_times}"
+                    f"Could not find sunrise time, using last time in dataset: {sunrise}"
                 )
-        else:
+            else:
+                self.logger.info("Sun is up at start, but no sunset in this mission")
+        if np.sign(sun_alts[0]) == -1:
             self.logger.warning(
                 f"Sun is not up at start of mission: {ss_sr_times[0]}: alt = {sun_alts[0]}"
             )
 
-        self.logger.info(
-            f"Extracting biolume_raw data between sunset {sunset} and sunrise {sunrise}"
-        )
-        nighttime_bl_raw = (
-            self.ds["biolume_raw"].where(
-                (self.ds["biolume_time60hz"] > sunset)
-                & (self.ds["biolume_time60hz"] < sunrise)
+        if sunset is None and sunrise is None:
+            self.logger.info(
+                f"No sunset during this mission. No biolume_raw data will be extracted."
             )
-        ).to_pandas()
+            nighttime_bl_raw = pd.Series(dtype="float64")
+        else:
+            self.logger.info(
+                f"Extracting biolume_raw data between sunset {sunset} and sunrise {sunrise}"
+            )
+            nighttime_bl_raw = (
+                self.ds["biolume_raw"].where(
+                    (self.ds["biolume_time60hz"] > sunset)
+                    & (self.ds["biolume_time60hz"] < sunrise)
+                )
+            ).to_pandas()
 
         return nighttime_bl_raw, sunset, sunrise
 
@@ -416,6 +425,9 @@ class Resampler:
         sample_rate = 60  # Assume all biolume_raw data is sampled at 60 Hz
         window_size = window_size_secs * sample_rate
         s_biolume_raw, sunset, sunrise = self.select_nighttime_bl_raw()
+        if s_biolume_raw.empty:
+            self.logger.info("No biolume_raw data to compute proxies")
+            return
 
         # Compute background biolumenesence envelope
         self.logger.debug("Applying rolling min filter")
