@@ -1837,7 +1837,7 @@ dorado_info["2016.181.00"] = {
 }
 dorado_info["2016.270.00"] = {
     "program": f"{CANONSEP2016} {DIAMOND}",
-    "comment": ("CANON" " QC notes: Best CTD is ctd1"),
+    "comment": ("CANON" " QC notes: Best CTD is ctd1, no HS2 data"),
 }
 dorado_info["2016.307.00"] = {
     "program": DIAMOND,

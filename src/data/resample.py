@@ -506,6 +506,11 @@ class Resampler:
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
 
         # (2) Phytoplankton proxies
+        if "hs2_fl700" not in self.ds:
+            self.logger.info(
+                "No hs2_fl700 data. Not computing biolume_proxy_adinos and biolume_proxy_hdinos"
+            )
+            return
         fluo = (
             self.ds["hs2_fl700"]
             .where((self.ds["hs2_time"] > sunset) & (self.ds["hs2_time"] < sunrise))

@@ -106,7 +106,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2007.120.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.344.03", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.304.00", "-v", "2"]
-            "args": ["--auv_name", "dorado", "--mission", "2016.090.01", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2016.270.00", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",
@@ -183,7 +183,7 @@
             //"args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal",  "--no_cleanup"]
             //"args": ["-v", "1", "--mission", "2017.269.01", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2003", "--end_year", "2003", "--start_yd", "98", "--end_yd", "105", "--use_portal",  "--no_cleanup"]
-            "args": ["-v", "1", "--mission", "2016.090.01", "--noinput", "--no_cleanup", "--clobber"]
+            "args": ["-v", "1", "--mission", "2016.270.00", "--noinput", "--no_cleanup", "--clobber", "--use_portal"]
             //"args": ["-v", "1"]
         },
     ]
