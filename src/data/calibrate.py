@@ -2014,14 +2014,23 @@ class Calibrate_NetCDF:
             )
 
         # Remove non-monotonic times
-        self.logger.debug("Checking for non-monotonic increasing times")
+        self.logger.debug("Checking for non-monotonic increasing time")
         monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
         if (~monotonic).any():
             self.logger.debug(
-                "Removing non-monotonic increasing times at indices: %s",
+                "Removing non-monotonic increasing time at indices: %s",
                 np.argwhere(~monotonic).flatten(),
             )
         orig_nc = orig_nc.sel(time=monotonic)
+
+        self.logger.info("Checking for non-monotonic increasing time60hz")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time60hz"))
+        if (~monotonic).any():
+            self.logger.info(
+                "Removing non-monotonic increasing time60hz at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time60hz=monotonic)
 
         # TODO: Check this
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
