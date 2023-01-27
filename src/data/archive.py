@@ -55,7 +55,7 @@ class Archiver:
                 os.system(f"rsync {src_file} {surveys_dir}")
                 self.logger.info(f"rsync {src_file} {surveys_dir} done.")
             else:
-                self.logger.warning(f"{src_file} not found")
+                self.logger.error(f"{src_file} not found")
 
         # Copy intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
         YYYYJJJ = "".join(self.args.mission.split(".")[:2])
