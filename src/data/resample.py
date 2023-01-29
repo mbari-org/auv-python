@@ -69,7 +69,13 @@ class Resampler:
         Call following saving of coordinates and variables from resample_mission()
         """
         repo = git.Repo(search_parent_directories=True)
-        gitcommit = repo.head.object.hexsha
+        try:
+            gitcommit = repo.head.object.hexsha
+        except (ValueError, BrokenPipeError) as e:
+            self.logger.warning(
+                "could not get head commit sha for %s: %s", repo.remotes.origin.url, e
+            )
+            gitcommit = "<failed to get git commit>"
         iso_now = datetime.utcnow().isoformat().split(".")[0] + "Z"
         # Common dynamic attributes for all auv platforms
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))

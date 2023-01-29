@@ -59,7 +59,13 @@ class Align_NetCDF:
         metadata specific for the data that are written
         """
         repo = git.Repo(search_parent_directories=True)
-        gitcommit = repo.head.object.hexsha
+        try:
+            gitcommit = repo.head.object.hexsha
+        except (ValueError, BrokenPipeError) as e:
+            self.logger.warning(
+                "could not get head commit sha for %s: %s", repo.remotes.origin.url, e
+            )
+            gitcommit = "<failed to get git commit>"
         iso_now = datetime.utcnow().isoformat() + "Z"
 
         metadata = {}
