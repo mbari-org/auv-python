@@ -493,6 +493,9 @@ class Resampler:
         # Compute flashes per liter - pandas.Series.divide() will match indexes
         self.logger.info("Computing flashes per liter: nbflash_high, nbflash_low")
         self.df_r["biolume_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_high"] = self.df_r["biolume_nbflash_high"].replace(
+            [np.inf, -np.inf], np.nan
+        )
         self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
         self.df_r["biolume_nbflash_high"].attrs["comment"] = (
             f" number of flashes > {flash_threshold} per liter from"
@@ -500,6 +503,9 @@ class Resampler:
         )
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_low"] = self.df_r["biolume_nbflash_low"].replace(
+            [np.inf, -np.inf], np.nan
+        )
         self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
         self.df_r["biolume_nbflash_low"].attrs["comment"] = (
             f" number of flashes <= {flash_threshold} per liter from"
@@ -509,6 +515,9 @@ class Resampler:
         # Make med_bg a 1S pd.Series so that we can divide by flow, matching indexes
         bg_biolume = pd.Series(med_bg, index=s_biolume_raw.index).resample("1S").mean()
         self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
+        self.df_r["biolume_bg_biolume"] = self.df_r["biolume_bg_biolume"].replace(
+            [np.inf, -np.inf], np.nan
+        )
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
 
         # (2) Phytoplankton proxies
