@@ -490,35 +490,44 @@ class Resampler:
             self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1S").mean()
         )
 
+        # Flow sensor is not always on, so fill in 0.0 values with 350 ml/s
+        zero_note = ""
+        num_zero_flow = len(np.where(flow == 0)[0])
+        if num_zero_flow > 0:
+            zero_note = f"Zero flow values found: {num_zero_flow} of {len(flow)} - replaced with 350 ml/s"
+            self.logger.info(zero_note)
+            flow = flow.replace(0.0, 350.0)
+
         # Compute flashes per liter - pandas.Series.divide() will match indexes
         self.logger.info("Computing flashes per liter: nbflash_high, nbflash_low")
         self.df_r["biolume_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
-        self.df_r["biolume_nbflash_high"] = self.df_r["biolume_nbflash_high"].replace(
-            [np.inf, -np.inf], np.nan
-        )
         self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_high"].attrs["comment"] = (
-            f" number of flashes > {flash_threshold} per liter from"
-            f" {sample_rate} Hz biolume_raw variable in {freq} intervals."
-        )
+        self.df_r["biolume_nbflash_high"].attrs["comment"] = zero_note
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
-        self.df_r["biolume_nbflash_low"] = self.df_r["biolume_nbflash_low"].replace(
-            [np.inf, -np.inf], np.nan
-        )
         self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_low"].attrs["comment"] = (
-            f" number of flashes <= {flash_threshold} per liter from"
-            f" {sample_rate} Hz biolume_raw variable in {freq} intervals."
+        self.df_r["biolume_nbflash_low"].attrs["comment"] = zero_note
+
+        # Flash intensity in ph/s - proxy for small jellies
+        intflash = pd.Series(above_bg, index=s_biolume_raw.index).resample("1S").mean()
+        self.logger.info(
+            "Saving flash intensity: biolume_intflash - the upper bound of the background envelope"
+        )
+        self.df_r["biolume_intflash"] = intflash
+        self.df_r["biolume_intflash"].attrs["units"] = "photons/s"
+        self.df_r["biolume_intflash"].attrs["comment"] = (
+            f" intensity of flashes from {sample_rate} Hz biolume_raw variable"
+            f" in {freq} intervals."
         )
 
         # Make med_bg a 1S pd.Series so that we can divide by flow, matching indexes
         bg_biolume = pd.Series(med_bg, index=s_biolume_raw.index).resample("1S").mean()
-        self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
-        self.df_r["biolume_bg_biolume"] = self.df_r["biolume_bg_biolume"].replace(
-            [np.inf, -np.inf], np.nan
+        self.logger.info(
+            "Saving background biolumenesence: biolume_bg_biolume - the median of the background envelope"
         )
+        self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
+        self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
 
         # (2) Phytoplankton proxies
         if "hs2_fl700" not in self.ds:
