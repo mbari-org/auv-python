@@ -370,7 +370,7 @@ class Resampler:
                     ),
                 )
             )
-        # Find sunset and sunrise - where alt changes sign
+        # Find sunset and sunrise - where sun altitude changes sign
         sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
         ss_sr_times = (
             self.ds["navigation_time"]
@@ -410,11 +410,15 @@ class Resampler:
                 f"Extracting biolume_raw data between sunset {sunset} and sunrise {sunrise}"
             )
             nighttime_bl_raw = (
-                self.ds["biolume_raw"].where(
-                    (self.ds["biolume_time60hz"] > sunset)
-                    & (self.ds["biolume_time60hz"] < sunrise)
+                (
+                    self.ds["biolume_raw"].where(
+                        (self.ds["biolume_time60hz"] > sunset)
+                        & (self.ds["biolume_time60hz"] < sunrise)
+                    )
                 )
-            ).to_pandas()
+                .to_pandas()
+                .dropna()
+            )
 
         return nighttime_bl_raw, sunset, sunrise
 
