@@ -422,7 +422,15 @@ class Resampler:
 
         return nighttime_bl_raw, sunset, sunrise
 
-    def add_biolume_proxies(self, freq, window_size_secs: int = 15) -> None:
+    def add_biolume_proxies(
+        self,
+        freq,
+        window_size_secs: int = 5,
+        envelope_mini: float = 1.5e10,
+        flash_threshold: float = 1.0e11,
+        proxy_ratio_adinos: float = 3.98e13,  # 4-Oct-2010 to 2-Dec-2020 value
+        proxy_cal_factor: float = 1.0,  # Shoulb be .99 percentile of fluo
+    ) -> None:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
         # auto- and heterotrophic plankton communities" by Messie et al."
@@ -459,12 +467,15 @@ class Resampler:
             .mean()
             .values
         )
-        above_bg = med_bg * 2.0 - min_bg
+        max_bg = med_bg * 2.0 - min_bg
+        # envelope_mini: minimum value for the envelope (max_bgrd - med_bgrd) to avoid very dim flashes when the background is low (default 1.5E10 ph/s)
+        max_bg[max_bg - med_bg < envelope_mini] = (
+            med_bg[max_bg - med_bg < envelope_mini] + envelope_mini
+        )
 
         # Find the high and low peaks
-        flash_threshold = 1.0e11
         self.logger.debug("Finding peaks")
-        peaks, _ = signal.find_peaks(s_biolume_raw, height=above_bg)
+        peaks, _ = signal.find_peaks(s_biolume_raw, height=max_bg)
         s_peaks = pd.Series(s_biolume_raw[peaks], index=s_biolume_raw.index[peaks])
         nbflash_high = s_peaks[s_peaks > flash_threshold]
         nbflash_low = s_peaks[s_peaks <= flash_threshold]
@@ -513,7 +524,7 @@ class Resampler:
         self.df_r["biolume_nbflash_low"].attrs["comment"] = zero_note
 
         # Flash intensity in ph/s - proxy for small jellies
-        intflash = pd.Series(above_bg, index=s_biolume_raw.index).resample("1S").mean()
+        intflash = pd.Series(max_bg, index=s_biolume_raw.index).resample("1S").mean()
         self.logger.info(
             "Saving flash intensity: biolume_intflash - the upper bound of the background envelope"
         )
