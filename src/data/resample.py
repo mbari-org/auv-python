@@ -427,9 +427,9 @@ class Resampler:
         freq,
         window_size_secs: int = 5,
         envelope_mini: float = 1.5e10,
-        flash_threshold: float = 1.0e11,
+        flash_threshold: float = 1.5e11,
         proxy_ratio_adinos: float = 3.98e13,  # 4-Oct-2010 to 2-Dec-2020 value
-        proxy_cal_factor: float = 1.0,  # Shoulb be .99 percentile of fluo
+        proxy_cal_factor=0.0064926,  # 99th percentile of fluo - see 5.0-mpm-stoqs2parquet.ipynb
     ) -> None:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
@@ -486,16 +486,18 @@ class Resampler:
         s_nbflash_low = pd.Series(np.nan, index=s_biolume_raw.index)
         s_nbflash_low.loc[nbflash_low.index] = nbflash_low
 
-        # Count the number of flashes per second
-        self.logger.debug("Counting flashes")
+        # Count the number of flashes per second - use 15 second window stepping every second
+        flash_count_seconds = 15
+        flash_window = flash_count_seconds * sample_rate
+        self.logger.debug(f"Counting flashes using {flash_count_seconds} second window")
         nbflash_high_counts = (
-            s_nbflash_high.rolling(60, step=60, min_periods=0)
+            s_nbflash_high.rolling(flash_window, step=sample_rate, min_periods=0)
             .count()
             .resample(freq)
             .mean()
         )
         nbflash_low_counts = (
-            s_nbflash_low.rolling(60, step=60, min_periods=0)
+            s_nbflash_low.rolling(flash_window, step=sample_rate, min_periods=0)
             .count()
             .resample(freq)
             .mean()
@@ -560,22 +562,27 @@ class Resampler:
         proxy_ratio_adinos = self.df_r["biolume_bg_biolume"].quantile(
             0.99
         ) / fluo.quantile(0.99)
-        proxy_cal_factor = 1.0
-        self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.2e}")
-        self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.2f}")
+        self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.4e}")
+        self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.6f}")
         pseudo_fluorescence = self.df_r["biolume_bg_biolume"] / proxy_ratio_adinos
         self.df_r["biolume_proxy_adinos"] = (
             np.minimum(fluo, pseudo_fluorescence) / proxy_cal_factor
         )
         self.df_r["biolume_proxy_adinos"].attrs[
             "comment"
-        ] = f"Autotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.2e} and proxy_cal_factor = {proxy_cal_factor:.2f}"
+        ] = f"Autotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
         self.df_r["biolume_proxy_hdinos"] = (
             pseudo_fluorescence - np.minimum(fluo, pseudo_fluorescence)
         ) / proxy_cal_factor
         self.df_r["biolume_proxy_hdinos"].attrs[
             "comment"
-        ] = f"Heterotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.2e} and proxy_cal_factor = {proxy_cal_factor:.2f}"
+        ] = f"Heterotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
+        self.df_r["biolume_proxy_diatoms"] = (
+            fluo - self.df_r["biolume_proxy_adinos"]
+        ) / proxy_cal_factor
+        self.df_r["biolume_proxy_diatoms"].attrs[
+            "comment"
+        ] = f"Diatom proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
 
     def resample_variable(
         self, instr: str, variable: str, mf_width: int, freq: str
