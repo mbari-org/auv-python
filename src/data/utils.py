@@ -1,3 +1,5 @@
+import math
+
 # pure-Python Douglas-Peucker line simplification/generalization
 #
 # this code was written by Schuyler Erle <schuyler@nocat.net> and is
