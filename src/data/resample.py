@@ -27,9 +27,10 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from dorado_info import dorado_info
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME
 from pysolar.solar import get_altitude
 from scipy import signal
+from utils import simplify_points
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -422,6 +423,45 @@ class Resampler:
 
         return nighttime_bl_raw, sunset, sunrise
 
+    def add_profile(
+        self, simplify_criteria: int = 10, depth_threshold: float = 15
+    ) -> None:
+        # Make list of epoch second and depth tuples to pass to simplify_points
+        points = []
+        for time, depth in zip(
+            self.resampled_nc["time"].astype(np.float64).values / 1.0e9,
+            self.resampled_nc["depth"].values,
+        ):
+            points.append((time, depth))
+
+        simplify_criteria = 10  # 100 is course, .001 is fine - 10 is about right for typical diamond missions
+        simple_depth = simplify_points(points, simplify_criteria)
+
+        s_simple_depth = pd.Series(
+            [d for _, d, _ in simple_depth],
+            index=[pd.to_datetime(t, unit="s") for t, _, _ in simple_depth],
+        )
+
+        # Assign a profile number to each time point
+        profiles = []
+        count = 1
+        k = 0
+        for tv in self.resampled_nc["time"].values:
+            if tv > s_simple_depth.index[k + 1]:
+                # Encountered a new simple_depth point
+                k += 1
+                if abs(s_simple_depth[k + 1] - s_simple_depth[k]) > depth_threshold:
+                    # Completed downcast or upcast
+                    count += 1
+            profiles.append(count)
+            if k > len(s_simple_depth) - 2:
+                break
+
+        self.resampled_nc["profile_number"] = profiles
+        self.resampled_nc["profile_number"].attrs = {
+            "long_name": "Profile number",
+        }
+
     def add_biolume_proxies(
         self,
         freq,
@@ -462,11 +502,10 @@ class Resampler:
         med_bg_unsmoothed = s_biolume_raw.rolling(
             window_size, min_periods=0, center=True
         ).median()
-        med_bg = (
-            med_bg_unsmoothed.rolling(window_size, min_periods=0, center=True)
-            .mean()
-            .values
-        )
+        s_med_bg = med_bg_unsmoothed.rolling(
+            window_size, min_periods=0, center=True
+        ).mean()
+        med_bg = s_med_bg.values
         max_bg = med_bg * 2.0 - min_bg
         # envelope_mini: minimum value for the envelope (max_bgrd - med_bgrd) to avoid very dim flashes when the background is low (default 1.5E10 ph/s)
         max_bg[max_bg - med_bg < envelope_mini] = (
@@ -491,16 +530,22 @@ class Resampler:
         flash_window = flash_count_seconds * sample_rate
         self.logger.debug(f"Counting flashes using {flash_count_seconds} second window")
         nbflash_high_counts = (
-            s_nbflash_high.rolling(flash_window, step=sample_rate, min_periods=0)
+            s_nbflash_high.rolling(
+                flash_window, step=sample_rate, min_periods=0, center=True
+            )
             .count()
             .resample(freq)
             .mean()
+            / flash_count_seconds
         )
         nbflash_low_counts = (
-            s_nbflash_low.rolling(flash_window, step=sample_rate, min_periods=0)
+            s_nbflash_low.rolling(
+                flash_window, step=sample_rate, min_periods=0, center=True
+            )
             .count()
             .resample(freq)
             .mean()
+            / flash_count_seconds
         )
 
         flow = (
@@ -516,33 +561,55 @@ class Resampler:
             flow = flow.replace(0.0, 350.0)
 
         # Compute flashes per liter - pandas.Series.divide() will match indexes
+        # Units: flashes per liter = (flashes per second / mL/s) * 1000 mL/L
         self.logger.info("Computing flashes per liter: nbflash_high, nbflash_low")
         self.df_r["biolume_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_high"].attrs[
+            "long_name"
+        ] = "High intensity flashes (copepods proxy)"
         self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
         self.df_r["biolume_nbflash_high"].attrs["comment"] = zero_note
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
+        self.df_r["biolume_nbflash_low"].attrs[
+            "long_name"
+        ] = "Low intensity flashes (Larvacean proxy)"
         self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
         self.df_r["biolume_nbflash_low"].attrs["comment"] = zero_note
 
-        # Flash intensity in ph/s - proxy for small jellies
-        intflash = pd.Series(max_bg, index=s_biolume_raw.index).resample("1S").mean()
+        # Flash intensity in ph/s - proxy for small jellies - for entire mission, not just nightime
+        all_raw = self.ds[["biolume_raw"]]["biolume_raw"].to_pandas()
+        med_bg_60 = pd.Series(
+            np.interp(all_raw.index, s_med_bg.index, med_bg),
+            index=all_raw.index,
+        )
+        intflash = (
+            (all_raw - med_bg_60)
+            .rolling(flash_window, min_periods=0, center=True)
+            .max()
+            .resample("1S")
+            .mean()
+        )
         self.logger.info(
             "Saving flash intensity: biolume_intflash - the upper bound of the background envelope"
         )
         self.df_r["biolume_intflash"] = intflash
+        self.df_r["biolume_intflash"].attrs[
+            "long_name"
+        ] = "Flashes intensity (small jellies proxy)"
         self.df_r["biolume_intflash"].attrs["units"] = "photons/s"
         self.df_r["biolume_intflash"].attrs["comment"] = (
             f" intensity of flashes from {sample_rate} Hz biolume_raw variable"
             f" in {freq} intervals."
         )
 
-        # Make med_bg a 1S pd.Series so that we can divide by flow, matching indexes
-        bg_biolume = pd.Series(med_bg, index=s_biolume_raw.index).resample("1S").mean()
-        self.logger.info(
-            "Saving background biolumenesence: biolume_bg_biolume - the median of the background envelope"
-        )
+        # Make min_bg a 1S pd.Series so that we can divide by flow, matching indexes
+        bg_biolume = pd.Series(min_bg, index=s_biolume_raw.index).resample("1S").mean()
+        self.logger.info("Saving Background bioluminescence (dinoflagellates proxy)")
         self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
+        self.df_r["biolume_bg_biolume"].attrs[
+            "long_name"
+        ] = "Background bioluminescence (dinoflagellates proxy)"
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
         self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
 
@@ -728,6 +795,7 @@ class Resampler:
                     )
                     if self.args.plot:
                         self.plot_variable(instr, variable, freq, plot_seconds)
+        self.add_profile()
         self._build_global_metadata()
         if self.args.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
