@@ -468,7 +468,7 @@ class Resampler:
         window_size_secs: int = 5,
         envelope_mini: float = 1.5e10,
         flash_threshold: float = 1.5e11,
-        proxy_ratio_adinos: float = 3.98e13,  # 4-Oct-2010 to 2-Dec-2020 value
+        proxy_ratio_adinos: float = 3.9811e13,  # 4-Oct-2010 to 2-Dec-2020 value
         proxy_cal_factor=0.0064926,  # 99th percentile of fluo - see 5.0-mpm-stoqs2parquet.ipynb
     ) -> None:
         # Add variables via the calculations according to Appendix B in
@@ -626,9 +626,6 @@ class Resampler:
             .resample(freq)
             .mean()
         )
-        proxy_ratio_adinos = self.df_r["biolume_bg_biolume"].quantile(
-            0.99
-        ) / fluo.quantile(0.99)
         self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.4e}")
         self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.6f}")
         pseudo_fluorescence = self.df_r["biolume_bg_biolume"] / proxy_ratio_adinos
@@ -645,7 +642,7 @@ class Resampler:
             "comment"
         ] = f"Heterotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
         self.df_r["biolume_proxy_diatoms"] = (
-            fluo - self.df_r["biolume_proxy_adinos"]
+            fluo - pseudo_fluorescence
         ) / proxy_cal_factor
         self.df_r["biolume_proxy_diatoms"].attrs[
             "comment"
