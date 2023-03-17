@@ -516,8 +516,9 @@ class Resampler:
         self.logger.debug("Finding peaks")
         peaks, _ = signal.find_peaks(s_biolume_raw, height=max_bg)
         s_peaks = pd.Series(s_biolume_raw[peaks], index=s_biolume_raw.index[peaks])
-        nbflash_high = s_peaks[s_peaks > flash_threshold]
-        nbflash_low = s_peaks[s_peaks <= flash_threshold]
+        s_med_bg_peaks = pd.Series(s_med_bg[peaks], index=s_biolume_raw.index[peaks])
+        nbflash_high = s_peaks[s_peaks > (s_med_bg_peaks + flash_threshold)]
+        nbflash_low = s_peaks[s_peaks <= (s_med_bg_peaks + flash_threshold)]
 
         # Construct full time series of flashes with NaNs for non-flash values
         s_nbflash_high = pd.Series(np.nan, index=s_biolume_raw.index)
