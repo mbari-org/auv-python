@@ -661,25 +661,27 @@ unit-tests = ["bokeh", "bokeh (>=2.4.3)", "cftime", "codecov", "dash (>=1.16)", 
 
 [[package]]
 name = "hvplot"
-version = "0.7.3"
+version = "0.8.2"
 description = "A high-level plotting API for the PyData ecosystem built on HoloViews."
 category = "main"
 optional = false
-python-versions = ">=2.7"
+python-versions = ">=3.6"
 
 [package.dependencies]
 bokeh = ">=1.0.0"
 colorcet = ">=2"
 holoviews = ">=1.11.0"
 numpy = ">=1.15"
+packaging = "*"
 pandas = "*"
+panel = ">=0.11.0"
 
 [package.extras]
-all = ["coveralls", "dask", "datashader (>=0.6.5)", "flake8", "geopandas", "geoviews (>=1.6.0)", "intake", "intake-parquet", "intake-xarray", "keyring", "nbsite (>=0.5.1)", "nbsmoke (>=0.2.0)", "networkx", "nose", "notebook (>=5.4)", "numba (>=0.51.0)", "numpy (>=1.7)", "param (>=1.6.1)", "parameterized", "pillow", "pyct (>=0.4.4)", "pyepsg", "pytest", "python-snappy", "rasterio", "rfc3986", "s3fs", "scikit-image", "scipy", "selenium", "setuptools", "spatialpandas", "streamz (>=0.3.0)", "twine", "xarray"]
+all = ["cartopy", "codecov", "dask (>=2021.3.0)", "datashader (>=0.6.5)", "fiona", "flake8", "geopandas", "geoviews (>=1.6.0)", "intake (>=0.6.5)", "intake-parquet (>=0.2.3)", "intake-xarray (>=0.5.0)", "ipykernel (<6.18.0)", "ipywidgets", "matplotlib", "nbsite (>=0.7.2rc2)", "nbsmoke (>=0.2.0)", "networkx (>=2.6.3)", "notebook (>=5.4)", "numba (>=0.51.0)", "numpy (>=1.7)", "param (>=1.6.1)", "parameterized", "pillow (>=8.2.0)", "plotly", "pooch", "pooch (>=1.6.0)", "pre-commit", "pyct (>=0.4.4)", "pydata-sphinx-theme (<0.10)", "pyepsg", "pygraphviz", "pyproj", "pytest", "pytest-cov", "python-snappy (>=0.6.0)", "rasterio", "rioxarray", "s3fs (>=2022.1.0)", "scikit-image (>=0.17.2)", "scipy", "scipy (>=1.5.3)", "selenium (>=3.141.0)", "setuptools", "spatialpandas (>=0.4.3)", "sphinx-copybutton", "sphinx-design", "streamz (>=0.3.0)", "xarray", "xarray (>=0.18.2)"]
 build = ["param (>=1.6.1)", "pyct (>=0.4.4)", "setuptools"]
-doc = ["dask", "datashader (>=0.6.5)", "geopandas", "geoviews (>=1.6.0)", "intake", "intake-parquet", "intake-xarray", "nbsite (>=0.5.1)", "networkx", "notebook (>=5.4)", "numba (>=0.51.0)", "pillow", "pyepsg", "python-snappy", "rasterio", "s3fs", "scikit-image", "scipy", "selenium", "spatialpandas", "streamz (>=0.3.0)", "xarray"]
-examples = ["dask", "datashader (>=0.6.5)", "geopandas", "geoviews (>=1.6.0)", "intake", "intake-parquet", "intake-xarray", "networkx", "notebook (>=5.4)", "numba (>=0.51.0)", "pillow", "pyepsg", "python-snappy", "rasterio", "s3fs", "scikit-image", "scipy", "selenium", "spatialpandas", "streamz (>=0.3.0)", "xarray"]
-tests = ["coveralls", "flake8", "keyring", "nbsmoke (>=0.2.0)", "nose", "numpy (>=1.7)", "parameterized", "pytest", "rfc3986", "twine"]
+doc = ["cartopy", "dask (>=2021.3.0)", "datashader (>=0.6.5)", "fiona", "geopandas", "geoviews (>=1.6.0)", "intake (>=0.6.5)", "intake-parquet (>=0.2.3)", "intake-xarray (>=0.5.0)", "ipykernel (<6.18.0)", "matplotlib", "nbsite (>=0.7.2rc2)", "networkx (>=2.6.3)", "notebook (>=5.4)", "numba (>=0.51.0)", "pillow (>=8.2.0)", "plotly", "pooch (>=1.6.0)", "pydata-sphinx-theme (<0.10)", "pyepsg", "pygraphviz", "pyproj", "python-snappy (>=0.6.0)", "rasterio", "rioxarray", "s3fs (>=2022.1.0)", "scikit-image (>=0.17.2)", "scipy (>=1.5.3)", "selenium (>=3.141.0)", "spatialpandas (>=0.4.3)", "sphinx-copybutton", "sphinx-design", "streamz (>=0.3.0)", "xarray (>=0.18.2)"]
+examples = ["cartopy", "dask (>=2021.3.0)", "datashader (>=0.6.5)", "fiona", "geopandas", "geoviews (>=1.6.0)", "intake (>=0.6.5)", "intake-parquet (>=0.2.3)", "intake-xarray (>=0.5.0)", "ipykernel (<6.18.0)", "matplotlib", "networkx (>=2.6.3)", "notebook (>=5.4)", "numba (>=0.51.0)", "pillow (>=8.2.0)", "plotly", "pooch (>=1.6.0)", "pyepsg", "pygraphviz", "pyproj", "python-snappy (>=0.6.0)", "rasterio", "rioxarray", "s3fs (>=2022.1.0)", "scikit-image (>=0.17.2)", "scipy (>=1.5.3)", "selenium (>=3.141.0)", "spatialpandas (>=0.4.3)", "streamz (>=0.3.0)", "xarray (>=0.18.2)"]
+tests = ["codecov", "flake8", "ipywidgets", "matplotlib", "nbsmoke (>=0.2.0)", "numpy (>=1.7)", "parameterized", "plotly", "pooch", "pre-commit", "pytest", "pytest-cov", "scipy", "xarray"]
 
 [[package]]
 name = "idna"
@@ -1515,6 +1517,24 @@ dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
+name = "pooch"
+version = "1.7.0"
+description = "\"Pooch manages your Python library's sample data files: it automatically downloads and stores them in a local directory, with support for versioning and corruption checks.\""
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+packaging = ">=20.0"
+platformdirs = ">=2.5.0"
+requests = ">=2.19.0"
+
+[package.extras]
+progress = ["tqdm (>=4.41.0,<5.0.0)"]
+sftp = ["paramiko (>=2.7.0)"]
+xxhash = ["xxhash (>=1.4.3)"]
+
+[[package]]
 name = "prometheus-client"
 version = "0.15.0"
 description = "Python client for the Prometheus monitoring system."
@@ -2186,7 +2206,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "3.10.*"  # datashader can't be installed with python 3.11 yet
-content-hash = "8e60749c8853b3c9897bdfd870ae2b8bccf6a7456d815a0f784b9802297e00d4"
+content-hash = "55fa36585a49d6acffa4f09b83d711996abc86291fd19bc55289b1933af1486a"
 
 [metadata.files]
 aiohttp = [
@@ -2786,8 +2806,8 @@ holoviews = [
     {file = "holoviews-1.15.2.tar.gz", hash = "sha256:dec2417f654008b1d7b645b31ecf621c8bef901694e4c4e7272effd18afa36db"},
 ]
 hvplot = [
-    {file = "hvplot-0.7.3-py2.py3-none-any.whl", hash = "sha256:09410f8f569b00fcf59dc7b6d976e0bddf722d21d8d86029b7408016ab7ca477"},
-    {file = "hvplot-0.7.3.tar.gz", hash = "sha256:74b269c6e118dd6f7d2a4039e91f16a193638f4119b4358dc6dbd58a2e71e432"},
+    {file = "hvplot-0.8.2-py2.py3-none-any.whl", hash = "sha256:1fa078bd284dda81226d5b74c086fa301f6cd6d491a98b99fd4eaf50fe0f1888"},
+    {file = "hvplot-0.8.2.tar.gz", hash = "sha256:feadb395ac01a0be5fc89155452446c2b9c412a99d63eac029083138163d5c1b"},
 ]
 idna = [
     {file = "idna-3.4-py3-none-any.whl", hash = "sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2"},
@@ -3415,6 +3435,10 @@ platformdirs = [
 pluggy = [
     {file = "pluggy-1.0.0-py2.py3-none-any.whl", hash = "sha256:74134bbf457f031a36d68416e1509f34bd5ccc019f0bcc952c7b909d06b37bd3"},
     {file = "pluggy-1.0.0.tar.gz", hash = "sha256:4224373bacce55f955a878bf9cfa763c1e360858e330072059e10bad68531159"},
+]
+pooch = [
+    {file = "pooch-1.7.0-py3-none-any.whl", hash = "sha256:74258224fc33d58f53113cf955e8d51bf01386b91492927d0d1b6b341a765ad7"},
+    {file = "pooch-1.7.0.tar.gz", hash = "sha256:f174a1041b6447f0eef8860f76d17f60ed2f857dc0efa387a7f08228af05d998"},
 ]
 prometheus-client = [
     {file = "prometheus_client-0.15.0-py3-none-any.whl", hash = "sha256:db7c05cbd13a0f79975592d112320f2605a325969b270a94b71dcabc47b931d2"},
