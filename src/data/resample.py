@@ -550,7 +550,11 @@ class Resampler:
         )
 
         flow = (
-            self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1S").mean()
+            self.ds[["biolume_flow"]]["biolume_flow"]
+            .to_pandas()
+            .resample("1S")
+            .mean()
+            .fillna(method="ffill")
         )
 
         # Flow sensor is not always on, so fill in 0.0 values with 350 ml/s
@@ -614,15 +618,18 @@ class Resampler:
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
         self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
 
-        # (2) Phytoplankton proxies
+        # (2) Phytoplankton proxies - use median filtered hs2_fl700 1S data
         if "hs2_fl700" not in self.ds:
             self.logger.info(
                 "No hs2_fl700 data. Not computing biolume_proxy_adinos and biolume_proxy_hdinos"
             )
             return
         fluo = (
-            self.ds["hs2_fl700"]
-            .where((self.ds["hs2_time"] > sunset) & (self.ds["hs2_time"] < sunrise))
+            self.resampled_nc["hs2_fl700"]
+            .where(
+                (self.resampled_nc["time"] > sunset)
+                & (self.resampled_nc["time"] < sunrise)
+            )
             .to_pandas()
             .resample(freq)
             .mean()
