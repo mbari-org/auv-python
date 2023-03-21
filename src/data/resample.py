@@ -765,7 +765,7 @@ class Resampler:
         plt.show()
 
     def get_mission_start_end(
-        self, min_crit: int = 5
+        self, nc_file: str, min_crit: int = 5
     ) -> Tuple[datetime, datetime, str]:
         """Some i2map missions have the seabird25p instrument failing
         to record shortly after the start of the mission.  Examine the
@@ -820,7 +820,7 @@ class Resampler:
     ) -> None:
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
-        mission_start, mission_end, instrs_to_pad = self.get_mission_start_end()
+        mission_start, mission_end, instrs_to_pad = self.get_mission_start_end(nc_file)
         last_instr = ""
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items()
