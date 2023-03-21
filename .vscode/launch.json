@@ -104,9 +104,9 @@
             //"args": ["--auv_name", "i2map", "--mission", "2017.017.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2007.120.00", "-v", "1"]
-            //"args": ["--auv_name", "i2map", "--mission", "2018.344.03", "-v", "1"]
+            "args": ["--auv_name", "i2map", "--mission", "2019.280.02", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.304.00", "-v", "2"]
-            "args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
         },
         {
             "name": "5.0 - archive.py",
@@ -114,8 +114,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
-            //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2021.062.01", "--M3", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "i2map", "--mission", "2019.280.02", "--M3", "--AUVCTD"],
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02", "--AUVCTD"],
         },
         {
             "name": "gulper.py",
@@ -150,7 +150,7 @@
             //"args": ["-v", "1", "--mission", "2022.061.01", "--archive", "--noinput"],
             //"args": ["-v", "1", "--mission", "2018.344.01", "--use_portal", "--no_cleanup", "--noinput"],
             //"args": ["-v", "1", "--start_year", "2018", "--end_year", "2018", "--start_yd", "344", "--use_portal", "--no_cleanup", "--noinput", "--clobber"],
-            "args": ["-v", "1", "--mission", "2020.041.02", "--use_portal", "--no_cleanup", "--noinput"],
+            "args": ["-v", "1", "--mission", "2019.280.02", "--use_portal", "--no_cleanup", "--noinput"],
         },
         {
             "name": "process_dorado",

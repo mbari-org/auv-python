@@ -16,9 +16,9 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from socket import gethostname
-from typing import Tuple
+from typing import Tuple, Dict
 
 import cf_xarray  # Needed for the .cf accessor
 import git
@@ -657,7 +657,14 @@ class Resampler:
         ] = f"Diatom proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
 
     def resample_variable(
-        self, instr: str, variable: str, mf_width: int, freq: str
+        self,
+        instr: str,
+        variable: str,
+        mf_width: int,
+        freq: str,
+        mission_start: pd.Timestamp,
+        mission_end: pd.Timestamp,
+        instrs_to_pad: Dict[str, timedelta],
     ) -> None:
         timevar = f"{instr}_{TIME}"
         if instr == "biolume" and variable == "biolume_raw":
@@ -676,9 +683,26 @@ class Resampler:
             self.logger.info(
                 f"Resampling {variable} with frequency {freq} following {mf_width} point median filter "
             )
-            self.df_r[variable] = (
-                self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
-            )
+            if instr in instrs_to_pad.keys():
+                self.logger.info(
+                    f"Padding {variable} with {instrs_to_pad[instr]} of NaNs to the end of mission"
+                )
+                dt_index = pd.date_range(mission_start, mission_end, freq=freq)
+                self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
+                instr_data = (
+                    self.df_o[f"{variable}_mf"]
+                    .shift(0.5, freq=freq)
+                    .resample(freq)
+                    .mean()
+                )
+                self.df_r[variable].loc[instr_data.index] = instr_data
+            else:
+                self.df_r[variable] = (
+                    self.df_o[f"{variable}_mf"]
+                    .shift(0.5, freq=freq)
+                    .resample(freq)
+                    .mean()
+                )
         return ".mean() aggregator"
 
     def plot_coordinates(self, instr: str, freq: str, plot_seconds: float) -> None:
@@ -740,6 +764,53 @@ class Resampler:
         ax.set_title(f"{instr} {variable}")
         plt.show()
 
+    def get_mission_start_end(
+        self, min_crit: int = 5
+    ) -> Tuple[datetime, datetime, str]:
+        """Some i2map missions have the seabird25p instrument failing
+        to record shortly after the start of the mission.  Examine the
+        start and end times of each instrument and collect instruments
+        that end more than `min_crit` minutes earlier than the overall
+        mission_end time.
+        """
+        mission_start = datetime.max
+        mission_end = datetime.min
+        instrs_to_pad = {}
+        for instr, _ in self.instruments_variables(nc_file).items():
+            time_coord = f"{instr}_{TIME}"
+            if pd.to_datetime(self.ds[time_coord].min().values) < mission_start:
+                mission_start = pd.to_datetime(self.ds[time_coord].min().values)
+            if pd.to_datetime(self.ds[time_coord].max().values) > mission_end:
+                mission_end = pd.to_datetime(self.ds[time_coord].max().values)
+        for instr, _ in self.instruments_variables(nc_file).items():
+            time_coord = f"{instr}_{TIME}"
+            duration = mission_end - pd.to_datetime(self.ds[time_coord].max().values)
+            self.logger.info(
+                "%-10s: %s to %s (%s before mission_end)",
+                instr,
+                self.ds[time_coord].min().values,
+                self.ds[time_coord].max().values,
+                duration,
+            )
+            if mission_end - pd.to_datetime(
+                self.ds[time_coord].max().values
+            ) > timedelta(minutes=min_crit):
+                instrs_to_pad[instr] = duration
+                self.logger.warning(
+                    "Instrument %s has a gap > %d minutes at the end of the mission: %s",
+                    instr,
+                    min_crit,
+                    mission_end - pd.to_datetime(self.ds[time_coord].max().values),
+                )
+        # Convert to datetime with no fractional seconds
+        mission_start = datetime.strptime(
+            mission_start.strftime("%Y-%m-%dT%H:%M:%S"), "%Y-%m-%dT%H:%M:%S"
+        )
+        mission_end = datetime.strptime(
+            mission_end.strftime("%Y-%m-%dT%H:%M:%S"), "%Y-%m-%dT%H:%M:%S"
+        )
+        return mission_start, mission_end, instrs_to_pad
+
     def resample_mission(
         self,
         nc_file: str,
@@ -749,6 +820,7 @@ class Resampler:
     ) -> None:
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
+        mission_start, mission_end, instrs_to_pad = self.get_mission_start_end()
         last_instr = ""
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items()
@@ -763,6 +835,10 @@ class Resampler:
                 pitch_corrected_instr = "ctd1"
                 if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
+                    if pitch_corrected_instr in instrs_to_pad.keys():
+                        # Use navigation if seabird25p failed to record
+                        # data all the way to the end of the mission
+                        pitch_corrected_instr = "navigation"
                 aggregator = self.resample_coordinates(
                     pitch_corrected_instr, mf_width, freq
                 )
@@ -776,7 +852,15 @@ class Resampler:
             for variable in variables:
                 if instr == "biolume" and variable == "biolume_raw":
                     # resample_variable() creates new proxy variables not in the original align.nc file
-                    self.resample_variable(instr, variable, mf_width, freq)
+                    self.resample_variable(
+                        instr,
+                        variable,
+                        mf_width,
+                        freq,
+                        mission_start,
+                        mission_end,
+                        instrs_to_pad,
+                    )
                     for var in self.df_r.keys():
                         if var not in variables:
                             # save new proxy variable
@@ -787,7 +871,15 @@ class Resampler:
                                 "coordinates"
                             ] = "time depth latitude longitude"
                 else:
-                    aggregator = self.resample_variable(instr, variable, mf_width, freq)
+                    aggregator = self.resample_variable(
+                        instr,
+                        variable,
+                        mf_width,
+                        freq,
+                        mission_start,
+                        mission_end,
+                        instrs_to_pad,
+                    )
                     self.df_r[variable].index.rename("time", inplace=True)
                     self.resampled_nc[variable] = self.df_r[variable].to_xarray()
                     self.resampled_nc[variable].attrs = self.ds[variable].attrs
