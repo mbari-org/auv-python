@@ -469,7 +469,7 @@ class Resampler:
         envelope_mini: float = 1.5e10,
         flash_threshold: float = 1.5e11,
         proxy_ratio_adinos: float = 3.9811e13,  # 4-Oct-2010 to 2-Dec-2020 value
-        proxy_cal_factor=0.0064926,  # 99th percentile of fluo - see 5.0-mpm-stoqs2parquet.ipynb
+        proxy_cal_factor=0.00470,  # Same as used in 5.2-mpm-bg_biolume-PiO-paper.ipynb
     ) -> None:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
