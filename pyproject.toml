@@ -50,6 +50,7 @@ rolling = "^0.3.0"
 pysolar = "^0.10"
 nbconvert = "^7.2.9"
 pooch = "^1.7.0"
+statsmodels = "^0.13.5"
 
 
 [tool.poetry.dev-dependencies]
