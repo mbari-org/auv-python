@@ -290,7 +290,7 @@ class Calibrate_NetCDF:
                     {
                         "data_filename": "biolume.nc",
                         "cal_filename": None,
-                        "lag_secs": None,
+                        "lag_secs": 0.0,
                         "sensor_offset": SensorOffset(4.04, 0.0),
                         # From https://bitbucket.org/messiem/matlab_libraries/src/master/data_access/donnees_insitu/MBARI/AUV/charge_Dorado.m
                         # % UBAT flow conversion
@@ -2057,11 +2057,17 @@ class Calibrate_NetCDF:
             dims={f"{sensor}_time"},
             name=f"{sensor}_avg_biolume",
         )
+        time_shift = ""
+        if self.sinfo[sensor]["lag_secs"]:
+            self.combined_nc["biolume_avg_biolume"] = self.combined_nc[
+                "biolume_avg_biolume"
+            ].shift(biolume_time=int(self.sinfo[sensor]["lag_secs"]))
+            time_shift = f" shifted by {int(self.sinfo[sensor]['lag_secs'])} seconds"
         self.combined_nc["biolume_avg_biolume"].attrs = {
             "long_name": "Bioluminesence Average of 60Hz data",
             "units": "photons s^-1",
             "coordinates": f"{sensor}_time {sensor}_depth",
-            "comment": f"avg_biolume from {source}",
+            "comment": f"avg_biolume from {source}{time_shift}",
         }
 
         self.combined_nc["biolume_raw"] = xr.DataArray(
@@ -2070,11 +2076,17 @@ class Calibrate_NetCDF:
             dims={f"{sensor}_time60hz"},
             name=f"{sensor}_raw",
         )
+        time_shift = ""
+        if self.sinfo[sensor]["lag_secs"]:
+            self.combined_nc["biolume_raw"] = self.combined_nc["biolume_raw"].shift(
+                biolume_time60hz=int(self.sinfo[sensor]["lag_secs"] * 60)
+            )
+            time_shift = " shifted by {self.sinfo[sensor]['lag_secs']} seconds"
         self.combined_nc["biolume_raw"].attrs = {
             "long_name": "Raw 60 hz biolume data",
             # xarray writes out its own units attribute
             "coordinates": f"{sensor}_time60hz {sensor}_depth60hz",
-            "comment": f"raw values from {source}",
+            "comment": f"raw values from {source}{time_shift}",
         }
 
     def _lopc_process(self, sensor):
