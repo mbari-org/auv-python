@@ -423,38 +423,31 @@ class Resampler:
 
         return nighttime_bl_raw, sunset, sunrise
 
-    def add_profile(
-        self, simplify_criteria: int = 10, depth_threshold: float = 15
-    ) -> None:
-        # Make list of epoch second and depth tuples to pass to simplify_points
-        points = []
-        for time, depth in zip(
-            self.resampled_nc["time"].astype(np.float64).values / 1.0e9,
-            self.resampled_nc["depth"].values,
-        ):
-            points.append((time, depth))
-
-        simplify_criteria = 10  # 100 is course, .001 is fine - 10 is about right for typical diamond missions
-        simple_depth = simplify_points(points, simplify_criteria)
-
-        s_simple_depth = pd.Series(
-            [d for _, d, _ in simple_depth],
-            index=[pd.to_datetime(t, unit="s") for t, _, _ in simple_depth],
+    def add_profile(self, depth_threshold: float = 15) -> None:
+        # Find depth vertices value using scipy's find_peaks algorithm
+        options = dict(prominence=10, width=30)
+        peaks_pos, _ = signal.find_peaks(self.resampled_nc["depth"], **options)
+        peaks_neg, _ = signal.find_peaks(-self.resampled_nc["depth"], **options)
+        # Need to add the first and last time values to the list of peaks
+        peaks = np.concatenate(
+            (peaks_pos, peaks_neg, [0], [len(self.resampled_nc["depth"]) - 1])
         )
+        peaks.sort(kind="mergesort")
+        s_peaks = self.resampled_nc["depth"][peaks].to_pandas()
 
-        # Assign a profile number to each time point
+        # Assign a profile number to each time value
         profiles = []
         count = 1
         k = 0
         for tv in self.resampled_nc["time"].values:
-            if tv > s_simple_depth.index[k + 1]:
+            if tv > s_peaks.index[k + 1]:
                 # Encountered a new simple_depth point
                 k += 1
-                if abs(s_simple_depth[k + 1] - s_simple_depth[k]) > depth_threshold:
+                if abs(s_peaks[k + 1] - s_peaks[k]) > depth_threshold:
                     # Completed downcast or upcast
                     count += 1
             profiles.append(count)
-            if k > len(s_simple_depth) - 2:
+            if k > len(s_peaks) - 2:
                 break
 
         self.resampled_nc["profile_number"] = profiles
@@ -531,18 +524,14 @@ class Resampler:
         flash_window = flash_count_seconds * sample_rate
         self.logger.debug(f"Counting flashes using {flash_count_seconds} second window")
         nbflash_high_counts = (
-            s_nbflash_high.rolling(
-                flash_window, step=sample_rate, min_periods=0, center=True
-            )
+            s_nbflash_high.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
             .resample(freq)
             .mean()
             / flash_count_seconds
         )
         nbflash_low_counts = (
-            s_nbflash_low.rolling(
-                flash_window, step=sample_rate, min_periods=0, center=True
-            )
+            s_nbflash_low.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
             .resample(freq)
             .mean()
@@ -634,6 +623,8 @@ class Resampler:
             .resample(freq)
             .mean()
         )
+        # Set negative values from hs2_fl700 to NaN
+        fluo[fluo < 0] = np.nan
         self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.4e}")
         self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.6f}")
         pseudo_fluorescence = self.df_r["biolume_bg_biolume"] / proxy_ratio_adinos
@@ -649,9 +640,9 @@ class Resampler:
         self.df_r["biolume_proxy_hdinos"].attrs[
             "comment"
         ] = f"Heterotrophic dinoflagellate proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
-        self.df_r["biolume_proxy_diatoms"] = (
-            fluo - pseudo_fluorescence
-        ) / proxy_cal_factor
+        biolume_proxy_diatoms = (fluo - pseudo_fluorescence) / proxy_cal_factor
+        biolume_proxy_diatoms[biolume_proxy_diatoms < 0] = 0
+        self.df_r["biolume_proxy_diatoms"] = biolume_proxy_diatoms
         self.df_r["biolume_proxy_diatoms"].attrs[
             "comment"
         ] = f"Diatom proxy using proxy_ratio_adinos = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
