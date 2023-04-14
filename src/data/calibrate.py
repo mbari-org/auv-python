@@ -1434,30 +1434,29 @@ class Calibrate_NetCDF:
         mred = np.ma.masked_greater(mred, 0.1)
         mfl = np.ma.masked_invalid(fl)
         mfl = np.ma.masked_greater(mfl, 0.02)
-        mhs2 = np.logical_and(mblue, np.logical_and(mred, mfl))
 
         bad_hs2 = [
             f"{b}, {r}, {f}"
             for b, r, f in zip(
-                blue_bs.values[:][mhs2.mask],
-                red_bs.values[:][mhs2.mask],
-                fl.values[:][mhs2.mask],
+                blue_bs.values[:][mblue.mask],
+                red_bs.values[:][mred.mask],
+                fl.values[:][mfl.mask],
             )
         ]
 
         if bad_hs2:
             self.logger.info(
                 f"Number of bad {sensor} points:"
-                f" {len(blue_bs.values[:][mhs2.mask])}"
+                f" {len(blue_bs.values[:][mblue.mask])}"
                 f" of {len(blue_bs)}"
             )
             self.logger.debug(
                 f"Removing bad {sensor} points (indices,"
-                f" (blue, red, fl)): {np.where(mhs2.mask)[0]},"
+                f" (blue, red, fl)): {np.where(mred.mask)[0]},"
                 f" {bad_hs2}"
             )
-            blue_bs = blue_bs[:][~mhs2.mask]
-            red_bs = red_bs[:][~mhs2.mask]
+            blue_bs = blue_bs[:][~mblue.mask]
+            red_bs = red_bs[:][~mfl.mask]
 
         red_blue_plot = True  # Set to False for debugging other plots
         if self.args.plot and red_blue_plot:
