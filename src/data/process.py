@@ -30,6 +30,7 @@ import sys
 import time
 from datetime import datetime
 from getpass import getuser
+from multiprocessing import cpu_count, get_context
 from pathlib import Path
 from socket import gethostname
 
@@ -49,11 +50,7 @@ class Processor:
 
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
+    _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
@@ -293,7 +290,7 @@ class Processor:
             os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"), mode="w+"
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
-        self.log_handler.setFormatter(self._formatter)
+        self.log_handler.setFormatter(AUV_NetCDF._formatter)
         self.logger.info(
             "====================================================================================================================="
         )
@@ -329,6 +326,32 @@ class Processor:
             self.resample(mission)
             # self.archive() is called in finally: blocks in process_missions()
 
+    def process_mission_job(self, mission: str, src_dir: str = None) -> None:
+        try:
+            t_start = time.time()
+            self.process_mission(mission, src_dir)
+        except (
+            InvalidCalFile,
+            InvalidAlignFile,
+            FileNotFoundError,
+            EOFError,
+        ) as e:
+            self.logger.error("%s %s", mission, e)
+            self.logger.error("Cannot continue without valid file(s)")
+        finally:
+            # Still need to archive the mission, especially the processing.log file
+            self.archive(mission)
+            if not self.args.no_cleanup:
+                self.cleanup(mission)
+            self.logger.info(
+                "Mission %s took %.1f seconds to process",
+                mission,
+                time.time() - t_start,
+            )
+            if hasattr(self, "log_handler"):
+                self.logger.removeHandler(self.log_handler)
+        return f"{mission}: {time.time() - t_start:.1f} seconds"
+
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
             self.args.start_year = start_year
@@ -360,36 +383,32 @@ class Processor:
             missions = self.mission_list(
                 start_year=self.args.start_year, end_year=self.args.end_year
             )
-            # TODO: Parallelize this with asyncio
-            for mission in missions:
-                if (
-                    int(mission.split(".")[1]) < self.args.start_yd
-                    or int(mission.split(".")[1]) > self.args.end_yd
-                ):
-                    continue
-                try:
-                    t_start = time.time()
-                    self.process_mission(mission, src_dir=missions[mission])
-                except (
-                    InvalidCalFile,
-                    InvalidAlignFile,
-                    FileNotFoundError,
-                    EOFError,
-                ) as e:
-                    self.logger.error("%s %s", mission, e)
-                    self.logger.error("Cannot continue without valid file(s)")
-                finally:
-                    # Still need to archive the mission, especially the processing.log file
-                    self.archive(mission)
-                    if not self.args.no_cleanup:
-                        self.cleanup(mission)
-                    self.logger.info(
-                        "Mission %s took %.1f seconds to process",
-                        mission,
-                        time.time() - t_start,
+            if self.args.start_year == self.args.end_year:
+                # Subselect missions by year day, has effect if --start_yd & --end_yd
+                # are specified and --start_year & --end_year are the same
+                missions = {
+                    mission: missions[mission]
+                    for mission in missions
+                    if (
+                        int(mission.split(".")[1]) >= self.args.start_yd
+                        and int(mission.split(".")[1]) <= self.args.end_yd
                     )
-                    if hasattr(self, "log_handler"):
-                        self.logger.removeHandler(self.log_handler)
+                }
+
+            # https://pythonspeed.com/articles/python-multiprocessing/ - Swimming with sharks!
+            ncores = self.args.num_cores if self.args.num_cores else cpu_count()
+            self.logger.info("Using %d cores", ncores)
+            with get_context("spawn").Pool(processes=ncores) as pool:
+                overall_start = time.time()
+                result = pool.starmap(
+                    self.process_mission_job,
+                    [[mission, missions[mission]] for mission in missions],
+                )
+                self.logger.info(
+                    "Finished processing missions in %.1f seconds",
+                    time.time() - overall_start,
+                )
+                self.logger.info("Results: %s", result)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -518,6 +537,12 @@ class Processor:
                 "Download data using portal (much faster than copy over"
                 " remote connection), otherwise copy from mount point"
             ),
+        )
+        parser.add_argument(
+            "--num_cores",
+            action="store",
+            type=int,
+            help="Number of core processors to use",
         )
         parser.add_argument(
             "-v",

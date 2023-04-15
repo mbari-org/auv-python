@@ -172,7 +172,7 @@
             //"args": ["-v", "1", "--mission", "2007.344.00", "--use_portal", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2009.055.05", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2010.172.01", "--local", "--clobber", "--noinput"]
-            //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "181", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "81", "--end_yd", "84", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2010.181.00", "--local", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2010.286.02", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "286", "--local", "--clobber", "--noinput"]
@@ -185,7 +185,7 @@
             //"args": ["-v", "1", "--mission", "2017.269.01", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2003", "--end_year", "2003", "--start_yd", "98", "--end_yd", "105", "--use_portal",  "--no_cleanup"]
             //"args": ["-v", "1", "--mission", "2021.102.02", "--noinput", "--no_cleanup", "--clobber"]
-            "args": ["-v", "1", "--mission", "2021.301.00", "--noinput", "--no_cleanup", "--clobber"]
+            //"args": ["-v", "1", "--mission", "2021.301.00", "--noinput", "--no_cleanup", "--clobber"]
             //"args": ["-v", "1"]
         },
     ]
