@@ -568,6 +568,12 @@ class Processor:
         # Append year to vehicle_dir if --start_year and --end_year identical
         if self.args.start_year == self.args.end_year:
             self.vehicle_dir = os.path.join(self.vehicle_dir, str(self.args.start_year))
+        else:
+            # Warn that --start_yd and --end_yd will be ignored
+            if self.args.start_yd != 1 or self.args.end_yd != 366:
+                self.logger.warn(
+                    "start_yd and end_yd will be ignored since start_year and end_year are different"
+                )
         # Append year if processing a single mission
         if self.args.mission:
             self.vehicle_dir = os.path.join(
