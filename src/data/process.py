@@ -350,7 +350,7 @@ class Processor:
             )
             if hasattr(self, "log_handler"):
                 self.logger.removeHandler(self.log_handler)
-        return f"{mission}: {time.time() - t_start:.1f} seconds"
+        return f"[{os.getpid()}] {mission}: {time.time() - t_start:.1f} seconds"
 
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
@@ -397,10 +397,11 @@ class Processor:
 
             # https://pythonspeed.com/articles/python-multiprocessing/ - Swimming with sharks!
             ncores = self.args.num_cores if self.args.num_cores else cpu_count()
-            self.logger.info("Using %d cores", ncores)
+            missions = dict(sorted(missions.items()))
+            self.logger.info("Using %d cores for %d missions", ncores, len(missions))
             with get_context("spawn").Pool(processes=ncores) as pool:
                 overall_start = time.time()
-                result = pool.starmap(
+                results = pool.starmap(
                     self.process_mission_job,
                     [[mission, missions[mission]] for mission in missions],
                 )
@@ -409,7 +410,9 @@ class Processor:
                     len(missions),
                     time.time() - overall_start,
                 )
-                self.logger.info("Results: %s", result)
+                self.logger.info("Results:")
+                for result in results:
+                    self.logger.info(result)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
