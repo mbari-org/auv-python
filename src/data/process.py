@@ -405,7 +405,8 @@ class Processor:
                     [[mission, missions[mission]] for mission in missions],
                 )
                 self.logger.info(
-                    "Finished processing missions in %.1f seconds",
+                    "Finished processing %d missions in %.1f seconds",
+                    len(missions),
                     time.time() - overall_start,
                 )
                 self.logger.info("Results: %s", result)
