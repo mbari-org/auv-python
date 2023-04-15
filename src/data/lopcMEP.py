@@ -26,15 +26,13 @@ snow estimates.
 import logging
 
 import numpy
+from logs2netcdfs import AUV_NetCDF
 
 #
 # Global logger object, name it MEP to avoid clashes with calling module logger output
 #
 h = logging.StreamHandler()
-f = logging.Formatter(
-    "%(levelname)s %(asctime)s %(filename)s " "%(funcName)s():%(lineno)d %(message)s"
-)
-h.setFormatter(f)
+h.setFormatter(AUV_NetCDF._formatter)
 logger = logging.getLogger("MEP")
 logger.addHandler(h)
 

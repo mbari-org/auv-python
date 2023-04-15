@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
 from resample import FREQ
 
 LOG_NAME = "processing.log"
@@ -27,11 +27,7 @@ AUVCTD_VOL = "/Volumes/AUVCTD"
 class Archiver:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
+    _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 

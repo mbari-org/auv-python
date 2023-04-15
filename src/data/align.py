@@ -27,7 +27,14 @@ import git
 import numpy as np
 import pandas as pd
 import xarray as xr
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
+from logs2netcdfs import (
+    BASE_PATH,
+    MISSIONNETCDFS,
+    SUMMARY_SOURCE,
+    TIME,
+    TIME60HZ,
+    AUV_NetCDF,
+)
 from numpy.core._exceptions import UFuncTypeError
 from scipy.interpolate import interp1d
 
@@ -46,11 +53,7 @@ class TooMuchExtrapolation(Exception):
 class Align_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
+    _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 

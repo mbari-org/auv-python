@@ -13,19 +13,17 @@ import argparse
 import logging
 import os
 import re
-import requests
 import sys
+
+import requests
 import xarray as xr
+from logs2netcdfs import AUV_NetCDF
 
 
 class Gulper:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
+    _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 

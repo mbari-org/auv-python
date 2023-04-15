@@ -16,9 +16,9 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from socket import gethostname
-from typing import Tuple, Dict
+from typing import Dict, Tuple
 
 import cf_xarray  # Needed for the .cf accessor
 import git
@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from dorado_info import dorado_info
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, AUV_NetCDF
 from pysolar.solar import get_altitude
 from scipy import signal
 from utils import simplify_points
@@ -44,11 +44,7 @@ class InvalidAlignFile(Exception):
 class Resampler:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
+    _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
@@ -148,11 +144,17 @@ class Resampler:
             f"aligned, and resampled AUV sensor data from"
             f" {self.args.auv_name} mission {self.args.mission}"
         )
-        self.metadata["summary"] += (
-            " Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
-            f"{self.args.mission.split('.')[0]}/netcdf/"
-            f"{self.args.auv_name}_{self.args.mission}_processing.log"
-        )
+        try:
+            self.metadata["summary"] += (
+                " Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
+                f"{self.args.mission.split('.')[0]}/netcdf/"
+                f"{self.args.auv_name}_{self.args.mission}_processing.log"
+            )
+        except KeyError as e:
+            # Likely no _1S.nc file was created, hence no summary to append to
+            self.logger.warning(
+                f"Could not add processing log file to summary matadata for mission {self.args.mission}"
+            )
 
         try:
             if dorado_info[self.args.mission].get("program"):
@@ -884,7 +886,13 @@ class Resampler:
                     if self.args.plot:
                         self.plot_variable(instr, variable, freq, plot_seconds)
         self.add_profile()
-        self._build_global_metadata()
+        try:
+            self._build_global_metadata()
+        except KeyError as e:
+            self.logger.error(
+                f"Missing global attribute {e} in {nc_file}. "
+                "Cannot add global metadata to resampled mission."
+            )
         if self.args.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
         elif self.args.auv_name.lower() == "i2map":

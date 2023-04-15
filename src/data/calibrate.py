@@ -58,7 +58,7 @@ from ctd_proc import (
     _calibrated_temp_from_frequency,
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from matplotlib import patches
 from scipy import signal
 from scipy.interpolate import interp1d
@@ -124,11 +124,7 @@ class SensorInfo:
 class Calibrate_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
+    _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 

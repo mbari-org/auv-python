@@ -60,7 +60,7 @@ class AUV_NetCDF(AUV):
     _handler = logging.StreamHandler()
     _formatter = logging.Formatter(
         "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
+        "%(funcName)s():%(lineno)d [%(process)d] %(message)s"
     )
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
