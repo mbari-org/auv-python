@@ -399,9 +399,13 @@ class Resampler:
             else:
                 self.logger.info("Sun is up at start, but no sunset in this mission")
         if np.sign(sun_alts[0]) == -1:
-            self.logger.warning(
-                f"Sun is not up at start of mission: {ss_sr_times[0]}: alt = {sun_alts[0]}"
-            )
+            try:
+                self.logger.warning(
+                    f"Sun is not up at start of mission: {ss_sr_times[0]}: alt = {sun_alts[0]}"
+                )
+            except IndexError:
+                # Likely no values in ss_sr_times[]
+                self.logger.warning("Sun is not up at start of mission")
 
         if sunset is None and sunrise is None:
             self.logger.info(
