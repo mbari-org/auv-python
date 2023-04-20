@@ -344,11 +344,19 @@ class Calibrate_NetCDF:
                 self.sinfo["biolume"]["flow_conversion"] = 4.49e-4 * 1e3
 
     def _range_qc_combined_nc(
-        self, instrument: str, variables: List[str], ranges: dict
+        self,
+        instrument: str,
+        variables: List[str],
+        ranges: dict,
+        set_to_nan: bool = False,
     ) -> None:
         """For variables in combined_nc remove values that fall outside
         of specified min, max range.  Meant to be called by instrument so
-        that the union of bad values from a set of variables can be removed."""
+        that the union of bad values from a set of variables can be removed.
+        Use set_to_nan=True to set values outside of range to NaN instead of
+        removing all variables from the instrument.  Setting set_to_nan=True
+        makes sense for record (data) variables - such as ctd1_salinity,
+        but not for coordinate variables."""
         out_of_range_indices = np.array([], dtype=int)
         vars_checked = []
         for var in variables:
@@ -368,10 +376,22 @@ class Calibrate_NetCDF:
                         out_of_range_indices,
                         out_of_range,
                     )
+                    if len(out_of_range_indices) > 500:
+                        self.logger.warning(
+                            "More than 500 (%d) %s values found outside of range. "
+                            "This may indicate a problem with the %s data.",
+                            len(self.combined_nc[var][out_of_range_indices].values),
+                            var,
+                            instrument,
+                        )
+                    if set_to_nan:
+                        self.logger.info(
+                            f"Setting {len(out_of_range_indices)} {var} values to NaN"
+                        )
+                        self.combined_nc[var][out_of_range_indices] = np.nan
                     vars_checked.append(var)
                 else:
                     self.logger.debug(f"No Ranges set for {var}")
-
             else:
                 self.logger.warning(f"{var} not in self.combined_nc")
         inst_vars = [
@@ -379,34 +399,32 @@ class Calibrate_NetCDF:
             for var in self.combined_nc.variables
             if str(var).startswith(f"{instrument}_")
         ]
-        for var in inst_vars:
-            self.logger.info(
-                "Checked for data outside of these variables and ranges: %s",
-                [(v, ranges[v]) for v in vars_checked],
-            )
-            self.logger.info(
-                "%s: deleting %d values found outside of above ranges: %s",
-                var,
-                len(self.combined_nc[var][out_of_range_indices].values),
-                self.combined_nc[var][out_of_range_indices].values,
-            )
-            self.logger.debug(
-                f"{var}: deleting values {self.combined_nc[var][out_of_range_indices].values}"
-            )
-            coord = [k for k in self.combined_nc[var].coords][0]
-            self.combined_nc[f"{var}_qced"] = (
-                self.combined_nc[var]
-                .drop_isel({coord: out_of_range_indices})
-                .rename({f"{instrument}_time": f"{instrument}_time_qced"})
-            )
-        self.combined_nc = self.combined_nc.drop_vars(inst_vars)
-        for var in inst_vars:
-            self.logger.debug(f"Renaming {var}_qced to {var}")
-            self.combined_nc[var] = self.combined_nc[f"{var}_qced"].rename(
-                {f"{coord}_qced": coord}
-            )
-        qced_vars = [f"{var}_qced" for var in inst_vars]
-        self.combined_nc = self.combined_nc.drop_vars(qced_vars)
+        self.logger.info(
+            "Checked for data outside of these variables and ranges: %s",
+            [(v, ranges[v]) for v in vars_checked],
+        )
+        if not set_to_nan:
+            for var in inst_vars:
+                self.logger.info(
+                    "%s: deleting %d values found outside of above ranges: %s",
+                    var,
+                    len(self.combined_nc[var][out_of_range_indices].values),
+                    self.combined_nc[var][out_of_range_indices].values,
+                )
+                coord = [k for k in self.combined_nc[var].coords][0]
+                self.combined_nc[f"{var}_qced"] = (
+                    self.combined_nc[var]
+                    .drop_isel({coord: out_of_range_indices})
+                    .rename({f"{instrument}_time": f"{instrument}_time_qced"})
+                )
+            self.combined_nc = self.combined_nc.drop_vars(inst_vars)
+            for var in inst_vars:
+                self.logger.debug(f"Renaming {var}_qced to {var}")
+                self.combined_nc[var] = self.combined_nc[f"{var}_qced"].rename(
+                    {f"{coord}_qced": coord}
+                )
+            qced_vars = [f"{var}_qced" for var in inst_vars]
+            self.combined_nc = self.combined_nc.drop_vars(qced_vars)
         self.logger.info(f"Done QC'ing {instrument}")
 
     def _read_data(self, logs_dir, netcdfs_dir):
@@ -1886,9 +1904,8 @@ class Calibrate_NetCDF:
         self._range_qc_combined_nc(
             instrument=sensor,
             variables=vars_to_qc,
-            ranges={
-                f"{sensor}_salinity": Range(30, 40),
-            },
+            ranges={f"{sensor}_salinity": Range(30, 40)},
+            set_to_nan=True,
         )
 
     def _tailcone_process(self, sensor):

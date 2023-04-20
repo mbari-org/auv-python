@@ -810,7 +810,7 @@ class Resampler:
 
     def resample_mission(
         self,
-        nc_file: str,
+        nc_file: str,  # align.nc file
         mf_width: int = MF_WIDTH,
         freq: str = FREQ,
         plot_seconds: float = PLOT_SECONDS,
@@ -828,7 +828,9 @@ class Resampler:
                 # Choose an instrument to use for the resampled coordinates
                 # All the instruments we care about are in the nose of the vehicle
                 # Use the pitch corrected depth coordinate for 'ctd1' for dorado,
-                # 'seabird25p' for i2map.
+                # 'seabird25p' for i2map.  The depth coordinate for pitch_corrected_instr
+                # must be as complete as possible as it's used for all the other
+                # nosecone instruments.
                 pitch_corrected_instr = "ctd1"
                 if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
