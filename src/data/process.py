@@ -285,6 +285,12 @@ class Processor:
         netcdfs_dir = os.path.join(
             self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
         )
+        if self.args.clobber:
+            if self.args.noinput:
+                self.cleanup(mission)
+            else:
+                if input("Do you want to remove all work files? [y/N] ").lower() == "y":
+                    self.cleanup(mission)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
             os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"), mode="w+"
@@ -301,12 +307,6 @@ class Processor:
             getuser(),
             gethostname(),
         )
-        if self.args.clobber:
-            if self.args.noinput:
-                self.cleanup(mission)
-            else:
-                if input("Do you want to remove all work files? [y/N] ").lower() == "y":
-                    self.cleanup(mission)
         if self.args.download_process:
             self.download_process(mission, src_dir)
         elif self.args.calibrate:
@@ -320,7 +320,8 @@ class Processor:
         elif self.args.cleanup:
             self.cleanup(mission)
         else:
-            self.download_process(mission, src_dir)
+            if not self.args.skip_download_process:
+                self.download_process(mission, src_dir)
             self.calibrate(mission)
             self.align(mission)
             self.resample(mission)
@@ -542,6 +543,12 @@ class Processor:
                 " remote connection), otherwise copy from mount point"
             ),
         )
+        parser.add_argument(
+            "--skip_download_process",
+            action="store_true",
+            help="Skip download_process() step - start with original .nc files",
+        ),
+
         parser.add_argument(
             "--num_cores",
             action="store",
