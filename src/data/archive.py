@@ -43,7 +43,7 @@ class Archiver:
         year = self.args.mission.split(".")[0]
         surveys_dir = os.path.join(surveys_dir, year, "netcdf")
         self.logger.info(f"Copying {nc_file_base} files to {surveys_dir}")
-        # To avoid "fchmod failed: Permission denied" message use rsync instead cp
+        # To avoid "fchmod failed: Permission denied" message use rsync instead  of cp
         # https://apple.stackexchange.com/a/206251
         for ftype in (f"{freq}.nc", "cal.nc", "align.nc", LOG_NAME):
             src_file = f"{nc_file_base}_{ftype}"

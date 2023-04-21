@@ -2248,7 +2248,7 @@ class LOPC_Processor(object):
 
             # Check for output file and offer to overwrite
             if os.path.exists(self.args.netCDF_fileName):
-                if self.args.force:
+                if self.args.force or self.args.noinput:
                     if os.path.exists(self.args.netCDF_fileName):
                         os.remove(self.args.netCDF_fileName)
                 else:
