@@ -186,7 +186,7 @@
             //"args": ["-v", "1", "--mission", "2008.287.05", "--clobber", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--start_year", "2017",  "--end_year", "2017", "--start_yd", "280", "--clobber", "--noinput", "--use_portal", "--no_cleanup"]
             //"args": ["-v", "1", "--start_year", "2022",  "--end_year", "2022", "--start_yd", "286", "--clobber", "--noinput", "--use_portal",  "--no_cleanup"]
-            "args": ["-v", "1", "--mission", "2017.044.00", "--clobber", "--noinput", "--no_cleanup"]
+            "args": ["-v", "1", "--mission", "2017.044.00", "--skip_download_process", "--noinput", "--no_cleanup"]
             //"args": ["-v", "1", "--start_year", "2003", "--end_year", "2003", "--start_yd", "98", "--end_yd", "105", "--use_portal",  "--no_cleanup"]
             //"args": ["-v", "1", "--mission", "2021.102.02", "--noinput", "--no_cleanup", "--clobber"]
             //"args": ["-v", "1", "--mission", "2021.301.00", "--noinput", "--no_cleanup", "--clobber"]

@@ -207,6 +207,9 @@ class Calibrate_NetCDF:
         SensorOffset = namedtuple("SensorOffset", "x y")
 
         # Original configuration of Dorado389 - Modify below with changes over time
+        # This code uses pandas.shift() to apply a lag to the data. Posivite lag_secs
+        # shifts the data forward in time to account for plumbing delays for the sensor.
+        # As of April 2023 only integer lag_secs are supported because of pandas.shift().
         self.sinfo = OrderedDict(
             [
                 (
@@ -286,7 +289,7 @@ class Calibrate_NetCDF:
                     {
                         "data_filename": "biolume.nc",
                         "cal_filename": None,
-                        "lag_secs": 0.0,
+                        "lag_secs": 1,
                         "sensor_offset": SensorOffset(4.04, 0.0),
                         # From https://bitbucket.org/messiem/matlab_libraries/src/master/data_access/donnees_insitu/MBARI/AUV/charge_Dorado.m
                         # % UBAT flow conversion
@@ -2069,17 +2072,18 @@ class Calibrate_NetCDF:
             dims={f"{sensor}_time"},
             name=f"{sensor}_avg_biolume",
         )
-        time_shift = ""
+        data_lag = ""
         if self.sinfo[sensor]["lag_secs"]:
+            # Negate the lag_secs to shift the data forward to counteract plumbing lag
             self.combined_nc["biolume_avg_biolume"] = self.combined_nc[
                 "biolume_avg_biolume"
-            ].shift(biolume_time=int(self.sinfo[sensor]["lag_secs"]))
-            time_shift = f" shifted by {int(self.sinfo[sensor]['lag_secs'])} seconds"
+            ].shift(biolume_time=-int(self.sinfo[sensor]["lag_secs"]))
+            data_lag = f" data shifted by {int(self.sinfo[sensor]['lag_secs'])} seconds"
         self.combined_nc["biolume_avg_biolume"].attrs = {
             "long_name": "Bioluminesence Average of 60Hz data",
             "units": "photons s^-1",
             "coordinates": f"{sensor}_time {sensor}_depth",
-            "comment": f"avg_biolume from {source}{time_shift}",
+            "comment": f"avg_biolume from {source}{data_lag}",
         }
 
         self.combined_nc["biolume_raw"] = xr.DataArray(
@@ -2088,17 +2092,18 @@ class Calibrate_NetCDF:
             dims={f"{sensor}_time60hz"},
             name=f"{sensor}_raw",
         )
-        time_shift = ""
+        data_lag = ""
         if self.sinfo[sensor]["lag_secs"]:
+            # Negate the lag_secs to shift the data forward to counteract plumbing lag
             self.combined_nc["biolume_raw"] = self.combined_nc["biolume_raw"].shift(
-                biolume_time60hz=int(self.sinfo[sensor]["lag_secs"] * 60)
+                biolume_time60hz=-int(self.sinfo[sensor]["lag_secs"] * 60)
             )
-            time_shift = " shifted by {self.sinfo[sensor]['lag_secs']} seconds"
+            data_lag = " data shifted by {self.sinfo[sensor]['lag_secs']} seconds"
         self.combined_nc["biolume_raw"].attrs = {
             "long_name": "Raw 60 hz biolume data",
             # xarray writes out its own units attribute
             "coordinates": f"{sensor}_time60hz {sensor}_depth60hz",
-            "comment": f"raw values from {source}{time_shift}",
+            "comment": f"raw values from {source}{data_lag}",
         }
 
     def _lopc_process(self, sensor):
@@ -2189,6 +2194,56 @@ class Calibrate_NetCDF:
             "comment": f"flowSpeed from {source}",
         }
 
+    def _isus_process(self, sensor):
+        try:
+            orig_nc = getattr(self, sensor).orig_data
+        except FileNotFoundError as e:
+            self.logger.error(f"{e}")
+            return
+        except AttributeError:
+            raise EOFError(
+                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
+            )
+
+        # Remove non-monotonic times
+        self.logger.debug("Checking for non-monotonic increasing times")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        if (~monotonic).any():
+            self.logger.debug(
+                "Removing non-monotonic increasing times at indices: %s",
+                np.argwhere(~monotonic).flatten(),
+            )
+        orig_nc = orig_nc.sel(time=monotonic)
+
+        source = self.sinfo[sensor]["data_filename"]
+        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+
+        self.combined_nc["isus_nitrate"] = xr.DataArray(
+            orig_nc["isusNitrate"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_nitrate",
+        )
+        self.combined_nc["isus_nitrate"].attrs = {
+            "long_name": "Nitrate",
+            "units": "micromoles/liter",
+            "coordinates": coord_str,
+            "comment": f"isusNitrate from {source}",
+        }
+        self.combined_nc["isus_temp"] = xr.DataArray(
+            orig_nc["isusTemp"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_temp",
+        )
+        self.combined_nc["isus_temp"].attrs = {
+            "long_name": "Temperature from ISUS",
+            "units": "Celsius",
+            "coordinates": coord_str,
+            "comment": f"isusTemp from {source}",
+        }
+
     def _geometric_depth_correction(self, sensor, orig_nc):
         """Performs the align_geom() function from the legacy Matlab.
         Works for any sensor, but requires navigation being processed first
@@ -2262,6 +2317,8 @@ class Calibrate_NetCDF:
             self._tailcone_process(sensor)
         elif sensor == "lopc":
             self._lopc_process(sensor)
+        elif sensor == "isus":
+            self._isus_process(sensor)
         elif sensor in ("ctd1", "ctd2", "seabird25p"):
             if coeffs is not None:
                 self._ctd_process(sensor, coeffs)
