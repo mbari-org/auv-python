@@ -599,30 +599,28 @@ class Resampler:
             f" intensity of flashes from {sample_rate} Hz biolume_raw variable"
             f" in {freq} intervals."
         )
+
+        # Make min_bg a 1S pd.Series so that we can divide by flow, matching indexes
+        s_min_bg = min_bg_unsmoothed.rolling(
+            window_size, min_periods=0, center=True
+        ).mean()
+        bg_biolume = (
+            pd.Series(s_min_bg, index=s_biolume_raw.index).resample("1S").mean()
+        )
+        self.logger.info("Saving Background bioluminescence (dinoflagellates proxy)")
+        self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
+        self.df_r["biolume_bg_biolume"].attrs[
+            "long_name"
+        ] = "Background bioluminescence (dinoflagellates proxy)"
+        self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
+        self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
+
         nighttime_bl_raw, sunset, sunrise = self.select_nighttime_bl_raw()
         if nighttime_bl_raw.empty:
             self.logger.info(
                 "No nighttime_bl_raw data to compute adinos, diatoms, hdinos proxies"
             )
-            return
         else:
-            # Make min_bg a 1S pd.Series so that we can divide by flow, matching indexes
-            s_min_bg = min_bg_unsmoothed.rolling(
-                window_size, min_periods=0, center=True
-            ).mean()
-            bg_biolume = (
-                pd.Series(s_min_bg, index=nighttime_bl_raw.index).resample("1S").mean()
-            )
-            self.logger.info(
-                "Saving Background bioluminescence (dinoflagellates proxy)"
-            )
-            self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
-            self.df_r["biolume_bg_biolume"].attrs[
-                "long_name"
-            ] = "Background bioluminescence (dinoflagellates proxy)"
-            self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
-            self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
-
             # (2) Phytoplankton proxies - use median filtered hs2_fl700 1S data
             if "hs2_fl700" not in self.ds:
                 self.logger.info(
@@ -643,7 +641,12 @@ class Resampler:
             fluo[fluo < 0] = np.nan
             self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.4e}")
             self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.6f}")
-            pseudo_fluorescence = self.df_r["biolume_bg_biolume"] / proxy_ratio_adinos
+
+            nighttime_bg_biolume = (
+                pd.Series(s_min_bg, index=nighttime_bl_raw.index).resample("1S").mean()
+            )
+            nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow) * 1000
+            pseudo_fluorescence = nighttime_bg_biolume_perliter / proxy_ratio_adinos
             self.df_r["biolume_proxy_adinos"] = (
                 np.minimum(fluo, pseudo_fluorescence) / proxy_cal_factor
             )
