@@ -1377,6 +1377,7 @@ class Calibrate_NetCDF:
             blue_bs.attrs = {
                 "long_name": "Backscatter at 420 nm",
                 "coordinates": coord_str,
+                "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
         if hasattr(hs2, "bb470"):
@@ -1389,6 +1390,7 @@ class Calibrate_NetCDF:
             blue_bs.attrs = {
                 "long_name": "Backscatter at 470 nm",
                 "coordinates": coord_str,
+                "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
 
