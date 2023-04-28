@@ -165,6 +165,7 @@ class Processor:
         lopc_processor.args.verbose = self.args.verbose
         lopc_processor.args.debugLevel = 0
         lopc_processor.args.force = self.args.clobber
+        lopc_processor.args.noinput = self.args.noinput
         lopc_processor.logger.setLevel(self._log_levels[self.args.verbose])
         lopc_processor.logger.addHandler(self.log_handler)
         try:
