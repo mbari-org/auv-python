@@ -290,8 +290,7 @@ class Calibrate_NetCDF:
                         "data_filename": "biolume.nc",
                         "cal_filename": None,
                         # See Slack thread https://mbari.slack.com/archives/C04ETLY6T7V/p1682439517159249?thread_ts=1682128534.742919&cid=C04ETLY6T7V
-                        "avg_lag_secs": -0.5,
-                        "raw_lag_secs": 0.5,
+                        "lag_secs": 0.5,
                         "sensor_offset": SensorOffset(4.04, 0.0),
                         # From https://bitbucket.org/messiem/matlab_libraries/src/master/data_access/donnees_insitu/MBARI/AUV/charge_Dorado.m
                         # % UBAT flow conversion
@@ -2126,7 +2125,7 @@ class Calibrate_NetCDF:
             name=f"{sensor}_avg_biolume",
         )
         lag_info = self._apply_plumbing_lag(
-            sensor, self.sinfo[sensor]["avg_lag_secs"], "biolume_avg_biolume"
+            sensor, self.sinfo[sensor]["lag_secs"], "biolume_avg_biolume"
         )
         self.combined_nc["biolume_avg_biolume"].attrs = {
             "long_name": "Bioluminesence Average of 60Hz data",
@@ -2142,7 +2141,7 @@ class Calibrate_NetCDF:
             name=f"{sensor}_raw",
         )
         lag_info = self._apply_plumbing_lag(
-            sensor, self.sinfo[sensor]["raw_lag_secs"], "biolume_raw"
+            sensor, self.sinfo[sensor]["lag_secs"], "biolume_raw"
         )
         self.combined_nc["biolume_raw"].attrs = {
             "long_name": "Raw 60 hz biolume data",
