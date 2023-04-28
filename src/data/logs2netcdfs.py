@@ -234,7 +234,10 @@ class AUV_NetCDF(AUV):
         self, file: str, records: List[log_record], byte_offset: int
     ):
         """Parse the binary section of the log file, collecting the 60 hz
-        raw values into a 60 hz time series"""
+        raw values into a 60 hz time series.  Subtract 1/2 second from the
+        1 second biolume time stamps as it's recorded at the end of the
+        sampling period.
+        """
         if byte_offset == 0:
             raise EOFError(f"{file}: 0 sized file")
         file_size = os.path.getsize(file)
@@ -511,34 +514,62 @@ class AUV_NetCDF(AUV):
                 f"Creating Variable {variable.short_name}:"
                 f" {variable.long_name} ({variable.units})"
             )
-            if "biolume" in netcdf_filename and variable.short_name == "raw":
-                # The "raw" log is the last one in the list, and time is the first
-                assert "raw" == log_data[-1].short_name
-                self.nc_file.createDimension(TIME60HZ, len(log_data[0].data) * 60)
-                assert "timeTag" == log_data[0].data_type
-                self.logger.info(
-                    "Expanding original timeTag to time60Hz variable for raw data"
-                )
-                self._create_variable(
-                    "timeTag",
-                    TIME60HZ,
-                    "60Hz time",
-                    "seconds since 1970-01-01 00:00:00Z",
-                    [
-                        tv + frac
-                        for tv in log_data[0].data
-                        for frac in np.arange(0, 1, 1 / 60)
-                    ],
-                    time_axis=TIME60HZ,
-                )
-                self._create_variable(
-                    "float",
-                    variable.short_name,
-                    variable.long_name,
-                    variable.units,
-                    variable.data,
-                    time_axis=TIME60HZ,
-                )
+            if "biolume" in netcdf_filename:
+                if variable.short_name == "raw":
+                    # The "raw" log is the last one in the list, and time is the first
+                    assert "raw" == log_data[-1].short_name
+                    self.nc_file.createDimension(TIME60HZ, len(log_data[0].data) * 60)
+                    assert "timeTag" == log_data[0].data_type
+                    self.logger.info(
+                        "Expanding original timeTag to time60Hz variable for raw data"
+                    )
+                    self._create_variable(
+                        "timeTag",
+                        TIME60HZ,
+                        "60Hz time",
+                        "seconds since 1970-01-01 00:00:00Z",
+                        [
+                            tv + frac
+                            for tv in log_data[0].data
+                            for frac in np.arange(0, 1, 1 / 60)
+                        ],
+                        time_axis=TIME60HZ,
+                    )
+                    self._create_variable(
+                        "float",
+                        variable.short_name,
+                        variable.long_name,
+                        variable.units,
+                        variable.data,
+                        time_axis=TIME60HZ,
+                    )
+                elif variable.short_name == "timeTag":
+                    # The biolume time value needs to have 1/2 second subtracted
+                    self.logger.info("Subtracting 1/2 second from avg_biolume timeTag")
+                    self._create_variable(
+                        "timeTag",
+                        TIME,
+                        "avg_biolume time",
+                        "seconds since 1970-01-01 00:00:00Z",
+                        [tv - 0.5 for tv in log_data[0].data],
+                        time_axis=TIME,
+                    )
+                    self._create_variable(
+                        "float",
+                        variable.short_name,
+                        variable.long_name,
+                        variable.units,
+                        variable.data,
+                        time_axis=TIME,
+                    )
+                else:
+                    self._create_variable(
+                        variable.data_type,
+                        variable.short_name,
+                        variable.long_name,
+                        variable.units,
+                        variable.data,
+                    )
             else:
                 self._create_variable(
                     variable.data_type,
