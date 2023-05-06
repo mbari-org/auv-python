@@ -58,7 +58,14 @@ from ctd_proc import (
     _calibrated_temp_from_frequency,
 )
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
+from logs2netcdfs import (
+    BASE_PATH,
+    MISSIONLOGS,
+    MISSIONNETCDFS,
+    AUV_NetCDF,
+    TIME,
+    TIME60HZ,
+)
 from matplotlib import patches
 from scipy import signal
 from scipy.interpolate import interp1d
@@ -429,7 +436,7 @@ class Calibrate_NetCDF:
                 )
             qced_vars = [f"{var}_qced" for var in inst_vars]
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
-        self.logger.info(f"Done QC'ing {instrument}")
+        self.logger.info(f"Done range checking {instrument}")
 
     def _read_data(self, logs_dir, netcdfs_dir):
         """Read in all the instrument data into member variables named by "sensor"
@@ -1907,7 +1914,7 @@ class Calibrate_NetCDF:
         }
 
         self.logger.info(
-            f"Performing QC for {vars_to_qc} in {self.args.mission}/{sensor}.nc"
+            f"Performing range checking of {vars_to_qc} in {self.args.mission}/{sensor}.nc"
         )
         self._range_qc_combined_nc(
             instrument=sensor,
@@ -2021,53 +2028,28 @@ class Calibrate_NetCDF:
             "comment": f"Chl_Sig from {source} converted to chl using scale factor {cf.chl_scale_factor} and dark counts {cf.chl_dark_counts}",
         }
 
-    def _apply_plumbing_lag(self, sensor, lag_secs: float, combined_nc_var: str) -> str:
+    def _apply_plumbing_lag(
+        self, sensor: str, time_index: pd.DatetimeIndex, time_name: str
+    ) -> Tuple[xr.DataArray, str]:
         """
-        Apply plumbing lag to a variable in the combined netCDF file.
-        self.combined_nc[combined_nc_var] is modified in place.
+        Apply plumbing lag to a time index in the combined netCDF file.
         """
-        lag_info = ""
-        if (frac := abs(int(lag_secs) - lag_secs)) != 0:
-            if combined_nc_var == "biolume_raw":
-                # 60 Hz raw_biolume data can be shifted by fractional seconds
-                # Negate the lag_secs to shift the data forward to counteract plumbing lag
-                self.logger.info(
-                    f"lag_secs for {sensor}'s {combined_nc_var} is {lag_secs},  at 60 Hz we can shift the time by {int(lag_secs * 60)} indicss"
-                )
-                self.combined_nc[combined_nc_var] = self.combined_nc[
-                    combined_nc_var
-                ].shift(biolume_time60hz=-int(lag_secs * 60))
-                lag_info = f" data shifted by {lag_secs} seconds"
-            elif frac == 0.5:
-                self.logger.info(
-                    f"lag_secs ({lag_secs}) for {sensor}'s {combined_nc_var} is not an integer, resampling to {frac} seconds"
-                )
-                upsampled = (
-                    self.combined_nc[combined_nc_var]
-                    .resample(biolume_time=f"{frac}S")
-                    .interpolate("linear")
-                )
-                # Negate the lag_secs to shift the data forward to counteract plumbing lag
-                self.combined_nc[combined_nc_var] = upsampled.shift(
-                    biolume_time=-int(lag_secs / frac)
-                )
-                lag_info = f" data shifted by {lag_secs} seconds"
-            else:
-                # If we want to apply lags finer than 0.5 seconds, we need to implement that here
-                self.logger.error(
-                    f"lag_secs ({lag_secs}) for {sensor}'s {combined_nc_var} is not an integer or multiple of 0.5, not applying lag correction"
-                )
-                lag_info = f" data not shifted by {lag_secs} seconds - not an integer or multiple of 0.5"
-        else:
-            self.logger.info(
-                f"lag_secs ({lag_secs}) for {sensor}'s {combined_nc_var} is an integer, shifting by {lag_secs} seconds"
-            )
-            # Negate the lag_secs to shift the data forward to counteract plumbing lag
-            self.combined_nc[combined_nc_var] = self.combined_nc[combined_nc_var].shift(
-                biolume_time=-int(lag_secs)
-            )
-            lag_info = f" data shifted by {lag_secs} seconds"
-        return lag_info
+        # Convert lag_secs to milliseconds as np.timedelta64 neeeds an integer
+        lagged_time = time_index - np.timedelta64(
+            int(self.sinfo[sensor]["lag_secs"] * 1000), "ms"
+        )
+        # Need to update the sensor's time coordinate in the combined netCDF file
+        # so that DataArrays created with lagged_time fit onto the coordinate
+        self.combined_nc.coords[f"{sensor}_{time_name}"] = xr.DataArray(
+            lagged_time,
+            coords=[lagged_time],
+            dims={f"{sensor}_{time_name}"},
+            name=f"{sensor}_{time_name}",
+        )
+        lag_info = (
+            f"with plumbing lag correction of {self.sinfo[sensor]['lag_secs']} seconds"
+        )
+        return lagged_time, lag_info
 
     def _biolume_process(self, sensor):
         try:
@@ -2089,16 +2071,17 @@ class Calibrate_NetCDF:
                 "Removing non-monotonic increasing time at indices: %s",
                 np.argwhere(~monotonic).flatten(),
             )
-        orig_nc = orig_nc.sel(time=monotonic)
+        orig_nc = orig_nc.sel({TIME: monotonic})
 
-        self.logger.info("Checking for non-monotonic increasing time60hz")
-        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time60hz"))
+        self.logger.info(f"Checking for non-monotonic increasing {TIME60HZ}")
+        monotonic = monotonic_increasing_time_indices(orig_nc.get_index(TIME60HZ))
         if (~monotonic).any():
             self.logger.info(
-                "Removing non-monotonic increasing time60hz at indices: %s",
+                "Removing non-monotonic increasing %s at indices: %s",
+                TIME60HZ,
                 np.argwhere(~monotonic).flatten(),
             )
-        orig_nc = orig_nc.sel(time60hz=monotonic)
+        orig_nc = orig_nc.sel({TIME60HZ: monotonic})
 
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor, orig_nc
@@ -2118,36 +2101,36 @@ class Calibrate_NetCDF:
             "comment": f"flow from {source}",
         }
 
+        lagged_time, lag_info = self._apply_plumbing_lag(
+            sensor, orig_nc.get_index(TIME), TIME
+        )
         self.combined_nc["biolume_avg_biolume"] = xr.DataArray(
             orig_nc["avg_biolume"].values,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
+            coords=[lagged_time],
+            dims={f"{sensor}_{TIME}"},
             name=f"{sensor}_avg_biolume",
-        )
-        lag_info = self._apply_plumbing_lag(
-            sensor, self.sinfo[sensor]["lag_secs"], "biolume_avg_biolume"
         )
         self.combined_nc["biolume_avg_biolume"].attrs = {
             "long_name": "Bioluminesence Average of 60Hz data",
             "units": "photons s^-1",
-            "coordinates": f"{sensor}_time {sensor}_depth",
-            "comment": f"avg_biolume from {source}{lag_info}",
+            "coordinates": f"{sensor}_{TIME} {sensor}_depth",
+            "comment": f"avg_biolume from {source} {lag_info}",
         }
 
+        lagged_time, lag_info = self._apply_plumbing_lag(
+            sensor, orig_nc.get_index(TIME60HZ), TIME60HZ
+        )
         self.combined_nc["biolume_raw"] = xr.DataArray(
             orig_nc["raw"].values,
-            coords=[orig_nc.get_index("time60hz")],
-            dims={f"{sensor}_time60hz"},
+            coords=[lagged_time],
+            dims={f"{sensor}_{TIME60HZ}"},
             name=f"{sensor}_raw",
-        )
-        lag_info = self._apply_plumbing_lag(
-            sensor, self.sinfo[sensor]["lag_secs"], "biolume_raw"
         )
         self.combined_nc["biolume_raw"].attrs = {
             "long_name": "Raw 60 hz biolume data",
             # xarray writes out its own units attribute
-            "coordinates": f"{sensor}_time60hz {sensor}_depth60hz",
-            "comment": f"raw values from {source}{lag_info}",
+            "coordinates": f"{sensor}_{TIME60HZ} {sensor}_depth60hz",
+            "comment": f"raw values from {source} {lag_info}",
         }
 
     def _lopc_process(self, sensor):
