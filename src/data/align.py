@@ -269,7 +269,7 @@ class Align_NetCDF:
                     f"{variable}: Too many values would be extrapolated in call to interp1d() for variable {variable}"
                 )
                 self.logger.info(
-                    f"{variable}: Too many values would be extrapolated, not saving it in _alig.nc"
+                    f"{variable}: Too many values would be extrapolated, not saving it in _align.nc"
                 )
                 continue
 
