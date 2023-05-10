@@ -34,7 +34,7 @@ from multiprocessing import cpu_count, get_context
 from pathlib import Path
 from socket import gethostname
 
-from align import Align_NetCDF, InvalidCalFile, TooMuchExtrapolation
+from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
@@ -212,7 +212,7 @@ class Processor:
         try:
             netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
-        except (FileNotFoundError, EOFError, TooMuchExtrapolation) as e:
+        except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)
             raise InvalidCalFile(f"{mission} {e}")
         finally:

@@ -46,10 +46,6 @@ class InvalidCalFile(Exception):
 MAX_EXTRAPOLATE = 4000  # Points outside of interp1d range
 
 
-class TooMuchExtrapolation(Exception):
-    pass
-
-
 class Align_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -270,11 +266,12 @@ class Align_NetCDF:
                     )
             if len(outside_interps) > MAX_EXTRAPOLATE:
                 self.logger.error(
-                    f"{variable}: Too many values would be extrapolated in call to interp1d()"
+                    f"{variable}: Too many values would be extrapolated in call to interp1d() for variable {variable}"
                 )
-                raise TooMuchExtrapolation(
-                    f"{len(outside_interps)} exceeds the {MAX_EXTRAPOLATE}  MAX_EXTRAPOLATE points allowed"
+                self.logger.info(
+                    f"{variable}: Too many values would be extrapolated, not saving it in _alig.nc"
                 )
+                continue
 
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
@@ -465,10 +462,6 @@ if __name__ == "__main__":
     align_netcdf = Align_NetCDF()
     align_netcdf.process_command_line()
     p_start = time.time()
-    try:
-        netcdf_dir = align_netcdf.process_cal()
-    except TooMuchExtrapolation as e:
-        align_netcdf.logger.error(e)
-        sys.exit(1)
+    netcdf_dir = align_netcdf.process_cal()
     align_netcdf.write_netcdf(netcdf_dir)
     align_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
