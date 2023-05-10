@@ -885,6 +885,10 @@ class Resampler:
                             self.resampled_nc[var].attrs[
                                 "coordinates"
                             ] = "time depth latitude longitude"
+                elif variable == "biolume_latitude" or variable == "biolume_longitude":
+                    self.logger.info(
+                        f"Not saving instrument coordinate variable {variable} to resampled file"
+                    )
                 else:
                     aggregator = self.resample_variable(
                         instr,
