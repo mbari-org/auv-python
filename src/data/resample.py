@@ -260,8 +260,13 @@ class Resampler:
             raise InvalidAlignFile(
                 f"{instr}_depth not found in {self.args.auv_name}_{self.args.mission}_align.nc"
             )
-        self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
-        self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
+        try:
+            self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
+            self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
+        except KeyError:
+            msg = f"Variable {instr}_latitude or {instr}_longitude not found in {self.args.mission} align.nc file"
+            self.logger.warning(msg)
+            raise InvalidAlignFile(msg)
         # Median Filtered - back & forward filling nan values at ends
         self.df_o[f"{instr}_depth_mf"] = (
             self.ds[f"{instr}_depth"]

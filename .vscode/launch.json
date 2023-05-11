@@ -196,7 +196,8 @@
             //"args": ["-v", "1", "--mission", "2021.102.02", "--noinput", "--no_cleanup", "--skip_download_process"]
             //"args": ["-v", "1", "--mission", "2021.301.00", "--noinput", "--no_cleanup", "--clobber"]
             //"args": ["-v", "1", "--mission", "2004.236.00", "--noinput", "--no_cleanup", "--clobber"]
-            "args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "236", "--end_yd", "272", "--clobber", "--noinput", "--no_cleanup"]
+            //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "236", "--end_yd", "272", "--clobber", "--noinput", "--no_cleanup"]
+            "args": ["-v", "1", "--mission", "2010.181.00", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1"]
         },
     ]
