@@ -43,7 +43,7 @@ class InvalidCalFile(Exception):
     pass
 
 
-MAX_EXTRAPOLATE = 4000  # Points outside of interp1d range
+MAX_EXTRAPOLATE_FRACTION = 0.1  # Fraction of points outside of interp1d range
 
 
 class Align_NetCDF:
@@ -77,10 +77,16 @@ class Align_NetCDF:
 
         metadata["time_coverage_start"] = str(self.min_time)
         metadata["time_coverage_end"] = str(self.max_time)
-        metadata["time_coverage_duration"] = str(
-            datetime.utcfromtimestamp(self.max_time.astype("float64") / 1.0e9)
-            - datetime.utcfromtimestamp(self.min_time.astype("float64") / 1.0e9)
-        )
+        try:
+            metadata["time_coverage_duration"] = str(
+                datetime.utcfromtimestamp(self.max_time.astype("float64") / 1.0e9)
+                - datetime.utcfromtimestamp(self.min_time.astype("float64") / 1.0e9)
+            )
+        except AttributeError:
+            # Likely AttributeError: 'datetime.datetime' object has no attribute 'astype'
+            self.logger.warning(
+                f"Could not save time_coverage_duration - likely because all data are bad and min_time and max_time were not set"
+            )
         metadata["geospatial_vertical_min"] = self.min_depth
         metadata["geospatial_vertical_max"] = self.max_depth
         metadata["geospatial_lat_min"] = self.min_lat
@@ -264,7 +270,10 @@ class Align_NetCDF:
                         len(outside_interps),
                         outside_interps,
                     )
-            if len(outside_interps) > MAX_EXTRAPOLATE:
+            pct_outside = len(outside_interps) / len(var_time)
+            if pct_outside > MAX_EXTRAPOLATE_FRACTION:
+                # 2008.289.03 (good): len(outside_interps) = 2563, pct_outside = 0.038
+                # 2010.181.00  (bad): len(outside_interps) = 7038, pct_outside = 1.00
                 self.logger.error(
                     f"{variable}: Too many values would be extrapolated in call to interp1d() for variable {variable}"
                 )
