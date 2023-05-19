@@ -2301,6 +2301,36 @@ class Calibrate_NetCDF:
             dims={f"{sensor}_time"},
             name=f"{sensor}_depth",
         )
+        # 2008.289.03 has self.combined_nc["depth_time"][-1] (2008-10-16T15:42:32)
+        # at lot less than               orig_nc["time"][-1] (2008-10-16T16:24:43)
+        # which, with "extrapolate" causes wildly incorrect depths to -359 m
+        # There may be other cases where this happens, in which case we'd like
+        # a general solution. For now, we'll just correct this mission.
+        d_beg_time_diff = (
+            orig_nc["time"].values[0] - self.combined_nc["depth_time"].values[0]
+        )
+        d_end_time_diff = (
+            orig_nc["time"].values[-1] - self.combined_nc["depth_time"].values[-1]
+        )
+        self.logger.info(
+            f"{sensor}:"
+            f" d_beg_time_diff: {d_beg_time_diff.astype('timedelta64[s]')},"
+            f" d_end_time_diff: {d_end_time_diff.astype('timedelta64[s]')},"
+        )
+        if self.args.mission == "2008.289.03":
+            # This could be a more general check for all missions, but let's restrict it
+            # to known problematic missions for now.  The above info message can help
+            # determine if this is needed for other missions.
+            self.logger.info(
+                f"{sensor}: Special QC for mission {self.args.mission}: Setting corrected_depth"
+                f" to NaN for times after {self.combined_nc['depth_time'][-1].values}"
+            )
+            corrected_depth[
+                np.where(
+                    orig_nc.get_index("time")
+                    > self.combined_nc["depth_time"].values[-1]
+                )
+            ] = np.nan
         if self.args.plot:
             plt.figure(figsize=(18, 6))
             plt.plot(
