@@ -827,6 +827,7 @@ class Calibrate_NetCDF:
             or self.args.mission == "2017.297.00"
             or self.args.mission == "2017.347.00"
             or self.args.mission == "2017.304.00"
+            or self.args.mission == "2011.166.00"
         ):
             self.logger.info(
                 f"Removing points outside of Monterey Bay for {self.args.mission}/navigation.nc"
@@ -910,12 +911,19 @@ class Calibrate_NetCDF:
                 # This is usually because the GPS fix is bad, but sometimes it's because the
                 # dead reckoned position is bad.  Or sometimes it's both as in dorado 2016.384.00.
                 # Early QC by calling _range_qc_combined_nc() can remove the bad points.
+                # Monterey Bsy missions that have bad points can be added to the lists in
+                # _navigation_process() and/or _gps_process().
+                self.logger.info(
+                    f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
+                    f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
+                    f" {u_drift:14.3f} {v_drift:14.3f} {lat.cf['T'].data[segi][-1]}"
+                )
                 self.logger.error(
                     "End of underwater segment dead reckoned position is too different from GPS fix: "
                     f"abs(end_lon_diff) ({end_lon_diff}) > 1 or abs(end_lat_diff) ({end_lat_diff}) > 1"
                 )
                 self.logger.info(
-                    "Fix this error by calling _range_qc_combined_nc() for gps and/or navigation variables for %s %s",
+                    "Fix this error by calling _range_qc_combined_nc() in _navigation_process() and/or _gps_process() for %s %s",
                     self.args.auv_name,
                     self.args.mission,
                 )
@@ -1200,6 +1208,7 @@ class Calibrate_NetCDF:
             or self.args.mission == "2017.297.00"
             or self.args.mission == "2017.347.00"
             or self.args.mission == "2017.304.00"
+            or self.args.mission == "2011.166.00"
         ):
             self.logger.info(
                 f"Removing points outside of Monterey Bay for {self.args.mission}/gps.nc"
