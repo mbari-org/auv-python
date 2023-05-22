@@ -49,6 +49,7 @@ import cf_xarray  # Needed for the .cf accessor
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pyproj
 import xarray as xr
 from AUV import monotonic_increasing_time_indices
 from ctd_proc import (
@@ -720,22 +721,32 @@ class Calibrate_NetCDF:
                 "Likely before 2004.167.04 when latitude was added to navigation.log"
             )
 
+        navlons = None
+        navlats = None
         if "longitude" in orig_nc:
-            navlon_var = "longitude"
+            # starting with 2004.167.04 latitude & longitude were added to navigation.log
+            navlons = orig_nc["longitude"].values
+            navlats = orig_nc["latitude"].values
         elif "longitudeNav" in orig_nc:
             # Starting with 2022.243.00 the longitude variable name was changed
-            navlon_var = "longitudeNav"
+            navlons = orig_nc["longitudeNav"].values
+            navlats = orig_nc["latitudeNav"].values
         else:
-            navlon_var = None
-            self.logger.error(f"Cannot find latitude & longitude variables in {source}")
-            self.logger.error(
-                "Likely before 2004.167.04 when latitude & longitude were added to navigation.log"
+            # Up through 2004.112.02 we converted from Easting/Northing to lat/lon - all missions in Monterey Bay (Zone 10)
+            self.logger.info(
+                f"Converting from Easting/Northing to lat/lon for mission {self.args.mission}"
             )
+            proj = pyproj.Proj(proj="utm", zone=10, ellps="WGS84", radians=False)
+            navlons, navlats = proj(
+                orig_nc["mPos_y"].values, orig_nc["mPos_x"].values, inverse=True
+            )
+            navlons = navlons * np.pi / 180.0
+            navlats = navlats * np.pi / 180.0
 
-        if navlat_var is not None:
+        if navlons.any() and navlats.any():
             vars_to_qc.append("navigation_latitude")
             self.combined_nc["navigation_latitude"] = xr.DataArray(
-                orig_nc[navlat_var].values * 180 / np.pi,
+                navlats * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
                 dims={f"navigation_time"},
                 name="latitude",
@@ -746,11 +757,9 @@ class Calibrate_NetCDF:
                 "units": "degrees_north",
                 "comment": f"latitude (converted from radians) from {source}",
             }
-
-        if navlon_var is not None:
             vars_to_qc.append("navigation_longitude")
             self.combined_nc["navigation_longitude"] = xr.DataArray(
-                orig_nc[navlon_var].values * 180 / np.pi,
+                navlons * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
                 dims={f"navigation_time"},
                 name="longitude",
