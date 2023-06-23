@@ -30,9 +30,6 @@ gives some background on the motivation for these goals.
 
 ### How do I use this  ###
 
-Cloning the source code requires an MBARI bitbucket account and SSH keys
-configured for your system. See https://bitbucket.org/account/settings/ssh-keys
-
 To install on a workstation:
 
 * Install Python 3.10 on your system (Brew, Anaconda, etc)
@@ -40,7 +37,7 @@ To install on a workstation:
 * Install Poetry (https://python-poetry.org/docs/#installation)
 * mkdir ~/dev   # create a directory for your repositories
 * cd ~/dev
-* git clone git@bitbucket.org:mbari/auv-python.git
+* git clone git@github.com:mbari-org/auv-python.git
 * cd auv-python
 * poetry install
 
