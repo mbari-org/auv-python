@@ -1446,7 +1446,7 @@ class Calibrate_NetCDF:
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
 
-        # Fluoresence
+        # Fluorescence
         if hasattr(hs2, "fl676"):
             fl676 = xr.DataArray(
                 hs2.fl676.values,
@@ -1455,7 +1455,7 @@ class Calibrate_NetCDF:
                 name="hs2_fl676",
             )
             fl676.attrs = {
-                "long_name": "Fluoresence at 676 nm",
+                "long_name": "Fluorescence at 676 nm",
                 "coordinates": coord_str,
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
@@ -1468,7 +1468,7 @@ class Calibrate_NetCDF:
                 name="hs2_fl700",
             )
             fl700.attrs = {
-                "long_name": "Fluoresence at 700 nm",
+                "long_name": "Fluorescence at 700 nm",
                 "coordinates": coord_str,
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }

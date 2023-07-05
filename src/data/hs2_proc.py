@@ -116,7 +116,7 @@ def hs2_calc_bb(orig_nc, cals):
     # BACKSCATTERING COEFFICIENT CALCULATION
     # Ch1 is blue backscatter, either beta420 or beta470
     # Ch2 is red backscatter, either beta676 or beta700
-    # Ch3 is fluoresence, either fl676 or fl700
+    # Ch3 is fluorescence, either fl676 or fl700
     # Item cals[f'Ch{chan}']['Name'] identifies which one
     for chan in (1, 2):
         # -% RAW SIGNAL CONVERSION
