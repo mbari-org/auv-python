@@ -2754,3 +2754,15 @@ dorado_info["2023.123.00"] = {
     "program": f"{DIAMOND}",
     "comment": ("Monterey Bay Diamond Mission - 12323G" " - ctdToUse = ctd1 "),
 }
+dorado_info["2023.159.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 15923G" " - ctdToUse = ctd1 "),
+}
+dorado_info["2023.192.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": (
+        "Monterey Bay Diamond Mission - 19223G"
+        "Vehicle did no diving on second half of mission due to hardware issue"
+        " - ctdToUse = ctd1 "
+    ),
+}
