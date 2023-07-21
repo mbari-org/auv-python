@@ -661,9 +661,10 @@ class AUV_NetCDF(AUV):
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
 
         if not self.args.local:
-            self.logger.debug(
-                f"Unique vehicle names: {self._unique_vehicle_names()} seconds"
-            )
+            # As of 20 July 2023 this returns 404, which is dstracting
+            # self.logger.debug(
+            #   f"Unique vehicle names: {self._unique_vehicle_names()} seconds"
+            # )
             yes_no = "Y"
             if os.path.exists(os.path.join(logs_dir, "vehicle.cfg")):
                 if self.args.noinput:
