@@ -43,9 +43,6 @@ class InvalidCalFile(Exception):
     pass
 
 
-MAX_EXTRAPOLATE_FRACTION = 0.1  # Fraction of points outside of interp1d range
-
-
 class Align_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -271,7 +268,21 @@ class Align_NetCDF:
                         outside_interps,
                     )
             pct_outside = len(outside_interps) / len(var_time)
-            if pct_outside > MAX_EXTRAPOLATE_FRACTION:
+            max_extrapolate_fraction = (
+                0.1  # Fraction of points outside of interp1d range
+            )
+            # ad hoc fixes to override this check for problem missions
+            if self.args.mission in (
+                "2010.258.04",  # Failed to create ctd1_latitude, etc.
+                # ESP drifter missions out at station 67-70 with Flyer doing casts and ESP
+                # drifting south toward Davidson Seamount - no gulpers (Frederic sent me note about survey grouping)
+                # Faulty parosci lead to several mission depth aborts at beginning of this set of volume surveys
+                "2010.257.04",  # Failed to create ctd1_latitude, etc.
+                "2010.259.01",  # Failed to create ctd1_latitude, etc.
+                "2010.259.02",  # Failed to create ctd1_latitude, etc.
+            ):
+                max_extrapolate_fraction = 0.3
+            if pct_outside > max_extrapolate_fraction:
                 # 2008.289.03 (good): len(outside_interps) = 2563, pct_outside = 0.038
                 # 2010.181.00  (bad): len(outside_interps) = 7038, pct_outside = 1.00
                 self.logger.error(
