@@ -1273,17 +1273,67 @@ class Calibrate_NetCDF:
             )
         orig_nc = orig_nc.sel(time=monotonic)
 
+        depths = orig_nc["depth"]
+        # Remove egregious outliers before filtering seen form 2008 through 2012
+        # ad hoc corrections for depth after testing stoqs_all_dorado load in July 2023
+        mission_depth_ranges = {
+            "2006.054.00": Range(-1, 150),  # Soquel Canyon
+            "2008.281.03": Range(-1, 30),  # Shallow (< 30 m depth ) Soquel Bight
+            "2009.084.02": Range(-1, 60),  # Diamond - lots of bad depths
+            "2009.085.02": Range(-1, 60),  # Monterey Bay - lots of bad depths
+            "2009.112.07": Range(-1, 30),  # Shallow Monterey Bay
+            "2009.113.00": Range(-1, 30),  # Shallow Monterey Bay
+            "2009.154.00": Range(-1, 50),  # Shallow Monterey Bay
+            "2009.155.03": Range(-1, 50),  # Shallow Monterey Bay
+            "2009.272.00": Range(-1, 40),  # Shallow Monterey Bay
+            "2010.118.00": Range(-1, 260),  # Monterey Canyon transect
+            "2010.181.00": Range(-1, 260),  # Monterey Canyon transect
+            # ESP drifter missions out at station 67-70 with Flyer doing casts and ESP
+            # drifting south toward Davidson Seamount - no gulpers (Frederic sent me note about survey grouping)
+            # Faulty parosci lead to several mission depth aborts at beginning of this set of volume surveys
+            "2010.258.00": Range(-1, 110),  # Offshore CANON 2010
+            "2010.258.01": Range(-1, 110),  # Offshore CANON 2010
+            "2010.258.02": Range(-1, 110),  # Offshore CANON 2010
+            "2010.258.03": Range(-1, 110),  # Offshore CANON 2010
+            "2010.258.04": Range(-1, 110),  # Offshore CANON 2010
+            "2010.259.01": Range(-1, 110),  # Offshore CANON 2010
+            "2010.259.02": Range(-1, 110),  # Offshore CANON 2010
+            "2011.061.00": Range(-1, 50),  # Shallow Monterey Bay
+            "2011.171.01": Range(-1, 55),  # Shallow Monterey Bay
+            "2011.250.01": Range(-1, 60),  # Shallow Monterey Bay
+            "2011.263.00": Range(-1, 30),  # Shallow Monterey Bay
+            "2011.285.01": Range(-1, 25),  # Shallow Monterey Bay
+            "2012.258.00": Range(-1, 160),  # Shallow Monterey Bay
+            "2012.270.04": Range(-1, 30),  # Shallow Monterey Bay
+        }
+        if self.args.mission in mission_depth_ranges.keys():
+            valid_depth_range = mission_depth_ranges[self.args.mission]
+            self.logger.info(
+                f"Removing depths outside of {valid_depth_range=} for {self.args.mission=}"
+            )
+            out_of_range = np.where(
+                (depths < valid_depth_range.min) | (depths > valid_depth_range.max)
+            )[0]
+            self.logger.debug(
+                "depths: %d out of range values = %s",
+                len(depths[out_of_range].values),
+                depths[out_of_range].values,
+            )
+            self.logger.info(f"Setting {len(out_of_range)} depths values to NaN")
+            depths[out_of_range] = np.nan
+        depths = depths.dropna("time", how="all")
+
         # From initial CVS commit in 2004 the processDepth.m file computed
         # pres from depth this way.  I don't know what is done on the vehicle
         # side where a latitude of 36 is not appropriate: GoM, SoCal, etc.
         self.logger.debug(f"Converting depth to pressure using latitude = {latitude}")
-        pres = eos80.pres(orig_nc["depth"], latitude)
+        pres = eos80.pres(depths, latitude)
 
         # See https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.filtfilt.html#scipy.signal.filtfilt
         # and https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.signal.butter.html#scipy.signal.butter
         # Sample rate should be 10 - calcuate it to be sure
         sample_rate = 1.0 / np.round(
-            np.mean(np.diff(orig_nc["time"])) / np.timedelta64(1, "s"), decimals=2
+            np.mean(np.diff(depths["time"])) / np.timedelta64(1, "s"), decimals=2
         )
         if sample_rate != 10:
             self.logger.warning(
@@ -1297,7 +1347,7 @@ class Calibrate_NetCDF:
             depth_filtpres_butter = signal.filtfilt(b, a, pres)
         except ValueError as e:
             raise EOFError(f"Likely short or empty file: {e}")
-        depth_filtdepth_butter = signal.filtfilt(b, a, orig_nc["depth"])
+        depth_filtdepth_butter = signal.filtfilt(b, a, depths)
 
         # Use 10 points in boxcar as in processDepth.m
         a = 10
@@ -1308,10 +1358,10 @@ class Calibrate_NetCDF:
             # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
             pbeg = 0
-            pend = len(orig_nc.get_index("time"))
+            pend = len(depths.get_index("time"))
             if self.args.plot.startswith("first"):
                 pend = int(self.args.plot.split("first")[1])
-            df_plot = pd.DataFrame(index=orig_nc.get_index("time")[pbeg:pend])
+            df_plot = pd.DataFrame(index=depths.get_index("time")[pbeg:pend])
             df_plot["pres"] = pres[pbeg:pend]
             df_plot["depth_filtpres_butter"] = depth_filtpres_butter[pbeg:pend]
             df_plot["depth_filtpres_boxcar"] = depth_filtpres_boxcar[pbeg:pend]
@@ -1328,7 +1378,7 @@ class Calibrate_NetCDF:
 
         depth_filtdepth = xr.DataArray(
             depth_filtdepth_butter,
-            coords=[orig_nc.get_index("time")],
+            coords=[depths.get_index("time")],
             dims={f"depth_time"},
             name="depth_filtdepth",
         )
@@ -1344,7 +1394,7 @@ class Calibrate_NetCDF:
 
         depth_filtpres = xr.DataArray(
             depth_filtpres_butter,
-            coords=[orig_nc.get_index("time")],
+            coords=[depths.get_index("time")],
             dims={f"depth_time"},
             name="depth_filtpres",
         )
@@ -2335,7 +2385,11 @@ class Calibrate_NetCDF:
             f" d_beg_time_diff: {d_beg_time_diff.astype('timedelta64[s]')},"
             f" d_end_time_diff: {d_end_time_diff.astype('timedelta64[s]')},"
         )
-        if self.args.mission == "2008.289.03":
+        if self.args.mission in (
+            "2008.289.03",
+            "2010.259.01",
+            "2010.259.02",
+        ):
             # This could be a more general check for all missions, but let's restrict it
             # to known problematic missions for now.  The above info message can help
             # determine if this is needed for other missions.
