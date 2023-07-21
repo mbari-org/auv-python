@@ -37,9 +37,14 @@ from socket import gethostname
 from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
+from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from resample import FREQ, MF_WIDTH, InvalidAlignFile, Resampler
+
+
+class MissingDoradoInfo(Exception):
+    pass
 
 
 class Processor:
@@ -302,12 +307,17 @@ class Processor:
             "====================================================================================================================="
         )
         self.logger.addHandler(self.log_handler)
-        self.logger.info(
-            "Processing mission %s by user %s on host %s",
-            mission,
-            getuser(),
-            gethostname(),
-        )
+        try:
+            self.logger.info(
+                "Processing %s mission %s by user %s on host %s",
+                dorado_info[mission]["program"],
+                mission,
+                getuser(),
+                gethostname(),
+            )
+            self.logger.info(f'{dorado_info[mission]["comment"] = }')
+        except KeyError:
+            raise MissingDoradoInfo(f"{mission} not in dorado_info")
         if self.args.download_process:
             self.download_process(mission, src_dir)
         elif self.args.calibrate:
@@ -337,9 +347,10 @@ class Processor:
             InvalidAlignFile,
             FileNotFoundError,
             EOFError,
+            MissingDoradoInfo,
         ) as e:
-            self.logger.error("%s %s", mission, e)
-            self.logger.error("Cannot continue without valid file(s)")
+            self.logger.error(repr(e))
+            self.logger.error("Failed to process to completion: %s", mission)
         finally:
             # Still need to archive the mission, especially the processing.log file
             self.archive(mission)
@@ -365,9 +376,17 @@ class Processor:
                     self.args.mission,
                     src_dir=self.get_mission_dir(self.args.mission),
                 )
-            except (InvalidCalFile, InvalidAlignFile, FileNotFoundError, EOFError) as e:
-                self.logger.error("%s %s", self.args.mission, e)
-                self.logger.error("Cannot continue without valid upstream file(s)")
+            except (
+                InvalidCalFile,
+                InvalidAlignFile,
+                FileNotFoundError,
+                EOFError,
+                MissingDoradoInfo,
+            ) as e:
+                self.logger.error(repr(e))
+                self.logger.error(
+                    "Failed to process to completion: %s", self.args.mission
+                )
             finally:
                 if hasattr(self, "log_handler"):
                     # If no log_handler then process_mission() failed, likely due to missing mount
