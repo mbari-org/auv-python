@@ -42,16 +42,22 @@ class Archiver:
             sys.exit(1)
         year = self.args.mission.split(".")[0]
         surveys_dir = os.path.join(surveys_dir, year, "netcdf")
-        self.logger.info(f"Copying {nc_file_base} files to {surveys_dir}")
+        self.logger.info(f"Archiving {nc_file_base} files to {surveys_dir}")
         # To avoid "fchmod failed: Permission denied" message use rsync instead  of cp
         # https://apple.stackexchange.com/a/206251
         for ftype in (f"{freq}.nc", "cal.nc", "align.nc", LOG_NAME):
             src_file = f"{nc_file_base}_{ftype}"
-            if os.path.exists(src_file):
+            dst_file = f"{os.path.join(surveys_dir, os.path.basename(src_file))}"
+            if self.args.clobber and os.path.exists(dst_file):
+                self.logger.info(f"Removing {dst_file}")
+                os.remove(dst_file)
+            if os.path.exists(src_file) and os.path.exists(src_file):
+                if ftype == LOG_NAME:  # log the log file rsync in the log file
+                    self.logger.info(f"rsync {src_file} {surveys_dir}")
                 os.system(f"rsync {src_file} {surveys_dir}")
                 self.logger.info(f"rsync {src_file} {surveys_dir} done.")
             else:
-                self.logger.error(f"{src_file} not found")
+                self.logger.debug(f"{src_file} not found")
 
         # Copy intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
         YYYYJJJ = "".join(self.args.mission.split(".")[:2])
@@ -110,6 +116,11 @@ class Archiver:
             action="store_true",
             help="Copy reampled netCDF file(s) to appropriate place on AUVCTD",
         ),
+        parser.add_argument(
+            "--clobber",
+            action="store_true",
+            help="Remove existing netCDF files before rsyncing to the AUVCTD directory",
+        )
         parser.add_argument(
             "-v",
             "--verbose",

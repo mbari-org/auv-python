@@ -1498,13 +1498,15 @@ dorado_info["2010.154.01"] = {
         " - ctdToUse = ctd1 "
     ),
 }
-dorado_info["2010.172.01"] = {
-    "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM - bad times in Nav.time ( -4.7749e+307) - won't process (bad mission?)"
-        " - ctdToUse = ctd1 "
-    ),
-}
+# dorado_info["2010.172.01"] = {
+#   "program": AUVCTD,
+#   "comment": (
+#       "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM -"
+#       " bad times in Nav.time ( -4.7749e+307) - won't process (bad mission?)"
+#       " Really bad longitude and latitude - best to ignore this mission."
+#       " - ctdToUse = ctd1 "
+#   ),
+# }
 dorado_info["2010.173.00"] = {
     "program": AUVCTD,
     "comment": (

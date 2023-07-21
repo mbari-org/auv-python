@@ -258,6 +258,7 @@ class Processor:
         arch.args.auv_name = self.vehicle
         arch.args.mission = mission
         arch.commandline = self.commandline
+        arch.args.clobber = self.args.clobber
         arch.args.verbose = self.args.verbose
         arch.logger.setLevel(self._log_levels[self.args.verbose])
         arch.logger.addHandler(self.log_handler)
@@ -455,7 +456,9 @@ class Processor:
         parser.add_argument(
             "--clobber",
             action="store_true",
-            help="Use with --noinput to overwrite existing" " downloaded log files",
+            help="Use with --noinput to overwrite existing downloaded"
+            " log files and to remove existing netCDF files before"
+            " rsyncing to the AUVCTD directory",
         )
         parser.add_argument(
             "--noinput",
