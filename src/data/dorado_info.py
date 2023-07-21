@@ -1547,7 +1547,7 @@ for day, mission_number in [
     (260, 0),
     (261, 0),
 ]:
-    dorado_info[f"2010.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2010.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
             "ESP drifter missions out at station 67-70 with Flyer doing casts and ESP drifting south"
