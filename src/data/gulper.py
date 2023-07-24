@@ -13,17 +13,19 @@ import argparse
 import logging
 import os
 import re
-import sys
-
 import requests
+import sys
 import xarray as xr
-from logs2netcdfs import AUV_NetCDF
 
 
 class Gulper:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
-    _handler.setFormatter(AUV_NetCDF._formatter)
+    _formatter = logging.Formatter(
+        "%(levelname)s %(asctime)s %(filename)s "
+        "%(funcName)s():%(lineno)d %(message)s"
+    )
+    _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
@@ -60,7 +62,7 @@ class Gulper:
 
     def parse_gulpers(self) -> dict:
         "Parse the Gulper times and bottle numbers from the auvctd syslog file"
-
+        bottles = {}
         if self.args.local:
             # Read from local file - useful for testing in auv-python
             base_path = os.path.abspath(
@@ -91,7 +93,13 @@ class Gulper:
                     self.logger.error(
                         f"Cannot read {syslog_url}, resp.status_code = {resp.status_code}"
                     )
-                    raise FileNotFoundError(f"Cannot read {syslog_url}")
+                    if self.args.mission in ("2012.256.00", "2012.257.01", "2012.258.00"):
+                        # Hans created tarballs for offshore missions do not include syslogs
+                        # per email thread on 12 September 2012 - Mike McCann
+                        self.logger.info(f"Known missing syslog for mission {self.args.mission}")
+                        return bottles
+                    else:
+                        raise FileNotFoundError(f"Cannot read {syslog_url}")
                 lines = [line.decode(errors="ignore") for line in resp.iter_lines()]
 
         mission_start_esecs = self.mission_start_esecs()
@@ -122,7 +130,7 @@ class Gulper:
         gulper_number_re = re.compile("GulperServer - firing gulper (\d+)")
 
         # Logic translated to here from parseGulperLog.pl Perl script
-        bottles = {}
+        etime = None
         number = None
         for line in lines:
             if "t = 0.000000" in line:
@@ -144,12 +152,13 @@ class Gulper:
                 number = int(match.group(1))
                 esecs = float(match.group(2))
                 self.logger.debug(f"number = {number}, esecs = {esecs}")
+                bottles[number] = esecs
 
             if match := num_fire_gulper_cmd_re.search(line):
                 # ": (\d+) Gulper::fireGulper - cmd is \$(\d\d)1Fff
                 esecs = float(match.group(1))
                 number = int(match.group(2))
-                self.logger.debug(f"eseconds = {eses}, number = {number}")
+                self.logger.debug(f"eseconds = {esecs}, number = {number}")
                 if etime:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
