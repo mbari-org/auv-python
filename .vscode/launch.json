@@ -142,7 +142,7 @@
             "console": "integratedTerminal",
             //"args": ["-v", "2", "--mission", "2008.287.05", "--start_esecs", "1223937982.9781"],
             //"args": ["-v", "2", "--mission", "2008.287.06", "--start_esecs", "1223937982.9781"],
-            "args": ["-v", "1", "--mission", "2008.287.05"],
+            "args": ["-v", "2", "--mission", "2008.287.05"],
         },
         {
             "name": "process_i2map",
