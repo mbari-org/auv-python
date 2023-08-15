@@ -21,7 +21,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2003.156.09", "--noinput", "-v", "2", "--clobber"]
             //"args": ["--auv_name", "dorado", "--mission", "2010.172.01", "--noinput", "-v", "2", "--clobber", "--local"]
             //"args": ["--auv_name", "dorado", "--mission", "2020.245.00", "--noinput", "-v", "1", "--clobber", "--local"]
-            "args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v"]
+            //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v"]
+            "args": ["--auv_name", "i2map", "--mission", "2019.157.02", "--noinput",  "-v", "1"]
         },
         {
             "name": "1.1 - lopcToNetCDF",
@@ -122,7 +123,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2004.236.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2010.259.02", "-v", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2010.259.02", "-v", "1"]
+            "args": ["--auv_name", "i2map", "--mission", "2019.157.02", "-v", "2", "--plot", "--plot_seconds", "82000"],
         },
         {
             "name": "5.0 - archive.py",
@@ -167,7 +169,8 @@
             //"args": ["-v", "1", "--mission", "2022.061.01", "--archive", "--noinput"],
             //"args": ["-v", "1", "--mission", "2018.344.01", "--use_portal", "--no_cleanup", "--noinput"],
             //"args": ["-v", "1", "--start_year", "2018", "--end_year", "2018", "--start_yd", "344", "--use_portal", "--no_cleanup", "--noinput", "--clobber"],
-            "args": ["-v", "1", "--mission", "2019.280.02", "--use_portal", "--no_cleanup", "--noinput"],
+            //"args": ["-v", "1", "--mission", "2019.280.02", "--use_portal", "--no_cleanup", "--noinput"],
+            "args": ["-v", "2", "--mission", "2019.157.02", "--no_cleanup", "--noinput"],
         },
         {
             "name": "process_dorado",
