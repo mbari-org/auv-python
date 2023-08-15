@@ -309,14 +309,19 @@ class Processor:
         )
         self.logger.addHandler(self.log_handler)
         try:
+            program = ""
+            if self.vehicle.lower() == "dorado":
+                program = dorado_info[mission]["program"]
+                self.logger.info(f'{dorado_info[mission]["comment"] = }')
+            elif self.vehicle.lower() == "i2map":
+                program = "i2map"
             self.logger.info(
                 "Processing %s mission %s by user %s on host %s",
-                dorado_info[mission]["program"],
+                program,
                 mission,
                 getuser(),
                 gethostname(),
             )
-            self.logger.info(f'{dorado_info[mission]["comment"] = }')
         except KeyError:
             raise MissingDoradoInfo(f"{mission} not in dorado_info")
         if self.args.download_process:
