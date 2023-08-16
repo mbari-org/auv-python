@@ -2348,11 +2348,19 @@ class Calibrate_NetCDF:
         as its variables in combined_nc are required. Returns corrected depth
         array.
         """
+        # Fix pitch values to first and last points for interpolation to time
+        # values outside the range of the pitch values.
+        # See https://stackoverflow.com/a/45446546
+        # and https://github.com/scipy/scipy/issues/12707#issuecomment-672794335
         try:
             p_interp = interp1d(
                 self.combined_nc["navigation_time"].values.tolist(),
                 self.combined_nc["navigation_pitch"].values,
-                fill_value="extrapolate",
+                fill_value=(
+                    self.combined_nc["navigation_pitch"].values[0],
+                    self.combined_nc["navigation_pitch"].values[-1],
+                ),
+                bounds_error=False,
             )
         except KeyError:
             raise EOFError("No navigation_time or navigation_pitch in combined_nc. ")
@@ -2361,7 +2369,11 @@ class Calibrate_NetCDF:
         d_interp = interp1d(
             self.combined_nc["depth_time"].values.tolist(),
             self.combined_nc["depth_filtdepth"].values,
-            fill_value="extrapolate",
+            fill_value=(
+                self.combined_nc["depth_filtdepth"].values[0],
+                self.combined_nc["depth_filtdepth"].values[-1],
+            ),
+            bounds_error=False,
         )
         orig_depth = d_interp(orig_nc["time"].values.tolist())
         offs_depth = align_geom(self.sinfo[sensor]["sensor_offset"], pitch)
