@@ -135,7 +135,11 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
     f_interp = interp1d(
         combined_nc["depth_time"].values.tolist(),
         combined_nc["depth_filtpres"].values,
-        fill_value="extrapolate",
+        fill_value=(
+            combined_nc["depth_filtpres"].values[0],
+            combined_nc["depth_filtpres"].values[-1],
+        ),
+        bounds_error=False,
     )
     p1 = f_interp(nc["time"].values.tolist())
     if args.plot:
@@ -162,7 +166,7 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
         )
         plt.show()
 
-    # %% Conductivity Calculation
+    # Conductivity Calculation
     # cfreq=cond_frequency/1000;
     # c1 = (c_a*(cfreq.^c_m)+c_b*(cfreq.^2)+c_c+c_d*TC)./(10*(1+eps*p1));
     #
@@ -211,9 +215,9 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
 
 def _oxsat(temperature, salinity):
     #
-    # %%----------------------------------
-    # %% Oxygen saturation: f(T,S); ml/l
-    # %%----------------------------------
+    # ----------------------------------
+    # Oxygen saturation: f(T,S); ml/l
+    # ----------------------------------
     # TK = 273.15+T;  % degrees Kelvin
     # A1 = -173.4292; A2 = 249.6339; A3 = 143.3483; A4 = -21.8492;
     # B1 = -0.033096; B2 = 0.014259; B3 =  -0.00170;
@@ -242,23 +246,27 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
     # Contents of doradosdp's calc_O2_SBE43.m:
     # ----------------------------------------
     # function [O2] = calc_O2_SBE43(O2V,T,S,P,O2cal,time,units);
-    # %% To calculate Oxygen from sbe voltage
-    # %% Reference: W.B. Owens and R.C. Millard, 1985. A new algorithm for CTD oxygen
-    # %%  calibration, J. Phys. Oceanogr. 15:621-631.
-    # %%  Also, described in SeaBird application note.
+    # To calculate Oxygen from sbe voltage
+    # Reference: W.B. Owens and R.C. Millard, 1985. A new algorithm for CTD oxygen
+    # calibration, J. Phys. Oceanogr. 15:621-631.
+    # Also, described in SeaBird application note.
     # pltit = 'n';
     # % disp(['   Pressure should be in dB']);
     f_interp = interp1d(
         combined_nc["depth_time"].values.tolist(),
         combined_nc["depth_filtpres"].values,
-        fill_value="extrapolate",
+        fill_value=(
+            combined_nc["depth_filtpres"].values[0],
+            combined_nc["depth_filtpres"].values[-1],
+        ),
+        bounds_error=False,
     )
     pressure = f_interp(nc["time"].values.tolist())
 
     #
-    # %%----------------------------------
-    # %% Oxygen voltage
-    # %%----------------------------------
+    # ----------------------------------
+    # Oxygen voltage
+    # ----------------------------------
     # % disp(['   Minimum of oxygen voltage ' num2str(min(O2V)) ' V']);
     # % disp(['   Maximum of oxygen voltage ' num2str(max(O2V)) ' V']);
     # % disp(['   Mean of oxygen voltage ' num2str(mean(O2V)) ' V']);
@@ -273,10 +281,10 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
     oxsat = _oxsat(temperature, salinity)
 
     #
-    # %%----------------------------------
-    # %% Oxygen concentration (mL/L)
-    # %%----------------------------------
-    # %% Constants
+    # ----------------------------------
+    # Oxygen concentration (mL/L)
+    # ----------------------------------
+    # Constants
     # tau=0;
     #
     # O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;
@@ -294,12 +302,12 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
 
     #
     # if strcmp(units,'umolkg')==1
-    # %%----------------------------------
-    # %% Convert to umol/kg
-    # %%----------------------------------
-    # %% SeaBird equations are for ml/l computations
-    # %%  Can convert OXSAT at atmospheric pressure to mg/l by 1.4276
-    # %%  Convert dissolved O2 to mg/l using density of oxygen = 1.4276 kg/m^3
+    # ----------------------------------
+    # Convert to umol/kg
+    # ----------------------------------
+    # SeaBird equations are for ml/l computations
+    #  Can convert OXSAT at atmospheric pressure to mg/l by 1.4276
+    #  Convert dissolved O2 to mg/l using density of oxygen = 1.4276 kg/m^3
     # dens=sw_dens(S,T,P);
     # O2 = (O2 * 1.4276) .* (1e6./(dens*32));
     dens = eos80.dens(salinity.values, temperature.values, pressure)
