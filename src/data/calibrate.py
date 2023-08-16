@@ -1278,6 +1278,9 @@ class Calibrate_NetCDF:
         # ad hoc corrections for depth after testing stoqs_all_dorado load in July 2023
         mission_depth_ranges = {
             "2006.054.00": Range(-1, 150),  # Soquel Canyon
+            "2007.120.00": Range(-0.5, 32),  # Shallow N. Monterey Bay
+            "2007.120.01": Range(-0.5, 32),  # Shallow  N. Monterey Bay
+            "2007.123.05": Range(-0.5, 32),  # Shallow  N. Monterey Bay
             "2008.281.03": Range(-1, 30),  # Shallow (< 30 m depth ) Soquel Bight
             "2009.084.02": Range(-1, 60),  # Diamond - lots of bad depths
             "2009.085.02": Range(-1, 60),  # Monterey Bay - lots of bad depths
