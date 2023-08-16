@@ -172,10 +172,8 @@ class Align_NetCDF:
             self.logger.debug(f"Processing {variable}")
             self.aligned_nc[variable] = self.calibrated_nc[variable]
             # Interpolators for the non-time dimensions
-            # TODO: Evaluate if extrapolate is proper here. For just a few
-            # points it may be OK, but for a large number of points it will
-            # add crazy values as in dorado 2010.181.00 -- for now, just
-            # check for too many extrapolate points and raise an exception.
+            # Fix values to first and last points for interpolation to time
+            # values outside the range of the pitch values.
             try:
                 lat_interp = interp1d(
                     self.calibrated_nc["nudged_latitude"]
@@ -183,7 +181,11 @@ class Align_NetCDF:
                     .view(np.int64)
                     .tolist(),
                     self.calibrated_nc["nudged_latitude"].values,
-                    fill_value="extrapolate",
+                    fill_value=(
+                        self.calibrated_nc["nudged_latitude"][0],
+                        self.calibrated_nc["nudged_latitude"][-1],
+                    ),
+                    bounds_error=False,
                 )
             except KeyError:
                 raise InvalidCalFile(f"No nudged_latitude data in {in_fn}")
@@ -193,7 +195,11 @@ class Align_NetCDF:
                 .view(np.int64)
                 .tolist(),
                 self.calibrated_nc["nudged_longitude"].values,
-                fill_value="extrapolate",
+                fill_value=(
+                    self.calibrated_nc["nudged_longitude"][0],
+                    self.calibrated_nc["nudged_longitude"][-1],
+                ),
+                bounds_error=False,
             )
             timevar = f"{instr}_{TIME}"
             if variable == "biolume_raw":
@@ -206,7 +212,11 @@ class Align_NetCDF:
                     .view(np.int64)
                     .tolist(),
                     self.calibrated_nc[f"{instr}_depth"].values,
-                    fill_value="extrapolate",
+                    fill_value=(
+                        self.calibrated_nc[f"{instr}_depth"][0],
+                        self.calibrated_nc[f"{instr}_depth"][-1],
+                    ),
+                    bounds_error=False,
                 )
                 self.logger.info(
                     f"Using pitch corrected {instr}_depth: {self.calibrated_nc[f'{instr}_depth'].attrs['comment']}"
@@ -219,7 +229,11 @@ class Align_NetCDF:
                     .view(np.int64)
                     .tolist(),
                     self.calibrated_nc["depth_filtdepth"].values,
-                    fill_value="extrapolate",
+                    fill_value=(
+                        self.calibrated_nc["depth_filtdepth"][0],
+                        self.calibrated_nc["depth_filtdepth"][-1],
+                    ),
+                    bounds_error=False,
                 )
             except ValueError as e:
                 # Likely x and y arrays must have at least 2 entries
@@ -228,70 +242,6 @@ class Align_NetCDF:
             var_time = (
                 self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
             )
-
-            # Count number of values that are outside the time range of the _interp coordinate values
-            outside_interps = np.where(
-                (
-                    self.aligned_nc[variable].get_index(timevar)
-                    < self.calibrated_nc["depth_filtdepth"].get_index("depth_time")[0]
-                )
-                | (
-                    self.aligned_nc[variable].get_index(timevar)
-                    > self.calibrated_nc["depth_filtdepth"].get_index("depth_time")[-1]
-                )
-            )[0]
-            outside_interps = np.union1d(
-                outside_interps,
-                np.where(
-                    (
-                        self.aligned_nc[variable].get_index(timevar)
-                        < self.calibrated_nc["nudged_latitude"].get_index("time")[0]
-                    )
-                    | (
-                        self.aligned_nc[variable].get_index(timevar)
-                        > self.calibrated_nc["nudged_latitude"].get_index("time")[-1]
-                    )
-                )[0],
-            )
-            if len(outside_interps) > 0:
-                self.logger.debug(
-                    f"{len(outside_interps)} value(s) outside the time range of the interpolators: {outside_interps}"
-                )
-                if depth_interp.fill_value == "extrapolate":
-                    self.logger.debug(
-                        f"{variable}: Extrapolating {len(outside_interps)} value(s) at indice(s) {outside_interps}"
-                    )
-                    self.logger.info(
-                        "%s: Extrapolating %d value(s) at indices %s",
-                        variable,
-                        len(outside_interps),
-                        outside_interps,
-                    )
-            pct_outside = len(outside_interps) / len(var_time)
-            max_extrapolate_fraction = (
-                0.1  # Fraction of points outside of interp1d range
-            )
-            # ad hoc fixes to override this check for problem missions
-            if self.args.mission in (
-                "2010.258.04",  # Failed to create ctd1_latitude, etc.
-                # ESP drifter missions out at station 67-70 with Flyer doing casts and ESP
-                # drifting south toward Davidson Seamount - no gulpers (Frederic sent me note about survey grouping)
-                # Faulty parosci lead to several mission depth aborts at beginning of this set of volume surveys
-                "2010.257.04",  # Failed to create ctd1_latitude, etc.
-                "2010.259.01",  # Failed to create ctd1_latitude, etc.
-                "2010.259.02",  # Failed to create ctd1_latitude, etc.
-            ):
-                max_extrapolate_fraction = 0.3
-            if pct_outside > max_extrapolate_fraction:
-                # 2008.289.03 (good): len(outside_interps) = 2563, pct_outside = 0.038
-                # 2010.181.00  (bad): len(outside_interps) = 7038, pct_outside = 1.00
-                self.logger.error(
-                    f"{variable}: Too many values would be extrapolated in call to interp1d() for variable {variable}"
-                )
-                self.logger.info(
-                    f"{variable}: Too many values would be extrapolated, not saving it in _align.nc"
-                )
-                continue
 
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
