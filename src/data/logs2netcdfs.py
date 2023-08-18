@@ -660,6 +660,9 @@ class AUV_NetCDF(AUV):
         vehicle = vehicle or self.args.auv_name
         logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
 
+        if src_dir:
+            self.logger.info(f"{src_dir = }")
+
         if not self.args.local:
             # As of 20 July 2023 this returns 404, which is dstracting
             # self.logger.debug(
@@ -672,9 +675,6 @@ class AUV_NetCDF(AUV):
                         self.logger.info(f"Clobbering existing {logs_dir} files")
                     else:
                         self.logger.info(f"{logs_dir} exists")
-                        self.logger.info(
-                            f"Assuming it contains missionlogs copied from {src_dir}"
-                        )
                         yes_no = "N"
                         if self.args.noreprocess:
                             self.logger.info(f"Not reprocessing {logs_dir}")
