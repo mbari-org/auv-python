@@ -170,7 +170,7 @@
             //"args": ["-v", "1", "--mission", "2018.344.01", "--use_portal", "--no_cleanup", "--noinput"],
             //"args": ["-v", "1", "--start_year", "2018", "--end_year", "2018", "--start_yd", "344", "--use_portal", "--no_cleanup", "--noinput", "--clobber"],
             //"args": ["-v", "1", "--mission", "2019.280.02", "--use_portal", "--no_cleanup", "--noinput"],
-            "args": ["-v", "2", "--mission", "2019.157.02", "--no_cleanup", "--noinput"],
+            "args": ["-v", "1", "--mission", "2019.190.00", "--no_cleanup", "--noinput"],
         },
         {
             "name": "process_dorado",

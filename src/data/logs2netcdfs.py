@@ -672,6 +672,9 @@ class AUV_NetCDF(AUV):
                         self.logger.info(f"Clobbering existing {logs_dir} files")
                     else:
                         self.logger.info(f"{logs_dir} exists")
+                        self.logger.info(
+                            f"Assuming it contains missionlogs copied from {src_dir}"
+                        )
                         yes_no = "N"
                         if self.args.noreprocess:
                             self.logger.info(f"Not reprocessing {logs_dir}")
