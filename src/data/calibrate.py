@@ -396,7 +396,7 @@ class Calibrate_NetCDF:
                             var,
                             instrument,
                         )
-                    if set_to_nan:
+                    if set_to_nan and var not in self.combined_nc.coords:
                         self.logger.info(
                             f"Setting {len(out_of_range_indices)} {var} values to NaN"
                         )
@@ -849,6 +849,22 @@ class Calibrate_NetCDF:
                     "navigation_latitude": Range(36, 37),
                 },
             )
+        if self.args.mission == "2010.284.00":
+            self.logger.info(
+                f"Removing points outside of time range for {self.args.mission}/navigation.nc"
+            )
+            self._range_qc_combined_nc(
+                instrument="navigation",
+                variables=[
+                    v for v in self.combined_nc.variables if v.startswith(sensor)
+                ],
+                ranges={
+                    f"{sensor}_time": Range(
+                        pd.Timestamp(2010, 10, 11, 20, 0, 0),
+                        pd.Timestamp(2010, 10, 12, 3, 28, 0),
+                    ),
+                },
+            )
 
     def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
@@ -920,7 +936,7 @@ class Calibrate_NetCDF:
                 # This is usually because the GPS fix is bad, but sometimes it's because the
                 # dead reckoned position is bad.  Or sometimes it's both as in dorado 2016.384.00.
                 # Early QC by calling _range_qc_combined_nc() can remove the bad points.
-                # Monterey Bsy missions that have bad points can be added to the lists in
+                # Monterey Bay missions that have bad points can be added to the lists in
                 # _navigation_process() and/or _gps_process().
                 self.logger.info(
                     f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
@@ -1993,6 +2009,22 @@ class Calibrate_NetCDF:
             ranges={f"{sensor}_salinity": Range(30, 40)},
             set_to_nan=True,
         )
+        if self.args.mission == "2010.284.00":
+            self.logger.info(
+                f"Removing points outside of time range for {self.args.mission}/{sensor}.nc"
+            )
+            self._range_qc_combined_nc(
+                instrument=sensor,
+                variables=[
+                    v for v in self.combined_nc.variables if v.startswith(sensor)
+                ],
+                ranges={
+                    f"{sensor}_time": Range(
+                        pd.Timestamp(2010, 10, 11, 20, 0, 0),
+                        pd.Timestamp(2010, 10, 12, 3, 28, 0),
+                    ),
+                },
+            )
 
     def _tailcone_process(self, sensor):
         # As requested by Rob Sherlock capture propRpm for comparison with
@@ -2203,6 +2235,29 @@ class Calibrate_NetCDF:
             "coordinates": f"{sensor}_{TIME60HZ} {sensor}_depth60hz",
             "comment": f"raw values from {source} {lag_info}",
         }
+        if self.args.mission == "2010.284.00":
+            self.logger.info(
+                f"Removing points outside of time range for {self.args.mission}/biolume.nc"
+            )
+            for time_axis in (TIME, TIME60HZ):
+                self._range_qc_combined_nc(
+                    instrument=sensor,
+                    variables=[
+                        "biolume_time",
+                        "biolume_time60hz",
+                        "biolume_depth",
+                        "biolume_flow",
+                        "biolume_avg_biolume",
+                        "biolume_raw",
+                    ],
+                    ranges={
+                        f"{sensor}_{time_axis}": Range(
+                            pd.Timestamp(2010, 10, 11, 20, 0, 0),
+                            pd.Timestamp(2010, 10, 12, 3, 28, 0),
+                        ),
+                    },
+                    set_to_nan=True,
+                )
 
     def _lopc_process(self, sensor):
         try:
