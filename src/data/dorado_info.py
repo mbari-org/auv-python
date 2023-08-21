@@ -129,6 +129,57 @@ for mission_number in range(2, 5):
         "program": OCCO,
         "comment": ("OCCO2003176: missions {02,03,04}" " - ctdToUse = ctd1 "),
     }
+dorado_info["2003.191.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2003.199.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
+for mission_number in (7, 8, 9, 11, 13):
+    dorado_info[f"2003.205.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+            " - ctdToUse = ctd1 "
+        ),
+    }
+for mission_number in range(2, 5):
+    dorado_info[f"2003.206.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+            " - ctdToUse = ctd1 "
+        ),
+    }
+dorado_info["2003.216.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2003.218.04"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2003.220.11"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
 dorado_info["2003.222.02"] = {
     "program": AUVCTD,
     "comment": (
@@ -221,7 +272,7 @@ dorado_info["2003.241.02"] = {
     "comment": ("Re-portaled 7/11/05" " - ctdToUse = ctd1 "),
 }
 for mission_number in range(2, 5):
-    dorado_info[f"2003.244.{mission_number:02d}"] = {
+    dorado_info[f"2003.245.{mission_number:02d}"] = {
         "program": OCCO,
         "comment": (
             "OCCO2003245: missions {02,03,04}: Re-portaled 7/11/05"
