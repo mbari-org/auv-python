@@ -892,7 +892,7 @@ class Calibrate_NetCDF:
             lat_nudged_array = lat[segi]
             dt_nudged = lon.get_index("navigation_time")[segi]
             self.logger.debug(
-                f"Filled _nudged arrays with {len(segi)} values starting at {lat.get_index('navigation_time')[0]} which were before the first GPS fix at {lat_fix.get_index('navigation_time')[0]}"
+                f"Filled _nudged arrays with {len(segi)} values starting at {lat.get_index('navigation_time')[0]} which were before the first GPS fix at {lat_fix.get_index('gps_time')[0]}"
             )
         else:
             lon_nudged_array = np.array([])
@@ -1160,22 +1160,31 @@ class Calibrate_NetCDF:
             self.logger.error(f"{e}")
             return
         except AttributeError:
-            raise EOFError(
-                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
-            )
+            if self.args.mission == "2010.151.04":
+                # Gulf of Mexico mission - use data from usbl.dat file(s)
+                usbl_file = os.path.join(
+                    self.args.base_path,
+                    self.args.auv_name,
+                    MISSIONNETCDFS,
+                    self.args.mission,
+                    "usbl.nc",
+                )
+                self.logger.info(
+                    f"Just for the GoMx mission 2010.151.04 use data from {usbl_file}"
+                    " that came from the missionlogs/usbl.dat file"
+                )
+                orig_nc = xr.open_dataset(usbl_file)
 
-        if self.args.mission == "2010.151.04":
-            # Gulf of Mexico mission - read from usbl.dat files
-            self.logger.info(
-                "Cannot read latitude data using load command.  Just for the GoMx mission use USBL instead..."
-            )
-            self.logger.info("TODO: Implement this fix in auv-python")
-            # -data_filename = 'usbl.nc'
-            # -loaddata
-            # -time = time(1:10:end);
-            # -lat = latitude(1:10:end);	% Subsample usbl so that iit is like our gps data
-            # -lon = longitude(1:10:end);
+                # Subsample usbl so that it has similar frequency to gps data
+                # and convert to radians so that it matches the gps data
+                orig_nc = orig_nc.isel(time=slice(None, None, 10))
+                orig_nc["latitude"] = orig_nc["latitude"] * np.pi / 180.0
+                orig_nc["longitude"] = orig_nc["longitude"] * np.pi / 180.0
+            else:
+                raise EOFError(
+                    f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
+                    f" in {os.path.join(MISSIONLOGS, self.args.mission)}"
+                )
 
         lat = orig_nc["latitude"] * 180.0 / np.pi
         if orig_nc["longitude"][0] > 0:
