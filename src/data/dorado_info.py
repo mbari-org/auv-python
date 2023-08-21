@@ -1123,7 +1123,7 @@ dorado_info["2007.260.00"] = {
     ),
 }
 for day, mission_number in [(261, 1), (263, 1)]:
-    dorado_info[f"2007.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2007.{day:02d}.{mission_number:02d}"] = {
         "program": OCCO,
         "comment": (
             "OCCO mission - Northern shelf survey about ESP deployments"
@@ -1138,7 +1138,7 @@ for day, mission_number in [
     (267, 4),
     (268, 1),
 ]:
-    dorado_info[f"2007.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2007.{day:02d}.{mission_number:02d}"] = {
         "program": OCCO,
         "comment": (
             "OCCO mission - Tight box survey about ESP site" " - ctdToUse = ctd1 "
@@ -1280,17 +1280,17 @@ dorado_info["2008.287.05"] = {
     "comment": ("AUVCTD mission - North bay shelf survey " " - ctdToUse = ctd2 "),
 }
 for day, mission_number in [(288, 0), (295, 1), (296, 0), (297, 1)]:
-    dorado_info[f"2008.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2008.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("AUVCTD mission - North bay shelf survey" " - ctdToUse = ctd2 "),
     }
 for day, mission_number in [(289, 3), (297, 0)]:
-    dorado_info[f"2008.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2008.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("AUVCTD mission - North bay shelf survey" " - ctdToUse = ctd1 "),
     }
 for day, mission_number in [(315, 1), (318, 1), (318, 2)]:
-    dorado_info[f"2008.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2008.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("AUVCTD mission - Kanna trex mission" " - ctdToUse = ctd1 "),
     }
@@ -1370,7 +1370,7 @@ dorado_info["2009.127.02"] = {
     ),
 }
 for day, mission_number in [(152, 0), (153, 1), (154, 0), (155, 3)]:
-    dorado_info[f"2009.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2009.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("AUVCTD mission - Ryan - around ESP" " - ctdToUse = ctd2 "),
     }
@@ -1619,7 +1619,7 @@ dorado_info["2010.285.00"] = {
     ),
 }
 for mission_number in [1, 2]:
-    dorado_info[f"2010.286.{mission_number:01d}"] = {
+    dorado_info[f"2010.286.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
             "Inner-bay survey seventh - TREX lagrangian mission near M0 and stella104 drifter"
@@ -1683,7 +1683,7 @@ dorado_info["2010.301.00"] = {
     "comment": ("Inner-bay survey fifteenth - Daytime run" " - ctdToUse = ctd1 "),
 }
 for day, mission_number in [(340, 0), (340, 1), (341, 0), (341, 1)]:
-    dorado_info[f"2010.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2010.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("Out and back from M1" " - ctdToUse = ctd1 "),
     }
