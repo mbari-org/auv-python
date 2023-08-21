@@ -8,7 +8,7 @@ and run the data through standard science data processing to calibrated,
 aligned, and resampled netCDF files.  Use a standard set of processing options;
 more flexibility is available via the inndividual processing modules.
 
-Limit processing to specific steps by providing arugments:
+Limit processing to specific steps by providing arguments:
     --download_process
     --calibrate
     --resample

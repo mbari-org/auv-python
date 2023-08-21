@@ -50,6 +50,10 @@ SIMZSPRING2014 = "SIMZ Spring 2014"
 SIMZJUL2014 = "SIMZ July 2014"
 SIMZOCT2014 = "SIMZ October 2014"
 
+# TEST and FAILED are recognized by process.py to not be processed
+TEST = "TEST"
+FAILED = "FAILED"
+
 # ----------------------------- 2003 ---------------------------------------
 dorado_info = {}
 for mission_number in range(2, 14):
@@ -1498,15 +1502,15 @@ dorado_info["2010.154.01"] = {
         " - ctdToUse = ctd1 "
     ),
 }
-# dorado_info["2010.172.01"] = {
-#   "program": AUVCTD,
-#   "comment": (
-#       "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM -"
-#       " bad times in Nav.time ( -4.7749e+307) - won't process (bad mission?)"
-#       " Really bad longitude and latitude - best to ignore this mission."
-#       " - ctdToUse = ctd1 "
-#   ),
-# }
+dorado_info["2010.172.01"] = {
+    "program": FAILED,
+    "comment": (
+        "AUVCTD mission - Ryan mission in Monterey Bay rhodamine sensor replaces CDOM -"
+        " bad times in Nav.time ( -4.7749e+307) - won't process (bad mission?)"
+        " Really bad longitude and latitude - best to ignore this mission."
+        " - ctdToUse = ctd1 "
+    ),
+}
 dorado_info["2010.173.00"] = {
     "program": AUVCTD,
     "comment": (
@@ -2764,6 +2768,20 @@ dorado_info["2023.046.06"] = {
 dorado_info["2023.123.00"] = {
     "program": f"{DIAMOND}",
     "comment": ("Monterey Bay Diamond Mission - 12323G" " - ctdToUse = ctd1 "),
+}
+dorado_info["2023.132.02"] = {
+    # On May 12, 2023, at 1:01 PM, Erik Trauschke <etrauschke@mbari.org> wrote:
+    #
+    # Hi Mike,
+    #
+    # I just dropped a set of log files into your temp box (2023.132.02). Can you check if they pas cleanly through your script?
+    #
+    # Thanks
+    # Erik
+    "program": TEST,
+    "comment": (
+        "Test by Erik Trauschke of new config files - see email from Erik on 2023-05-12"
+    ),
 }
 dorado_info["2023.159.00"] = {
     "program": f"{DIAMOND}",

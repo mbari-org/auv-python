@@ -41,9 +41,18 @@ from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from resample import FREQ, MF_WIDTH, InvalidAlignFile, Resampler
+from dorado_info import FAILED, TEST
 
 
 class MissingDoradoInfo(Exception):
+    pass
+
+
+class TestMission(Exception):
+    pass
+
+
+class FailedMission(Exception):
     pass
 
 
@@ -315,13 +324,22 @@ class Processor:
                 self.logger.info(f'{dorado_info[mission]["comment"] = }')
             elif self.vehicle.lower() == "i2map":
                 program = "i2map"
-            self.logger.info(
-                "Processing %s mission %s by user %s on host %s",
-                program,
-                mission,
-                getuser(),
-                gethostname(),
-            )
+            if program == TEST:
+                raise TestMission(
+                    f"{TEST} program specified in dorado_info.py. Not processing {mission}"
+                )
+            elif program == FAILED:
+                raise FailedMission(
+                    f"{FAILED} program specified in dorado_info.py. Not processing {mission}"
+                )
+            else:
+                self.logger.info(
+                    "Processing %s mission %s by user %s on host %s",
+                    program,
+                    mission,
+                    getuser(),
+                    gethostname(),
+                )
         except KeyError:
             raise MissingDoradoInfo(f"{mission} not in dorado_info")
         if self.args.download_process:
@@ -357,6 +375,8 @@ class Processor:
         ) as e:
             self.logger.error(repr(e))
             self.logger.error("Failed to process to completion: %s", mission)
+        except (TestMission, FailedMission) as e:
+            self.logger.info(str(e))
         finally:
             # Still need to archive the mission, especially the processing.log file
             self.archive(mission)
@@ -393,6 +413,8 @@ class Processor:
                 self.logger.error(
                     "Failed to process to completion: %s", self.args.mission
                 )
+            except (TestMission, FailedMission) as e:
+                self.logger.info(str(e))
             finally:
                 if hasattr(self, "log_handler"):
                     # If no log_handler then process_mission() failed, likely due to missing mount
