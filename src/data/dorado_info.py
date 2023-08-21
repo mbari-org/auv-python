@@ -1522,7 +1522,7 @@ dorado_info["2010.174.00"] = {
     ),
 }
 for day, mission_number in [(180, 5), (181, 1), (181, 2), (182, 2)]:
-    dorado_info[f"2010.{day:02d}.{mission_number:01d}"] = {
+    dorado_info[f"2010.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
             "AUVCTD mission - Kanna missions in Monterey Bay rhodamine sensor replaces CDOM  - around time of Board meeting"
@@ -1530,8 +1530,16 @@ for day, mission_number in [(180, 5), (181, 1), (181, 2), (182, 2)]:
         ),
     }
 for day, mission_number in [
+    (257, 0),
     (257, 1),
     (257, 2),
+    (257, 3),
+    (257, 4),
+    (257, 5),
+    (257, 6),
+    (257, 7),
+    (257, 8),
+    (257, 9),
     (257, 10),
     (257, 11),
     (258, 0),
@@ -1541,6 +1549,7 @@ for day, mission_number in [
     (258, 4),
     (258, 5),
     (258, 6),
+    (258, 7),
     (258, 8),
     (259, 0),
     (259, 1),
