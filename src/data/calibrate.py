@@ -1315,7 +1315,8 @@ class Calibrate_NetCDF:
             "2009.155.03": Range(-1, 50),  # Shallow Monterey Bay
             "2009.272.00": Range(-1, 40),  # Shallow Monterey Bay
             "2010.118.00": Range(-1, 260),  # Monterey Canyon transect
-            "2010.181.00": Range(-1, 260),  # Monterey Canyon transect
+            "2010.181.01": Range(-0.5, 22),  # Shallow  N. Monterey Bay
+            "2010.181.02": Range(-0.5, 22),  # Shallow  N. Monterey Bay
             # ESP drifter missions out at station 67-70 with Flyer doing casts and ESP
             # drifting south toward Davidson Seamount - no gulpers (Frederic sent me note about survey grouping)
             # Faulty parosci lead to several mission depth aborts at beginning of this set of volume surveys
