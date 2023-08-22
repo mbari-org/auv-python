@@ -129,6 +129,21 @@ for mission_number in range(2, 5):
         "program": OCCO,
         "comment": ("OCCO2003176: missions {02,03,04}" " - ctdToUse = ctd1 "),
     }
+dorado_info["2003.177.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
+for mission_number in range(2, 4):
+    dorado_info[f"2003.178.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": (
+            "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+            " - ctdToUse = ctd1 "
+        ),
+    }
 dorado_info["2003.191.00"] = {
     "program": AUVCTD,
     "comment": (
@@ -292,7 +307,7 @@ dorado_info["2003.281.02"] = {
     "program": AUVCTD,
     "comment": ("Portaled 7/11/05" " - ctdToUse = ctd1 "),
 }
-for mission_number in range(2, 4):
+for mission_number in (2, 4):
     dorado_info[f"2003.308.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
@@ -418,6 +433,11 @@ for mission_number in range(1, 4):
         "program": BIOLUME,
         "comment": ("SDP 10/6/04 - re-portaled 8/11/05" " - ctdToUse = ctd1 "),
     }
+for mission_number in range(1, 4):
+    dorado_info[f"2004.170.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("SDP 10/6/04 - re-portaled 8/11/05" " - ctdToUse = ctd1 "),
+    }
 for mission_number in range(2, 4):
     dorado_info[f"2004.196.{mission_number:02d}"] = {
         "program": AUVCTD,
@@ -439,6 +459,10 @@ dorado_info["2004.208.01"] = {
 dorado_info["2004.209.03"] = {
     "program": AUVCTD,
     "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05" " - ctdToUse = ctd1 "),
+}
+dorado_info["2004.211.00"] = {
+    "program": BIOLUME,
+    "comment": ("Re-portaled 8/12/05" " - ctdToUse = ctd1 "),
 }
 dorado_info["2004.211.01"] = {
     "program": BIOLUME,
@@ -507,6 +531,10 @@ dorado_info["2004.271.00"] = {
         " - ctdToUse = ctd1 "
     ),
 }
+dorado_info["2004.272.00"] = {
+    "program": AUVCTD,
+    "comment": ("SDP on 29 Sep 2004" " Re-portaled 8/18/05" " - ctdToUse = ctd1 "),
+}
 dorado_info["2004.272.01"] = {
     "program": AUVCTD,
     "comment": ("SDP on 29 Sep 2004" " Re-portaled 8/18/05" " - ctdToUse = ctd1 "),
@@ -564,7 +592,7 @@ for mission_number in range(5, 8):
         "program": OCCO,
         "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
     }
-for mission_number in range(1, 9):
+for mission_number in range(0, 10):
     dorado_info[f"2004.345.{mission_number:02d}"] = {
         "program": OCCO,
         "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
@@ -633,6 +661,13 @@ for mission_number in range(0, 18):
             " - ctdToUse = ctd1 "
         ),
     }
+dorado_info["2005.061.00"] = {
+    "program": FAILED,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m."
+        " Downcast to 960 m, then failed. No GPS fix upon surfacing so nav is bad."
+    ),
+}
 for mission_number in range(7, 9):
     dorado_info[f"2005.096.{mission_number:02d}"] = {
         "program": AUVCTD,
@@ -714,7 +749,7 @@ dorado_info["2005.180.00"] = {
         " - ctdToUse = ctd1 "
     ),
 }
-for mission_number in range(0, 2):
+for mission_number in range(0, 3):
     dorado_info[f"2005.182.{mission_number:02d}"] = {
         "program": BIOLUME,
         "comment": ("Portaled 7/8/05" " - ctdToUse = ctd1 "),
@@ -728,6 +763,12 @@ dorado_info[f"2005.196.00"] = {
     "comment": (
         "Portaled 7/26/05:  196.01 had battery failure - do not include in survey"
         " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info[f"2005.196.01"] = {
+    "program": FAILED,
+    "comment": (
+        "Portaled 7/26/05:  196.01 had battery failure - do not include in survey"
     ),
 }
 dorado_info[f"2005.201.00"] = {
@@ -774,7 +815,7 @@ for day, mission_number in [
     (243, 2),
     (243, 3),
     (244, 1),
-    (244, 1),
+    (244, 2),
 ]:
     dorado_info[f"2005.{day:03d}.{mission_number:02d}"] = {
         "program": LOCO,
@@ -868,6 +909,10 @@ dorado_info["2006.065.12"] = {
         " - ctdToUse = ctd1 "
     ),
 }
+dorado_info["2006.073.00"] = {
+    "program": TEST,
+    "comment": ("No useful data from this 4 minute long mission"),
+}
 dorado_info["2006.073.01"] = {
     "program": AUVCTD,
     "comment": (
@@ -910,6 +955,11 @@ dorado_info["2006.130.01"] = {
         " - ctdToUse = ctd1 "
     ),
 }
+for day, mission_number in [(135, 3), (135, 4), (137, 0), (138, 1)]:
+    dorado_info[f"2006.{day:03d}.{mission_number:02d}"] = {
+        "program": AUVCTD,
+        "comment": ("Davidson Seamount - John Ryan" " - ctdToUse = ctd1 "),
+    }
 dorado_info["2006.200.01"] = {
     "program": LOCO,
     "comment": ("LOCO mission - as part of MB06 - John Ryan" " - ctdToUse = ctd1 "),
@@ -1012,6 +1062,20 @@ dorado_info["2006.331.02"] = {
     "program": AUVCTD,
     "comment": ("AUVCTD mission - out to between M1 & M2" " - ctdToUse = ctd1 "),
 }
+dorado_info["2006.338.11"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2006.346.03"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+        " - ctdToUse = ctd1 "
+    ),
+}
 dorado_info["2006.347.05"] = {
     "program": LOCO,
     "comment": ("LOCO mission - HAB incubator area (off Soquel)" " - ctdToUse = ctd1 "),
@@ -1068,6 +1132,18 @@ for mission_number in [0, 1]:
             "AUVCTD mission - Volume survey around M0 for Scholin" " - ctdToUse = ctd1 "
         ),
     }
+dorado_info["2007.093.12"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+    ),
+}
+dorado_info["2007.094.02"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
+    ),
+}
 for mission_number in [5, 7]:
     dorado_info[f"2007.123.{mission_number:02d}"] = {
         "program": AUVCTD,
@@ -1088,6 +1164,12 @@ dorado_info["2007.142.02"] = {
     "comment": (
         "AUVCTD mission - C1 to M2 & back - gulper tripped at nephaloid layers (we hope!)"
         " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2007.143.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
     ),
 }
 dorado_info["2007.144.02"] = {
@@ -1175,6 +1257,13 @@ dorado_info["2007.260.00"] = {
     "comment": (
         "OCCO mission - Northern shelf survey about ESP deployments"
         " - ctdToUse = ctd2 "
+    ),
+}
+dorado_info["2007.261.00"] = {
+    "program": OCCO,
+    "comment": (
+        "OCCO mission - Northern shelf survey about ESP deployments - got tied up in kelp near Natural Bridges"
+        " - ctdToUse = ctd1 "
     ),
 }
 for day, mission_number in [(261, 1), (263, 1)]:
