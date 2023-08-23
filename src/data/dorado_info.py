@@ -1304,6 +1304,12 @@ dorado_info["2007.330.05"] = {
         "AUVCTD mission - Bellingham internal waves near MISO" " - ctdToUse = ctd1 "
     ),
 }
+dorado_info["2007.331.01"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - Canyon Axis with Gulper" " - ctdToUse = ctd1 "
+    ),
+}
 
 # From: Monique Messié <monique@mbari.org>
 # Subject: Dorado changes
