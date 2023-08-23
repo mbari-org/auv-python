@@ -1306,9 +1306,7 @@ dorado_info["2007.330.05"] = {
 }
 dorado_info["2007.331.01"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Canyon Axis with Gulper" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Canyon Axis with Gulper" " - ctdToUse = ctd1 "),
 }
 
 # From: Monique Messié <monique@mbari.org>
@@ -1403,7 +1401,7 @@ dorado_info["2008.178.01"] = {
     "program": AUVCTD,
     "comment": ("AUVCTD mission - Autonomy TREX around M0" " - ctdToUse = ctd1 "),
 }
-for mission_number in [1, 2]:
+for mission_number in [0, 2]:
     dorado_info[f"2008.261.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
@@ -1492,6 +1490,12 @@ dorado_info["2009.112.07"] = {
         "AUVCTD mission - On N-S line by M0 for ESP deployment" " - ctdToUse = ctd2 "
     ),
 }
+dorado_info["2009.113.00"] = {
+    "program": AUVCTD,
+    "comment": (
+        "AUVCTD mission - On N-S line by M0 for ESP deployment" " - ctdToUse = ctd2 "
+    ),
+}
 dorado_info["2009.113.08"] = {
     "program": AUVCTD,
     "comment": (
@@ -1519,7 +1523,7 @@ dorado_info["2009.127.02"] = {
         " - ctdToUse = ctd2 "
     ),
 }
-for day, mission_number in [(152, 0), (153, 1), (154, 0), (155, 3)]:
+for day, mission_number in [(152, 0), (153, 0), (153, 1), (154, 0), (155, 3)]:
     dorado_info[f"2009.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": ("AUVCTD mission - Ryan - around ESP" " - ctdToUse = ctd2 "),
@@ -2127,6 +2131,13 @@ dorado_info["2013.079.04"] = {
     "program": f"{CANONMAR2013}",
     "comment": (
         "ECOHAB - CANON March 2013 - Outbound mission, 7 Gulpers fired"
+        " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2013.080.02"] = {
+    "program": f"{CANONMAR2013}",
+    "comment": (
+        "ECOHAB - CANON March 2013 - Outbound mission, 9 Gulpers fired"
         " - ctdToUse = ctd1 "
     ),
 }
