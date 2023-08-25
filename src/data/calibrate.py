@@ -1974,6 +1974,7 @@ class Calibrate_NetCDF:
         except KeyError:
             self.logger.debug("No flow2 data in %s", self.args.mission)
 
+        # === beam_transmittance variable from seabird25p on i2map vehicle ===
         try:
             beam_transmittance, _ = _beam_transmittance_from_volts(
                 self.combined_nc, orig_nc
@@ -2010,6 +2011,39 @@ class Calibrate_NetCDF:
             ),
         }
 
+        # === PAR variable from ctd2 on dorado vehicle ===
+        try:
+            par = xr.DataArray(
+                orig_nc["par"],
+                coords=[orig_nc.get_index("time")],
+                dims={f"{sensor}_time"},
+                name="par",
+            )
+            par.attrs = {
+                "long_name": "Photosynthetically Available Radiation",
+                "units": "Volts",
+                "comment": f"PAR from {source}'s par variable",
+            }
+            self.combined_nc[f"{sensor}_par"] = par
+
+        except KeyError:
+            self.logger.debug("No par data in %s/%s.nc", self.args.mission, sensor)
+
+        self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
+            sensor, orig_nc
+        )
+        out_fn = f"{self.args.auv_name}_{self.args.mission}_cal.nc"
+        self.combined_nc[f"{sensor}_depth"].attrs = {
+            "long_name": "Depth",
+            "units": "m",
+            "comment": (
+                f"Variable depth_filtdepth from {out_fn} linearly interpolated"
+                f" to {sensor}_time and corrected for pitch using"
+                f" {self.sinfo[sensor]['sensor_offset']}"
+            ),
+        }
+
+        # === ad hoc Range checking ===
         self.logger.info(
             f"Performing range checking of {vars_to_qc} in {self.args.mission}/{sensor}.nc"
         )
