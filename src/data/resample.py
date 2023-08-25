@@ -35,6 +35,7 @@ from utils import simplify_points
 MF_WIDTH = 3
 FREQ = "1S"
 PLOT_SECONDS = 300
+AUVCTD_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/auvctd"
 
 
 class InvalidAlignFile(Exception):
@@ -146,7 +147,7 @@ class Resampler:
         )
         try:
             self.metadata["summary"] += (
-                " Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
+                f" Processing log file: {AUVCTD_OPENDAP_BASE}/surveys/"
                 f"{self.args.mission.split('.')[0]}/netcdf/"
                 f"{self.args.auv_name}_{self.args.mission}_processing.log"
             )
@@ -195,7 +196,7 @@ class Resampler:
             self.metadata["summary"] += (
                 " "
                 + matches.group(1)
-                + ".  Processing log file: http://dods.mbari.org/opendap/data/auvctd/surveys/"
+                + f".  Processing log file: {AUVCTD_OPENDAP_BASE}/surveys/"
                 + f"{self.args.mission.split('.')[0]}/netcdf/"
                 + f"{self.args.auv_name}_{self.args.mission}_processing.log"
             )
@@ -461,7 +462,15 @@ class Resampler:
             if k > len(s_peaks) - 2:
                 break
 
-        self.resampled_nc["profile_number"] = profiles
+        self.resampled_nc["profile_number"] = xr.DataArray(
+            profiles,
+            dims="time",
+            coords=[self.resampled_nc["time"].values],
+            name="profile_number",
+        )
+        self.resampled_nc["profile_number"].attrs[
+            "coordinates"
+        ] = "time depth latitude longitude"
         self.resampled_nc["profile_number"].attrs = {
             "long_name": "Profile number",
         }
