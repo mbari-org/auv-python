@@ -178,49 +178,51 @@ class CreateProducts:
                         )
                     elif name == "Lon (degrees_east)":
                         f.write(
-                            f'{gulper_data.cf["longitude"].values.mean() + 360.0:.7f}'
+                            f'{gulper_data.cf["longitude"].values.mean() + 360.0:9.5f}'
                         )
                     elif name == "Lat (degrees_north)":
-                        f.write(f'{gulper_data.cf["latitude"].values.mean():.7f}')
+                        f.write(f'{gulper_data.cf["latitude"].values.mean():8.5f}')
                     elif name == "Bot. Depth [m]":
-                        f.write("1000.0")  # TODO: add proper bottom depth values
+                        f.write(
+                            f"{float(1000):8.1}"
+                        )  # TODO: add proper bottom depth values
                     elif name == "Bottle Number [count]":
                         f.write(f"{bottle}")
                     elif name == "QF":
                         f.write("0")  # TODO: add proper quality flag values
                     elif name == "DEPTH [m]":
-                        f.write(f'{gulper_data.cf["depth"].values.mean():.2f}')
+                        f.write(f'{gulper_data.cf["depth"].values.mean():6.2f}')
                     elif name == "TEMPERATURE [°C]":
                         temp = gulper_data[f"{best_ctd}_temperature"].values.mean()
-                        f.write(f"{temp:.2f}")
+                        f.write(f"{temp:5.2f}")
                     elif name == "SALINITY [PSS78]":
                         sal = gulper_data[f"{best_ctd}_salinity"].values.mean()
-                        f.write(f"{sal:.3f}")
+                        f.write(f"{sal:6.3f}")
                     elif name == "Oxygen [ml/l]":
-                        f.write(f'{gulper_data["ctd1_oxygen_mll"].values.mean():.3f}')
+                        f.write(f'{gulper_data["ctd1_oxygen_mll"].values.mean():5.3f}')
                     elif name == "NITRATE [µmol/kg]":
                         if "isus_nitrate" in gulper_data:
                             f.write(
-                                f'{gulper_data["isus_nitrate"].dropna(dim="time").values.mean():.3f}'
+                                f'{gulper_data["isus_nitrate"].dropna(dim="time").values.mean():6.3f}'
                             )
                         else:
                             f.write("NaN")
                     elif name == "ChlFluor [raw]":
                         if "hs2_fl700" in gulper_data:
-                            f.write(f'{gulper_data["hs2_fl700"].values.mean():.8f}')
+                            f.write(f'{gulper_data["hs2_fl700"].values.mean():11.8f}')
                         elif "hs2_fl676" in gulper_data:
                             f.write(f'{gulper_data["hs2_fl676"].values.mean():.8f}')
                     elif name == "bbp420 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb420"].values.mean():.7f}')
+                        f.write(f'{gulper_data["hs2_bb420"].values.mean():8.7f}')
                     elif name == "bbp470 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb470"].values.mean():.7f}')
+                        f.write(f'{gulper_data["hs2_bb470"].values.mean():8.7f}')
                     elif name == "bbp700 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb700"].values.mean():.7f}')
+                        f.write(f'{gulper_data["hs2_bb700"].values.mean():8.7f}')
                     elif name == "bbp676 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb676"].values.mean():.7f}')
+                        f.write(f'{gulper_data["hs2_bb676"].values.mean():8.7f}')
                     elif name == "PAR [V]":
                         if "ctd2_par" in gulper_data:
-                            f.write(f'{gulper_data["ctd2_par"].values.mean():.3f}')
+                            f.write(f'{gulper_data["ctd2_par"].values.mean():6.3f}')
                         else:
                             f.write("NaN")
                     elif name == "YearDay [day]":
@@ -229,7 +231,7 @@ class CreateProducts:
                         ].dt.floor("D")
                         fractional_day = float(fractional_ns) / 86400000000000.0
                         f.write(
-                            f'{gulper_data.cf["T"][0].dt.dayofyear.values + fractional_day:.5f}'
+                            f'{gulper_data.cf["T"][0].dt.dayofyear.values + fractional_day:9.5f}'
                         )
                     if count < len(self.odv_column_names) - 1:
                         f.write("\t")
