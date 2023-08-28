@@ -11,6 +11,8 @@ Limit processing to specific steps by providing arugments:
     --calibrate
     --resample
     --archive
+    --create_products
+    --email_to
     --cleanup
 If none provided then perform all steps.
 
@@ -38,6 +40,8 @@ from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
 from calibrate import Calibrate_NetCDF
 from dorado_info import dorado_info
+from create_products import CreateProducts
+from emailer import Emailer, NOTIFICATION_EMAIL
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from resample import FREQ, MF_WIDTH, InvalidAlignFile, Resampler
@@ -267,6 +271,7 @@ class Processor:
         arch.args.auv_name = self.vehicle
         arch.args.mission = mission
         arch.commandline = self.commandline
+        arch.args.archive_only_products = self.args.archive_only_products
         arch.args.clobber = self.args.clobber
         arch.args.verbose = self.args.verbose
         arch.logger.setLevel(self._log_levels[self.args.verbose])
@@ -281,6 +286,35 @@ class Processor:
         )
         arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
         arch.logger.removeHandler(self.log_handler)
+
+    def create_products(self, mission: str) -> None:
+        cp = CreateProducts()
+        cp.args = argparse.Namespace()
+        cp.args.auv_name = self.vehicle
+        cp.args.mission = mission
+        cp.args.local = self.args.local or True
+        cp.args.start_esecs = None
+        cp.args.verbose = self.args.verbose
+        cp.logger.setLevel(self._log_levels[self.args.verbose])
+        cp.logger.addHandler(self.log_handler)
+
+        # cp.plot_biolume()
+        # cp.plot_2column()
+        cp.gulper_odv()
+        cp.logger.removeHandler(self.log_handler)
+
+    def email(self, mission: str) -> None:
+        self.logger.info("Sending notification email for %s", mission)
+        email = Emailer()
+        email.args = argparse.Namespace()
+        email.args.auv_name = self.vehicle
+        email.args.mission = mission
+        email.commandline = self.commandline
+        email.args.clobber = self.args.clobber
+        email.args.verbose = self.args.verbose
+        email.logger.setLevel(self._log_levels[self.args.verbose])
+        email.logger.addHandler(self.log_handler)
+        file_name_base = f"{email.args.auv_name}_{email.args.mission}"
 
     def cleanup(self, mission: str) -> None:
         self.logger.info(
@@ -352,6 +386,10 @@ class Processor:
             self.resample(mission)
         elif self.args.archive:
             self.archive(mission)
+        elif self.args.create_products:
+            self.create_products(mission)
+        elif self.args.email_to:
+            self.email(mission)
         elif self.args.cleanup:
             self.cleanup(mission)
         else:
@@ -360,6 +398,7 @@ class Processor:
             self.calibrate(mission)
             self.align(mission)
             self.resample(mission)
+            self.create_products(mission)
             # self.archive() is called in finally: blocks in process_missions()
 
     def process_mission_job(self, mission: str, src_dir: str = None) -> None:
@@ -558,6 +597,16 @@ class Processor:
             help="Archive the resampled netCDF file(s)",
         )
         parser.add_argument(
+            "--create_products",
+            action="store_true",
+            help="Create products from the resampled netCDF file(s)",
+        )
+        parser.add_argument(
+            "--email_to",
+            action="store",
+            help=f"Send email to this address when processing is complete, use {NOTIFICATION_EMAIL} for everyone who cares",
+        )
+        parser.add_argument(
             "--cleanup",
             action="store_true",
             help=f"Remove {MISSIONLOGS} and {MISSIONNETCDFS} files following archive of processed mission",
@@ -598,7 +647,11 @@ class Processor:
             action="store_true",
             help="Skip download_process() step - start with original .nc files",
         ),
-
+        parser.add_argument(
+            "--archive_only_products",
+            action="store_true",
+            help="Rsync to AUVCTD directory only the products, not the netCDF files",
+        ),
         parser.add_argument(
             "--num_cores",
             action="store",

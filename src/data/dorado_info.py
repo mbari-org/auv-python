@@ -2948,7 +2948,7 @@ dorado_info["2023.192.01"] = {
     "program": f"{DIAMOND}",
     "comment": (
         "Monterey Bay Diamond Mission - 19223G"
-        "Vehicle did no diving on second half of mission due to hardware issue"
+        " Vehicle did no diving on second half of mission due to hardware issue"
         " - ctdToUse = ctd1 "
     ),
 }
