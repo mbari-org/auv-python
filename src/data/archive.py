@@ -41,23 +41,25 @@ class Archiver:
             self.logger.info("Is cifs://atlas.shore.mbari.org/AUVCTD mounted?")
             sys.exit(1)
         year = self.args.mission.split(".")[0]
+        surveynetcdfs_dir = os.path.join(surveys_dir, year, "netcdf")
 
         # To avoid "fchmod failed: Permission denied" message use rsync instead
         # of cp: https://apple.stackexchange.com/a/206251
 
         if not self.args.archive_only_products:
-            surveys_dir = os.path.join(surveys_dir, year, "netcdf")
-            self.logger.info(f"Archiving {nc_file_base} files to {surveys_dir}")
+            self.logger.info(f"Archiving {nc_file_base} files to {surveynetcdfs_dir}")
             # Rsync netCDF files to AUVCTD/surveys/YYYY/netcdf
             for ftype in (f"{freq}.nc", "cal.nc", "align.nc"):
                 src_file = f"{nc_file_base}_{ftype}"
-                dst_file = f"{os.path.join(surveys_dir, os.path.basename(src_file))}"
+                dst_file = (
+                    f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
+                )
                 if self.args.clobber and os.path.exists(dst_file):
                     self.logger.info(f"Removing {dst_file}")
                     os.remove(dst_file)
                 if os.path.exists(src_file):
-                    os.system(f"rsync {src_file} {surveys_dir}")
-                    self.logger.info(f"rsync {src_file} {surveys_dir} done.")
+                    os.system(f"rsync {src_file} {surveynetcdfs_dir}")
+                    self.logger.info(f"rsync {src_file} {surveynetcdfs_dir} done.")
                 else:
                     self.logger.debug(f"{src_file} not found")
 
@@ -83,7 +85,7 @@ class Archiver:
                 BASE_PATH, self.args.auv_name, src_dir, self.args.mission
             )
             if os.path.exists(src_dir):
-                dst_dir = os.path.join(AUVCTD_VOL, "surveys", year, dst_dir)
+                dst_dir = os.path.join(surveys_dir, year, dst_dir)
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
                 os.system(f"rsync -r {src_dir}/* {dst_dir}")
                 self.logger.info(f"rsync {src_dir}/* {dst_dir} done.")
@@ -92,10 +94,10 @@ class Archiver:
 
         # Rsync the processing.log file last so that we get everything
         src_file = f"{nc_file_base}_{LOG_NAME}"
-        dst_file = f"{os.path.join(surveys_dir, os.path.basename(src_file))}"
+        dst_file = f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
         if os.path.exists(src_file):
-            self.logger.info(f"rsync {src_file} {surveys_dir}")
-            os.system(f"rsync {src_file} {missionnetcdfs_dir}")
+            self.logger.info(f"rsync {src_file} {surveynetcdfs_dir}")
+            os.system(f"rsync {src_file} {surveynetcdfs_dir}")
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
