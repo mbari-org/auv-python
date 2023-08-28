@@ -174,7 +174,7 @@ class Resampler:
             )
         except KeyError:
             self.logger.warning(
-                f"No entry for for mission {self.args.mission} comment in dorado_info.py"
+                f"No comment for pitch correction in ctd1_depth for mission {self.args.mission}"
             )
 
         return self.metadata
