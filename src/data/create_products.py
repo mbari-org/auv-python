@@ -65,7 +65,7 @@ class CreateProducts:
         "QF",
     ]
 
-    def open_ds(self):
+    def _open_ds(self):
         if self.args.local:
             self.ds = xr.open_dataset(
                 os.path.join(
@@ -128,7 +128,9 @@ class CreateProducts:
         gulper.logger.addHandler(self._handler)
 
         gulper_times = gulper.parse_gulpers()
-
+        if not gulper_times:
+            self.logger.info(f"No gulper times found for {self.args.mission}")
+            return
         odv_dir = os.path.join(
             BASE_PATH, self.args.auv_name, MISSIONODVS, self.args.mission
         )
@@ -137,6 +139,14 @@ class CreateProducts:
             odv_dir,
             f"{self.args.auv_name}_{self.args.mission}_{FREQ}_Gulper.txt",
         )
+        self._open_ds()
+
+        # Replace red and blue backscatter variables with names used before 2012
+        if "hs2_bb470" in self.ds:
+            self.odv_column_names[22] = "bbp470 [m^{-1}]"
+        if "hs2_bb676" in self.ds:
+            self.odv_column_names[24] = "bbp676 [m^{-1}]"
+
         best_ctd = self._get_best_ctd()
         with open(gulper_odv_filename, "w") as f:
             f.write("\t".join(self.odv_column_names) + "\n")
@@ -190,7 +200,9 @@ class CreateProducts:
                         f.write(f'{gulper_data["ctd1_oxygen_mll"].values.mean():.3f}')
                     elif name == "NITRATE [µmol/kg]":
                         if "isus_nitrate" in gulper_data:
-                            f.write(gulper_data["isus_nitrate"].values.mean())
+                            f.write(
+                                f'{gulper_data["isus_nitrate"].dropna(dim="time").values.mean():.3f}'
+                            )
                         else:
                             f.write("NaN")
                     elif name == "ChlFluor [raw]":
@@ -200,10 +212,17 @@ class CreateProducts:
                             f.write(f'{gulper_data["hs2_fl676"].values.mean():.8f}')
                     elif name == "bbp420 [m^{-1}]":
                         f.write(f'{gulper_data["hs2_bb420"].values.mean():.7f}')
+                    elif name == "bbp470 [m^{-1}]":
+                        f.write(f'{gulper_data["hs2_bb470"].values.mean():.7f}')
                     elif name == "bbp700 [m^{-1}]":
                         f.write(f'{gulper_data["hs2_bb700"].values.mean():.7f}')
+                    elif name == "bbp676 [m^{-1}]":
+                        f.write(f'{gulper_data["hs2_bb676"].values.mean():.7f}')
                     elif name == "PAR [V]":
-                        f.write(f'{gulper_data["ctd2_par"].values.mean():.3f}')
+                        if "ctd2_par" in gulper_data:
+                            f.write(f'{gulper_data["ctd2_par"].values.mean():.3f}')
+                        else:
+                            f.write("NaN")
                     elif name == "YearDay [day]":
                         fractional_ns = gulper_data.cf["T"][0] - gulper_data.cf["T"][
                             0
@@ -215,6 +234,9 @@ class CreateProducts:
                     if count < len(self.odv_column_names) - 1:
                         f.write("\t")
                 f.write("\n")
+        self.logger.info(
+            f"Wrote {len(gulper_times)} Gulper data lines to {gulper_odv_filename}"
+        )
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -268,6 +290,5 @@ if __name__ == "__main__":
     cp = CreateProducts()
     cp.process_command_line()
     p_start = time.time()
-    cp.open_ds()
     cp.gulper_odv()
     cp.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
