@@ -20,13 +20,6 @@ import xarray as xr
 
 class Gulper:
     logger = logging.getLogger(__name__)
-    _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d %(message)s"
-    )
-    _handler.setFormatter(_formatter)
-    logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     def mission_start_esecs(self) -> float:
@@ -197,12 +190,16 @@ class Gulper:
                         f"Saving time {etime + mission_start_esecs} for bottle number {number}"
                     )
                     etime = None
-        self.logger.info(f"Subtracting {sec_delay = } second(s) from bottle times")
+        self.logger.debug(f"Subtracting {sec_delay = } second(s) from bottle times")
         for number, esecs in bottles.items():
             self.logger.debug(
                 f"number = {number}, esecs = {esecs}, new esecs = {esecs - sec_delay}"
             )
             bottles[number] = esecs - sec_delay
+        if not bottles:
+            self.logger.debug(f"No gulper times found in syslog")
+        else:
+            self.logger.info(f"Found {len(bottles)} gulper times in syslog")
         return bottles
 
     def process_command_line(self) -> None:
@@ -234,6 +231,13 @@ class Gulper:
         )
 
         self.args = parser.parse_args()
+        _handler = logging.StreamHandler()
+        _formatter = logging.Formatter(
+            "%(levelname)s %(asctime)s %(filename)s "
+            "%(funcName)s():%(lineno)d %(message)s"
+        )
+        _handler.setFormatter(_formatter)
+        self.logger.addHandler(_handler)
 
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)
