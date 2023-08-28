@@ -73,7 +73,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2011.166.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2004.112.02", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2004.168.01", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2010.284.00", "-v", "2", "--plot", "first10000"]
+            //"args": ["--auv_name", "dorado", "--mission", "2010.284.00", "-v", "2", "--plot", "first10000"]
+            "args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -100,7 +101,7 @@
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2004.236.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2008.289.03"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.284.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01"],
         },
         {
             "name": "4.0 - resample.py",
@@ -123,7 +124,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2004.236.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2010.284.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "-v", "2", "--plot", "--plot_seconds", "82000"],
         },
         {
@@ -134,7 +135,24 @@
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2019.280.02", "--M3", "--AUVCTD"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2017.044.00", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.284.00", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--AUVCTD"],
+        },
+        {
+            "name": "6.0 - create_products.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/create_products.py",
+            "console": "integratedTerminal",
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--local"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2007.120.00", "--local"],
+        },
+        {
+            "name": "7.0 - email.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/email.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2010.284.00", "--email_to", "mccann@mbari.org"],
         },
         {
             "name": "gulper.py",
@@ -209,8 +227,11 @@
             //"args": ["-v", "1", "--mission", "2010.181.00", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--mission", "2004.112.02", "--noinput", "--no_cleanup", "--use_portal"]
             //"args": ["-v", "1", "--mission", "2004.168.01", "--noinput", "--no_cleanup", "--use_portal"]
-            "args": ["-v", "1", "--mission", "2013.080.02", "--noinput", "--no_cleanup"]
+            //"args": ["-v", "1", "--mission", "2007.093.12", "--noinput", "--no_cleanup"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2006", "--end_year", "2006", "--start_yd", "338", "--end_yd", "346"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--create_products", "--num_cores", "1", "--archive_only_products"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--start_yd", "142", "--end_yd", "142", "--num_cores", "1", "--create_products", "--archive_only_products"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--start_yd", "171", "--end_yd", "171", "--num_cores", "1"]
             //"args": ["-v", "1"]
         },
     ]
