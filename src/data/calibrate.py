@@ -1366,7 +1366,7 @@ class Calibrate_NetCDF:
         )
         if sample_rate != 10:
             self.logger.warning(
-                f"Expected sample_rate to be 10 Hz, instead it's {sample_rate} Hz"
+                f"Expected sample_rate to be 10 Hz, instead it's {sample_rate:.2f} Hz"
             )
 
         # The Wn parameter for butter() is fraction of the Nyquist frequency
