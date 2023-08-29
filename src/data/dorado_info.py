@@ -1517,7 +1517,7 @@ dorado_info["2009.126.00"] = {
     ),
 }
 dorado_info["2009.127.02"] = {
-    "program": AUVCTD,
+    "program": FAILED,
     "comment": (
         "AUVCTD mission - Autonomy mission - mvc crashed, some files may be corrupted - fails with 'Error in processNav (line 43)'"
         " - ctdToUse = ctd2 "
