@@ -1401,7 +1401,7 @@ dorado_info["2008.178.01"] = {
     "program": AUVCTD,
     "comment": ("AUVCTD mission - Autonomy TREX around M0" " - ctdToUse = ctd1 "),
 }
-for mission_number in [0, 2]:
+for mission_number in [0, 1, 2]:
     dorado_info[f"2008.261.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
