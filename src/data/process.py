@@ -122,8 +122,9 @@ class Processor:
             self.logger.info(f"Is {self.mount_dir} mounted?")
             sys.exit(1)
         if self.vehicle.lower() == "dorado":
+            year = mission.split(".")[0]
             yearyd = "".join(mission.split(".")[:2])
-            path = os.path.join(self.vehicle_dir, yearyd, mission)
+            path = os.path.join(self.vehicle_dir, year, yearyd, mission)
         elif self.vehicle.lower() == "i2map":
             year = int(mission.split(".")[0])
             # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
@@ -435,43 +436,45 @@ class Processor:
                 self.logger.removeHandler(self.log_handler)
         return f"[{os.getpid()}] {mission}: {time.time() - t_start:.1f} seconds"
 
+    def process_mission_exception_wrapper(
+        self, mission: str, src_dir: str = None
+    ) -> None:
+        try:
+            t_start = time.time()
+            self.process_mission(mission, src_dir=src_dir)
+        except (
+            InvalidCalFile,
+            InvalidAlignFile,
+            FileNotFoundError,
+            EOFError,
+            MissingDoradoInfo,
+        ) as e:
+            self.logger.error(repr(e))
+            self.logger.error("Failed to process to completion: %s", mission)
+        except (TestMission, FailedMission) as e:
+            self.logger.info(str(e))
+        finally:
+            if hasattr(self, "log_handler"):
+                # If no log_handler then process_mission() failed, likely due to missing mount
+                # Always archive the mission, especially the processing.log file
+                self.archive(mission)
+                if not self.args.no_cleanup:
+                    self.cleanup(mission)
+                self.logger.info(
+                    "Mission %s took %.1f seconds to process",
+                    mission,
+                    time.time() - t_start,
+                )
+                self.logger.removeHandler(self.log_handler)
+
     def process_missions(self, start_year: int) -> None:
         if not self.args.start_year:
             self.args.start_year = start_year
         if self.args.mission:
             # mission is string like: 2021.062.01 and is assumed to exist
-            try:
-                t_start = time.time()
-                self.process_mission(
-                    self.args.mission,
-                    src_dir=self.get_mission_dir(self.args.mission),
-                )
-            except (
-                InvalidCalFile,
-                InvalidAlignFile,
-                FileNotFoundError,
-                EOFError,
-                MissingDoradoInfo,
-            ) as e:
-                self.logger.error(repr(e))
-                self.logger.error(
-                    "Failed to process to completion: %s", self.args.mission
-                )
-            except (TestMission, FailedMission) as e:
-                self.logger.info(str(e))
-            finally:
-                if hasattr(self, "log_handler"):
-                    # If no log_handler then process_mission() failed, likely due to missing mount
-                    # Always archive the mission, especially the processing.log file
-                    self.archive(self.args.mission)
-                    if not self.args.no_cleanup:
-                        self.cleanup(self.args.mission)
-                    self.logger.info(
-                        "Mission %s took %.1f seconds to process",
-                        self.args.mission,
-                        time.time() - t_start,
-                    )
-                    self.logger.removeHandler(self.log_handler)
+            self.process_mission_exception_wrapper(
+                self.args.mission, src_dir=self.get_mission_dir(self.args.mission)
+            )
         elif self.args.start_year and self.args.end_year:
             missions = self.mission_list(
                 start_year=self.args.start_year, end_year=self.args.end_year
@@ -503,7 +506,7 @@ class Processor:
                     processes=ncores
                 ) as pool:
                     overall_start = time.time()
-                    # TODO: Fix logger for process.py messages from subprocesses
+                    # TODO: Fix logger to include process.py messages from subprocesses
                     results = pool.starmap(
                         self.process_mission_job,
                         [[mission, missions[mission]] for mission in missions],
@@ -519,7 +522,9 @@ class Processor:
             else:
                 # Don't use multiprocessing - we get all logger messages with --num_cores 1
                 for mission in missions:
-                    self.process_mission(mission, src_dir=self.get_mission_dir(mission))
+                    self.process_mission_exception_wrapper(
+                        mission, src_dir=self.get_mission_dir(mission)
+                    )
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -696,18 +701,15 @@ class Processor:
 
         # Append year to vehicle_dir if --start_year and --end_year identical
         if self.args.start_year == self.args.end_year:
-            self.vehicle_dir = os.path.join(self.vehicle_dir, str(self.args.start_year))
+            self.logger.debug(
+                "start_yd and end_yd will be honored as start_year and end_year are identical"
+            )
         else:
             # Warn that --start_yd and --end_yd will be ignored
             if self.args.start_yd != 1 or self.args.end_yd != 366:
                 self.logger.warn(
-                    "start_yd and end_yd will be ignored since start_year and end_year are different"
+                    "start_yd and end_yd will be ignored as start_year and end_year are different"
                 )
-        # Append year if processing a single mission
-        if self.args.mission:
-            self.vehicle_dir = os.path.join(
-                self.vehicle_dir, self.args.mission.split(".")[0]
-            )
 
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)
