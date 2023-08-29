@@ -202,9 +202,11 @@ class CreateProducts:
                         f.write(f'{gulper_data["ctd1_oxygen_mll"].values.mean():5.3f}')
                     elif name == "NITRATE [µmol/kg]":
                         if "isus_nitrate" in gulper_data:
-                            f.write(
-                                f'{gulper_data["isus_nitrate"].dropna(dim="time").values.mean():6.3f}'
-                            )
+                            no3 = gulper_data["isus_nitrate"].dropna(dim="time").values
+                            if no3.any():
+                                f.write(f"{no3.mean():6.3f}")
+                            else:
+                                f.write("NaN")
                         else:
                             f.write("NaN")
                     elif name == "ChlFluor [raw]":
