@@ -271,6 +271,7 @@ class Processor:
         arch.args.auv_name = self.vehicle
         arch.args.mission = mission
         arch.commandline = self.commandline
+        arch.args.create_products = self.args.create_products
         arch.args.archive_only_products = self.args.archive_only_products
         arch.args.clobber = self.args.clobber
         arch.args.verbose = self.args.verbose
