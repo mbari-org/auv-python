@@ -215,12 +215,20 @@ class CreateProducts:
                             f.write(f'{gulper_data["hs2_fl700"].values.mean():11.8f}')
                         elif "hs2_fl676" in gulper_data:
                             f.write(f'{gulper_data["hs2_fl676"].values.mean():.8f}')
+                        else:
+                            f.write("NaN")
                     elif name == "bbp420 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb420"].values.mean():8.7f}')
+                        if "hs2_bb420" in gulper_data:
+                            f.write(f'{gulper_data["hs2_bb420"].values.mean():8.7f}')
+                        else:
+                            f.write("NaN")
                     elif name == "bbp470 [m^{-1}]":
                         f.write(f'{gulper_data["hs2_bb470"].values.mean():8.7f}')
                     elif name == "bbp700 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb700"].values.mean():8.7f}')
+                        if "hs2_bb700" in gulper_data:
+                            f.write(f'{gulper_data["hs2_bb700"].values.mean():8.7f}')
+                        else:
+                            f.write("NaN")
                     elif name == "bbp676 [m^{-1}]":
                         f.write(f'{gulper_data["hs2_bb676"].values.mean():8.7f}')
                     elif name == "PAR [V]":
