@@ -91,13 +91,16 @@ class Archiver:
                 self.logger.info(f"rsync {src_dir}/* {dst_dir} done.")
             else:
                 self.logger.debug(f"{src_dir} not found")
-
-        # Rsync the processing.log file last so that we get everything
-        src_file = f"{nc_file_base}_{LOG_NAME}"
-        dst_file = f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
-        if os.path.exists(src_file):
-            self.logger.info(f"rsync {src_file} {surveynetcdfs_dir}")
-            os.system(f"rsync {src_file} {surveynetcdfs_dir}")
+        if self.args.create_products:
+            # Do not rsync processing.log file if only partial processing was done
+            self.logger.info(f"Not archiving {nc_file_base}_{LOG_NAME} file")
+        else:
+            # Rsync the processing.log file last so that we get everything
+            src_file = f"{nc_file_base}_{LOG_NAME}"
+            dst_file = f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
+            if os.path.exists(src_file):
+                self.logger.info(f"rsync {src_file} {surveynetcdfs_dir}")
+                os.system(f"rsync {src_file} {surveynetcdfs_dir}")
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
