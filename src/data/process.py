@@ -24,6 +24,7 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
+import multiprocessing
 import os
 import platform
 import shutil
@@ -32,7 +33,6 @@ import sys
 import time
 from datetime import datetime
 from getpass import getuser
-from multiprocessing import cpu_count, get_context
 from pathlib import Path
 from socket import gethostname
 
@@ -484,23 +484,37 @@ class Processor:
                 }
 
             # https://pythonspeed.com/articles/python-multiprocessing/ - Swimming with sharks!
-            ncores = self.args.num_cores if self.args.num_cores else cpu_count()
+            ncores = (
+                self.args.num_cores
+                if self.args.num_cores
+                else multiprocessing.cpu_count()
+            )
             missions = dict(sorted(missions.items()))
-            self.logger.info("Using %d cores for %d missions", ncores, len(missions))
-            with get_context("spawn").Pool(processes=ncores) as pool:
-                overall_start = time.time()
-                results = pool.starmap(
-                    self.process_mission_job,
-                    [[mission, missions[mission]] for mission in missions],
-                )
+            if ncores > 1:
                 self.logger.info(
-                    "Finished processing %d missions in %.1f seconds",
-                    len(missions),
-                    time.time() - overall_start,
+                    "Using %d cores for %d missions", ncores, len(missions)
                 )
-                self.logger.info("Results:")
-                for result in results:
-                    self.logger.info(result)
+                with multiprocessing.get_context("spawn").Pool(
+                    processes=ncores
+                ) as pool:
+                    overall_start = time.time()
+                    # TODO: Fix logger for process.py messages from subprocesses
+                    results = pool.starmap(
+                        self.process_mission_job,
+                        [[mission, missions[mission]] for mission in missions],
+                    )
+                    self.logger.info(
+                        "Finished processing %d missions in %.1f seconds",
+                        len(missions),
+                        time.time() - overall_start,
+                    )
+                    self.logger.info("Results:")
+                    for result in results:
+                        self.logger.info(result)
+            else:
+                # Don't use multiprocessing - we get all logger messages with --num_cores 1
+                for mission in missions:
+                    self.process_mission(mission, src_dir=self.get_mission_dir(mission))
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
