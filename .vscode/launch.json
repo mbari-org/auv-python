@@ -144,7 +144,7 @@
             "program": "${workspaceFolder}/src/data/create_products.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--local"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2007.120.00", "--local"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2016.270.00"],
         },
         {
             "name": "7.0 - email.py",
@@ -233,7 +233,7 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--start_yd", "171", "--end_yd", "171", "--num_cores", "1", "--create_products", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.261.01", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1"]
-            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "158", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1"]
         },
     ]

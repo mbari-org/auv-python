@@ -102,7 +102,7 @@ class CreateProducts:
         if "comment" not in self.ds.attrs:
             self.logger.warning("No comment attribute in dataset")
             return best_ctd
-        matches = re.search(r"Best CTD is ([\S]+)", self.ds.attrs["comment"])
+        matches = re.search(r"Best CTD is (ctd1|ctd2)", self.ds.attrs["comment"])
         if matches:
             self.logger.info(f"Best CTD is {matches.group(1)}")
             best_ctd = matches.group(1)
