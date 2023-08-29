@@ -184,7 +184,7 @@ class CreateProducts:
                         f.write(f'{gulper_data.cf["latitude"].values.mean():8.5f}')
                     elif name == "Bot. Depth [m]":
                         f.write(
-                            f"{float(1000):8.1}"
+                            f"{float(1000):8.1f}"
                         )  # TODO: add proper bottom depth values
                     elif name == "Bottle Number [count]":
                         f.write(f"{bottle}")
