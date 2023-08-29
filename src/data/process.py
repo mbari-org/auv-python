@@ -292,7 +292,7 @@ class Processor:
         cp.args = argparse.Namespace()
         cp.args.auv_name = self.vehicle
         cp.args.mission = mission
-        cp.args.local = self.args.local or True
+        cp.args.local = self.args.local
         cp.args.start_esecs = None
         cp.args.verbose = self.args.verbose
         cp.logger.setLevel(self._log_levels[self.args.verbose])
@@ -351,6 +351,7 @@ class Processor:
             "====================================================================================================================="
         )
         self.logger.addHandler(self.log_handler)
+        self.logger.info(f"{self.commandline = }")
         try:
             program = ""
             if self.vehicle.lower() == "dorado":
@@ -384,10 +385,13 @@ class Processor:
             self.align(mission)
         elif self.args.resample:
             self.resample(mission)
-        elif self.args.archive:
+        elif self.args.create_products and self.args.archive:
+            self.create_products(mission)
             self.archive(mission)
         elif self.args.create_products:
             self.create_products(mission)
+        elif self.args.archive:
+            self.archive(mission)
         elif self.args.email_to:
             self.email(mission)
         elif self.args.cleanup:
