@@ -265,9 +265,8 @@ class Processor:
         finally:
             resamp.logger.removeHandler(self.log_handler)
 
-    def archive(self, mission: str) -> None:
-        self.logger.info("Archiving steps for %s", mission)
-        arch = Archiver()
+    def archive(self, mission: str, add_logger_handlers: bool = True) -> None:
+        arch = Archiver(add_logger_handlers)
         arch.args = argparse.Namespace()
         arch.args.auv_name = self.vehicle
         arch.args.mission = mission
@@ -277,7 +276,9 @@ class Processor:
         arch.args.clobber = self.args.clobber
         arch.args.verbose = self.args.verbose
         arch.logger.setLevel(self._log_levels[self.args.verbose])
-        arch.logger.addHandler(self.log_handler)
+        if add_logger_handlers:
+            self.logger.info("Archiving steps for %s", mission)
+            arch.logger.addHandler(self.log_handler)
         file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
         nc_file_base = os.path.join(
             BASE_PATH,
@@ -389,7 +390,7 @@ class Processor:
             self.resample(mission)
         elif self.args.create_products and self.args.archive:
             self.create_products(mission)
-            self.archive(mission)
+            self.archive(mission, add_logger_handlers=False)
         elif self.args.create_products:
             self.create_products(mission)
         elif self.args.archive:

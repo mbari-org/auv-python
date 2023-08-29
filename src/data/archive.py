@@ -28,8 +28,11 @@ class Archiver:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _handler.setFormatter(AUV_NetCDF._formatter)
-    logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
+
+    def __init__(self, add_handlers=True):
+        if add_handlers:
+            self.logger.addHandler(self._handler)
 
     def copy_to_AUVTCD(self, nc_file_base: str, freq: str = FREQ) -> None:
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
