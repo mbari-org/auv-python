@@ -232,8 +232,8 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--create_products", "--num_cores", "1", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--start_yd", "171", "--end_yd", "171", "--num_cores", "1", "--create_products", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.261.01", "--create_products", "--archive", "--archive_only_products"]
-            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--start_yd", "235", "--end_yd", "235", "--num_cores", "1"]
-            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2012", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1"]
         },
     ]

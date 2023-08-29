@@ -32,7 +32,7 @@ class CreateProducts:
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     # Column name format required by ODV - will be tab delimited
-    odv_column_names = [
+    ODV_COLUMN_NAMES = [
         "Cruise",
         "Station",
         "Type",
@@ -142,14 +142,15 @@ class CreateProducts:
         self._open_ds()
 
         # Replace red and blue backscatter variables with names used before 2012
+        odv_column_names = self.ODV_COLUMN_NAMES.copy()
         if "hs2_bb470" in self.ds:
-            self.odv_column_names[22] = "bbp470 [m^{-1}]"
+            odv_column_names[22] = "bbp470 [m^{-1}]"
         if "hs2_bb676" in self.ds:
-            self.odv_column_names[24] = "bbp676 [m^{-1}]"
+            odv_column_names[24] = "bbp676 [m^{-1}]"
 
         best_ctd = self._get_best_ctd()
         with open(gulper_odv_filename, "w") as f:
-            f.write("\t".join(self.odv_column_names) + "\n")
+            f.write("\t".join(odv_column_names) + "\n")
             for bottle, esec in gulper_times.items():
                 self.logger.debug(f"bottle: {bottle} of {len(gulper_times)}")
                 gulper_data = self.ds.sel(
@@ -158,7 +159,7 @@ class CreateProducts:
                         datetime.utcfromtimestamp(esec + sec_bnds),
                     )
                 )
-                for count, name in enumerate(self.odv_column_names):
+                for count, name in enumerate(odv_column_names):
                     if name == "Cruise":
                         f.write(f"{self.args.auv_name}_{self.args.mission}_{FREQ}")
                     elif name == "Station":
@@ -235,7 +236,7 @@ class CreateProducts:
                         f.write(
                             f'{gulper_data.cf["T"][0].dt.dayofyear.values + fractional_day:9.5f}'
                         )
-                    if count < len(self.odv_column_names) - 1:
+                    if count < len(odv_column_names) - 1:
                         f.write("\t")
                 f.write("\n")
         self.logger.info(
