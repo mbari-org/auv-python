@@ -93,7 +93,9 @@ class Archiver:
                 self.logger.debug(f"{src_dir} not found")
         if self.args.create_products:
             # Do not rsync processing.log file if only partial processing was done
-            self.logger.info(f"Not archiving {nc_file_base}_{LOG_NAME} file")
+            self.logger.info(
+                f"Partial processing, not archiving {nc_file_base}_{LOG_NAME}"
+            )
         else:
             # Rsync the processing.log file last so that we get everything
             src_file = f"{nc_file_base}_{LOG_NAME}"
