@@ -53,5 +53,8 @@ USER docker_user
 COPY ./src /src
 COPY ./.git /.git
 
+# So that repo.head.object.hexsha can be used to record the commit hash
+RUN git config --global add.safe.directory /
+
 # Make WORKDIR / so that relative paths (e.g. src/data/process_i2map.py) work
 WORKDIR /
