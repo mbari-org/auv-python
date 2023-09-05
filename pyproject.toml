@@ -20,7 +20,7 @@ keywords = ['auv', 'dorado', 'oceanograpy', 'dataprocessing']
 # On mac: brew install python@3.11 and update PATH in .zshrc, also had to
 # pip uninstall xattr && pip install xattr, see:
 # https://github.com/python-poetry/poetry/issues/6891#issuecomment-1343047469
-python = "3.10.*"  # datashader can't be installed with python 3.11 yet
+python = "^3.10"
 toml = "^0.9"
 # Dependencies with extras
 requests = { version = "^2.23" }
@@ -28,8 +28,7 @@ aiohttp = "^3.7.4"
 altair = "^4.1.0"
 cf-xarray = "^0.6.1"
 coards = "^1.0.5"
-hvplot = "0.8.2"
-ipywidgets = "^7.6.5"
+hvplot = "^0.8.2"
 matplotlib = "^3.4.3"
 mkdocs = "^1.2.3"
 nc-time-axis = "^1.3.1"
@@ -41,17 +40,17 @@ seawater = "^3.3.4"
 xarray = "^0.21.0"
 black = "^22.3.0"
 bokeh = "^2.4.1"
-PyQt5 = "^5.15.6"
 ipympl = "^0.9.1"
 GitPython = "^3.1.29"
 pyarrow = "^10.0.1"
-datashader = "^0.14.3"
+datashader = "^0.15.2"
 rolling = "^0.3.0"
 pysolar = "^0.10"
 nbconvert = "^7.2.9"
 pooch = "^1.7.0"
 statsmodels = "^0.13.5"
 pyproj = "^3.5.0"
+jupyterlab = "^4.0.5"
 
 
 [tool.poetry.dev-dependencies]
