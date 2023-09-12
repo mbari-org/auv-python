@@ -26,7 +26,7 @@ toml = "^0.9"
 requests = { version = "^2.23" }
 aiohttp = "^3.7.4"
 altair = "^4.1.0"
-cf-xarray = "^0.6.1"
+cf-xarray = "^0.8.4"
 coards = "^1.0.5"
 hvplot = "^0.8.2"
 matplotlib = "^3.4.3"

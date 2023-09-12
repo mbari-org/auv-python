@@ -21,8 +21,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2003.156.09", "--noinput", "-v", "2", "--clobber"]
             //"args": ["--auv_name", "dorado", "--mission", "2010.172.01", "--noinput", "-v", "2", "--clobber", "--local"]
             //"args": ["--auv_name", "dorado", "--mission", "2020.245.00", "--noinput", "-v", "1", "--clobber", "--local"]
-            //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v"]
-            "args": ["--auv_name", "i2map", "--mission", "2019.157.02", "--noinput",  "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v", "num_cores", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "--noinput",  "-v", "1"]
         },
         {
             "name": "1.1 - lopcToNetCDF",
@@ -234,7 +234,8 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.261.01", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1"]
             //"args": ["-v", "1", "--noinput",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
-            "args": ["-v", "1", "--noinput", "--num_cores", "1"]
+            "args": ["-v", "1", "--noinput", "--num_cores", "1", "--mission", "2023.254.00"]
+            //"args": ["-v", "1", "--noinput", "--num_cores", "1"]
         },
     ]
 }
