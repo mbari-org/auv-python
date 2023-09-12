@@ -442,19 +442,20 @@ files = [
 
 [[package]]
 name = "cf-xarray"
-version = "0.6.3"
-description = "A lightweight convenience wrapper for using CF attributes on xarray objects"
+version = "0.8.4"
+description = "A convenience wrapper for using CF attributes on xarray objects"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.8"
 files = [
-    {file = "cf_xarray-0.6.3-py3-none-any.whl", hash = "sha256:9c32801885d90c6252dbe7ff70de2f1c0b928f4d3acc2e5c841a525f8c1fe620"},
-    {file = "cf_xarray-0.6.3.tar.gz", hash = "sha256:b12cfa0f34ac743b9115b89798c4d9f841bc89d2386010647e665a97442f6a96"},
+    {file = "cf_xarray-0.8.4-py3-none-any.whl", hash = "sha256:b441623146b316f99e7c43286163ba01d6cee0dfa0b44ee6d839a68dfd944ca5"},
+    {file = "cf_xarray-0.8.4.tar.gz", hash = "sha256:22c68be851791208e41dba3d240cc88a3f844ad4e9a760fcca28b2674c091daf"},
 ]
 
 [package.dependencies]
-numpy = ">=1.15"
-pandas = ">=0.25"
 xarray = "*"
+
+[package.extras]
+all = ["matplotlib", "pint", "pooch", "regex", "rich", "shapely"]
 
 [[package]]
 name = "cffi"
@@ -3812,13 +3813,13 @@ win32 = ["pywin32"]
 
 [[package]]
 name = "setuptools"
-version = "68.2.1"
+version = "68.2.2"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-68.2.1-py3-none-any.whl", hash = "sha256:eff96148eb336377ab11beee0c73ed84f1709a40c0b870298b0d058828761bae"},
-    {file = "setuptools-68.2.1.tar.gz", hash = "sha256:56ee14884fd8d0cd015411f4a13f40b4356775a0aefd9ebc1d3bfb9a1acb32f1"},
+    {file = "setuptools-68.2.2-py3-none-any.whl", hash = "sha256:b454a35605876da60632df1a60f736524eb73cc47bbc9f3f1ef1b644de74fd2a"},
+    {file = "setuptools-68.2.2.tar.gz", hash = "sha256:4ac1475276d2f1c48684874089fefcd83bd7162ddaafb81fac866ba0db282a87"},
 ]
 
 [package.extras]
@@ -4370,4 +4371,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "1b9e8e9eb1af3b5962347d98404163889ca16bb9d6aa9a394f196a0432ec8e4f"
+content-hash = "fb56102d1b99a9b5d9545fae003727d83c8a46762efd599cb2167aa44f9430ef"
