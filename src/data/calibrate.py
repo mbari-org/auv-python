@@ -151,12 +151,12 @@ class Calibrate_NetCDF:
         metadata["featureType"] = "trajectory"
         try:
             metadata["time_coverage_start"] = str(
-                self.combined_nc["depth_time"].to_pandas()[0].isoformat()
+                self.combined_nc["depth_time"].to_pandas().iloc[0].isoformat()
             )
         except KeyError:
             raise EOFError("No depth_time variable in combined_nc")
         metadata["time_coverage_end"] = str(
-            self.combined_nc["depth_time"].to_pandas()[-1].isoformat()
+            self.combined_nc["depth_time"].to_pandas().iloc[-1].isoformat()
         )
         metadata[
             "distribution_statement"

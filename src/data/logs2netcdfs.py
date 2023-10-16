@@ -490,7 +490,7 @@ class AUV_NetCDF(AUV):
             )
             getattr(self, short_name)[:] = data
         except ValueError as e:
-            self.logger.warning(f"{e}")
+            self.logger.warning(f"{short_name}: {e}")
             self.logger.info(
                 f"len(data) ({len(data)}) does not match shape of"
                 f" {short_name}.shape[0] ({getattr(self, short_name).shape[0]})"

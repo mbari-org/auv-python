@@ -275,36 +275,24 @@ class Resampler:
             .median()
             .to_pandas()
         )
-        self.df_o[f"{instr}_depth_mf"] = self.df_o[f"{instr}_depth_mf"].fillna(
-            method="bfill"
-        )
-        self.df_o[f"{instr}_depth_mf"] = self.df_o[f"{instr}_depth_mf"].fillna(
-            method="ffill"
-        )
+        self.df_o[f"{instr}_depth_mf"] = self.df_o[f"{instr}_depth_mf"].bfill()
+        self.df_o[f"{instr}_depth_mf"] = self.df_o[f"{instr}_depth_mf"].ffill()
         self.df_o[f"{instr}_latitude_mf"] = (
             self.ds[f"{instr}_latitude"]
             .rolling(**{instr + "_time": mf_width}, center=True)
             .median()
             .to_pandas()
         )
-        self.df_o[f"{instr}_latitude_mf"] = self.df_o[f"{instr}_latitude_mf"].fillna(
-            method="bfill"
-        )
-        self.df_o[f"{instr}_latitude_mf"] = self.df_o[f"{instr}_latitude_mf"].fillna(
-            method="ffill"
-        )
+        self.df_o[f"{instr}_latitude_mf"] = self.df_o[f"{instr}_latitude_mf"].bfill()
+        self.df_o[f"{instr}_latitude_mf"] = self.df_o[f"{instr}_latitude_mf"].ffill()
         self.df_o[f"{instr}_longitude_mf"] = (
             self.ds[f"{instr}_longitude"]
             .rolling(**{instr + "_time": mf_width}, center=True)
             .median()
             .to_pandas()
         )
-        self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].fillna(
-            method="bfill"
-        )
-        self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].fillna(
-            method="ffill"
-        )
+        self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].bfill()
+        self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].ffill()
         # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
         aggregator = ".mean() aggregator"
         # This is the common depth for all the instruments - the instruments that
@@ -455,7 +443,7 @@ class Resampler:
             if tv > s_peaks.index[k + 1]:
                 # Encountered a new simple_depth point
                 k += 1
-                if abs(s_peaks[k + 1] - s_peaks[k]) > depth_threshold:
+                if abs(s_peaks.iloc[k + 1] - s_peaks.iloc[k]) > depth_threshold:
                     # Completed downcast or upcast
                     count += 1
             profiles.append(count)
@@ -525,8 +513,8 @@ class Resampler:
         # Find the high and low peaks
         self.logger.debug("Finding peaks")
         peaks, _ = signal.find_peaks(s_biolume_raw, height=max_bg)
-        s_peaks = pd.Series(s_biolume_raw[peaks], index=s_biolume_raw.index[peaks])
-        s_med_bg_peaks = pd.Series(s_med_bg[peaks], index=s_biolume_raw.index[peaks])
+        s_peaks = pd.Series(s_biolume_raw.iloc[peaks], index=s_biolume_raw.index[peaks])
+        s_med_bg_peaks = pd.Series(s_med_bg.iloc[peaks], index=s_biolume_raw.index[peaks])
         nbflash_high = s_peaks[s_peaks > (s_med_bg_peaks + flash_threshold)]
         nbflash_low = s_peaks[s_peaks <= (s_med_bg_peaks + flash_threshold)]
 
@@ -560,7 +548,7 @@ class Resampler:
             .to_pandas()
             .resample("1S")
             .mean()
-            .fillna(method="ffill")
+            .ffill()
         )
 
         # Flow sensor is not always on, so fill in 0.0 values with 350 ml/s
