@@ -16,12 +16,19 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import cmocean
+import matplotlib
+import matplotlib.pyplot as plt
+from scipy.interpolate import griddata
+import numpy as np
+import pyproj
 import xarray as xr
 from gulper import Gulper
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
 from resample import AUVCTD_OPENDAP_BASE, FREQ
 
 MISSIONODVS = "missionodvs"
+MISSIONIMAGES = "missionimages"
 
 
 class CreateProducts:
@@ -64,6 +71,21 @@ class CreateProducts:
         "YearDay [day]",
         "QF",
     ]
+    cmocean_lookup = {
+        "sea_water_temperature": "thermal",
+        "sea_water_salinity": "haline",
+        "sea_water_sigma_t": "dense",
+        "mass_concentration_of_chlorophyll_in_sea_water": "algae",
+        "mass_concentration_of_oxygen_in_sea_water": "oxy",
+        "downwelling_photosynthetic_photon_flux_in_sea_water": "solar",
+        "surface_downwelling_shortwave_flux_in_air": "solar",
+        "platform_pitch_angle": "balance",
+        "platform_roll_angle": "balance",
+        "northward_sea_water_velocity": "balance",
+        "eastward_sea_water_velocity": "balance",
+        "northward_wind": "balance",
+        "eastward_wind": "balance",
+    }
 
     def _open_ds(self):
         if self.args.local:
@@ -88,12 +110,192 @@ class CreateProducts:
                 )
             )
 
-    def plot_biolume(self) -> str:
-        "Create biolume plot"
-        pass
+    def _grid_dims(self) -> tuple:
+        # From Matlab code in plot_sections.m:
+        # auvnav positions are too fine for distance calculations, they resolve spiral ascents and circling while on station
+        # subsample, interpolate back, use subsampled - interpolated positions for distance calculation
+        # npos = length(auvnav.fixLat);
+        # if npos > 400,
+        # 	nSubSample = 200;			% Test plots show that about 200 removes the spirals
+        # else
+        #   nSubSample = 1;
+        # end
+        # fixLonSubSamp = auvnav.fixLon(1:nSubSample:npos);
+        # fixLatSubSamp = auvnav.fixLat(1:nSubSample:npos);
+        # fixLonSubIntrp = interp1(auvnav.fixTime(1:nSubSample:npos), fixLonSubSamp, auvnav.fixTime, 'linear', 'extrap');
+        # fixLatSubIntrp = interp1(auvnav.fixTime(1:nSubSample:npos), fixLatSubSamp, auvnav.fixTime, 'linear', 'extrap');
+        # [xFix yFix] = geo2utm(fixLonSubIntrp, fixLatSubIntrp);
+        # dxFix = [0; diff(xFix - xFix(1))];
+        # dyFix = [0; diff(yFix - yFix(1))];
+        # distnav = cumsum(sqrt(dxFix.^2 + dyFix.^2));	% in m
+        # dists = distnav / 1000; 	% in km
+
+        utm_zone = int(31 + (self.ds.cf["longitude"].values.mean() // 6))
+        if len(self.ds.cf["longitude"].values) > 400:
+            n_subsample = 200
+        else:
+            n_subsample = 1
+        lon_sub_intrp = np.interp(
+            self.ds.cf["time"].values.astype(np.int64),
+            self.ds.cf["time"].values[::n_subsample].astype(np.int64),
+            self.ds.cf["longitude"].values[::n_subsample],
+        )
+        lat_sub_intrp = np.interp(
+            self.ds.cf["time"].values.astype(np.int64),
+            self.ds.cf["time"].values[::n_subsample].astype(np.int64),
+            self.ds.cf["latitude"].values[::n_subsample],
+        )
+        x, y = pyproj.Proj(proj="utm", zone=utm_zone, ellps="WGS84")(
+            lon_sub_intrp, lat_sub_intrp
+        )
+        dx = np.insert(np.diff(x - x[0]), 0, 0)
+        dy = np.insert(np.diff(y - y[0]), 0, 0)
+        distnav = np.cumsum(np.sqrt(dx**2 + dy**2))
+
+        # Horizontal gridded to 3x the number of profiles
+        idist = np.linspace(
+            min(distnav), max(distnav), 3 * self.ds["profile_number"].values[-1]
+        )
+        # Vertical gridded to .5 m
+        iz = np.arange(2.0, self.ds.cf["depth"].max(), 0.5)
+        if not iz.any():
+            self.logger.warning(
+                "Gridding vertical for a surface only mission: {self.ds.cf['depth'].max() =}"
+            )
+            iz = np.arange(0, self.ds.cf["depth"].max(), 0.05)
+
+        return idist, iz, distnav
+
+    def _plot_var(
+        self,
+        var: str,
+        idist: np.array,
+        iz: np.array,
+        distnav: np.array,
+        fig: matplotlib.figure.Figure,
+        ax: matplotlib.axes.Axes,
+        row: int,
+        col: int,
+        scale: str = "linear",
+        num_colors: int = 256,
+    ):
+        if scale == "log":
+            var_to_plot = np.log10(self.ds[var].values)
+        else:
+            var_to_plot = self.ds[var].values
+        scafac = max(idist) / max(iz)
+        gridded_var = griddata(
+            (distnav / 1000.0 / scafac, self.ds.cf["depth"].values),
+            var_to_plot,
+            ((idist / scafac / 1000.0)[None, :], iz[:, None]),
+            method="linear",
+            rescale=True,
+        )
+        color_map_name = "cividis"
+        try:
+            color_map_name = self.cmocean_lookup.get(
+                self.ds[var].attrs["standard_name"], "cividis"
+            )
+        except KeyError:
+            pass
+        try:
+            cmap = plt.get_cmap(color_map_name)
+        except ValueError:
+            # Likely a cmocean colormap
+            cmap = getattr(cmocean.cm, color_map_name)
+
+        v2_5 = np.percentile(var_to_plot[~np.isnan(var_to_plot)], 2.5)
+        v97_5 = np.percentile(var_to_plot[~np.isnan(var_to_plot)], 97.5)
+        norm = matplotlib.colors.BoundaryNorm(
+            np.linspace(v2_5, v97_5, num_colors), num_colors
+        )
+
+        self.logger.info(
+            f"{var} using {color_map_name} cmap with ranges {v2_5:.1f} {v97_5:.1f}"
+        )
+        ax[row, col].set_ylim(max(iz), min(iz))
+        cntrf = ax[row, col].contourf(
+            idist / 1000.0,
+            iz,
+            gridded_var,
+            cmap=cmap,
+            norm=norm,
+            extend="both",
+            levels=np.linspace(v2_5, v97_5, num_colors),
+        )
+        ax[row, col].set_ylabel("Depth (m)")
+        cb = fig.colorbar(cntrf, ax=ax[row, col])
+        cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
+        cb.minorticks_off()
+        cb.update_ticks()
+        cb.ax.set_yticklabels([f"{x:.1f}" for x in cb.get_ticks()])
+        if scale == "log":
+            cb.set_label(
+                f"{self.ds[var].attrs['long_name']}\n[log10({self.ds[var].attrs['units']})]",
+                fontsize=7,
+            )
+        else:
+            cb.set_label(
+                f"{self.ds[var].attrs['long_name']} [{self.ds[var].attrs['units']}]",
+                fontsize=9,
+            )
 
     def plot_2column(self) -> str:
-        "Create 2column plot"
+        """Create 2column plot similar to plot_sections.m and stoqs/utils/Viz/plotting.py
+        Construct a 2D grid of distance and depth and for each parameter grid the data
+        to create a shaded plot in each subplot.
+        """
+        self._open_ds()
+
+        idist, iz, distnav = self._grid_dims()
+        scfac = max(idist) / max(iz)
+
+        fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
+        fig.tight_layout()
+
+        best_ctd = self._get_best_ctd()
+        row = 0
+        col = 1
+        for var, scale in (
+            ("ctd1_oxygen_mll", "linear"),
+            ("density", "linear"),
+            ("hs2_bb420", "linear"),
+            (f"{best_ctd}_temperature", "linear"),
+            ("hs2_bb700", "linear"),
+            (f"{best_ctd}_salinity", "linear"),
+            ("hs2_fl700", "linear"),
+            ("isus_nitrate", "linear"),
+            ("biolume_avg_biolume", "log"),
+        ):
+            self.logger.info(f"Plotting {var}...")
+            if var not in self.ds:
+                self.logger.warning(f"{var} not in dataset")
+                ax[row, col].get_xaxis().set_visible(False)
+                ax[row, col].get_yaxis().set_visible(False)
+            else:
+                self._plot_var(var, idist, iz, distnav, fig, ax, row, col, scale=scale)
+            if row != 4:
+                ax[row, col].get_xaxis().set_visible(False)
+
+            if col == 1:
+                row += 1
+                col = 0
+            else:
+                col = 1
+
+        # Save plot to file
+        images_dir = os.path.join(BASE_PATH, self.args.auv_name, MISSIONIMAGES)
+        Path(images_dir).mkdir(parents=True, exist_ok=True)
+
+        plt.savefig(
+            os.path.join(
+                images_dir,
+                f"{self.args.auv_name}_{self.args.mission}_{FREQ}_2column.png",
+            )
+        )
+
+    def plot_biolume(self) -> str:
+        "Create biolume plot"
         pass
 
     def _get_best_ctd(self) -> str:
@@ -303,5 +505,7 @@ if __name__ == "__main__":
     cp = CreateProducts()
     cp.process_command_line()
     p_start = time.time()
-    cp.gulper_odv()
+    cp.plot_2column()
+    cp.plot_biolume()
+    # cp.gulper_odv()
     cp.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")

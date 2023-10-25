@@ -676,6 +676,25 @@ files = [
 ]
 
 [[package]]
+name = "cmocean"
+version = "3.0.3"
+description = "Colormaps for Oceanography"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "cmocean-3.0.3-py3-none-any.whl", hash = "sha256:a23e4b7893e05dfd958931df53fc0e31bca09a572c13d78158a79ade47dc44bf"},
+    {file = "cmocean-3.0.3.tar.gz", hash = "sha256:abaf99383c1a60f52970c86052ae6c14eafa84fc16984488040283c02db77c0b"},
+]
+
+[package.dependencies]
+matplotlib = "*"
+numpy = "*"
+packaging = "*"
+
+[package.extras]
+plots = ["colorspacious", "viscm"]
+
+[[package]]
 name = "coards"
 version = "1.0.5"
 description = "A parser for COADS-compliant dates"
@@ -1197,13 +1216,13 @@ files = [
 
 [[package]]
 name = "fsspec"
-version = "2023.9.0"
+version = "2023.9.2"
 description = "File-system specification"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "fsspec-2023.9.0-py3-none-any.whl", hash = "sha256:d55b9ab2a4c1f2b759888ae9f93e40c2aa72c0808132e87e282b549f9e6c4254"},
-    {file = "fsspec-2023.9.0.tar.gz", hash = "sha256:4dbf0fefee035b7c6d3bbbe6bc99b2f201f40d4dca95b67c2b719be77bcd917f"},
+    {file = "fsspec-2023.9.2-py3-none-any.whl", hash = "sha256:603dbc52c75b84da501b9b2ec8c11e1f61c25984c4a0dda1f129ef391fbfc9b4"},
+    {file = "fsspec-2023.9.2.tar.gz", hash = "sha256:80bfb8c70cc27b2178cc62a935ecf242fc6e8c3fb801f9c571fc01b1e715ba7d"},
 ]
 
 [package.extras]
@@ -4124,20 +4143,19 @@ dev = ["flake8", "flake8-annotations", "flake8-bandit", "flake8-bugbear", "flake
 
 [[package]]
 name = "urllib3"
-version = "2.0.4"
+version = "1.26.17"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*"
 files = [
-    {file = "urllib3-2.0.4-py3-none-any.whl", hash = "sha256:de7df1803967d2c2a98e4b11bb7d6bd9210474c46e8a0401514e3a42a75ebde4"},
-    {file = "urllib3-2.0.4.tar.gz", hash = "sha256:8d22f86aae8ef5e410d4f539fde9ce6b2113a001bb4d189e0aed70642d602b11"},
+    {file = "urllib3-1.26.17-py2.py3-none-any.whl", hash = "sha256:94a757d178c9be92ef5539b8840d48dc9cf1b2709c9d6b588232a055c524458b"},
+    {file = "urllib3-1.26.17.tar.gz", hash = "sha256:24d6a242c28d29af46c3fae832c36db3bbebcc533dd1bb549172cd739c82df21"},
 ]
 
 [package.extras]
-brotli = ["brotli (>=1.0.9)", "brotlicffi (>=0.8.0)"]
-secure = ["certifi", "cryptography (>=1.9)", "idna (>=2.0.0)", "pyopenssl (>=17.1.0)", "urllib3-secure-extra"]
-socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
-zstd = ["zstandard (>=0.18.0)"]
+brotli = ["brotli (==1.0.9)", "brotli (>=1.0.9)", "brotlicffi (>=0.8.0)", "brotlipy (>=0.6.0)"]
+secure = ["certifi", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "ipaddress", "pyOpenSSL (>=0.14)", "urllib3-secure-extra"]
+socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
 name = "watchdog"
@@ -4371,4 +4389,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "fb56102d1b99a9b5d9545fae003727d83c8a46762efd599cb2167aa44f9430ef"
+content-hash = "2c37b5ab5930e349c9be28b32fc8289b0515d0fd688a912c3d1ccc1e54db2d57"

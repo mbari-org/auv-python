@@ -53,6 +53,7 @@ pyproj = "^3.5.0"
 jupyterlab = "^4.0.5"
 ipykernel = "^6.25.2"
 jupyter = "^1.0.0"
+cmocean = "^3.0.3"
 
 
 [tool.poetry.dev-dependencies]

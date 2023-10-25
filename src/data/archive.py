@@ -19,6 +19,7 @@ from pathlib import Path
 
 from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
 from resample import FREQ
+from create_products import MISSIONODVS, MISSIONIMAGES
 
 LOG_NAME = "processing.log"
 AUVCTD_VOL = "/Volumes/AUVCTD"
@@ -83,7 +84,7 @@ class Archiver:
 
         # Rsync files created by create_products.py
         self.logger.info(f"Archiving product files")
-        for src_dir, dst_dir in (("missionodvs", "odv"), ("missionimages", "images")):
+        for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
             src_dir = os.path.join(
                 BASE_PATH, self.args.auv_name, src_dir, self.args.mission
             )
