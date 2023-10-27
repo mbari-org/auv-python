@@ -144,7 +144,7 @@
             "program": "${workspaceFolder}/src/data/create_products.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--local"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2016.270.00"],
+            "args": ["-v", "2", "--auv_name", "dorado", "--mission", "2016.270.00"],
         },
         {
             "name": "7.0 - email.py",

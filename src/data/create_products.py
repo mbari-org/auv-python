@@ -150,11 +150,21 @@ class CreateProducts:
         )
         dx = np.insert(np.diff(x - x[0]), 0, 0)
         dy = np.insert(np.diff(y - y[0]), 0, 0)
-        distnav = np.cumsum(np.sqrt(dx**2 + dy**2))
+        distnav = xr.DataArray(
+            np.cumsum(np.sqrt(dx**2 + dy**2)),
+            dims=("time",),
+            coords={"time": self.ds.cf["time"].values},
+            attrs={
+                "long_name": "distance along track",
+                "units": "m",
+            },
+        )
 
         # Horizontal gridded to 3x the number of profiles
         idist = np.linspace(
-            min(distnav), max(distnav), 3 * self.ds["profile_number"].values[-1]
+            distnav.values.min(),
+            distnav.values.max(),
+            3 * self.ds["profile_number"].values[-1],
         )
         # Vertical gridded to .5 m
         iz = np.arange(2.0, self.ds.cf["depth"].max(), 0.5)
@@ -166,6 +176,24 @@ class CreateProducts:
 
         return idist, iz, distnav
 
+    def _profile_bottoms(
+        self, distnav: xr.DataArray, window_frac: float = 0.01
+    ) -> np.array:
+        """Return array of distance and depth points defining the bottom of the profiles
+        where there is no data"""
+
+        # Create a DataArray of depths indexed by distance
+        depth_dist = xr.DataArray(
+            self.ds.cf["depth"].values,
+            dims=("dist",),
+            coords={"dist": distnav.values / 1000.0},
+        )
+        # Set rolling window to fraction of the total distance of the mission
+        window = int(len(distnav) * window_frac)
+        bot_depths = depth_dist.rolling(**{"dist": window}).max()
+
+        return bot_depths
+
     def _plot_var(
         self,
         var: str,
@@ -176,6 +204,7 @@ class CreateProducts:
         ax: matplotlib.axes.Axes,
         row: int,
         col: int,
+        profile_bottoms: xr.DataArray,
         scale: str = "linear",
         num_colors: int = 256,
     ):
@@ -185,7 +214,7 @@ class CreateProducts:
             var_to_plot = self.ds[var].values
         scafac = max(idist) / max(iz)
         gridded_var = griddata(
-            (distnav / 1000.0 / scafac, self.ds.cf["depth"].values),
+            (distnav.values / 1000.0 / scafac, self.ds.cf["depth"].values),
             var_to_plot,
             ((idist / scafac / 1000.0)[None, :], iz[:, None]),
             method="linear",
@@ -223,6 +252,27 @@ class CreateProducts:
             extend="both",
             levels=np.linspace(v2_5, v97_5, num_colors),
         )
+        # Blank out the countoured data below the bottom of the profiles
+        xb = np.append(
+            profile_bottoms.get_index("dist").values,
+            [
+                ax[row, col].get_xlim()[1],
+                ax[row, col].get_xlim()[1],
+                ax[row, col].get_xlim()[0],
+                ax[row, col].get_xlim()[0],
+            ],
+        )
+        yb = np.append(
+            profile_bottoms.values,
+            [
+                profile_bottoms.values[-1],
+                ax[row][col].get_ylim()[0],
+                ax[row, col].get_ylim()[0],
+                profile_bottoms.values[0],
+            ],
+        )
+        ax[row][col].fill(list(reversed(xb)), list(reversed(yb)), "w")
+
         ax[row, col].set_ylabel("Depth (m)")
         cb = fig.colorbar(cntrf, ax=ax[row, col])
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
@@ -254,6 +304,7 @@ class CreateProducts:
         fig.tight_layout()
 
         best_ctd = self._get_best_ctd()
+        profile_bottoms = self._profile_bottoms(distnav)
         row = 0
         col = 1
         for var, scale in (
@@ -273,7 +324,18 @@ class CreateProducts:
                 ax[row, col].get_xaxis().set_visible(False)
                 ax[row, col].get_yaxis().set_visible(False)
             else:
-                self._plot_var(var, idist, iz, distnav, fig, ax, row, col, scale=scale)
+                self._plot_var(
+                    var,
+                    idist,
+                    iz,
+                    distnav,
+                    fig,
+                    ax,
+                    row,
+                    col,
+                    profile_bottoms,
+                    scale=scale,
+                )
             if row != 4:
                 ax[row, col].get_xaxis().set_visible(False)
 
