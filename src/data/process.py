@@ -72,7 +72,7 @@ class Processor:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self, vehicle, vehicle_dir, mount_dir) -> None:
+    def __init__(self, vehicle, vehicle_dir, mount_dir, calibration_dir) -> None:
         # Variables to be set by subclasses, e.g.:
         # vehicle = "i2map"
         # vehicle_dir = "/Volumes/M3/master/i2MAP"
@@ -80,6 +80,7 @@ class Processor:
         self.vehicle = vehicle
         self.vehicle_dir = vehicle_dir
         self.mount_dir = mount_dir
+        self.calibration_dir = calibration_dir
 
     def mission_list(self, start_year: int, end_year: int) -> dict:
         """Return a dictionary of source directories keyed by mission name."""
@@ -205,6 +206,7 @@ class Processor:
         cal_netcdf.args.auv_name = self.vehicle
         cal_netcdf.args.mission = mission
         cal_netcdf.args.plot = None
+        cal_netcdf.calibration_dir = self.calibration_dir
         cal_netcdf.args.verbose = self.args.verbose
         cal_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
         cal_netcdf.logger.addHandler(self.log_handler)
@@ -303,7 +305,8 @@ class Processor:
 
         # cp.plot_biolume()
         # cp.plot_2column()
-        cp.gulper_odv()
+        if "dorado" in cp.args.auv_name.lower():
+            cp.gulper_odv()
         cp.logger.removeHandler(self.log_handler)
 
     def email(self, mission: str) -> None:
@@ -719,9 +722,10 @@ class Processor:
 if __name__ == "__main__":
     VEHICLE = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
+    CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://titan.shore.mbari.org/M3"
 
     # Initialize for i2MAP processing, be meant to be subclassed for other vehicles
-    proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR)
+    proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
     proc.process_missions()

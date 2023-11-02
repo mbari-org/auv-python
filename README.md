@@ -56,7 +56,8 @@ Create a .env file with the following contents:
 
     M3_VOL=<mount_location>
     AUVCTD_VOL=<mount_location>
-    WORK_VOL=<auv-pyhton_home>/data
+    CALIBRATION_VOL=<mount_location>
+    WORK_VOL=<auv-python_home>/data
 
 Then run:
 

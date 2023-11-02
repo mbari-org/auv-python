@@ -3,6 +3,7 @@ version: "3.4"
 # Env variables required in .env, e.g. for Mac:
 # M3_VOL=/Volumes/M3
 # AUVCTD_VOL=/Volumes/AUVCTD
+# CALIBRATION_VOL=/Volumes/DMO
 # WORK_VOL=/opt/docker_auv-python_vols/data
 
 # Required in shell environment:
@@ -20,3 +21,4 @@ services:
       - ${WORK_VOL}:/data
       - ${M3_VOL}:/Volumes/M3:z
       - ${AUVCTD_VOL}:/Volumes/AUVCTD:z
+      - ${CALIBRATION_VOL}:/Volumes/DMO:z

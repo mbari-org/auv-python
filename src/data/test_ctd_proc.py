@@ -1,7 +1,6 @@
 import numpy as np
 
-from calibrate import Calibrate_NetCDF
-from ctd_proc import _calibrated_O2_from_volts, _oxsat
+from calibrate import Calibrate_NetCDF, _calibrated_O2_from_volts, _oxsat
 
 
 def test_oxsat(mission_data):
