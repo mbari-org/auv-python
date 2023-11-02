@@ -1,7 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 from scipy.interpolate import interp1d
 from seawater import eos80
+from typing import Tuple
+
+import calibrate
 
 # History of seabird25p.cfg file changes:
 
@@ -242,7 +246,14 @@ def _oxsat(temperature, salinity):
     return oxsat
 
 
-def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salinity):
+def _calibrated_O2_from_volts(
+    combined_nc: np.array,
+    cf: calibrate.Coeffs,
+    nc: xr.Dataset,
+    var_name: str,
+    temperature: xr.DataArray,
+    salinity: xr.DataArray,
+) -> Tuple[np.array, np.array, str, str]:
     # Contents of doradosdp's calc_O2_SBE43.m:
     # ----------------------------------------
     # function [O2] = calc_O2_SBE43(O2V,T,S,P,O2cal,time,units);
@@ -280,6 +291,7 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
 
     oxsat = _oxsat(temperature, salinity)
 
+    # Owens-Millard equation
     #
     # ----------------------------------
     # Oxygen concentration (mL/L)
@@ -301,6 +313,74 @@ def _calibrated_O2_from_volts(combined_nc, cf, nc, var_name, temperature, salini
         raise ValueError(f"Cannot calculate o2_mll: {e}")
 
     #
+    # if strcmp(units,'umolkg')==1
+    # ----------------------------------
+    # Convert to umol/kg
+    # ----------------------------------
+    # SeaBird equations are for ml/l computations
+    #  Can convert OXSAT at atmospheric pressure to mg/l by 1.4276
+    #  Convert dissolved O2 to mg/l using density of oxygen = 1.4276 kg/m^3
+    # dens=sw_dens(S,T,P);
+    # O2 = (O2 * 1.4276) .* (1e6./(dens*32));
+    dens = eos80.dens(salinity.values, temperature.values, pressure)
+    o2_umolkg = np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))
+
+    return o2_mll, o2_umolkg
+
+
+def _calibrated_O2_from_volts_SBE43(
+    combined_nc: np.array,
+    cf: calibrate.Coeffs,
+    nc: xr.Dataset,
+    var_name: str,
+    temperature: xr.DataArray,
+    salinity: xr.DataArray,
+) -> Tuple[np.array, np.array]:
+    # Written to handle the seabird25p O2 sensor from the i2map vehicle - October 2023 - Uses Equation 1 from the SeaBird 25p manual
+    #
+    # See for example: "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files/SBE-43/2510/2014_sep/SBE 43 O2510 09Sep14.pdf"
+    # Soc = oxygen calibration coefficient (ml/l/V)
+    # V = measured voltage (V)
+    # Voffset = voltage offset (V)
+    # A = temperature compensation coefficient (1/°C)
+    # B = temperature compensation coefficient (1/°C)
+    # C = temperature compensation coefficient (1/°C)
+    # T = temperature (°C, ITS-90)
+    # E = pressure compensation coefficient (1/dbar)
+    # K = temperature (°K)
+    # P = pressure (dbar)
+
+    f_interp = interp1d(
+        combined_nc["depth_time"].values.tolist(),
+        combined_nc["depth_filtpres"].values,
+        fill_value=(
+            combined_nc["depth_filtpres"].values[0],
+            combined_nc["depth_filtpres"].values[-1],
+        ),
+        bounds_error=False,
+    )
+    pressure = f_interp(nc["time"].values.tolist())
+
+    # Oxsol(T,S) = oxygen saturation (ml/l); P = pressure (dbar)
+    oxsat = _oxsat(temperature, salinity)
+
+    # Oxygen concentration (ml/l) = Soc * (V + Voffset) * (1.0 + A * T + B * T**2 + C * T**3 ) * Oxsol(T,S) * exp(E * P / K)
+    o2_mll = np.multiply(
+        cf.Soc * (nc[var_name].values + cf.offset),
+        np.multiply(
+            (
+                1.0
+                + cf.A * temperature.values
+                + cf.B * np.power(temperature.values, 2)
+                + cf.C * np.power(temperature.values, 3)
+            ),
+            np.multiply(
+                oxsat.values,
+                np.exp(np.divide(cf.E * pressure, (273.15 + temperature.values))),
+            ),
+        ),
+    )
+
     # if strcmp(units,'umolkg')==1
     # ----------------------------------
     # Convert to umol/kg
