@@ -981,18 +981,11 @@ class Calibrate_NetCDF:
         return coeffs
 
     def _cal_date_xml_files(
-        self, sensor_dir: str, cal_date_dirs: str, serial_number: int
-    ) -> Tuple[dict, int]:
+        self, sensor_dir: str, cal_date_dirs: list, serial_number: int
+    ) -> dict:
         cal_date_xml_files = {}
-        for cal_date_dir in cal_date_dirs.split():
-            if platform.system() == "Darwin":
-                find_cmd = (
-                    f'find -E "{os.path.join(sensor_dir, cal_date_dir)}" -iname "*.xml"'
-                )
-            else:
-                find_cmd = (
-                    f'find "{os.path.join(sensor_dir, cal_date_dir)}" -iname "*.xml"'
-                )
+        for cal_date_dir in cal_date_dirs:
+            find_cmd = f'find "{os.path.join(sensor_dir, cal_date_dir)}" -iname "*.xml"'
             self.logger.debug("Executing %s", find_cmd)
             xml_files = [x for x in os.popen(find_cmd).read().split("\n") if x]
             if len(xml_files) == 0:
@@ -1019,18 +1012,35 @@ class Calibrate_NetCDF:
             #     <Soc>0.0000e+000</Soc>
             #     ....
             root = ET.parse(cal_xml_filename).getroot()
-            cal_date = datetime.strptime(root.find("CalibrationDate").text, "%d-%b-%y")
-            cal_xml_serial_number = int(root.find("SerialNumber").text)
+            try:
+                cal_date = datetime.strptime(
+                    root.find("CalibrationDate").text, "%d-%b-%y"
+                )
+            except ValueError as e:
+                self.logger.warning(
+                    f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}"
+                )
+                # "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files/SBE-43/143/2011_June/Oxygen_SBE43_0143.XML"
+                # has:  <CalibrationDate>08-Jun-11p</CalibrationDate>
+                if root.find("CalibrationDate").text.endswith("p"):
+                    self.logger.info("Trying to parse CalibrationDate without 'p'")
+                    cal_date = datetime.strptime(
+                        root.find("CalibrationDate").text[:-1], "%d-%b-%y"
+                    )
+                else:
+                    raise ValueError(
+                        f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}"
+                    ).with_traceback(e)
             cal_date_xml_files[cal_date] = cal_xml_filename
 
-        return OrderedDict(sorted(cal_date_xml_files.items())), cal_xml_serial_number
+        return OrderedDict(sorted(cal_date_xml_files.items()))
 
     def _read_oxy_coeffs(
         self, cfg_filename: str, portstbd: str = ""
     ) -> Tuple[Coeffs, str]:
         """Based on the serial number found as a comment in the .cfg file find
         the approriate calibration coefficients for the oxygen sensor within the
-        /DMO/MDUC_CORE_CTD_200103/Calibration Files shared drive folder.
+        '/DMO/MDUC_CORE_CTD_200103/Calibration Files' shared drive folder.
         portstbd is either "", "port" or "stbd".
         """
         # For i2map .cfg file lines look like:
@@ -1076,7 +1086,7 @@ class Calibrate_NetCDF:
         if portstbd:
             serial_number = serial_numbers[portstbd_order[portstbd]]
             self.logger.info(
-                f"Looking for serial number {serial_number} for oxygen sensor on {portstbd} side"
+                f"Looking for calibration file for O2 sensor serial number {serial_number} on {portstbd} side"
             )
         else:
             if len(serial_numbers) == 1:
@@ -1091,40 +1101,40 @@ class Calibrate_NetCDF:
             f"Finding calibration file for oxygen serial number = {serial_number} on mission {self.args.mission}"
         )
 
-        if platform.system() == "Darwin":
-            find_cmd = f'find -E "{self.calibration_dir}" -name "{serial_number}"'
-        else:
-            find_cmd = f'find "{self.calibration_dir}" -name "{serial_number}"'
+        find_cmd = f'find "{self.calibration_dir}" -name "{serial_number}"'
         self.logger.info("Executing: %s ", find_cmd)
         sensor_dir = os.popen(find_cmd).read().strip()
         self.logger.debug(f"{sensor_dir}")
-        ls_cmd = f'ls "{sensor_dir}"'
-        self.logger.debug("Executing: %s", ls_cmd)
-        cal_date_dirs = os.popen(ls_cmd).read().replace(r"\n", " ")
-        self.logger.info(
-            f"Found calibration date dirs: {' '.join(cal_date_dirs.split())}"
-        )
-        cal_dates, cal_xml_serial_number = self._cal_date_xml_files(
-            sensor_dir, cal_date_dirs, serial_number
-        )
-        for cal_date, cal_filename in cal_dates.items():
+        # https://stackoverflow.com/a/20103980
+        dir_find_cmd = f'find "{sensor_dir}"/* -maxdepth 0 -type d'
+        self.logger.debug(f"Executing: {dir_find_cmd =}")
+        cal_date_dirs = [
+            x.split("/")[-1] for x in os.popen(dir_find_cmd).read().split("\n") if x
+        ]
+        self.logger.info(f"Found calibration date dirs: {' '.join(cal_date_dirs)}")
+        cal_dates = self._cal_date_xml_files(sensor_dir, cal_date_dirs, serial_number)
+        mission_start = getattr(self, "seabird25p").orig_data.cf["time"].values[0]
+        cal_date_to_use = next(iter(cal_dates))  # Default to first calibration date
+        for cal_date in cal_dates.keys():
             # Find the most recent calibration date just before the mission start
-            # as cal_dates are not always in chronological order
-            mission_start = getattr(self, "seabird25p").orig_data.cf["time"].values[0]
             self.logger.debug(f"Comparing {cal_date=} with {mission_start=}")
             self.logger.info(
-                f"File {cal_filename} has CalibrationDate {str(cal_date)} and SerialNumber {cal_xml_serial_number}"
+                f"File {cal_dates[cal_date]} has CalibrationDate {str(cal_date)}"
             )
             if np.datetime64(cal_date) > mission_start:
                 self.logger.info(
-                    f"Breaking from loop as {cal_filename} is after {self.args.mission}"
+                    f"Breaking from loop as {cal_dates[cal_date]} is after {self.args.mission} with {str(mission_start)=}"
                 )
                 break
+            cal_date_to_use = cal_date
+
         if np.datetime64(cal_date) < mission_start:
-            self.logger.info(f"File {cal_filename} is just before {self.args.mission}")
+            self.logger.info(
+                f"File {cal_dates[cal_date_to_use]} is just before {self.args.mission} with {str(mission_start)=}"
+            )
         else:
             self.logger.info(
-                f"File {cal_filename} is the first calibration file, but is after {self.args.mission}"
+                f"File {cal_dates[cal_date_to_use]} is the first calibration file, but is after {self.args.mission} with {str(mission_start)=}"
             )
 
         # Read the calibration coefficients from the .cal file which looks like:
@@ -1156,11 +1166,13 @@ class Calibrate_NetCDF:
         #    <H2> 5.0000e+003</H2>
         #    <H3> 1.4500e+003</H3>
         #  </CalibrationCoefficients>
-        for elem in (
-            ET.parse(cal_filename)
-            .getroot()
-            .findall("CalibrationCoefficients[@equation]")
-        ):
+        root = ET.parse(cal_dates[cal_date_to_use]).getroot()
+        cal_xml_serial_number = int(root.find("SerialNumber").text)
+        if cal_xml_serial_number != serial_number:
+            self.logger.warning(
+                f"Serial number in {cal_dates[cal_date_to_use]} = {cal_xml_serial_number} does not match {serial_number}"
+            )
+        for elem in root.findall("CalibrationCoefficients[@equation]"):
             if elem.attrib["equation"] == "1":
                 eq1 = elem
         for child in eq1:
@@ -1169,9 +1181,7 @@ class Calibrate_NetCDF:
             except ValueError:
                 setattr(coeffs, child.tag, child.text)
 
-        self.logger.info(f"Parsed from .xml file: {vars(coeffs) = }")
-
-        return coeffs, cal_filename
+        return coeffs, cal_dates[cal_date_to_use]
 
     def _read_eco_dev(self, dev_filename):
         """Read calibration informtation from the file associated with the
@@ -2333,6 +2343,8 @@ class Calibrate_NetCDF:
             "units": "ml/l",
             "comment": f"Derived from {var_name} from {sensor}.nc and eq 1 calibration coefficients {vars(cf)} from {cal_file = }",
         }
+        self.logger.info(f"{var_name}: parsed from {cal_file} file: {vars(cf) = }")
+
         oxygen_umolkg = xr.DataArray(
             oxy_umolkg,
             coords=[orig_nc.get_index("time")],
@@ -3344,7 +3356,7 @@ if __name__ == "__main__":
     cal_netcdf.calibration_dir = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     p_start = time.time()
     # Set process_gps=False to skip time consuming _nudge_pos() processing
-    # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
-    netcdf_dir = cal_netcdf.process_logs()
+    netcdf_dir = cal_netcdf.process_logs(process_gps=False)
+    # netcdf_dir = cal_netcdf.process_logs()
     cal_netcdf.write_netcdf(netcdf_dir)
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
