@@ -161,6 +161,11 @@ class Archiver:
             help="Rsync to AUVCTD directory only the products, not the netCDF files",
         ),
         parser.add_argument(
+            "--create_products",
+            action="store_true",
+            help="Create products from the resampled netCDF file(s)",
+        ),
+        parser.add_argument(
             "-v",
             "--verbose",
             type=int,
