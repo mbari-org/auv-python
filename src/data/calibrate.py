@@ -3356,7 +3356,7 @@ if __name__ == "__main__":
     cal_netcdf.calibration_dir = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     p_start = time.time()
     # Set process_gps=False to skip time consuming _nudge_pos() processing
-    netcdf_dir = cal_netcdf.process_logs(process_gps=False)
-    # netcdf_dir = cal_netcdf.process_logs()
+    # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
+    netcdf_dir = cal_netcdf.process_logs()
     cal_netcdf.write_netcdf(netcdf_dir)
     cal_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
