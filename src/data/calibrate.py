@@ -1833,7 +1833,7 @@ class Calibrate_NetCDF:
                 )
 
         lat = orig_nc["latitude"] * 180.0 / np.pi
-        if not lat:
+        if not lat.any():
             raise ValueError(f"No latitude data found in {sensor}.log")
         if orig_nc["longitude"][0] > 0:
             lon = -1 * orig_nc["longitude"] * 180.0 / np.pi
