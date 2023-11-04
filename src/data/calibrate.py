@@ -1833,6 +1833,8 @@ class Calibrate_NetCDF:
                 )
 
         lat = orig_nc["latitude"] * 180.0 / np.pi
+        if not lat:
+            raise ValueError(f"No latitude data found in {sensor}.log")
         if orig_nc["longitude"][0] > 0:
             lon = -1 * orig_nc["longitude"] * 180.0 / np.pi
         else:
@@ -2758,7 +2760,10 @@ class Calibrate_NetCDF:
 
         # Remove non-monotonic times
         self.logger.debug("Checking for non-monotonic increasing times")
-        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        try:
+            monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
+        except IndexError:
+            raise ValueError(f"No data in tailcone.nc - ikely empty tailcone.log file")
         if (~monotonic).any():
             self.logger.debug(
                 "Removing non-monotonic increasing times at indices: %s",
