@@ -1116,7 +1116,7 @@ class Calibrate_NetCDF:
         else:
             if len(serial_numbers) == 1:
                 self.logger.info(
-                    f"Looking for calibration file for O2 sensor serial number {serial_number}"
+                    f"Looking for calibration file for O2 sensor serial number {serial_numbers[0]}"
                 )
                 serial_number = serial_numbers[0]
             else:
