@@ -76,7 +76,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2010.284.00", "-v", "2", "--plot", "first10000"]
             //"args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2017.257.00", "-v", "1"]
-            "args": ["--auv_name", "i2map", "--mission", "2022.061.01", "-v", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2022.061.01", "-v", "1"]
+            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -193,7 +194,8 @@
             //"args": ["-v", "1", "--mission", "2019.280.02", "--use_portal", "--no_cleanup", "--noinput"],
             //"args": ["-v", "1", "--mission", "2017.257.00", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2020.181.02", "--noinput", "--no_cleanup"],
-            "args": ["-v", "1", "--mission", "2019.190.00", "--noinput", "--no_cleanup"],
+            //"args": ["-v", "1", "--mission", "2019.190.00", "--noinput", "--no_cleanup"],
+            "args": ["-v", "1", "--mission", "2021.062.01", "--noinput", "--no_cleanup"],
         },
         {
             "name": "process_dorado",

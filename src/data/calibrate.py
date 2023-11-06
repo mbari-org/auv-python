@@ -651,7 +651,32 @@ class Calibrate_NetCDF:
                         )
 
     def _define_sensor_info(self, start_datetime):
-        # TODO: Refactor this to use for multiple vehicles & changes over time
+        # Using lower case vehicle names, modify below for changes over time
+        # Used to reduce ERROR log messages for missing sensor data
+        self.expected_sensors = {
+            "dorado": [
+                "navigation",
+                "gps",
+                "depth",
+                "ecopuck",
+                "hs2",
+                "ctd1",
+                "ctd2",
+                "isus",
+                "biolume",
+                "lopc",
+                "tailcone",
+            ],
+            "i2map": [
+                "navigation",
+                "gps",
+                "depth",
+                "seabird25p",
+                "transmissometer",
+                "tailcone",
+            ],
+        }
+
         # Horizontal and vertical distance from origin in meters
         # The origin of the x, y coordinate system is location of the
         # vehicle's paroscientific depth sensor in the tailcone.
@@ -1090,6 +1115,9 @@ class Calibrate_NetCDF:
             )
         else:
             if len(serial_numbers) == 1:
+                self.logger.info(
+                    f"Looking for calibration file for O2 sensor serial number {serial_number}"
+                )
                 serial_number = serial_numbers[0]
             else:
                 raise ValueError(
@@ -3286,7 +3314,12 @@ class Calibrate_NetCDF:
             self.logger.debug(f"Processing {vehicle} {name} {sensor}")
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
-            except (EOFError, ValueError) as e:
+            except EOFError as e:
+                if sensor in self.expected_sensors[vehicle.lower()]:
+                    self.logger.error(f"Error processing {sensor}: {e}")
+                else:
+                    self.logger.debug(f"Error processing {sensor}: {e}")
+            except ValueError as e:
                 self.logger.error(f"Error processing {sensor}: {e}")
             except KeyError as e:
                 self.logger.error(f"Error processing {sensor}: missing variable {e}")
