@@ -78,6 +78,32 @@ from seawater import eos80
 TIME = "time"
 Range = namedtuple("Range", "min max")
 
+# Using lower case vehicle names, modify in _define_sensor_info() for changes over time
+# Used to reduce ERROR & WARNING log messages for expected missing sensor data
+EXPECTED_SENSORS = {
+    "dorado": [
+        "navigation",
+        "gps",
+        "depth",
+        "ecopuck",
+        "hs2",
+        "ctd1",
+        "ctd2",
+        "isus",
+        "biolume",
+        "lopc",
+        "tailcone",
+    ],
+    "i2map": [
+        "navigation",
+        "gps",
+        "depth",
+        "seabird25p",
+        "transmissometer",
+        "tailcone",
+    ],
+}
+
 
 def align_geom(sensor_offset, pitches):
     """Use x & y sensor_offset values in meters from sensor_info and
@@ -3315,7 +3341,7 @@ class Calibrate_NetCDF:
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
             except EOFError as e:
-                if sensor in self.expected_sensors[vehicle.lower()]:
+                if sensor in EXPECTED_SENSORS[vehicle.lower()]:
                     self.logger.error(f"Error processing {sensor}: {e}")
                 else:
                     self.logger.debug(f"Error processing {sensor}: {e}")

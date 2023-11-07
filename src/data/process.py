@@ -38,7 +38,7 @@ from socket import gethostname
 
 from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
-from calibrate import Calibrate_NetCDF
+from calibrate import Calibrate_NetCDF, EXPECTED_SENSORS
 from dorado_info import dorado_info
 from create_products import CreateProducts
 from emailer import Emailer, NOTIFICATION_EMAIL
@@ -168,7 +168,8 @@ class Processor:
         try:
             file_size = os.path.getsize(lopc_bin)
         except FileNotFoundError:
-            self.logger.warning("No lopc.bin file for %s", mission)
+            if "lopc" in EXPECTED_SENSORS[self.vehicle.lower()]:
+                self.logger.warning("No lopc.bin file for %s", mission)
             return
         self.logger.info(f"Processing file {lopc_bin} ({file_size} bytes)")
         lopc_processor = LOPC_Processor()
