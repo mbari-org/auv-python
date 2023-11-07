@@ -1156,7 +1156,7 @@ class Calibrate_NetCDF:
                 break
             cal_date_to_use = cal_date
 
-        if np.datetime64(cal_date) < mission_start:
+        if np.datetime64(cal_date_to_use) < mission_start:
             self.logger.info(
                 f"File {cal_dates[cal_date_to_use]} is just before {self.args.mission} with {str(mission_start)=}"
             )
