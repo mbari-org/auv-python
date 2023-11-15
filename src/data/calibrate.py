@@ -1238,7 +1238,7 @@ class Calibrate_NetCDF:
         return coeffs, cal_dates[cal_date_to_use]
 
     def _read_eco_dev(self, dev_filename):
-        """Read calibration informtation from the file associated with the
+        """Read calibration information from the file associated with the
         ecopck log data. The number match what are in the cal sheets in
         https://bitbucket.org/messiem/auv-biolum/src/master/DATA/sensors%20%26%20calibration/FLBBCD2K_Dorado/
 
