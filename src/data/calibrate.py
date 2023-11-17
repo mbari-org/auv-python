@@ -2376,6 +2376,9 @@ class Calibrate_NetCDF:
                 temperature,
                 salinity,
             )
+            mll_comment = f"Derived from {var_name} from {sensor}.nc and eq 1 calibration coefficients {vars(cf)} from {cal_file = }"
+            umolkg_comment = f"Computed from oxygen_mll_{portstbd} with 'np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))'"
+            self.logger.info(f"{var_name}: parsed from {cal_file} file: {vars(cf) = }")
         else:
             (
                 oxy_mll,
@@ -2388,6 +2391,8 @@ class Calibrate_NetCDF:
                 temperature,
                 salinity,
             )
+            mll_comment = f"Derived from {var_name} from {sensor}.nc using calibration coefficients {vars(cf)}"
+            umolkg_comment = f"Computed from oxygen_mll with 'np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))'"
         oxygen_mll = xr.DataArray(
             oxy_mll,
             coords=[orig_nc.get_index("time")],
@@ -2397,9 +2402,8 @@ class Calibrate_NetCDF:
         oxygen_mll.attrs = {
             "long_name": "Dissolved Oxygen",
             "units": "ml/l",
-            "comment": f"Derived from {var_name} from {sensor}.nc and eq 1 calibration coefficients {vars(cf)} from {cal_file = }",
+            "comment": mll_comment
         }
-        self.logger.info(f"{var_name}: parsed from {cal_file} file: {vars(cf) = }")
 
         oxygen_umolkg = xr.DataArray(
             oxy_umolkg,
@@ -2410,7 +2414,7 @@ class Calibrate_NetCDF:
         oxygen_umolkg.attrs = {
             "long_name": "Dissolved Oxygen",
             "units": "umol/kg",
-            "comment": f"Computed from oxygen_mll_{portstbd} with 'np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))'",
+            "comment": umolkg_comment,
         }
         return oxygen_mll, oxygen_umolkg
 
