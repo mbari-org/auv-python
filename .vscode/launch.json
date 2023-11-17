@@ -77,7 +77,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2017.257.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2022.061.01", "-v", "1"]
-            "args": ["--auv_name", "i2map", "--mission", "2021.062.01", "-v", "1"]
+            //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2016.090.01", "-v", "1"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -127,8 +128,9 @@
             //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2004.236.00", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "-v", "2", "--plot", "--plot_seconds", "82000"],
+            "args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1", "--flash_threshold", "1.5e10"],
         },
         {
             "name": "5.0 - archive.py",
@@ -241,7 +243,9 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.261.01", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1"]
             //"args": ["-v", "1", "--noinput",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
-            "args": ["-v", "0", "--noinput", "--num_cores", "1", "--mission", "2023.285.01"]
+            //"args": ["-v", "0", "--noinput", "--num_cores", "1", "--mission", "2023.285.01"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2016.090.01"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2016.090.01", "--resample", "--archive", "--flash_threshold", "3E10"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "1"]
         },
     ]

@@ -36,6 +36,7 @@ MF_WIDTH = 3
 FREQ = "1S"
 PLOT_SECONDS = 300
 AUVCTD_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/auvctd"
+FLASH_THRESHOLD = 1.0e11
 
 
 class InvalidAlignFile(Exception):
@@ -468,7 +469,7 @@ class Resampler:
         freq,
         window_size_secs: int = 5,
         envelope_mini: float = 1.5e10,
-        flash_threshold: float = 1.0e11,
+        flash_threshold: float = FLASH_THRESHOLD,
         proxy_ratio_adinos: float = 3.9811e13,  # 4-Oct-2010 to 2-Dec-2020 value
         proxy_cal_factor=0.00470,  # Same as used in 5.2-mpm-bg_biolume-PiO-paper.ipynb
     ) -> None:
@@ -515,6 +516,10 @@ class Resampler:
         peaks, _ = signal.find_peaks(s_biolume_raw, height=max_bg)
         s_peaks = pd.Series(s_biolume_raw.iloc[peaks], index=s_biolume_raw.index[peaks])
         s_med_bg_peaks = pd.Series(s_med_bg.iloc[peaks], index=s_biolume_raw.index[peaks])
+        if self.args.flash_threshold:
+            flash_threshold = self.args.flash_threshold
+        flash_threshold_note = f"Computed with flash_threshold = {flash_threshold:.0e}"
+        self.logger.info(f"Using flash_threshold = {flash_threshold:.4e}")
         nbflash_high = s_peaks[s_peaks > (s_med_bg_peaks + flash_threshold)]
         nbflash_low = s_peaks[s_peaks <= (s_med_bg_peaks + flash_threshold)]
 
@@ -567,14 +572,14 @@ class Resampler:
             "long_name"
         ] = "High intensity flashes (copepods proxy)"
         self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_high"].attrs["comment"] = zero_note
+        self.df_r["biolume_nbflash_high"].attrs["comment"] = " - ".join((zero_note, flash_threshold_note))
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
         self.df_r["biolume_nbflash_low"].attrs[
             "long_name"
         ] = "Low intensity flashes (Larvacean proxy)"
         self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_low"].attrs["comment"] = zero_note
+        self.df_r["biolume_nbflash_low"].attrs["comment"] = " - ".join((zero_note, flash_threshold_note))
 
         # Flash intensity in ph/s - proxy for small jellies - for entire mission, not just nightime
         all_raw = self.ds[["biolume_raw"]]["biolume_raw"].to_pandas()
@@ -930,6 +935,9 @@ class Resampler:
             "long_name": "Time (UTC)",
         }
         out_fn = nc_file.replace("_align.nc", f"_{freq}.nc")
+        if self.args.flash_threshold:
+            ft_ending = f"_ft{self.args.flash_threshold:.0E}.nc".replace('E+','E')
+            out_fn = out_fn.replace(".nc", ft_ending)
         self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")
         self.logger.info(f"Saved resampled mission to {out_fn}")
 
@@ -976,6 +984,12 @@ class Resampler:
             action="store",
             default=FREQ,
             help="Resample freq",
+        )
+        parser.add_argument(
+            "--flash_threshold",
+            action="store",
+            type=float,
+            help=f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} and append to output filename",
         )
         parser.add_argument(
             "-v",

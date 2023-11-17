@@ -53,7 +53,12 @@ class Archiver:
         if not self.args.archive_only_products:
             self.logger.info(f"Archiving {nc_file_base} files to {surveynetcdfs_dir}")
             # Rsync netCDF files to AUVCTD/surveys/YYYY/netcdf
-            for ftype in (f"{freq}.nc", "cal.nc", "align.nc"):
+            if self.args.flash_threshold and self.args.resample:
+                ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace('E+','E')
+                ftypes = (ft_ending, )
+            else:
+                ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
+            for ftype in ftypes:
                 src_file = f"{nc_file_base}_{ftype}"
                 dst_file = (
                     f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
@@ -67,20 +72,21 @@ class Archiver:
                 else:
                     self.logger.debug(f"{src_file} not found")
 
-            # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
-            YYYYJJJ = "".join(self.args.mission.split(".")[:2])
-            missionnetcdfs_dir = os.path.join(
-                AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission
-            )
-            Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
-            src_dir = "/".join(nc_file_base.split("/")[:-1])
-            for log in LOG_FILES:
-                src_file = os.path.join(src_dir, f"{log.replace('.log', '')}.nc")
-                if os.path.exists(src_file):
-                    os.system(f"rsync {src_file} {missionnetcdfs_dir}")
-                    self.logger.info(f"rsync {src_file} {missionnetcdfs_dir} done.")
-                else:
-                    self.logger.debug(f"{src_file} not found")
+            if not self.args.resample:
+                # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
+                YYYYJJJ = "".join(self.args.mission.split(".")[:2])
+                missionnetcdfs_dir = os.path.join(
+                    AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission
+                )
+                Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
+                src_dir = "/".join(nc_file_base.split("/")[:-1])
+                for log in LOG_FILES:
+                    src_file = os.path.join(src_dir, f"{log.replace('.log', '')}.nc")
+                    if os.path.exists(src_file):
+                        os.system(f"rsync {src_file} {missionnetcdfs_dir}")
+                        self.logger.info(f"rsync {src_file} {missionnetcdfs_dir} done.")
+                    else:
+                        self.logger.debug(f"{src_file} not found")
 
         # Rsync files created by create_products.py
         self.logger.info(f"Archiving product files")
@@ -95,7 +101,7 @@ class Archiver:
                 self.logger.info(f"rsync {src_dir}/* {dst_dir} done.")
             else:
                 self.logger.debug(f"{src_dir} not found")
-        if self.args.create_products:
+        if self.args.create_products or self.args.resample:
             # Do not rsync processing.log file if only partial processing was done
             self.logger.info(
                 f"Partial processing, not archiving {nc_file_base}_{LOG_NAME}"

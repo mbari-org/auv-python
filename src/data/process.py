@@ -44,7 +44,14 @@ from create_products import CreateProducts
 from emailer import Emailer, NOTIFICATION_EMAIL
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
-from resample import FREQ, MF_WIDTH, InvalidAlignFile, Resampler
+from resample import (
+    FREQ,
+    MF_WIDTH,
+    FLASH_THRESHOLD,
+    AUVCTD_OPENDAP_BASE,
+    InvalidAlignFile,
+    Resampler,
+)
 from dorado_info import FAILED, TEST
 
 
@@ -249,6 +256,7 @@ class Processor:
         resamp.args.plot = None
         resamp.args.freq = self.args.freq
         resamp.args.mf_width = self.args.mf_width
+        resamp.args.flash_threshold = self.args.flash_threshold
         resamp.commandline = self.commandline
         resamp.args.verbose = self.args.verbose
         resamp.logger.setLevel(self._log_levels[self.args.verbose])
@@ -261,6 +269,20 @@ class Processor:
             resamp.args.mission,
             file_name,
         )
+        if self.args.flash_threshold and self.args.resample:
+            self.logger.info(
+                "Executing only resample step to produce netCDF file with flash_threshold = %s",
+                f"{self.args.flash_threshold:.0e}",
+            )
+            dap_file = os.path.join(
+                AUVCTD_OPENDAP_BASE.replace("opendap/", ""),
+                "surveys",
+                resamp.args.mission.split(".")[0],
+                "netcdf",
+                file_name,
+            )
+            self.logger.info("Copying file %s", dap_file)
+            os.system(f"wget {dap_file} -O {nc_file}")
         try:
             resamp.resample_mission(nc_file)
         except FileNotFoundError as e:
@@ -277,6 +299,8 @@ class Processor:
         arch.args.create_products = self.args.create_products
         arch.args.archive_only_products = self.args.archive_only_products
         arch.args.clobber = self.args.clobber
+        arch.args.resample = self.args.resample
+        arch.args.flash_threshold = self.args.flash_threshold
         arch.args.verbose = self.args.verbose
         arch.logger.setLevel(self._log_levels[self.args.verbose])
         if add_logger_handlers:
@@ -392,6 +416,9 @@ class Processor:
             self.align(mission)
         elif self.args.resample:
             self.resample(mission)
+        elif self.args.resample and self.args.archive:
+            self.resample(mission)
+            self.archive(mission, add_logger_handlers=False)
         elif self.args.create_products and self.args.archive:
             self.create_products(mission)
             self.archive(mission, add_logger_handlers=False)
@@ -681,6 +708,12 @@ class Processor:
             action="store_true",
             help="Rsync to AUVCTD directory only the products, not the netCDF files",
         ),
+        parser.add_argument(
+            "--flash_threshold",
+            action="store",
+            type=float,
+            help=f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} and append to the netCDF file name",
+        )
         parser.add_argument(
             "--num_cores",
             action="store",

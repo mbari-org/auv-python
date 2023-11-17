@@ -2402,7 +2402,7 @@ class Calibrate_NetCDF:
         oxygen_mll.attrs = {
             "long_name": "Dissolved Oxygen",
             "units": "ml/l",
-            "comment": mll_comment
+            "comment": mll_comment,
         }
 
         oxygen_umolkg = xr.DataArray(
@@ -2903,6 +2903,19 @@ class Calibrate_NetCDF:
             dims={f"{sensor}_time"},
             name=f"{sensor}_chl",
         )
+
+        # From: FLBBCD2K-3695_(CHL)CharSheet.pdf
+        # The relationship between fluorescence and chlorophyll-a concentrations in-situ is
+        # highly variable. The scale factor listed on this document was determined using a
+        # mono-culture of phytoplankton (Thalassiosira weissflogii). The population was
+        # assumed to be reasonably healthy and the concentration was determined by using the
+        # absorption method. To accurately determine chlorophyll concentration using a
+        # fluorometer, you must perform secondary measurements on the populations of
+        # interest. This is typically done using extraction-based measurement techniques on
+        # discrete samples. For additional information on determining chlorophyll
+        # concentration see "Standard Methods for the Examination of Water and Wastewater"
+        # part 10200 H, published jointly by the American Public Health Association,
+        # American Water Works Association, and the Water Environment ,)deration.
         self.combined_nc["ecopuck_chl"].attrs = {
             "long_name": "Chlorophyll",
             "units": "ug/l",
