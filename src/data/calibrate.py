@@ -1239,7 +1239,7 @@ class Calibrate_NetCDF:
 
     def _read_eco_dev(self, dev_filename):
         """Read calibration information from the file associated with the
-        ecopck log data. The number match what are in the cal sheets in
+        ecopuck log data. The number match what are in the cal sheets in
         https://bitbucket.org/messiem/auv-biolum/src/master/DATA/sensors%20%26%20calibration/FLBBCD2K_Dorado/
 
         As of 13 January 2023 the contents of all the FLBBCD2K-3695.dev files are the same:
