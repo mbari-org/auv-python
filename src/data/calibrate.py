@@ -2082,7 +2082,7 @@ class Calibrate_NetCDF:
 
         # Use 10 points in boxcar as in processDepth.m
         a = 10
-        b = signal.boxcar(a)
+        b = signal.windows.boxcar(a)
         depth_filtpres_boxcar = signal.filtfilt(b, a, pres)
         pres_plot = True  # Set to False for debugging other plots
         if self.args.plot and pres_plot:
@@ -3358,7 +3358,11 @@ class Calibrate_NetCDF:
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
             except EOFError as e:
-                if sensor in EXPECTED_SENSORS[vehicle.lower()]:
+                short_name = vehicle.lower()
+                if vehicle == "Dorado389":
+                    # For supporting pytest & conftest.py fixture
+                    short_name = "dorado"
+                if sensor in EXPECTED_SENSORS[short_name]:
                     self.logger.error(f"Error processing {sensor}: {e}")
                 else:
                     self.logger.debug(f"Error processing {sensor}: {e}")
