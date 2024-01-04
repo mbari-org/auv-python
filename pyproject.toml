@@ -17,10 +17,11 @@ homepage = "https://bitbucket.org/mbari/auv-python"
 keywords = ['auv', 'dorado', 'oceanograpy', 'dataprocessing']
 
 [tool.poetry.dependencies]
-# On mac: brew install python@3.11 and update PATH in .zshrc, also had to
+# On mac: sudo port install python310 && sudo port select --set python3 python310 && sudo port select --set python python310
 # pip uninstall xattr && pip install xattr, see:
 # https://github.com/python-poetry/poetry/issues/6891#issuecomment-1343047469
-python = "^3.10"
+# (Attempted updates to python311 & python312: 'poetry install' fails with installing llvmlite - Jan 2024)
+python = "3.10.*"
 toml = "^0.9"
 # Dependencies with extras
 aiohttp = "^3.7.4"
