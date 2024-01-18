@@ -50,8 +50,9 @@ running the Jupyter Notebooks:
 
 First time use with Docker on a server:
 
-sudo -u stoqsadm -i
-cd /opt/auv-python
+    sudo -u stoqsadm -i
+    cd /opt/auv-python    # After cloning to this directory
+
 Create a .env file with the following contents:
 
     M3_VOL=<mount_location>
@@ -61,9 +62,9 @@ Create a .env file with the following contents:
 
 Then run:
 
-export DOCKER_USER_ID=$(id -u)
-docker-compose build
-docker-compose run --rm auvpython python src/data/process_i2map.py --help
+    export DOCKER_USER_ID=$(id -u)
+    docker-compose build
+    docker-compose run --rm auvpython python src/data/process_i2map.py --help
 
 The following commands are available:
 
@@ -75,7 +76,7 @@ The following commands are available:
 * src/data/process_i2map.py --help      # Process i2MAP data 
 * src/data/process_dorado.py --help     # Process Dorado/Gulper data 
 
-There are also Jupyter Notebooks in the notebooks directory that can be used.
+See the Jupyter Notebooks in the notebooks directory for data visualization and analysis tools that are available.
 
 To use in VS Code, make sure that the proper poetry shell is selected with the
 Command palette command: "Python: select interpreter".
@@ -83,4 +84,5 @@ Command palette command: "Python: select interpreter".
 --
 
 Mike McCann
-1 November 2021
+
+18 January 2024
