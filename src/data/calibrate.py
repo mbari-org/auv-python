@@ -627,13 +627,13 @@ class Calibrate_NetCDF:
         metadata["time_coverage_end"] = str(
             self.combined_nc["depth_time"].to_pandas().iloc[-1].isoformat()
         )
-        metadata[
-            "distribution_statement"
-        ] = "Any use requires prior approval from MBARI"
+        metadata["distribution_statement"] = (
+            "Any use requires prior approval from MBARI"
+        )
         metadata["license"] = metadata["distribution_statement"]
-        metadata[
-            "useconst"
-        ] = "Not intended for legal use. Data may contain inaccuracies."
+        metadata["useconst"] = (
+            "Not intended for legal use. Data may contain inaccuracies."
+        )
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
         metadata["title"] = (
@@ -3187,6 +3187,18 @@ class Calibrate_NetCDF:
             "units": "Celsius",
             "coordinates": coord_str,
             "comment": f"isusTemp from {source}",
+        }
+        self.combined_nc["isus_quality"] = xr.DataArray(
+            orig_nc["isusQuality"].values,
+            coords=[orig_nc.get_index("time")],
+            dims={f"{sensor}_time"},
+            name=f"{sensor}_quality",
+        )
+        self.combined_nc["isus_quality"].attrs = {
+            "long_name": "Fit Residuals from ISUS",
+            "units": "",
+            "coordinates": coord_str,
+            "comment": f"isusQuality from {source}",
         }
 
     def _geometric_depth_correction(self, sensor, orig_nc):
