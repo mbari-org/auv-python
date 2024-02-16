@@ -2970,5 +2970,13 @@ dorado_info["2023.346.00"] = {
 }
 dorado_info["2024.023.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 02324G" " ISUS instrument back on board" " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 02324G"
+        " ISUS instrument back on board"
+        " - ctdToUse = ctd1 "
+    ),
+}
+dorado_info["2024.046.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 04624G" " - ctdToUse = ctd1 "),
 }
