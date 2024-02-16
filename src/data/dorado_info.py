@@ -2978,5 +2978,9 @@ dorado_info["2024.023.00"] = {
 }
 dorado_info["2024.046.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 04624G" " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 04624G"
+        " Disabled ISUS as it had issues during checkout"
+        " - ctdToUse = ctd1 "
+    ),
 }
