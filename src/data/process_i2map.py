@@ -2,7 +2,7 @@
 """
 Scan master/i2MAP directory and process all missions found there
 
-Find all the i2MAP missions in cifs://titan.shore.mbari.org/M3/master/i2MAP
+Find all the i2MAP missions in smb://titan.shore.mbari.org/M3/master/i2MAP
 and run the data through standard science data processing to calibrated,
 aligned, and resampled netCDF files.  Use a standard set of processing options;
 more flexibility is available via the inndividual processing modules.

@@ -3,7 +3,7 @@
 Process Dorado/Gulper data from vehicle .log files to resampled .nc files.
 (This replaces the Legacy SSDS Portal/Matlab processing steps.)
 
-Find Dorado/Gulper missions in cifs://atlas.shore.mbari.org/AUVCTD/missionlogs
+Find Dorado/Gulper missions in smb://atlas.shore.mbari.org/AUVCTD/missionlogs
 and run the data through standard science data processing to calibrated,
 aligned, and resampled netCDF files.  Use a standard set of processing options;
 more flexibility is available via the inndividual processing modules.
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     VEHICLE = "dorado"
     VEHICLE_DIR = "/Volumes/AUVCTD/missionlogs"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
-    MOUNT_DIR = "cifs://atlas.shore.mbari.org/AUVCTD"
+    MOUNT_DIR = "smb://atlas.shore.mbari.org/AUVCTD"
     START_YEAR = 2003
 
     proc = DoradoProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
