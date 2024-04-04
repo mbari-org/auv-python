@@ -2,7 +2,7 @@
 """
 Archive processed data to relevant repositories.
 
-Use cifs://atlas.shore.mbari.org/AUVCTD for STOQS loading.
+Use smb://atlas.shore.mbari.org/AUVCTD for STOQS loading.
 Use smb://titan.shore.mbari.org/M3 for paring with original data.
 """
 
@@ -42,7 +42,7 @@ class Archiver:
             os.stat(surveys_dir)
         except FileNotFoundError:
             self.logger.error(f"{surveys_dir} not found")
-            self.logger.info("Is cifs://atlas.shore.mbari.org/AUVCTD mounted?")
+            self.logger.info("Is smb://atlas.shore.mbari.org/AUVCTD mounted?")
             sys.exit(1)
         year = self.args.mission.split(".")[0]
         surveynetcdfs_dir = os.path.join(surveys_dir, year, "netcdf")
@@ -54,8 +54,10 @@ class Archiver:
             self.logger.info(f"Archiving {nc_file_base} files to {surveynetcdfs_dir}")
             # Rsync netCDF files to AUVCTD/surveys/YYYY/netcdf
             if self.args.flash_threshold and self.args.resample:
-                ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace('E+','E')
-                ftypes = (ft_ending, )
+                ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
+                    "E+", "E"
+                )
+                ftypes = (ft_ending,)
             else:
                 ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
             for ftype in ftypes:
