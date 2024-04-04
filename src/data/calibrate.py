@@ -2172,56 +2172,56 @@ class Calibrate_NetCDF:
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
 
         # Blue backscatter
-        if hasattr(hs2, "bb420"):
+        if hasattr(hs2, "bbp420"):
             blue_bs = xr.DataArray(
-                hs2.bb420.values,
-                coords=[hs2.bb420.get_index("time")],
+                hs2.bbp420.values,
+                coords=[hs2.bbp420.get_index("time")],
                 dims={"hs2_time"},
-                name="hs2_bb420",
+                name="hs2_bbp420",
             )
             blue_bs.attrs = {
-                "long_name": "Backscatter at 420 nm",
+                "long_name": "Particulate backscattering coefficient at 420 nm",
                 "coordinates": coord_str,
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
-        if hasattr(hs2, "bb470"):
+        if hasattr(hs2, "bbp470"):
             blue_bs = xr.DataArray(
-                hs2.bb470.values,
-                coords=[hs2.bb470.get_index("time")],
+                hs2.bbp470.values,
+                coords=[hs2.bbp470.get_index("time")],
                 dims={"hs2_time"},
-                name="hs2_bb470",
+                name="hs2_bbp470",
             )
             blue_bs.attrs = {
-                "long_name": "Backscatter at 470 nm",
+                "long_name": "Particulate backscattering coefficient at 470 nm",
                 "coordinates": coord_str,
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
 
         # Red backscatter
-        if hasattr(hs2, "bb676"):
+        if hasattr(hs2, "bbp676"):
             red_bs = xr.DataArray(
-                hs2.bb676.values,
-                coords=[hs2.bb676.get_index("time")],
+                hs2.bbp676.values,
+                coords=[hs2.bbp676.get_index("time")],
                 dims={"hs2_time"},
-                name="hs2_bb676",
+                name="hs2_bbp676",
             )
             red_bs.attrs = {
-                "long_name": "Backscatter at 676 nm",
+                "long_name": "Particulate backscattering coefficient at 676 nm",
                 "coordinates": coord_str,
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
             }
-        if hasattr(hs2, "bb700"):
+        if hasattr(hs2, "bbp700"):
             red_bs = xr.DataArray(
-                hs2.bb700.values,
-                coords=[hs2.bb700.get_index("time")],
+                hs2.bbp700.values,
+                coords=[hs2.bbp700.get_index("time")],
                 dims={"hs2_time"},
-                name="hs2_bb700",
+                name="hs2_bbp700",
             )
             red_bs.attrs = {
-                "long_name": "Backscatter at 700 nm",
+                "long_name": "Particulate backscattering coefficient at 700 nm",
                 "coordinates": coord_str,
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb()" f" from data in {source}"),
@@ -2309,21 +2309,21 @@ class Calibrate_NetCDF:
             plt.show()
 
         # Save blue, red, & fl to combined_nc, alsoe
-        if hasattr(hs2, "bb420"):
-            self.combined_nc["hs2_bb420"] = blue_bs
-        if hasattr(hs2, "bb470"):
-            self.combined_nc["hs2_bb470"] = blue_bs
-        if hasattr(hs2, "bb676"):
-            self.combined_nc["hs2_bb676"] = red_bs
-        if hasattr(hs2, "bb700"):
-            self.combined_nc["hs2_bb700"] = red_bs
+        if hasattr(hs2, "bbp420"):
+            self.combined_nc["hs2_bbp420"] = blue_bs
+        if hasattr(hs2, "bbp470"):
+            self.combined_nc["hs2_bbp470"] = blue_bs
+        if hasattr(hs2, "bbp676"):
+            self.combined_nc["hs2_bbp676"] = red_bs
+        if hasattr(hs2, "bbp700"):
+            self.combined_nc["hs2_bbp700"] = red_bs
         if hasattr(hs2, "fl676"):
             self.combined_nc["hs2_fl676"] = fl
         if hasattr(hs2, "fl700"):
             self.combined_nc["hs2_fl700"] = fl
 
-        # For missions before 2009.055.05 hs2 will have attributes like bb470, bb676, and fl676
-        # Hobilabs modified the instrument in 2009 to now give:         bb420, bb700, and fl700,
+        # For missions before 2009.055.05 hs2 will have attributes like bbp470, bbp676, and fl676
+        # Hobilabs modified the instrument in 2009 to now give:         bbp420, bbp700, and fl700,
         # apparently giving a better measurement of chlorophyll.
         #
         # Detect the difference in this code and keep the member names descriptive in the survey data so
@@ -2878,7 +2878,7 @@ class Calibrate_NetCDF:
             name=f"{sensor}_bbp700",
         )
         self.combined_nc["ecopuck_bbp700"].attrs = {
-            "long_name": "Backscatter at 700 nm",
+            "long_name": "Particulate backscattering coefficient at 700 nm",
             "units": "m^-1 sr^-1",
             "coordinates": coord_str,
             "comment": f"BB_Sig from {source} converted to bbp700 using scale factor {cf.bbp700_scale_factor} and dark counts {cf.bbp700_dark_counts}",
