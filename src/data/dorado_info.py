@@ -2994,5 +2994,9 @@ dorado_info["2024.072.01"] = {
 }
 dorado_info["2024.107.02"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 10724G" " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 10724G"
+        " No water collected due to software problem"
+        " - ctdToUse = ctd1 "
+    ),
 }
