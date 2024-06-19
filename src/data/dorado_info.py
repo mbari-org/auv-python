@@ -3006,5 +3006,7 @@ dorado_info["2024.144.05"] = {
 }
 dorado_info["2024.170.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 17024G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 17024G" 
+                " The UBAT is still reporting 0 flow but collecting good data. The LISST is still deactivated. "
+                " - ctdToUse = ctd1 "),
 }
