@@ -3010,3 +3010,9 @@ dorado_info["2024.170.00"] = {
                 " The UBAT is still reporting 0 flow but collecting good data. The LISST is still deactivated. "
                 " - ctdToUse = ctd1 "),
 }
+dorado_info["2024.205.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 20524G" 
+                " Biolume and LISST payloads removed, noticed the AUV has a slight roll/list post the reballast. "
+                " - ctdToUse = ctd1 "),
+}
