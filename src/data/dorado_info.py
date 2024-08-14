@@ -3016,3 +3016,9 @@ dorado_info["2024.205.00"] = {
                 " Biolume and LISST payloads removed, noticed the AUV has a slight roll/list post the reballast. "
                 " - ctdToUse = ctd1 "),
 }
+dorado_info["2024.226.00"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 22624G"
+                " Biolume, ISUS, and LISST payloads removed, speed test done on last yoyo, decreased from 1.5 to 1.4 m/s. "
+                " - ctdToUse = ctd1 "),
+}
