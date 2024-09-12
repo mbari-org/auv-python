@@ -1,5 +1,5 @@
 # Adapted from from https://github.com/MBARIMike/ur_l/python_docker/Dockerfile
-FROM python:3.10.9 as python-base
+FROM python:3.10.9 AS python-base
 # Set DOCKER_USER_ID in shell, e.g. export DOCKER_USER_ID=$(id -u)
 ARG DOCKER_USER_ID
 ENV PYTHONUNBUFFERED=1 \
@@ -16,7 +16,7 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # builder-base is used to build dependencies
-FROM python-base as builder-base
+FROM python-base AS builder-base
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         curl \
@@ -35,7 +35,7 @@ RUN poetry self update $POETRY_VERSION && poetry install --only main
 
 # 'production' stage uses the clean 'python-base' stage and copies
 # in only our runtime deps that were installed in the 'builder-base'
-FROM python-base as production
+FROM python-base AS production
 ARG DOCKER_USER_ID
 ENV TARGET_ENV=production
 
