@@ -11,8 +11,8 @@ authors = [
 
 readme = 'README.md'  # Markdown files are supported
 
-repository = "https://bitbucket.org/mbari/auv-python"
-homepage = "https://bitbucket.org/mbari/auv-python"
+repository = "https://github.com/mbari-org/auv-python"
+homepage = "https://github.com/mbari-org/auv-python"
 
 keywords = ['auv', 'dorado', 'oceanograpy', 'dataprocessing']
 
