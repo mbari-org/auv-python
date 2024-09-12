@@ -63,8 +63,8 @@ Create a .env file with the following contents:
 Then run:
 
     export DOCKER_USER_ID=$(id -u)
-    docker-compose build
-    docker-compose run --rm auvpython python src/data/process_i2map.py --help
+    docker compose build
+    docker compose run --rm auvpython python src/data/process_i2map.py --help
 
 The following commands are available:
 
