@@ -3034,3 +3034,9 @@ dorado_info["2024.303.00"] = {
                 " Biolume, ISUS, and LISST payloads removed "
                 " - ctdToUse = ctd1 "),
 }
+dorado_info["2024.317.01"] = {
+    "program": f"{DIAMOND}",
+    "comment": ("Monterey Bay Diamond Mission - 31724G"
+                " Biolume, ISUS, and LISST payloads removed "
+                " - ctdToUse = ctd1 "),
+}
