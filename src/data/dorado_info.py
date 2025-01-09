@@ -3047,3 +3047,9 @@ dorado_info["2024.351.00"] = {
                 " Stations C1->M1->M2 and back. Gulper #7 did not fire. "
                 " - ctdToUse = ctd1 "),
 }
+dorado_info["2025.008.00"] = {
+    "program": f"{MBTSLINE}",
+    "comment": ("Monterey Bay MBTS Mission - 00825G"
+                " Biolume, ISUS, and LISST payloads removed "
+                " - ctdToUse = ctd1 "),
+}
