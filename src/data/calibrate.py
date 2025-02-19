@@ -2879,7 +2879,7 @@ class Calibrate_NetCDF:
         )
         self.combined_nc["ecopuck_bbp700"].attrs = {
             "long_name": "Particulate backscattering coefficient at 700 nm",
-            "units": "m^-1 sr^-1",
+            "units": "m^-1",
             "coordinates": coord_str,
             "comment": f"BB_Sig from {source} converted to bbp700 using scale factor {cf.bbp700_scale_factor} and dark counts {cf.bbp700_dark_counts}",
         }
