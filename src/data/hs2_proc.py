@@ -156,9 +156,10 @@ def hs2_calc_bb(orig_nc, cals):
         sigma = k_1 * np.exp(k_exp * K_bb)
 
         b_b_corr = sigma * b_b_uncorr
+        b_bp_corr = sigma * (b_b_uncorr - b_bw)
 
         setattr(hs2, f"bb{wavelength}", b_b_corr)
-        setattr(hs2, f"bbp{wavelength}", b_b_corr - b_bw)
+        setattr(hs2, f"bbp{wavelength}", b_bp_corr)
 
     # -% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'
     denom = (
