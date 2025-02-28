@@ -11,14 +11,10 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
 import argparse
-import asyncio
-import concurrent
 import logging
 import os
 import struct
 import sys
-import time
-from array import array
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
@@ -242,7 +238,7 @@ class TimeCorrect(AUV):
         examples = "Example:" + "\n\n"
         examples += "  Write new original log files with time correction:\n"
         examples += f"    {sys.argv[0]} --auv_name Dorado389 --mission 2017.284.00"
-        examples += f" --add_seconds 1146649.348504"
+        examples += " --add_seconds 1146649.348504"
 
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,

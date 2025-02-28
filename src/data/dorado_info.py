@@ -754,24 +754,24 @@ for mission_number in range(0, 3):
         "program": BIOLUME,
         "comment": ("Portaled 7/8/05" " - ctdToUse = ctd1 "),
     }
-dorado_info[f"2005.194.00"] = {
+dorado_info["2005.194.00"] = {
     "program": AUVCTD,
     "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
 }
-dorado_info[f"2005.196.00"] = {
+dorado_info["2005.196.00"] = {
     "program": BIOLUME,
     "comment": (
         "Portaled 7/26/05:  196.01 had battery failure - do not include in survey"
         " - ctdToUse = ctd1 "
     ),
 }
-dorado_info[f"2005.196.01"] = {
+dorado_info["2005.196.01"] = {
     "program": FAILED,
     "comment": (
         "Portaled 7/26/05:  196.01 had battery failure - do not include in survey"
     ),
 }
-dorado_info[f"2005.201.00"] = {
+dorado_info["2005.201.00"] = {
     "program": AUVCTD,
     "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
 }
@@ -780,7 +780,7 @@ for mission_number in range(1, 3):
         "program": BIOLUME,
         "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
     }
-dorado_info[f"2005.217.00"] = {
+dorado_info["2005.217.00"] = {
     "program": BIOLUME,
     "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
 }

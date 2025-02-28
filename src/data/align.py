@@ -22,7 +22,6 @@ from argparse import RawTextHelpFormatter
 from datetime import datetime
 from socket import gethostname
 
-import cf_xarray  # Needed for the .cf accessor
 import git
 import numpy as np
 import pandas as pd
@@ -82,7 +81,7 @@ class Align_NetCDF:
         except AttributeError:
             # Likely AttributeError: 'datetime.datetime' object has no attribute 'astype'
             self.logger.warning(
-                f"Could not save time_coverage_duration - likely because all data are bad and min_time and max_time were not set"
+                "Could not save time_coverage_duration - likely because all data are bad and min_time and max_time were not set"
             )
         metadata["geospatial_vertical_min"] = self.min_depth
         metadata["geospatial_vertical_max"] = self.max_depth
@@ -111,11 +110,11 @@ class Align_NetCDF:
             f" software at 'https://github.com/mbari-org/auv-python'"
         )
         metadata["summary"] = (
-            f"Observational oceanographic data obtained from an Autonomous"
-            f" Underwater Vehicle mission with measurements at"
-            f" original sampling intervals. The data have been calibrated"
-            f" and the coordinate variables aligned using MBARI's auv-python"
-            f" software."
+            "Observational oceanographic data obtained from an Autonomous"
+            " Underwater Vehicle mission with measurements at"
+            " original sampling intervals. The data have been calibrated"
+            " and the coordinate variables aligned using MBARI's auv-python"
+            " software."
         )
         # Append location of original data files to summary
         matches = re.search(

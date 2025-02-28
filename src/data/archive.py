@@ -12,7 +12,6 @@ __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import os
-import platform
 import sys
 import time
 from pathlib import Path
@@ -91,7 +90,7 @@ class Archiver:
                         self.logger.debug(f"{src_file} not found")
 
         # Rsync files created by create_products.py
-        self.logger.info(f"Archiving product files")
+        self.logger.info("Archiving product files")
         for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
             src_dir = os.path.join(
                 BASE_PATH, self.args.auv_name, src_dir, self.args.mission

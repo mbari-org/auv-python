@@ -425,7 +425,7 @@ class AUV_NetCDF(AUV):
             loop.run_until_complete(future)
         except LookupError as e:
             self.logger.error(f"{e}")
-            self.logger.info(f"Perhaps use '--update' option?")
+            self.logger.info("Perhaps use '--update' option?")
             return
         self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
 
@@ -693,7 +693,7 @@ class AUV_NetCDF(AUV):
                         os.system(f"rsync -av {src_dir} {os.path.dirname(logs_dir)}")
                     else:
                         self.logger.info(
-                            f"src_dir not provided, so downloading from portal"
+                            "src_dir not provided, so downloading from portal"
                         )
                         self._portal_download(logs_dir, name=name, vehicle=vehicle)
 

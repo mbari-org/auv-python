@@ -298,7 +298,7 @@ class CreateProducts:
         self._open_ds()
 
         idist, iz, distnav = self._grid_dims()
-        scfac = max(idist) / max(iz)
+        scfac = max(idist) / max(iz)  # noqa: F841
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
         fig.tight_layout()

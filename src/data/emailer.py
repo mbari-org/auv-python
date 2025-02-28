@@ -13,10 +13,8 @@ import os
 import platform
 import sys
 import time
-from pathlib import Path
 
-from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
-from resample import FREQ
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
 
 NOTIFICATION_EMAIL = "auvctd@listserver.mbari.org"
 TEMPLATE = """

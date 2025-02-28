@@ -197,7 +197,7 @@ class Gulper:
             )
             bottles[number] = esecs - sec_delay
         if not bottles:
-            self.logger.debug(f"No gulper times found in syslog")
+            self.logger.debug("No gulper times found in syslog")
         else:
             self.logger.info(f"Found {len(bottles)} gulper times in syslog")
         return bottles
@@ -248,6 +248,6 @@ if __name__ == "__main__":
     gulper = Gulper()
     gulper.process_command_line()
     gulper_times = gulper.parse_gulpers()
-    gulper.logger.info(f"number, epoch seconds")
+    gulper.logger.info("number, epoch seconds")
     for number, esecs in gulper_times.items():
         gulper.logger.info(f"{number}, {esecs}")

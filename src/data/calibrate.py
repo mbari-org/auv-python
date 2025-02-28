@@ -30,14 +30,12 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import os
-import platform
 import sys
 import time
 import xml.etree.ElementTree as ET
 from argparse import RawTextHelpFormatter
 from collections import OrderedDict, namedtuple
 from datetime import datetime
-from glob import glob
 from socket import gethostname
 from typing import List, Tuple
 
@@ -54,12 +52,8 @@ except ModuleNotFoundError:
     # cartopy is not installed, will not be able to plot maps
     pass
 
-import cf_xarray  # Needed for the .cf accessor
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import pyproj
-import xarray as xr
 from AUV import monotonic_increasing_time_indices
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import (
@@ -72,10 +66,7 @@ from logs2netcdfs import (
 )
 from matplotlib import patches
 from scipy import signal
-from scipy.interpolate import interp1d
-from seawater import eos80
 
-TIME = "time"
 Range = namedtuple("Range", "min max")
 
 # Using lower case vehicle names, modify in _define_sensor_info() for changes over time
@@ -641,10 +632,10 @@ class Calibrate_NetCDF:
             f" {self.args.auv_name} mission {self.args.mission}"
         )
         metadata["summary"] = (
-            f"Observational oceanographic data obtained from an Autonomous"
-            f" Underwater Vehicle mission with measurements at"
-            f" original sampling intervals. The data have been calibrated"
-            f" by MBARI's auv-python software."
+            "Observational oceanographic data obtained from an Autonomous"
+            " Underwater Vehicle mission with measurements at"
+            " original sampling intervals. The data have been calibrated"
+            " by MBARI's auv-python software."
         )
         if self.summary_fields:
             # Should be just one item in set, but just in case join them
@@ -1331,7 +1322,7 @@ class Calibrate_NetCDF:
         self.combined_nc["navigation_pitch"] = xr.DataArray(
             orig_nc["mTheta"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
-            dims={f"navigation_time"},
+            dims={"navigation_time"},
             name="pitch",
         )
         self.combined_nc["navigation_pitch"].attrs = {
@@ -1346,7 +1337,7 @@ class Calibrate_NetCDF:
         self.combined_nc["navigation_yaw"] = xr.DataArray(
             orig_nc["mPsi"].values * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
-            dims={f"navigation_time"},
+            dims={"navigation_time"},
             name="yaw",
         )
         self.combined_nc["navigation_yaw"].attrs = {
@@ -1360,7 +1351,7 @@ class Calibrate_NetCDF:
         self.combined_nc["navigation_posx"] = xr.DataArray(
             orig_nc["mPos_x"].values - orig_nc["mPos_x"].values[0],
             coords=[orig_nc.get_index("time")],
-            dims={f"navigation_time"},
+            dims={"navigation_time"},
             name="posx",
         )
         self.combined_nc["navigation_posx"].attrs = {
@@ -1373,7 +1364,7 @@ class Calibrate_NetCDF:
         self.combined_nc["navigation_posy"] = xr.DataArray(
             orig_nc["mPos_y"].values - orig_nc["mPos_y"].values[0],
             coords=[orig_nc.get_index("time")],
-            dims={f"navigation_time"},
+            dims={"navigation_time"},
             name="posy",
         )
         self.combined_nc["navigation_posy"].attrs = {
@@ -1387,7 +1378,7 @@ class Calibrate_NetCDF:
         self.combined_nc["navigation_depth"] = xr.DataArray(
             orig_nc["mDepth"].values,
             coords=[orig_nc.get_index("time")],
-            dims={f"navigation_time"},
+            dims={"navigation_time"},
             name="navigation_depth",
         )
         self.combined_nc["navigation_depth"].attrs = {
@@ -1400,7 +1391,7 @@ class Calibrate_NetCDF:
         self.combined_nc["navigation_mWaterSpeed"] = xr.DataArray(
             orig_nc["mWaterSpeed"].values,
             coords=[orig_nc.get_index("time")],
-            dims={f"navigation_time"},
+            dims={"navigation_time"},
             name="navigation_mWaterSpeed",
         )
         self.combined_nc["navigation_mWaterSpeed"].attrs = {
@@ -1411,12 +1402,12 @@ class Calibrate_NetCDF:
         }
 
         if "latitude" in orig_nc:
-            navlat_var = "latitude"
+            navlat_var = "latitude"  # noqa: F841
         elif "latitudeNav" in orig_nc:
             # Starting with 2022.243.00 the latitude variable name was changed
-            navlat_var = "latitudeNav"
+            navlat_var = "latitudeNav"  # noqa: F841
         else:
-            navlat_var = None
+            navlat_var = None  # noqa: F841
             self.logger.debug(
                 "Likely before 2004.167.04 when latitude was added to navigation.log"
             )
@@ -1448,7 +1439,7 @@ class Calibrate_NetCDF:
             self.combined_nc["navigation_latitude"] = xr.DataArray(
                 navlats * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
-                dims={f"navigation_time"},
+                dims={"navigation_time"},
                 name="latitude",
             )
             self.combined_nc["navigation_latitude"].attrs = {
@@ -1461,7 +1452,7 @@ class Calibrate_NetCDF:
             self.combined_nc["navigation_longitude"] = xr.DataArray(
                 navlons * 180 / np.pi,
                 coords=[orig_nc.get_index("time")],
-                dims={f"navigation_time"},
+                dims={"navigation_time"},
                 name="longitude",
             )
             # Setting standard_name attribute here once sets it for all variables
@@ -1631,6 +1622,34 @@ class Calibrate_NetCDF:
 
             end_lon_diff = float(lon_fix[i + 1]) - float(lon[segi[-1]])
             end_lat_diff = float(lat_fix[i + 1]) - float(lat[segi[-1]])
+
+            # Compute approximate horizontal drift rate as a sanity check
+            try:
+                u_drift = (
+                    end_lon_diff
+                    * float(np.cos(lat_fix[i + 1] * np.pi / 180))
+                    * 60
+                    * 185300
+                    / (
+                        float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
+                        / 1.0e9
+                    )
+                )
+            except ZeroDivisionError:
+                u_drift = 0
+            try:
+                v_drift = (
+                    end_lat_diff
+                    * 60
+                    * 185300
+                    / (
+                        float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
+                        / 1.0e9
+                    )
+                )
+            except ZeroDivisionError:
+                v_drift = 0
+
             if abs(end_lon_diff) > 1 or abs(end_lat_diff) > 1:
                 # It's a problem if we have more than 1 degree difference at the end of the segment.
                 # This is usually because the GPS fix is bad, but sometimes it's because the
@@ -1673,32 +1692,6 @@ class Calibrate_NetCDF:
             )
             seg_minsum += seg_min
 
-            # Compute approximate horizontal drift rate as a sanity check
-            try:
-                u_drift = (
-                    end_lon_diff
-                    * float(np.cos(lat_fix[i + 1] * np.pi / 180))
-                    * 60
-                    * 185300
-                    / (
-                        float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
-                        / 1.0e9
-                    )
-                )
-            except ZeroDivisionError:
-                u_drift = 0
-            try:
-                v_drift = (
-                    end_lat_diff
-                    * 60
-                    * 185300
-                    / (
-                        float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0])
-                        / 1.0e9
-                    )
-                )
-            except ZeroDivisionError:
-                v_drift = 0
             if len(segi) > 10:
                 self.logger.info(
                     f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"
@@ -1904,7 +1897,7 @@ class Calibrate_NetCDF:
         self.combined_nc["gps_latitude"] = xr.DataArray(
             lat_to_save.values,
             coords=[gps_time_to_save],
-            dims={f"gps_time"},
+            dims={"gps_time"},
             name="gps_latitude",
         )
         self.combined_nc["gps_latitude"].attrs = {
@@ -1918,7 +1911,7 @@ class Calibrate_NetCDF:
         self.combined_nc["gps_longitude"] = xr.DataArray(
             lon_to_save.values,
             coords=[gps_time_to_save],
-            dims={f"gps_time"},
+            dims={"gps_time"},
             name="gps_longitude",
         )
         # Setting standard_name attribute here once sets it for all variables
@@ -2110,7 +2103,7 @@ class Calibrate_NetCDF:
         depth_filtdepth = xr.DataArray(
             depth_filtdepth_butter,
             coords=[depths.get_index("time")],
-            dims={f"depth_time"},
+            dims={"depth_time"},
             name="depth_filtdepth",
         )
         depth_filtdepth.attrs = {
@@ -2126,7 +2119,7 @@ class Calibrate_NetCDF:
         depth_filtpres = xr.DataArray(
             depth_filtpres_butter,
             coords=[depths.get_index("time")],
-            dims={f"depth_time"},
+            dims={"depth_time"},
             name="depth_filtpres",
         )
         depth_filtpres.attrs = {
@@ -2392,7 +2385,7 @@ class Calibrate_NetCDF:
                 salinity,
             )
             mll_comment = f"Derived from {var_name} from {sensor}.nc using calibration coefficients {vars(cf)}"
-            umolkg_comment = f"Computed from oxygen_mll with 'np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))'"
+            umolkg_comment = "Computed from oxygen_mll with 'np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))'"
         oxygen_mll = xr.DataArray(
             oxy_mll,
             coords=[orig_nc.get_index("time")],
@@ -2528,9 +2521,9 @@ class Calibrate_NetCDF:
             "long_name": "Temperature computed onboard the vehicle",
             "units": "degree_Celsius",
             "comment": (
-                f"Temperature computed onboard the vehicle from"
-                f" calibration parameters installed on the vehicle"
-                f" at the time of deployment."
+                "Temperature computed onboard the vehicle from"
+                " calibration parameters installed on the vehicle"
+                " at the time of deployment."
             ),
         }
         self.combined_nc[f"{sensor}_temperature_onboard"] = temperature_onboard
@@ -2546,9 +2539,9 @@ class Calibrate_NetCDF:
             "long_name": "Conductivity computed onboard the vehicle",
             "units": "Siemens/meter",
             "comment": (
-                f"Temperature computed onboard the vehicle from"
-                f" calibration parameters installed on the vehicle"
-                f" at the time of deployment."
+                "Temperature computed onboard the vehicle from"
+                " calibration parameters installed on the vehicle"
+                " at the time of deployment."
             ),
         }
         self.combined_nc[f"{sensor}_conductivity_onboard"] = conductivity_onboard
@@ -2565,9 +2558,9 @@ class Calibrate_NetCDF:
                 "long_name": "Salinity computed onboard the vehicle",
                 "units": "",
                 "comment": (
-                    f"Salinity computed onboard the vehicle from"
-                    f" calibration parameters installed on the vehicle"
-                    f" at the time of deployment."
+                    "Salinity computed onboard the vehicle from"
+                    " calibration parameters installed on the vehicle"
+                    " at the time of deployment."
                 ),
             }
             self.combined_nc[f"{sensor}_salinity_onboard"] = salinity_onboard
@@ -2585,7 +2578,7 @@ class Calibrate_NetCDF:
             dissolvedO2.attrs = {
                 "long_name": "Dissolved Oxygen sensor",
                 "units": "Volts",
-                "comment": (f"Analog Voltage Channel 6 - to be converted to umol/kg"),
+                "comment": ("Analog Voltage Channel 6 - to be converted to umol/kg"),
             }
             self.combined_nc[f"{sensor}_dissolvedO2"] = dissolvedO2
             (
@@ -2623,7 +2616,7 @@ class Calibrate_NetCDF:
             dissolvedO2_port.attrs = {
                 "long_name": "Dissolved Oxygen port side sensor",
                 "units": "Volts",
-                "comment": (f"Analog Voltage Channel 3 - to be converted to umol/kg"),
+                "comment": ("Analog Voltage Channel 3 - to be converted to umol/kg"),
             }
             self.combined_nc[f"{sensor}_dissolvedO2_port"] = dissolvedO2_port
             (
@@ -2652,7 +2645,7 @@ class Calibrate_NetCDF:
             dissolvedO2_stbd.attrs = {
                 "long_name": "Dissolved Oxygen stbd side sensor",
                 "units": "Volts",
-                "comment": (f"Analog Voltage Channel 5 - to be converted to umol/kg"),
+                "comment": ("Analog Voltage Channel 5 - to be converted to umol/kg"),
             }
             self.combined_nc[f"{sensor}_dissolvedO2_stbd"] = dissolvedO2_stbd
             (
@@ -2821,7 +2814,7 @@ class Calibrate_NetCDF:
         try:
             monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
         except IndexError:
-            raise ValueError(f"No data in tailcone.nc - ikely empty tailcone.log file")
+            raise ValueError("No data in tailcone.nc - ikely empty tailcone.log file")
         if (~monotonic).any():
             self.logger.debug(
                 "Removing non-monotonic increasing times at indices: %s",
