@@ -1,6 +1,4 @@
-import logging
 import numpy as np
-import pytest
 from calibrate import align_geom
 
 def test_align_geom():

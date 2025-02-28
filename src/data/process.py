@@ -345,7 +345,6 @@ class Processor:
         email.args.verbose = self.args.verbose
         email.logger.setLevel(self._log_levels[self.args.verbose])
         email.logger.addHandler(self.log_handler)
-        file_name_base = f"{email.args.auv_name}_{email.args.mission}"
 
     def cleanup(self, mission: str) -> None:
         self.logger.info(

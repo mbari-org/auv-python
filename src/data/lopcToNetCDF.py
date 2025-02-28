@@ -228,10 +228,6 @@ class LOPC_Processor(object):
             "esd_min": "Equivalent Spherical Diameter minimum",
             "esd_max": "Equivalent Spherical Diameter ",
             "esd_std": "Equivalent Spherical Diameter Index Standard Deviation",
-            "esd_mean": "microns",
-            "esd_min": "microns",
-            "esd_max": "microns",
-            "esd_std": "microns",
         }
 
         self.frameText = ""
@@ -425,7 +421,7 @@ class LOPC_Processor(object):
                 else:
                     val = self.readBigEndianUShort(binFile)
 
-                if val == None:
+                if val is None:
                     self.logger.warn(
                         "L frame scalar: %s is None (unable to parse)" % var
                     )
@@ -534,7 +530,7 @@ class LOPC_Processor(object):
                 n = (A & 0x00008000) >> 15  # bit to indicate new MEP or not
                 p = (A & 0x00003FF8) >> 3  # peak intensity aka DS
                 e = ((A & 0x00000007) << 3) + ((B & 0x00003800) >> 11)  # element number
-                l = B & 0x000007FF  # length, aka time of flight
+                l = B & 0x000007FF  # length, aka time of flight  # noqa: E741
                 s = C & 0x0000FFFF  # scan counter time reference
                 if self.args.debugLevel >= 2:
                     self.logger.debug(
@@ -727,10 +723,9 @@ class LOPC_Processor(object):
         self.logger.info(">>> Unpacking LOPC data from " + binFile.name)
         self.logger.info(">>> Will write to NetCDF file " + self.args.netCDF_fileName)
 
-        if textFile != None:
+        if textFile is not None:
             self.logger.info(">>> Writing ASCII text file " + self.args.text_fileName)
 
-        recCount = 0
         self.dataStructure["lFrameCount"] = 0
         self.dataStructure["mFrameCount"] = 0
 
@@ -741,8 +736,6 @@ class LOPC_Processor(object):
 
         # Instantiate MepData object to collect and compute MEP parameters
         mepData = lopcMEP.MepData()
-
-        maxLenNList = 0
 
         countShortLFrameError = 0
 
@@ -773,7 +766,7 @@ class LOPC_Processor(object):
         )  # Generator of indices for netCDF output
 
         # write header for ASCII text file, if specified
-        if textFile != None:
+        if textFile is not None:
             textFile.write("# ___ PROCESSING INFORMATION ___\n")
             textFile.write(
                 "# Date: %s\n" % time.strftime("%A, %B %d, %Y", time.localtime())
@@ -1051,7 +1044,7 @@ class LOPC_Processor(object):
                     detectedMFrame = True
                     continue  # exit to outer while True loop
                 except BeginLFrameWithoutEndOfPreviousFrame:
-                    stillHaveLFrame = True
+                    stillHaveLFrame = True  # noqa: F841
                     continue  # exit to outer while True loop
                 else:
                     detectedMFrame = False
@@ -1157,9 +1150,9 @@ class LOPC_Processor(object):
                 ##countArray = mepData.count(self.dataStructure['binSizeList'], sepCountArraySum)
 
                 mepCountArray = mepData.count(self.dataStructure["binSizeList"])
-                lcAIcrit = 0.4
-                lcESDmin = 800
-                lcESDmax = 1200
+                lcAIcrit = 0.4  # noqa: F841
+                lcESDmin = 800  # noqa: F841
+                lcESDmax = 1200  # noqa: F841
                 LCcount = mepData.countLC(
                     self.args.LargeCopepod_AIcrit,
                     self.args.LargeCopepod_ESDmin,
@@ -1330,7 +1323,7 @@ class LOPC_Processor(object):
             )
         )
 
-        if recCount == None:
+        if recCount is None:
             recCount = 2 * int(sensor_off_time - sensor_on_time)
             self.logger.info(
                 "recCount not passed in, assuming we'll have %d records from the lopc.bin file."
@@ -1339,7 +1332,7 @@ class LOPC_Processor(object):
 
         timestampList = []
         self.logger.debug("sampleCountList = %s" % (sampleCountList))
-        if sampleCountList != None:
+        if sampleCountList is not None:
             # Analyze the sampleCountList - correct for 16-bit overflow, and interpolate over 0-values, stuck values, and spikes
             self.logger.info(
                 "Calling correctSampleCountList() with sampleCountList[0] = %d and len(sampleCountList) = %d"
@@ -1465,7 +1458,7 @@ class LOPC_Processor(object):
 
         timestampList = subSampledTimestampList
 
-        if cFrameEsecsList != None:
+        if cFrameEsecsList is not None:
             # First replace all NaNs with an interpolation between the non-NaNed values
             self.logger.info(
                 "Finding elements of cFrameEsecsList that != %d" % self.missing_value
@@ -1732,7 +1725,6 @@ class LOPC_Processor(object):
             sampleCountList[indx:] = numpy.array(orig_sc[indx:]).copy() + (i * 65537)
 
         # Find and interpolate over 0 values
-        npts = 5  # Number of points to look back & forward for non-zero values
         zero_indx = numpy.nonzero(sampleCountList == 0)[0]
         self.logger.info("Original sampleCountList =  %s" % (sampleCountList))
         self.logger.info(
@@ -1930,7 +1922,7 @@ class LOPC_Processor(object):
         self.ncFile.variables["countListSum"].units = "count"
         self.ncFile.variables[
             "countListSum"
-        ].long_name = f"Sum of Total Particle counts"
+        ].long_name = "Sum of Total Particle counts"
 
         # Create scalar list item variable
         self.logger.debug(
@@ -1945,7 +1937,7 @@ class LOPC_Processor(object):
 
             if self.args.debugLevel >= 2:
                 self.logger.debug("  units = %s " % self.LframeScalarDictUnits[var])
-            if self.LframeScalarDictUnits[var] == None:
+            if self.LframeScalarDictUnits[var] is None:
                 self.ncFile.variables[
                     var
                 ].units = ""  # For unitless variables we do need a '' units attribute
@@ -1956,7 +1948,7 @@ class LOPC_Processor(object):
                 self.logger.debug(
                     "  long_name = %s " % self.LframeScalarDictLongName[var]
                 )
-            if self.LframeScalarDictLongName[var] != None:
+            if self.LframeScalarDictLongName[var] is not None:
                 self.ncFile.variables[var].long_name = self.LframeScalarDictLongName[
                     var
                 ]
@@ -2346,7 +2338,7 @@ class LOPC_Processor(object):
                     )
 
             # Close the ASCII text file, if it exists
-            if textFile != None:
+            if textFile is not None:
                 self.logger.info("Closing test file")
                 textFile.close()
 

@@ -19,12 +19,10 @@ a NetCDF file that can be read by the doradosdp software.
 '''
 
 import sys
-import struct
 import logging
 from optparse import OptionParser
 import os
 import datetime
-import numpy
 import time
 import Nio
 
@@ -204,22 +202,23 @@ Examples:
 	usblToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010151/2010.151.04/usbl.dat -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010151/2010.151.04/usbl.nc
 
 """)
-    	parser.add_option('-i', '--ascii_fileName',
-                      type='string', action='store',
-                      help="Specify an input binary data file name, e.g. /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin.")
-    	parser.add_option('-n', '--netCDF_fileName',
-                      type='string', action='store',
-                      help="Specify a fully qualified output NetCDF file path, e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.nc")
-    	parser.add_option('-v', '--verbose',
-                      action='store_true', default=False,
-                      help="Turn on verbose output, which gives bit more processing feedback.")
-    	parser.add_option('-d', '--debugLevel',
-                      action='store', type='int',
-                      help="Turn on debugLevel [1..3].  The higher the number, the more the output.  E.g. us '-d 1' to understand framing errors, '-d 3' for all debug statements.")
-    	parser.add_option('-f', '--force',
-                      action='store_true', default=False,
-                      help="Force overwite of netCDF file.  Useful for using from a master reprocess script.")
-    	opts, args = parser.parse_args()
+	parser.add_option('-i', '--ascii_fileName',
+						type='string', action='store',
+						help="Specify an input binary data file name, e.g. /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin.")
+	parser.add_option('-n', '--netCDF_fileName',
+				   
+						type='string', action='store',
+						help="Specify a fully qualified output NetCDF file path, e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.nc")
+	parser.add_option('-v', '--verbose',
+						action='store_true', default=False,
+						help="Turn on verbose output, which gives bit more processing feedback.")
+	parser.add_option('-d', '--debugLevel',
+						action='store', type='int',
+						help="Turn on debugLevel [1..3].  The higher the number, the more the output.  E.g. us '-d 1' to understand framing errors, '-d 3' for all debug statements.")
+	parser.add_option('-f', '--force',
+						action='store_true', default=False,
+						help="Force overwite of netCDF file.  Useful for using from a master reprocess script.")
+	opts, args = parser.parse_args()
 
 	#
 	# unpack data according to command line options 
@@ -234,7 +233,6 @@ Examples:
 		verboseFlag = opts.verbose
 		if opts.debugLevel: 
 			logging.getLogger("logger").setLevel(logging.DEBUG)
-			debugLevel = opts.debugLevel
 
 		# Check for output file and offer to overwrite
 		if os.path.exists(opts.netCDF_fileName):
@@ -242,7 +240,7 @@ Examples:
 				if os.path.exists(opts.netCDF_fileName):
 					os.remove(opts.netCDF_fileName)
 			else:
-				ans = raw_input(opts.netCDF_fileName + " file exists.\nDo you want to remove it and continue processing? (y/[N]) ")
+				ans = input(opts.netCDF_fileName + " file exists.\nDo you want to remove it and continue processing? (y/[N]) ")
 				if ans.upper() == 'Y':
 					os.remove(opts.netCDF_fileName)
 				else:
@@ -269,7 +267,7 @@ Examples:
 		logger.info("main(): Processing finished: %s Elapsed processing time from start of processing = %d seconds" % (time.ctime(), (mark - start)))
 
 	else:
-		print "\nCannot process input.  Execute with -h for usage note.\n"	
+		print("\nCannot process input.  Execute with -h for usage note.\n")
 
 	return # End main()
 

@@ -12,7 +12,6 @@ import lzstring
 import os
 import requests
 import sys
-import time
 import xarray as xr
 from datetime import datetime
 

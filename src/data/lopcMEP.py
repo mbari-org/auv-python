@@ -43,14 +43,14 @@ logging.getLogger("MEP").setLevel(logging.INFO)
 class MEP:
     """Class for an MEP.  Instances are a single MEP."""
 
-    def __init__(self, p, e, l, s):
+    def __init__(self, p, e, l, s):  # noqa: E741
 
         self.p = [p]
         self.e = [e]
         self.l = [l]
         self.s = [s]
 
-    def addPartial(self, p, e, l, s):
+    def addPartial(self, p, e, l, s):  # noqa: E741
         """Add data from a partial MEP"""
         self.p.extend([p])
         self.e.extend([e])
@@ -106,7 +106,7 @@ class MEP:
         # Format used in Alex Herman papers
         str = ""
         n = 1
-        for p, e, l, s in zip(self.p, self.e, self.l, self.s):
+        for p, e, l, s in zip(self.p, self.e, self.l, self.s):  # noqa: E741
             if n == 1:
                 p += 32768  # Add the bit back
 
@@ -153,7 +153,7 @@ class MepData:
         """
 
         # Build MEP list from raw data parsed from M frames
-        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):
+        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):  # noqa: E741
             logger.debug("n = %s, p = %s, e = %s, l = %s, s = %s" % (n, p, e, l, s))
             if n == 1:
                 # Instantiate MEP object (n == 1 indicates a new MEP detected by the instrument)
@@ -168,7 +168,7 @@ class MepData:
                 except IndexError:
                     # No MEPs in list yet, append the previous MEP passed in then add partial
                     ##logger.debug("previousMEP = " + str(previousMEP))
-                    if previousMEP == None:
+                    if previousMEP is None:
                         return
 
                     self.mepList.append(previousMEP)
@@ -205,7 +205,7 @@ class MepData:
 
         """
 
-        if countList == None:
+        if countList is None:
             countList = numpy.zeros(binSizeList.shape)
 
         for mep in self.mepList:
@@ -264,7 +264,7 @@ class MepData:
 
         # Format used in Alex Herman papers
         str = ""
-        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):
+        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):  # noqa: E741
             if n == 1:
                 p += 32768  # Add the bit back
 
@@ -277,7 +277,7 @@ class MepData:
 
         # Format used in Alex Herman papers
         str = ""
-        for n, p, e, l, s in zip(nL, pL, eL, lL, sL):
+        for n, p, e, l, s in zip(nL, pL, eL, lL, sL):  # noqa: E741
             if n == 1:
                 p += 32768  # Add the bit back
 
