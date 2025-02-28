@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from socket import gethostname
 from typing import Dict, Tuple
 
-import cf_xarray  # Needed for the .cf accessor
+import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import git
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,7 +30,6 @@ from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, AUV_NetCDF
 from pysolar.solar import get_altitude
 from scipy import signal
-from utils import simplify_points
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -132,7 +131,7 @@ class Resampler:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
-        self.metadata["title"] = f"Calibrated, "
+        self.metadata["title"] = "Calibrated, "
         try:
             if dorado_info[self.args.mission].get("program"):
                 self.metadata[
@@ -152,7 +151,7 @@ class Resampler:
                 f"{self.args.mission.split('.')[0]}/netcdf/"
                 f"{self.args.auv_name}_{self.args.mission}_processing.log"
             )
-        except KeyError as e:
+        except KeyError:
             # Likely no _1S.nc file was created, hence no summary to append to
             self.logger.warning(
                 f"Could not add processing log file to summary matadata for mission {self.args.mission}"
@@ -237,7 +236,7 @@ class Resampler:
         for variable in self.ds.keys():
             instr, *_ = variable.split("_")
             if instr == "navigation":
-                freq = "0.1S"
+                freq = "0.1S"  # noqa: F841
             elif instr == "gps" or instr == "depth":
                 continue
             if instr != last_instr:
@@ -363,9 +362,7 @@ class Resampler:
                 get_altitude(
                     lat,
                     lon,
-                    datetime.utcfromtimestamp(ts.astype(int) / 1.0e9).replace(
-                        tzinfo=timezone.utc
-                    ),
+                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=timezone.utc),
                 )
             )
         # Find sunset and sunrise - where sun altitude changes sign
@@ -404,7 +401,7 @@ class Resampler:
 
         if sunset is None and sunrise is None:
             self.logger.info(
-                f"No sunset during this mission. No biolume_raw data will be extracted."
+                "No sunset during this mission. No biolume_raw data will be extracted."
             )
             nighttime_bl_raw = pd.Series(dtype="float64")
         else:
