@@ -53,3 +53,20 @@ ruff = "^0.9.8"
 [tool.poetry.dev-dependencies]
 pytest = "^6.0"
 pytest-cov = "^3.0"
+
+[tool.ruff]
+target-version = "py310"
+# Exclude a variety of commonly ignored directories and things in expd we don't want checked
+extend-exclude = [
+    "notebooks/*.ipynb",
+]
+
+[tool.ruff.lint]
+select = [
+  "F",
+  "E",
+  "W",
+  "C90",
+  "I",
+  "N",
+]
