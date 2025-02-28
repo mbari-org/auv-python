@@ -1,59 +1,64 @@
-name: CI
-
-# Enable Buildkit and let compose use it to speed up image building
-env:
-  DOCKER_BUILDKIT: 1
-  COMPOSE_DOCKER_CLI_BUILD: 1
-  COMPOSE_FILE: ci-docker-compose.yml
+iname: CI
 
 on:
-  pull_request:
-    branches: ["master", "main"]
-    paths-ignore: ["docs/**"]
-
   push:
-    branches: ["master", "main"]
-    paths-ignore: ["docs/**"]
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  ##linter:
-  ##  runs-on: ubuntu-latest
-  ##  steps:
-
-  ##    - name: Checkout Code Repository
-  ##      uses: actions/checkout@v2
-
-  ##    - name: Set up Python 3.9
-  ##      uses: actions/setup-python@v2
-  ##      with:
-  ##        python-version: 3.9
-
-  # Run all pre-commit hooks on all the files.
-  # Getting only staged files can be tricky in case a new PR is opened
-  # since the action is run on a branch in detached head state
-  ##    - name: Install and Run Pre-commit
-  ##      uses: pre-commit/action@v2.0.0
-
-  # With no caching at all the entire ci process takes 4m 30s to complete!
-  pytest:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
-      # https://stackoverflow.com/a/65346817/1281657
-      - name: Checkout Code Repository
-        uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Build the Stack
-        run: docker-compose build
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-      - name: mkdir /data/auv_data
-        run: docker-compose run --rm auvpython mkdir /data/auv_data
-
-      - name: Get some data
+      - name: Install Poetry
         run: |
-          docker-compose run --rm auvpython src/data/logs2netcdfs.py --auv_name Dorado389 \
-            --mission 2020.245.00 --portal http://stoqs.mbari.org:8080/auvdata/v1 \
-            --base_path /data/auv_data --clobber --noinput -v --use_portal
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Run Pytest Tests
-        run: docker-compose run --rm auvpython pytest -s src/data
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run linting
+        run: poetry run ruff check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Set environment variables
+        run: echo "BASE_PATH=/data/auv_data" >> $GITHUB_ENV
+
+      - name: Download and unzip required data files
+        run: |
+          mkdir -p /data/auv_data
+          wget -O /data/auv_data/Dorado389.tar.gz https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
+          tar -xvf /data/auv_data/Dorado389.tar.gz -C /data/auv_data 2> /dev/null
+          
+
+      - name: Run tests
+        run: poetry run pytest

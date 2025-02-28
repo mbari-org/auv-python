@@ -12,7 +12,8 @@ def mission_data():
     """Load a short recent mission to have some real data to work with"""
     cal_netcdf = Calibrate_NetCDF()
     ns = Namespace()
-    ns.base_path = BASE_PATH
+    # The BASE_PATH environment variable can be set in ci.yml for running in GitHub Actions
+    ns.base_path = os.getenv("BASE_PATH", BASE_PATH)
     ns.auv_name = "Dorado389"
     ns.mission = "2020.245.00"
     ns.plot = None
