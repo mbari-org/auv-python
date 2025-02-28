@@ -51,13 +51,13 @@ jobs:
         run: poetry install
 
       - name: Set environment variables
-        run: echo "BASE_PATH=/data/auv_data" >> $GITHUB_ENV
+        run: echo "BASE_PATH=$HOME/auv_data" >> $GITHUB_ENV
 
       - name: Download and unzip required data files
         run: |
-          mkdir -p /data/auv_data
-          wget -O /data/auv_data/Dorado389.tar.gz https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
-          tar -xvf /data/auv_data/Dorado389.tar.gz -C /data/auv_data 2> /dev/null
+          mkdir -p "$HOME/auv_data"
+          wget -O "$HOME/auv_data/Dorado389.tar.gz" https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
+          tar -xvf "$HOME/auv_data/Dorado389.tar.gz" -C /data/auv_data 2> /dev/null
           
 
       - name: Run tests
