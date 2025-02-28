@@ -56,8 +56,8 @@ jobs:
       - name: Download and unzip required data files
         run: |
           mkdir -p "$HOME/auv_data"
-          wget -O "$HOME/auv_data/Dorado389.tar.gz" https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
-          tar -xvf "$HOME/auv_data/Dorado389.tar.gz" -C /data/auv_data 2> /dev/null
+          wget --no-check-certificate -O "$HOME/auv_data/Dorado389.tar.gz" https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
+          tar -xf "$HOME/auv_data/Dorado389.tar.gz" -C "$HOME/auv_data" 2> /dev/null
           
 
       - name: Run tests
