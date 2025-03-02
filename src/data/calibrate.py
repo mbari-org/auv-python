@@ -56,14 +56,7 @@ import pandas as pd
 import pyproj
 from AUV import monotonic_increasing_time_indices
 from hs2_proc import hs2_calc_bb, hs2_read_cal_file
-from logs2netcdfs import (
-    BASE_PATH,
-    MISSIONLOGS,
-    MISSIONNETCDFS,
-    AUV_NetCDF,
-    TIME,
-    TIME60HZ,
-)
+from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ, AUV_NetCDF
 from matplotlib import patches
 from scipy import signal
 
@@ -2872,7 +2865,7 @@ class Calibrate_NetCDF:
         )
         self.combined_nc["ecopuck_bbp700"].attrs = {
             "long_name": "Particulate backscattering coefficient at 700 nm",
-            "units": "m^-1",
+            "units": "m^-1 sr^-1",
             "coordinates": coord_str,
             "comment": f"BB_Sig from {source} converted to bbp700 using scale factor {cf.bbp700_scale_factor} and dark counts {cf.bbp700_dark_counts}",
         }
