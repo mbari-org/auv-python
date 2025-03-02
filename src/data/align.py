@@ -4,8 +4,8 @@ Align calibrated data producing a netCDF file with coordinates on each variable
 
 Read calibrated data from netCDF files created by calibrate.py, use the
 best available (e.g. filtered, nudged) coordinate variables to interpolate
-onto each each measured (record) variable sampling interval. The original 
-instrument sampling interval is preserved with the coordinate varaibles 
+onto each each measured (record) variable sampling interval. The original
+instrument sampling interval is preserved with the coordinate varaibles
 interpolated onto that original time axis.
 """
 
@@ -132,7 +132,7 @@ class Align_NetCDF:
 
         return metadata
 
-    def process_cal(self, vehicle: str = None, name: str = None) -> None:
+    def process_cal(self, vehicle: str = None, name: str = None) -> None:  # noqa: C901
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)

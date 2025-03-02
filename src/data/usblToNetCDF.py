@@ -18,14 +18,14 @@ a NetCDF file that can be read by the doradosdp software.
 @license: GPL
 '''
 
-import sys
-import logging
-from optparse import OptionParser
-import os
 import datetime
+import logging
+import os
+import sys
 import time
-import Nio
+from optparse import OptionParser
 
+import Nio
 
 #
 # Make a global logging object.
@@ -46,8 +46,8 @@ logging.getLogger("logger").setLevel(logging.INFO)
 # Variables global to this module
 #
 verboseFlag = False
-debugLevel = 0 
-		
+debugLevel = 0
+
 def processRecords(aFile, ncFile):
 	'''Read record from ascii ubl file, parse it and write netCDF records'''
 
@@ -138,7 +138,7 @@ def openNetCDFFile(ncFileName):
 
 	ncFile.create_variable("time", 'd', ('time',))
 	ncFile.variables['time'].units = "seconds since 1970-01-01 00:00:00"
-	ncFile.variables['time'].long_name = "Time GMT" 
+	ncFile.variables['time'].long_name = "Time GMT"
 
 
 	# --- Create the record variables ---
@@ -157,7 +157,7 @@ def openNetCDFFile(ncFileName):
 def writeNetCDFRecord(ncFile, indx, esec, lon, lat):
 	"""Write records to the unlimited (time) dimension
 	"""
-		
+
 	ncFile.variables['time'][indx] = esec
 	ncFile.variables['longitude'][indx] = lon
 	ncFile.variables['latitude'][indx] = lat
@@ -206,7 +206,7 @@ Examples:
 						type='string', action='store',
 						help="Specify an input binary data file name, e.g. /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin.")
 	parser.add_option('-n', '--netCDF_fileName',
-				   
+
 						type='string', action='store',
 						help="Specify a fully qualified output NetCDF file path, e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.nc")
 	parser.add_option('-v', '--verbose',
@@ -221,7 +221,7 @@ Examples:
 	opts, args = parser.parse_args()
 
 	#
-	# unpack data according to command line options 
+	# unpack data according to command line options
 	#
 	if opts.ascii_fileName and opts.netCDF_fileName:
 
@@ -231,7 +231,7 @@ Examples:
 		global verboseFlag
 		global hasMBARICframeData
 		verboseFlag = opts.verbose
-		if opts.debugLevel: 
+		if opts.debugLevel:
 			logging.getLogger("logger").setLevel(logging.DEBUG)
 
 		# Check for output file and offer to overwrite
@@ -255,7 +255,7 @@ Examples:
 		# Open output file
 		ncFile = openNetCDFFile(opts.netCDF_fileName)
 
-		# Read records and write netCDF records	
+		# Read records and write netCDF records
 		processRecords(asciiFile, ncFile)
 
 		# Close the netCDF file writing the proper tsList data first
@@ -263,7 +263,7 @@ Examples:
 
 		logger.info("main(): Created file: %s" % opts.netCDF_fileName)
 
-		mark = time.time()	
+		mark = time.time()
 		logger.info("main(): Processing finished: %s Elapsed processing time from start of processing = %d seconds" % (time.ctime(), (mark - start)))
 
 	else:

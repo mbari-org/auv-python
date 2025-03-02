@@ -16,9 +16,9 @@ import sys
 import time
 from pathlib import Path
 
+from create_products import MISSIONIMAGES, MISSIONODVS
 from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
 from resample import FREQ
-from create_products import MISSIONODVS, MISSIONIMAGES
 
 LOG_NAME = "processing.log"
 AUVCTD_VOL = "/Volumes/AUVCTD"
@@ -30,21 +30,21 @@ class Archiver:
     _handler.setFormatter(AUV_NetCDF._formatter)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self, add_handlers=True):
+    def __init__(self, add_handlers=True):  # noqa: FBT002
         if add_handlers:
             self.logger.addHandler(self._handler)
 
-    def copy_to_AUVTCD(self, nc_file_base: str, freq: str = FREQ) -> None:
+    def copy_to_AUVTCD(self, nc_file_base: str, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
-        surveys_dir = os.path.join(AUVCTD_VOL, "surveys")
+        surveys_dir = Path(AUVCTD_VOL) / "surveys"
         try:
-            os.stat(surveys_dir)
+            Path(surveys_dir).stat()
         except FileNotFoundError:
-            self.logger.error(f"{surveys_dir} not found")
+            self.logger.exception("%s not found", surveys_dir)
             self.logger.info("Is smb://atlas.shore.mbari.org/AUVCTD mounted?")
             sys.exit(1)
         year = self.args.mission.split(".")[0]
-        surveynetcdfs_dir = os.path.join(surveys_dir, year, "netcdf")
+        surveynetcdfs_dir = Path(surveys_dir, year, "netcdf")
 
         # To avoid "fchmod failed: Permission denied" message use rsync instead
         # of cp: https://apple.stackexchange.com/a/206251
@@ -52,17 +52,20 @@ class Archiver:
         if not self.args.archive_only_products:
             self.logger.info(f"Archiving {nc_file_base} files to {surveynetcdfs_dir}")
             # Rsync netCDF files to AUVCTD/surveys/YYYY/netcdf
-            if self.args.flash_threshold and self.args.resample:
-                ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
-                    "E+", "E"
-                )
-                ftypes = (ft_ending,)
+            if hasattr(self.args, "flash_threshold"):
+                if self.args.flash_threshold and self.args.resample:
+                    ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
+                        "E+", "E"
+                    )
+                    ftypes = (ft_ending,)
+                else:
+                    ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
             else:
                 ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
             for ftype in ftypes:
                 src_file = f"{nc_file_base}_{ftype}"
                 dst_file = (
-                    f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
+                    f"{Path(surveynetcdfs_dir, os.path.basename(src_file))}"
                 )
                 if self.args.clobber and os.path.exists(dst_file):
                     self.logger.info(f"Removing {dst_file}")
@@ -73,17 +76,17 @@ class Archiver:
                 else:
                     self.logger.debug(f"{src_file} not found")
 
-            if not self.args.resample:
+            if not hasattr(self.args, "resample") or not self.args.resample:
                 # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
                 YYYYJJJ = "".join(self.args.mission.split(".")[:2])
-                missionnetcdfs_dir = os.path.join(
+                missionnetcdfs_dir = Path(
                     AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission
                 )
                 Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
-                src_dir = "/".join(nc_file_base.split("/")[:-1])
+                src_dir = Path(nc_file_base).parent
                 for log in LOG_FILES:
-                    src_file = os.path.join(src_dir, f"{log.replace('.log', '')}.nc")
-                    if os.path.exists(src_file):
+                    src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
+                    if src_file.exists():
                         os.system(f"rsync {src_file} {missionnetcdfs_dir}")
                         self.logger.info(f"rsync {src_file} {missionnetcdfs_dir} done.")
                     else:
@@ -92,17 +95,17 @@ class Archiver:
         # Rsync files created by create_products.py
         self.logger.info("Archiving product files")
         for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
-            src_dir = os.path.join(
+            src_dir = Path(
                 BASE_PATH, self.args.auv_name, src_dir, self.args.mission
             )
             if os.path.exists(src_dir):
-                dst_dir = os.path.join(surveys_dir, year, dst_dir)
+                dst_dir = Path(surveys_dir, year, dst_dir)
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
                 os.system(f"rsync -r {src_dir}/* {dst_dir}")
                 self.logger.info(f"rsync {src_dir}/* {dst_dir} done.")
             else:
                 self.logger.debug(f"{src_dir} not found")
-        if self.args.create_products or self.args.resample:
+        if self.args.create_products or (hasattr(self.args,"resample") and self.args.resample):
             # Do not rsync processing.log file if only partial processing was done
             self.logger.info(
                 f"Partial processing, not archiving {nc_file_base}_{LOG_NAME}"
@@ -110,7 +113,7 @@ class Archiver:
         else:
             # Rsync the processing.log file last so that we get everything
             src_file = f"{nc_file_base}_{LOG_NAME}"
-            dst_file = f"{os.path.join(surveynetcdfs_dir, os.path.basename(src_file))}"
+            dst_file = f"{Path(surveynetcdfs_dir, os.path.basename(src_file))}"
             if os.path.exists(src_file):
                 self.logger.info(f"rsync {src_file} {surveynetcdfs_dir}")
                 os.system(f"rsync {src_file} {surveynetcdfs_dir}")
@@ -195,7 +198,7 @@ if __name__ == "__main__":
     arch = Archiver()
     arch.process_command_line()
     file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
-    nc_file_base = os.path.join(
+    nc_file_base = Path(
         BASE_PATH,
         arch.args.auv_name,
         MISSIONNETCDFS,
