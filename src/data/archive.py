@@ -11,7 +11,7 @@ __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -50,12 +50,12 @@ class Archiver:
         # of cp: https://apple.stackexchange.com/a/206251
 
         if not self.args.archive_only_products:
-            self.logger.info(f"Archiving {nc_file_base} files to {surveynetcdfs_dir}")
+            self.logger.info("Archiving %s files to %s", nc_file_base, surveynetcdfs_dir)
             # Rsync netCDF files to AUVCTD/surveys/YYYY/netcdf
             if hasattr(self.args, "flash_threshold"):
                 if self.args.flash_threshold and self.args.resample:
                     ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
-                        "E+", "E"
+                        "E+", "E",
                     )
                     ftypes = (ft_ending,)
                 else:
@@ -63,60 +63,70 @@ class Archiver:
             else:
                 ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
             for ftype in ftypes:
-                src_file = f"{nc_file_base}_{ftype}"
-                dst_file = (
-                    f"{Path(surveynetcdfs_dir, os.path.basename(src_file))}"
-                )
-                if self.args.clobber and os.path.exists(dst_file):
-                    self.logger.info(f"Removing {dst_file}")
-                    os.remove(dst_file)
-                if os.path.exists(src_file):
-                    os.system(f"rsync {src_file} {surveynetcdfs_dir}")
-                    self.logger.info(f"rsync {src_file} {surveynetcdfs_dir} done.")
+                src_file = Path(f"{nc_file_base}_{ftype}")
+                dst_file = Path(surveynetcdfs_dir, src_file.name)
+                if self.args.clobber and dst_file.exists():
+                    self.logger.info("Removing %s", dst_file)
+                    dst_file.unlink()
+                    subprocess.run(  # noqa: S603
+                        ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
+                        check=True,
+                    )
+                    subprocess.run(  # noqa: S603
+                        ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
+                        check=True,
+                    )
+                    self.logger.info("rsync %s %s done.", src_file, surveynetcdfs_dir)
                 else:
-                    self.logger.debug(f"{src_file} not found")
+                    self.logger.debug("%s not found", src_file)
 
             if not hasattr(self.args, "resample") or not self.args.resample:
                 # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
                 YYYYJJJ = "".join(self.args.mission.split(".")[:2])
                 missionnetcdfs_dir = Path(
-                    AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission
+                    AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission,
                 )
                 Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
                 src_dir = Path(nc_file_base).parent
                 for log in LOG_FILES:
                     src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
                     if src_file.exists():
-                        os.system(f"rsync {src_file} {missionnetcdfs_dir}")
-                        self.logger.info(f"rsync {src_file} {missionnetcdfs_dir} done.")
+                        subprocess.run(  # noqa: S603
+                            ["/usr/bin/rsync", str(src_file), str(missionnetcdfs_dir)],
+                            check=True,
+                        )
+                        self.logger.info("rsync %s %s done.", src_file, missionnetcdfs_dir)
                     else:
-                        self.logger.debug(f"{src_file} not found")
+                        self.logger.debug("%s not found", src_file)
 
         # Rsync files created by create_products.py
         self.logger.info("Archiving product files")
         for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
-            src_dir = Path(
-                BASE_PATH, self.args.auv_name, src_dir, self.args.mission
+            src_dir = Path(  # noqa: PLW2901
+                BASE_PATH, self.args.auv_name, src_dir, self.args.mission,
             )
-            if os.path.exists(src_dir):
-                dst_dir = Path(surveys_dir, year, dst_dir)
+            if Path(src_dir).exists():
+                dst_dir = Path(surveys_dir, year, dst_dir)  # noqa: PLW2901
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
-                os.system(f"rsync -r {src_dir}/* {dst_dir}")
-                self.logger.info(f"rsync {src_dir}/* {dst_dir} done.")
+                subprocess.run(["/usr/bin/rsync", "-r", f"{src_dir}/", f"{dst_dir}/"], check=True)  # noqa: S603
+                self.logger.info("rsync %s/* %s done.", src_dir, dst_dir)
             else:
-                self.logger.debug(f"{src_dir} not found")
+                self.logger.debug("%s not found", src_dir)
         if self.args.create_products or (hasattr(self.args,"resample") and self.args.resample):
             # Do not rsync processing.log file if only partial processing was done
             self.logger.info(
-                f"Partial processing, not archiving {nc_file_base}_{LOG_NAME}"
+                "Partial processing, not archiving %s", f"{nc_file_base}_{LOG_NAME}",
             )
         else:
             # Rsync the processing.log file last so that we get everything
-            src_file = f"{nc_file_base}_{LOG_NAME}"
-            dst_file = f"{Path(surveynetcdfs_dir, os.path.basename(src_file))}"
-            if os.path.exists(src_file):
-                self.logger.info(f"rsync {src_file} {surveynetcdfs_dir}")
-                os.system(f"rsync {src_file} {surveynetcdfs_dir}")
+            src_file = Path(f"{nc_file_base}_{LOG_NAME}")
+            dst_file = Path(surveynetcdfs_dir, src_file.name)
+            if src_file.exists():
+                self.logger.info("rsync %s %s", src_file, surveynetcdfs_dir)
+                subprocess.run(  # noqa: S603
+                    ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
+                    check=True,
+                )
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
@@ -132,7 +142,7 @@ class Archiver:
             default=BASE_PATH,
             help="Base directory for missionlogs and"
             " missionnetcdfs, default: auv_data",
-        ),
+        )
         parser.add_argument(
             "--auv_name",
             action="store",
@@ -143,23 +153,23 @@ class Archiver:
             "--mission",
             action="store",
             help="Mission directory, e.g.: 2020.064.10",
-        ),
+        )
         parser.add_argument(
             "--freq",
             action="store",
             default=FREQ,
             help="Resample freq",
-        ),
+        )
         parser.add_argument(
             "--M3",
             action="store_true",
             help="Copy reampled netCDF file(s) to appropriate place on M3",
-        ),
+        )
         parser.add_argument(
             "--AUVCTD",
             action="store_true",
             help="Copy reampled netCDF file(s) to appropriate place on AUVCTD",
-        ),
+        )
         parser.add_argument(
             "--clobber",
             action="store_true",
@@ -169,12 +179,12 @@ class Archiver:
             "--archive_only_products",
             action="store_true",
             help="Rsync to AUVCTD directory only the products, not the netCDF files",
-        ),
+        )
         parser.add_argument(
             "--create_products",
             action="store_true",
             help="Create products from the resampled netCDF file(s)",
-        ),
+        )
         parser.add_argument(
             "-v",
             "--verbose",
@@ -186,7 +196,7 @@ class Archiver:
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
         self.args = parser.parse_args()
@@ -210,4 +220,4 @@ if __name__ == "__main__":
         arch.copy_to_M3(nc_file_base)
     if arch.args.AUVCTD:
         arch.copy_to_AUVTCD(nc_file_base)
-    arch.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    arch.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
