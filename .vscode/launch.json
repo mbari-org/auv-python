@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "1.0 - logs2netcdfs.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/logs2netcdfs.py",
             "console": "integratedTerminal",
@@ -26,7 +26,7 @@
         },
         {
             "name": "1.1 - lopcToNetCDF",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/lopcToNetCDF.py",
             "console": "integratedTerminal",
@@ -38,7 +38,7 @@
         },
         {
             "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/correct_log_times.py",
             "console": "integratedTerminal",
@@ -46,7 +46,7 @@
         },
         {
             "name": "2.0 - calibrate.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/calibrate.py",
             "console": "integratedTerminal",
@@ -82,14 +82,14 @@
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/hs2_proc.py",
             "console": "integratedTerminal",
         },
         {
             "name": "3.0 - align.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/align.py",
             "console": "integratedTerminal",
@@ -105,11 +105,12 @@
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2021.102.02"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2004.236.00"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2008.289.03"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01"],
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2024.317.01"],
         },
         {
             "name": "4.0 - resample.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/resample.py",
             "console": "integratedTerminal",
@@ -134,7 +135,7 @@
         },
         {
             "name": "5.0 - archive.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/archive.py",
             "console": "integratedTerminal",
@@ -146,7 +147,7 @@
         },
         {
             "name": "6.0 - create_products.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/create_products.py",
             "console": "integratedTerminal",
@@ -155,7 +156,7 @@
         },
         {
             "name": "7.0 - email.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/email.py",
             "console": "integratedTerminal",
@@ -163,7 +164,7 @@
         },
         {
             "name": "gulper.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/gulper.py",
             "console": "integratedTerminal",
@@ -173,7 +174,7 @@
         },
         {
             "name": "process_i2map",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/process_i2map.py",
             "console": "integratedTerminal",
@@ -202,7 +203,7 @@
         },
         {
             "name": "process_dorado",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/process_dorado.py",
             "console": "integratedTerminal",
