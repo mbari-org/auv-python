@@ -14,26 +14,19 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import os
 import re
 import sys
 import time
 from argparse import RawTextHelpFormatter
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from socket import gethostname
 
 import git
 import numpy as np
 import pandas as pd
 import xarray as xr
-from logs2netcdfs import (
-    BASE_PATH,
-    MISSIONNETCDFS,
-    SUMMARY_SOURCE,
-    TIME,
-    TIME60HZ,
-    AUV_NetCDF,
-)
+from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ, AUV_NetCDF
 from numpy.core._exceptions import UFuncTypeError
 from scipy.interpolate import interp1d
 
@@ -58,10 +51,10 @@ class Align_NetCDF:
             gitcommit = repo.head.object.hexsha
         except (ValueError, BrokenPipeError) as e:
             self.logger.warning(
-                "could not get head commit sha for %s: %s", repo.remotes.origin.url, e
+                "could not get head commit sha for %s: %s", repo.remotes.origin.url, e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.utcnow().isoformat() + "Z"
+        iso_now = datetime.now(timezone.utc).isoformat() + "Z"
 
         metadata = {}
         metadata["netcdf_version"] = "4"
@@ -75,13 +68,14 @@ class Align_NetCDF:
         metadata["time_coverage_end"] = str(self.max_time)
         try:
             metadata["time_coverage_duration"] = str(
-                datetime.utcfromtimestamp(self.max_time.astype("float64") / 1.0e9)
-                - datetime.utcfromtimestamp(self.min_time.astype("float64") / 1.0e9)
+                pd.to_datetime(self.max_time.astype("float64") / 1.0e9, unit="s")
+                - pd.to_datetime(self.min_time.astype("float64") / 1.0e9, unit="s"),
             )
         except AttributeError:
             # Likely AttributeError: 'datetime.datetime' object has no attribute 'astype'
             self.logger.warning(
-                "Could not save time_coverage_duration - likely because all data are bad and min_time and max_time were not set"
+                "Could not save time_coverage_duration - likely because all data are bad "
+                "and min_time and max_time were not set",
             )
         metadata["geospatial_vertical_min"] = self.min_depth
         metadata["geospatial_vertical_max"] = self.max_depth
@@ -132,43 +126,43 @@ class Align_NetCDF:
 
         return metadata
 
-    def process_cal(self, vehicle: str = None, name: str = None) -> None:  # noqa: C901
+
+    def process_cal(self, vehicle: str="", name: str="") -> None:  # noqa: C901, PLR0912, PLR0915
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
-        netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
+        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         in_fn = f"{vehicle}_{name}_cal.nc"
         try:
-            self.calibrated_nc = xr.open_dataset(os.path.join(netcdfs_dir, in_fn))
+            self.calibrated_nc = xr.open_dataset(Path(netcdfs_dir, in_fn))
         except ValueError as e:
-            raise InvalidCalFile(e)
-        self.logger.info(f"Processing {in_fn} from {netcdfs_dir}")
+            raise InvalidCalFile(e) from e
+        self.logger.info("Processing %s from %s", in_fn, netcdfs_dir)
         self.aligned_nc = xr.Dataset()
-        self.min_time = datetime.utcnow()
-        self.max_time = datetime(1970, 1, 1)
+        self.min_time = datetime.now(timezone.utc)
+        self.max_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
         self.min_depth = np.inf
         self.max_depth = -np.inf
         self.min_lat = np.inf
         self.max_lat = -np.inf
         self.min_lon = np.inf
         self.max_lon = -np.inf
-        for variable in self.calibrated_nc.keys():
+        for variable in self.calibrated_nc:
             instr, *_ = variable.split("_")
-            self.logger.debug(f"instr: {instr}")
+            self.logger.debug("instr: %s", instr)
             if instr in ("gps", "depth", "nudged"):
                 # Skip coordinate type variables
                 continue
-            if variable.startswith("navigation"):
-                if variable.split("_")[1] not in (
-                    "mWaterSpeed",
-                    "roll",
-                    "pitch",
-                    "yaw",
-                ):
-                    self.logger.info(f"Skipping {variable}")
-                    continue
+            if variable.startswith("navigation") and variable.split("_")[1] not in (
+                "mWaterSpeed",
+                "roll",
+                "pitch",
+                "yaw",
+            ):
+                self.logger.info("Skipping %s", variable)
+                continue
             # Process mWaterSpeed, roll, pitch, & yaw and variables from
             # instruments: seabird25p, ctd1, ctd2, hs2, ...
-            self.logger.debug(f"Processing {variable}")
+            self.logger.debug("Processing %s", variable)
             self.aligned_nc[variable] = self.calibrated_nc[variable]
             # Interpolators for the non-time dimensions
             # Fix values to first and last points for interpolation to time
@@ -187,7 +181,8 @@ class Align_NetCDF:
                     bounds_error=False,
                 )
             except KeyError:
-                raise InvalidCalFile(f"No nudged_latitude data in {in_fn}")
+                error_message = f"No nudged_latitude data in {in_fn}"
+                raise InvalidCalFile(error_message) from None
             lon_interp = interp1d(
                 self.calibrated_nc["nudged_longitude"]
                 .get_index("time")
@@ -218,7 +213,9 @@ class Align_NetCDF:
                     bounds_error=False,
                 )
                 self.logger.info(
-                    f"Using pitch corrected {instr}_depth: {self.calibrated_nc[f'{instr}_depth'].attrs['comment']}"
+                    "Using pitch corrected %s_depth: %s",
+                    instr,
+                    self.calibrated_nc[f"{instr}_depth"].attrs["comment"],
                 )
             except KeyError:
                 # No SensorInfo offset for this instr
@@ -236,7 +233,8 @@ class Align_NetCDF:
                 )
             except ValueError as e:
                 # Likely x and y arrays must have at least 2 entries
-                raise InvalidCalFile(f"Cannot interpolate depth: {e}")
+                error_message = "Cannot interpolate depth"
+                raise InvalidCalFile(error_message) from e
 
             var_time = (
                 self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
@@ -256,15 +254,15 @@ class Align_NetCDF:
                 )
             except UFuncTypeError as e:
                 # Seen in dorado 2008.010.10 - caused by time variable missing from lopc.nc
-                self.logger.warning(f"UFuncTypeError: {e}")
+                self.logger.warning("UFuncTypeError: %s", e)
                 self.logger.debug(
-                    f"type(type(self.calibrated_nc[variable].get_index(f'{instr}_time'))"
-                    f" = {type(self.calibrated_nc[variable].get_index(f'{instr}_time'))}"
+                    f"type(type(self.calibrated_nc[variable].get_index(f'{instr}_time'))"  # noqa: G004
+                    f" = {type(self.calibrated_nc[variable].get_index(f'{instr}_time'))}",
                 )
                 self.logger.warning(
-                    f"{variable}: Failed to calculate sample_rate -"
+                    f"{variable}: Failed to calculate sample_rate -"  # noqa: G004
                     f" xarray wrote {instr}_time as RangeIndex rather than actual time values -"
-                    f" skipping it"
+                    f" skipping it",
                 )
                 del self.aligned_nc[variable]
                 continue
@@ -279,7 +277,7 @@ class Align_NetCDF:
                 "coordinates"
             ] = f"{instr}_time {instr}_depth {instr}_latitude {instr}_longitude"
             self.logger.info(
-                f"{variable}: instrument_sample_rate_hz = {sample_rate:.2f}"
+                "%s: instrument_sample_rate_hz = %.2f", variable, sample_rate,
             )
             self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
             self.aligned_nc[f"{instr}_depth"] = xr.DataArray(
@@ -294,7 +292,7 @@ class Align_NetCDF:
                 ].attrs
             except KeyError:
                 self.logger.debug(
-                    f"{variable}: {instr}_depth not found in {self.calibrated_nc}"
+                    "%s: %s_depth not found in %s", variable, instr, self.calibrated_nc,
                 )
             self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
             self.aligned_nc[f"{instr}_depth"].attrs[
@@ -339,37 +337,47 @@ class Align_NetCDF:
 
             # Update spatial temporal bounds for the global metadata
             # https://github.com/pydata/xarray/issues/4917#issue-809708107
-            if self.aligned_nc[timevar][0] < pd.to_datetime(self.min_time):
-                self.min_time = self.aligned_nc[timevar][0].values
-            if self.aligned_nc[timevar][-1] > pd.to_datetime(self.max_time):
-                self.max_time = self.aligned_nc[timevar][-1].values
-            if self.aligned_nc[f"{instr}_depth"][0] < self.min_depth:
-                self.min_depth = self.aligned_nc[f"{instr}_depth"][0].values
-            if self.aligned_nc[f"{instr}_depth"][-1] > self.max_depth:
-                self.max_depth = self.aligned_nc[f"{instr}_depth"][-1].values
+            if (
+                pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(timezone.utc)
+                < pd.to_datetime(self.min_time)
+            ):
+                self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
+                    timezone.utc,
+                )
+            if (
+                pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(timezone.utc)
+                > pd.to_datetime(self.max_time)
+            ):
+                self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
+                    timezone.utc,
+                )
+            if self.aligned_nc[f"{instr}_depth"].min() < self.min_depth:
+                self.min_depth = self.aligned_nc[f"{instr}_depth"].min().to_numpy()
+            if self.aligned_nc[f"{instr}_depth"].max() > self.max_depth:
+                self.max_depth = self.aligned_nc[f"{instr}_depth"].max().to_numpy()
             if self.aligned_nc[f"{instr}_latitude"].min() < self.min_lat:
-                self.min_lat = self.aligned_nc[f"{instr}_latitude"].min().values
+                self.min_lat = self.aligned_nc[f"{instr}_latitude"].min().to_numpy()
             if self.aligned_nc[f"{instr}_latitude"].max() > self.max_lat:
-                self.max_lat = self.aligned_nc[f"{instr}_latitude"].max().values
+                self.max_lat = self.aligned_nc[f"{instr}_latitude"].max().to_numpy()
             if self.aligned_nc[f"{instr}_longitude"].min() < self.min_lon:
-                self.min_lon = self.aligned_nc[f"{instr}_longitude"].min().values
+                self.min_lon = self.aligned_nc[f"{instr}_longitude"].min().to_numpy()
             if self.aligned_nc[f"{instr}_longitude"].max() > self.max_lon:
-                self.max_lon = self.aligned_nc[f"{instr}_longitude"].max().values
+                self.max_lon = self.aligned_nc[f"{instr}_longitude"].max().to_numpy()
 
         return netcdfs_dir
 
-    def write_netcdf(self, netcdfs_dir, vehicle: str = None, name: str = None) -> None:
+    def write_netcdf(self, netcdfs_dir, vehicle: str="", name: str="") -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         self.aligned_nc.attrs = self.global_metadata()
-        out_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}_align.nc")
-        self.logger.info(f"Writing aligned data to {out_fn}")
-        if os.path.exists(out_fn):
-            self.logger.debug(f"Removing file {out_fn}")
-            os.remove(out_fn)
+        out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_align.nc")
+        self.logger.info("Writing aligned data to %s", out_fn)
+        if out_fn.exists():
+            self.logger.debug("Removing file %s", out_fn)
+            out_fn.unlink()
         self.aligned_nc.to_netcdf(out_fn)
         self.logger.info(
-            "Data variables written: %s", ", ".join(sorted(self.aligned_nc.variables))
+            "Data variables written: %s", ", ".join(sorted(self.aligned_nc.variables)),
         )
 
     def process_command_line(self):
@@ -418,7 +426,7 @@ class Align_NetCDF:
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
         self.args = parser.parse_args()
@@ -433,4 +441,4 @@ if __name__ == "__main__":
     p_start = time.time()
     netcdf_dir = align_netcdf.process_cal()
     align_netcdf.write_netcdf(netcdf_dir)
-    align_netcdf.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    align_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
