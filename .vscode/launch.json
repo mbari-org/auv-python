@@ -78,7 +78,8 @@
             //"args": ["--auv_name", "i2map", "--mission", "2017.257.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2022.061.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2018.079.00", "-v", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2018.079.00", "-v", "1"]
+            "args": ["--auv_name", "i2map", "--mission", "2018.348.01", "-v", "2"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -199,7 +200,8 @@
             //"args": ["-v", "1", "--mission", "2017.257.00", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2020.181.02", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2019.190.00", "--noinput", "--no_cleanup"],
-            "args": ["-v", "1", "--mission", "2018.065.02", "--noinput", "--no_cleanup"],
+            //"args": ["-v", "1", "--mission", "2018.065.02", "--noinput", "--no_cleanup"],
+            "args": ["-v", "1", "--mission", "2018.348.01", "--noinput", "--no_cleanup", "--clobber"],
         },
         {
             "name": "process_dorado",
