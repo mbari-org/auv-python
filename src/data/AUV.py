@@ -9,9 +9,10 @@ MBARI 30 March 2020
 """
 
 import sys
+from datetime import datetime
+
 import coards
 import numpy as np
-from datetime import datetime
 
 
 def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
