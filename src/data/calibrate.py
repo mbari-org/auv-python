@@ -34,10 +34,13 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from argparse import RawTextHelpFormatter
-from collections import OrderedDict, namedtuple
-from datetime import datetime
+from collections import OrderedDict
+from datetime import datetime, timezone
+from pathlib import Path
 from socket import gethostname
+from typing import NamedTuple
 
+import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
@@ -45,8 +48,8 @@ from scipy.interpolate import interp1d
 from seawater import eos80
 
 try:
-    import cartopy.crs as ccrs
-    from shapely.geometry import LineString
+    import cartopy.crs as ccrs  # type: ignore  # noqa: PGH003
+    from shapely.geometry import LineString  # type: ignore  # noqa: PGH003
 except ModuleNotFoundError:
     # cartopy is not installed, will not be able to plot maps
     pass
@@ -59,7 +62,11 @@ from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ,
 from matplotlib import patches
 from scipy import signal
 
-Range = namedtuple("Range", "min max")
+
+class Range(NamedTuple):
+    min: float
+    max: float
+
 
 # Using lower case vehicle names, modify in _define_sensor_info() for changes over time
 # Used to reduce ERROR & WARNING log messages for expected missing sensor data
@@ -218,7 +225,7 @@ class Coeffs:
 
 def _calibrated_temp_from_frequency(cf, nc):
     # From processCTD.m:
-    # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;
+    # TC = 1./(t_a + t_b*(log(t_f0./temp_frequency)) + t_c*((log(t_f0./temp_frequency)).^2) + t_d*((log(t_f0./temp_frequency)).^3)) - 273.15;  # noqa: E501
     # From Seabird25p.cc:
     # if (*_t_coefs == 'A') {
     #   f = ::log(T_F0/f);
@@ -234,7 +241,7 @@ def _calibrated_temp_from_frequency(cf, nc):
             1.0
             / (
                 cf.t_a
-                + cf.t_b * np.log(cf.t_f0 / nc["temp_frequency"].values)
+                + cf.t_b * np.log(cf.t_f0 / nc["temp_frequency"].to_numpy())
                 + cf.t_c * np.power(np.log(cf.t_f0 / nc["temp_frequency"]), 2)
                 + cf.t_d * np.power(np.log(cf.t_f0 / nc["temp_frequency"]), 3)
             )
@@ -245,19 +252,20 @@ def _calibrated_temp_from_frequency(cf, nc):
             1.0
             / (
                 cf.t_g
-                + cf.t_h * np.log(cf.t_gf0 / nc["temp_frequency"].values)
+                + cf.t_h * np.log(cf.t_gf0 / nc["temp_frequency"].to_numpy())
                 + cf.t_i * np.power(np.log(cf.t_gf0 / nc["temp_frequency"]), 2)
                 + cf.t_j * np.power(np.log(cf.t_gf0 / nc["temp_frequency"]), 3)
             )
             - K2C
         )
     else:
-        raise ValueError(f"Unknown t_coefs: {cf.t_coefs}")
+        error_message = f"Unknown t_coefs: {cf.t_coefs}"
+        raise ValueError(error_message)
 
     return calibrated_temp
 
 
-def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp):
+def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp):  # noqa: PLR0913
     # Comments carried over from doradosdp's processCTD.m:
     # Note that recalculation of conductivity and correction for thermal mass
     # are possible, however, their magnitude results in salinity differences
@@ -269,15 +277,15 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
     eps = np.spacing(1)
 
     f_interp = interp1d(
-        combined_nc["depth_time"].values.tolist(),
-        combined_nc["depth_filtpres"].values,
+        combined_nc["depth_time"].to_numpy().tolist(),
+        combined_nc["depth_filtpres"].to_numpy(),
         fill_value=(
-            combined_nc["depth_filtpres"].values[0],
-            combined_nc["depth_filtpres"].values[-1],
+            combined_nc["depth_filtpres"].to_numpy()[0],
+            combined_nc["depth_filtpres"].to_numpy()[-1],
         ),
         bounds_error=False,
     )
-    p1 = f_interp(nc["time"].values.tolist())
+    p1 = f_interp(nc["time"].to_numpy().tolist())
     if args.plot:
         pbeg = 0
         pend = len(combined_nc["depth_time"])
@@ -297,9 +305,7 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
         title += f" - First {pend} Points from each series"
         plt.title(title)
         plt.grid()
-        logger.debug(
-            f"Pausing with plot entitled: {title}. Close window to continue.",
-        )
+        logger.debug("Pausing with plot entitled: %s. Close window to continue.", title)
         plt.show()
 
     # Conductivity Calculation
@@ -317,22 +323,23 @@ def _calibrated_sal_from_cond_frequency(args, combined_nc, logger, cf, nc, temp)
     # Syslog::write("Seabird25p::calculate_Cond(): no c_coefs set selected.\n");
     # C=0;
     # }
-    cfreq = nc["cond_frequency"].values / 1000.0
+    cfreq = nc["cond_frequency"].to_numpy() / 1000.0
 
     if cf.c_coefs == "A":
         calibrated_conductivity = (
             cf.c_a * np.power(cfreq, cf.c_m)
             + cf.c_b * np.power(cfreq, 2)
             + cf.c_c
-            + cf.c_d * temp.values
+            + cf.c_d * temp.to_numpy()
         ) / (10 * (1 + eps * p1))
     elif cf.c_coefs == "G":
         # C = (C_G +(C_H +(C_I + C_J*f)*f)*f*f) / (10.*(1+C_TCOR*t+C_PCOR*p)) ;
         calibrated_conductivity = (
             cf.c_g + (cf.c_h + (cf.c_i + cf.c_j * cfreq) * cfreq) * np.power(cfreq, 2)
-        ) / (10 * (1 + cf.c_tcor * temp.values + cf.c_pcor * p1))
+        ) / (10 * (1 + cf.c_tcor * temp.to_numpy() + cf.c_pcor * p1))
     else:
-        raise ValueError(f"Unknown c_coefs: {cf.c_coefs}")
+        error_message = f"Unknown c_coefs: {cf.c_coefs}"
+        raise ValueError(error_message)
 
     # % Calculate Salinty
     # cratio = c1*10/sw_c3515; % sw_C is conductivity value at 35,15,0
@@ -357,7 +364,7 @@ def _oxsat(temperature, salinity):
     # TK = 273.15+T;  % degrees Kelvin
     # A1 = -173.4292; A2 = 249.6339; A3 = 143.3483; A4 = -21.8492;
     # B1 = -0.033096; B2 = 0.014259; B3 =  -0.00170;
-    # OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );
+    # OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );  # noqa: E501
     tk = 273.15 + temperature  # degrees Kelvin
     a1 = -173.4292
     a2 = 249.6339
@@ -366,7 +373,7 @@ def _oxsat(temperature, salinity):
     b1 = -0.033096
     b2 = 0.014259
     b3 = -0.00170
-    oxsat = np.exp(
+    return np.exp(
         a1
         + a2 * (100 / tk)
         + a3 * np.log(tk / 100)
@@ -376,10 +383,9 @@ def _oxsat(temperature, salinity):
             b1 + b2 * (tk / 100) + np.multiply(b3 * (tk / 100), (tk / 100)),
         ),
     )
-    return oxsat
 
 
-def _calibrated_O2_from_volts(
+def _calibrated_O2_from_volts(  # noqa: PLR0913
     combined_nc: np.array,
     cf: Coeffs,
     nc: xr.Dataset,
@@ -397,15 +403,15 @@ def _calibrated_O2_from_volts(
     # pltit = 'n';
     # % disp(['   Pressure should be in dB']);
     f_interp = interp1d(
-        combined_nc["depth_time"].values.tolist(),
-        combined_nc["depth_filtpres"].values,
+        combined_nc["depth_time"].to_numpy().tolist(),
+        combined_nc["depth_filtpres"].to_numpy(),
         fill_value=(
-            combined_nc["depth_filtpres"].values[0],
-            combined_nc["depth_filtpres"].values[-1],
+            combined_nc["depth_filtpres"].to_numpy()[0],
+            combined_nc["depth_filtpres"].to_numpy()[-1],
         ),
         bounds_error=False,
     )
-    pressure = f_interp(nc["time"].values.tolist())
+    pressure = f_interp(nc["time"].to_numpy().tolist())
 
     #
     # ----------------------------------
@@ -419,7 +425,7 @@ def _calibrated_O2_from_volts(
         np.nan,
         np.divide(
             np.diff(nc[var_name]),
-            np.diff(nc["time"].astype(np.int64).values / 1e9),
+            np.diff(nc["time"].astype(np.int64).to_numpy() / 1e9),
         ),
     )
 
@@ -433,19 +439,20 @@ def _calibrated_O2_from_volts(
     # Constants
     # tau=0;
     #
-    # O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;
+    # O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;  # noqa: E501
     tau = 0.0
     try:
         o2_mll = np.multiply(
-            cf.SOc * ((nc[var_name].values + cf.Voff) + (tau * docdt))
-            + cf.BOc * np.exp(-0.03 * temperature.values),
+            cf.SOc * ((nc[var_name].to_numpy() + cf.Voff) + (tau * docdt))
+            + cf.BOc * np.exp(-0.03 * temperature.to_numpy()),
             np.multiply(
-                np.exp(cf.TCor * temperature.values + cf.PCor * pressure),
-                oxsat.values,
+                np.exp(cf.TCor * temperature.to_numpy() + cf.PCor * pressure),
+                oxsat.to_numpy(),
             ),
         )
     except AttributeError as e:
-        raise ValueError(f"Cannot calculate o2_mll: {e}")
+        error_message = f"Cannot calculate o2_mll: {e}"
+        raise ValueError(error_message) from e
 
     #
     # if strcmp(units,'umolkg')==1
@@ -457,13 +464,13 @@ def _calibrated_O2_from_volts(
     #  Convert dissolved O2 to mg/l using density of oxygen = 1.4276 kg/m^3
     # dens=sw_dens(S,T,P);
     # O2 = (O2 * 1.4276) .* (1e6./(dens*32));
-    dens = eos80.dens(salinity.values, temperature.values, pressure)
+    dens = eos80.dens(salinity.to_numpy(), temperature.to_numpy(), pressure)
     o2_umolkg = np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))
 
     return o2_mll, o2_umolkg
 
 
-def _calibrated_O2_from_volts_SBE43(
+def _calibrated_O2_from_volts_SBE43(  # noqa: PLR0913
     combined_nc: np.array,
     cf: Coeffs,
     nc: xr.Dataset,
@@ -471,9 +478,10 @@ def _calibrated_O2_from_volts_SBE43(
     temperature: xr.DataArray,
     salinity: xr.DataArray,
 ) -> tuple[np.array, np.array]:
-    # Written to handle the seabird25p O2 sensor from the i2map vehicle - October 2023 - Uses Equation 1 from the SeaBird 25p manual
+    # Written to handle the seabird25p O2 sensor from the i2map vehicle - October 2023
+    # - Uses Equation 1 from the SeaBird 25p manual
     #
-    # See for example: "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files/SBE-43/2510/2014_sep/SBE 43 O2510 09Sep14.pdf"
+    # See for example: "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files/SBE-43/2510/2014_sep/SBE 43 O2510 09Sep14.pdf"  # noqa: E501
     # Soc = oxygen calibration coefficient (ml/l/V)
     # V = measured voltage (V)
     # Voffset = voltage offset (V)
@@ -486,32 +494,32 @@ def _calibrated_O2_from_volts_SBE43(
     # P = pressure (dbar)
 
     f_interp = interp1d(
-        combined_nc["depth_time"].values.tolist(),
-        combined_nc["depth_filtpres"].values,
+        combined_nc["depth_time"].to_numpy().tolist(),
+        combined_nc["depth_filtpres"].to_numpy(),
         fill_value=(
-            combined_nc["depth_filtpres"].values[0],
-            combined_nc["depth_filtpres"].values[-1],
+            combined_nc["depth_filtpres"].to_numpy()[0],
+            combined_nc["depth_filtpres"].to_numpy()[-1],
         ),
         bounds_error=False,
     )
-    pressure = f_interp(nc["time"].values.tolist())
+    pressure = f_interp(nc["time"].to_numpy().tolist())
 
     # Oxsol(T,S) = oxygen saturation (ml/l); P = pressure (dbar)
     oxsat = _oxsat(temperature, salinity)
 
-    # Oxygen concentration (ml/l) = Soc * (V + Voffset) * (1.0 + A * T + B * T**2 + C * T**3 ) * Oxsol(T,S) * exp(E * P / K)
+    # Oxygen concentration (ml/l) = Soc * (V + Voffset) * (1.0 + A * T + B * T**2 + C * T**3 ) * Oxsol(T,S) * exp(E * P / K)  # noqa: E501
     o2_mll = np.multiply(
-        cf.Soc * (nc[var_name].values + cf.offset),
+        cf.Soc * (nc[var_name].to_numpy() + cf.offset),
         np.multiply(
             (
                 1.0
-                + cf.A * temperature.values
-                + cf.B * np.power(temperature.values, 2)
-                + cf.C * np.power(temperature.values, 3)
+                + cf.A * temperature.to_numpy()
+                + cf.B * np.power(temperature.to_numpy(), 2)
+                + cf.C * np.power(temperature.to_numpy(), 3)
             ),
             np.multiply(
-                oxsat.values,
-                np.exp(np.divide(cf.E * pressure, (273.15 + temperature.values))),
+                oxsat.to_numpy(),
+                np.exp(np.divide(cf.E * pressure, (273.15 + temperature.to_numpy()))),
             ),
         ),
     )
@@ -525,20 +533,20 @@ def _calibrated_O2_from_volts_SBE43(
     #  Convert dissolved O2 to mg/l using density of oxygen = 1.4276 kg/m^3
     # dens=sw_dens(S,T,P);
     # O2 = (O2 * 1.4276) .* (1e6./(dens*32));
-    dens = eos80.dens(salinity.values, temperature.values, pressure)
+    dens = eos80.dens(salinity.to_numpy(), temperature.to_numpy(), pressure)
     o2_umolkg = np.multiply(o2_mll * 1.4276, (1.0e6 / (dens * 32)))
 
     return o2_mll, o2_umolkg
 
 
-def _beam_transmittance_from_volts(combined_nc, nc) -> (float, float):
+def _beam_transmittance_from_volts(combined_nc, nc) -> tuple[float, float]:
     # ----------------------------------------------
     # From: robs <robs@mbari.org>
     # Subject: Fwd: Merging i2MAP nav and CTD with VARS
     # Date: November 14, 2022 at 10:53:04 AM PST
     # To: Mike McCann <mccann@mbari.org>
     #
-    # Oops, I’m sorry! Apparently I sent this to myself (ah, Monday)….
+    # Oops, I'm sorry! Apparently I sent this to myself (ah, Monday)….
     #
     # Begin forwarded message:
     #
@@ -558,7 +566,8 @@ def _beam_transmittance_from_volts(combined_nc, nc) -> (float, float):
     # Vair                      4.830 V     15867 counts
     # Vref                      4.701 V     15443 counts
 
-    # Relationship of transmittance (Tr) to beam attenuation coefficient (c), and pathlength (x, in meters): Tr = exp(-c*x)
+    # Relationship of transmittance (Tr) to beam attenuation coefficient (c),
+    # and pathlength (x, in meters): Tr = exp(-c*x)
 
     # To determine beam transmittance: Tr = (Vsig - Vd) / (Vref - Vd)
     # To determine beam attenuation coefficient: c = -1/x * ln (Tr)
@@ -566,7 +575,8 @@ def _beam_transmittance_from_volts(combined_nc, nc) -> (float, float):
     # Vd Meter output with the beam blocked. This is the offset.
     # Vair Meter output in air with a clear beam path.
     # Vref Meter output with clean water in the path.
-    # Temperature of calibration water: temperature of clean water used to obtain Vref. Ambient temperature: meter temperature in air during the calibration.
+    # Temperature of calibration water: temperature of clean water used to obtain Vref.
+    # Ambient temperature: meter temperature in air during the calibration.
     # Vsig Measured signal output of meter.
     # </pdf file transcribed>
 
@@ -597,7 +607,9 @@ class Calibrate_NetCDF:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
-        iso_now = datetime.utcnow().isoformat() + "Z"
+        from datetime import datetime
+
+        iso_now = datetime.now(tz=timezone.utc).isoformat() + "Z"
 
         metadata = {}
         metadata["netcdf_version"] = "4"
@@ -611,7 +623,8 @@ class Calibrate_NetCDF:
                 self.combined_nc["depth_time"].to_pandas().iloc[0].isoformat(),
             )
         except KeyError:
-            raise EOFError("No depth_time variable in combined_nc")
+            error_message = "No depth_time variable in combined_nc"
+            raise EOFError(error_message) from None
         metadata["time_coverage_end"] = str(
             self.combined_nc["depth_time"].to_pandas().iloc[-1].isoformat(),
         )
@@ -643,21 +656,20 @@ class Calibrate_NetCDF:
 
     def _get_file(self, download_url, local_filename, session):
         with session.get(download_url, timeout=60) as resp:
-            if resp.status != 200:
+            HTTP_OK = 200
+            if resp.status != HTTP_OK:
                 self.logger.warning(
-                    f"Cannot read {download_url}, status = {resp.status}",
+                    "Cannot read %s, status = %s",
+                    download_url,
+                    resp.status,
                 )
             else:
-                self.logger.info(f"Started download to {local_filename}...")
-                with open(local_filename, "wb") as handle:
+                self.logger.info("Started download to %s...", local_filename)
+                with Path(local_filename).open("wb") as handle:
                     for chunk in resp.content.iter_chunked(1024):
                         handle.write(chunk)
                     if self.args.verbose > 1:
-                        print(
-                            f"{os.path.basename(local_filename)}(done) ",
-                            end="",
-                            flush=True,
-                        )
+                        self.logger.info("%s(done)", Path(local_filename).name)
 
     def _define_sensor_info(self, start_datetime):
         # Using lower case vehicle names, modify below for changes over time
@@ -689,7 +701,9 @@ class Calibrate_NetCDF:
         # Horizontal and vertical distance from origin in meters
         # The origin of the x, y coordinate system is location of the
         # vehicle's paroscientific depth sensor in the tailcone.
-        SensorOffset = namedtuple("SensorOffset", "x y")
+        class SensorOffset(NamedTuple):
+            x: float
+            y: float
 
         # Original configuration of Dorado389 - Modify below with changes over time
         # This code uses pandas.shift() to apply a lag to the data. Posivite lag_secs
@@ -780,7 +794,7 @@ class Calibrate_NetCDF:
                         # From https://bitbucket.org/messiem/matlab_libraries/src/master/data_access/donnees_insitu/MBARI/AUV/charge_Dorado.m
                         # % UBAT flow conversion
                         # if time>=datenum(2010,6,29), flow_conversion=4.49E-04;
-                        # else, flow_conversion=4.5E-04;			% calibration on 2/2/2009 but unknown before
+                        # else, flow_conversion=4.5E-04;			% calibration on 2/2/2009 but unknown before  # noqa: E501
                         # end
                         # flow_conversion=flow_conversion*1E3;	% using flow in mL/s
                         # flow1Hz=rpm*flow_conversion;
@@ -820,16 +834,16 @@ class Calibrate_NetCDF:
         # Changes over time
         if self.args.auv_name.lower().startswith("dorado"):
             self.sinfo["depth"]["sensor_offset"] = None
-            if start_datetime >= datetime(2007, 4, 30):
+            if start_datetime >= datetime(2007, 4, 30, tzinfo=timezone.utc):
                 # First missions with 10 Gulpers: 2007.120.00 & 2007.120.01
                 for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
                     # TODO: Verify the length of the 10-Gulper midsection
                     self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
-            if start_datetime >= datetime(2014, 9, 21):
+            if start_datetime >= datetime(2014, 9, 21, tzinfo=timezone.utc):
                 # First mission with 20 Gulpers: 2014.265.03
                 for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
                     self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
-            if start_datetime >= datetime(2010, 6, 29):
+            if start_datetime >= datetime(2010, 6, 29, tzinfo=timezone.utc):
                 self.sinfo["biolume"]["flow_conversion"] = 4.49e-4 * 1e3
 
     def _range_qc_combined_nc(
@@ -837,7 +851,7 @@ class Calibrate_NetCDF:
         instrument: str,
         variables: list[str],
         ranges: dict,
-        set_to_nan: bool = False,
+        set_to_nan: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """For variables in combined_nc remove values that fall outside
         of specified min, max range.  Meant to be called by instrument so
@@ -858,31 +872,31 @@ class Calibrate_NetCDF:
                     self.logger.debug(
                         "%s: %d out of range values = %s",
                         var,
-                        len(self.combined_nc[var][out_of_range].values),
-                        self.combined_nc[var][out_of_range].values,
+                        len(self.combined_nc[var][out_of_range].to_numpy()),
+                        self.combined_nc[var][out_of_range].to_numpy(),
                     )
                     out_of_range_indices = np.union1d(
                         out_of_range_indices,
                         out_of_range,
                     )
-                    if len(out_of_range_indices) > 500:
+                    if len(out_of_range_indices) > 500:  # noqa: PLR2004
                         self.logger.warning(
                             "More than 500 (%d) %s values found outside of range. "
                             "This may indicate a problem with the %s data.",
-                            len(self.combined_nc[var][out_of_range_indices].values),
+                            len(self.combined_nc[var][out_of_range_indices].to_numpy()),
                             var,
                             instrument,
                         )
                     if set_to_nan and var not in self.combined_nc.coords:
                         self.logger.info(
-                            f"Setting {len(out_of_range_indices)} {var} values to NaN",
+                            "Setting %s %s values to NaN", len(out_of_range_indices), var
                         )
                         self.combined_nc[var][out_of_range_indices] = np.nan
                     vars_checked.append(var)
                 else:
-                    self.logger.debug(f"No Ranges set for {var}")
+                    self.logger.debug("No Ranges set for %s", var)
             else:
-                self.logger.warning(f"{var} not in self.combined_nc")
+                self.logger.warning("%s not in self.combined_nc", var)
         inst_vars = [
             str(var) for var in self.combined_nc.variables if str(var).startswith(f"{instrument}_")
         ]
@@ -895,10 +909,10 @@ class Calibrate_NetCDF:
                 self.logger.info(
                     "%s: deleting %d values found outside of above ranges: %s",
                     var,
-                    len(self.combined_nc[var][out_of_range_indices].values),
-                    self.combined_nc[var][out_of_range_indices].values,
+                    len(self.combined_nc[var][out_of_range_indices].to_numpy()),
+                    self.combined_nc[var][out_of_range_indices].to_numpy(),
                 )
-                coord = [k for k in self.combined_nc[var].coords][0]
+                coord = next(iter(self.combined_nc[var].coords))
                 self.combined_nc[f"{var}_qced"] = (
                     self.combined_nc[var]
                     .drop_isel({coord: out_of_range_indices})
@@ -906,15 +920,15 @@ class Calibrate_NetCDF:
                 )
             self.combined_nc = self.combined_nc.drop_vars(inst_vars)
             for var in inst_vars:
-                self.logger.debug(f"Renaming {var}_qced to {var}")
+                self.logger.debug("Renaming %s_qced to %s", var, var)
                 self.combined_nc[var] = self.combined_nc[f"{var}_qced"].rename(
                     {f"{coord}_qced": coord},
                 )
             qced_vars = [f"{var}_qced" for var in inst_vars]
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
-        self.logger.info(f"Done range checking {instrument}")
+        self.logger.info("Done range checking %s", instrument)
 
-    def _read_data(self, logs_dir, netcdfs_dir):
+    def _read_data(self, logs_dir, netcdfs_dir):  # noqa: C901
         """Read in all the instrument data into member variables named by "sensor"
         Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
         Access calibration coefficients like: self.ctd.cals.t_f0, or as a
@@ -924,38 +938,47 @@ class Calibrate_NetCDF:
         self.summary_fields = set()
         for sensor, info in self.sinfo.items():
             sensor_info = SensorInfo()
-            orig_netcdf_filename = os.path.join(netcdfs_dir, info["data_filename"])
+            orig_netcdf_filename = Path(netcdfs_dir, info["data_filename"])
             self.logger.debug(
-                f"Reading data from {orig_netcdf_filename} into self.{sensor}.orig_data",
+                "Reading data from %s into self.%s.orig_data",
+                orig_netcdf_filename,
+                sensor,
             )
             try:
                 sensor_info.orig_data = xr.open_dataset(orig_netcdf_filename)
             except (FileNotFoundError, ValueError) as e:
                 self.logger.debug(
-                    f"{sensor:10}: Cannot open file {orig_netcdf_filename}: {e}",
+                    "%-10s: Cannot open file %s: %s",
+                    sensor,
+                    orig_netcdf_filename,
+                    e,
                 )
-            except OverflowError as e:
-                self.logger.error(
-                    f"{sensor:10}: Cannot open file {orig_netcdf_filename}: {e}",
+            except OverflowError:
+                self.logger.exception(
+                    "%-10s: Cannot open file %s",
+                    sensor,
+                    orig_netcdf_filename,
                 )
                 self.logger.info(
                     "Perhaps _remove_bad_values() needs to be called for it in logs2netcdfs.py",
                 )
             if info["cal_filename"]:
-                cal_filename = os.path.join(logs_dir, info["cal_filename"])
+                cal_filename = Path(logs_dir, info["cal_filename"])
                 self.logger.debug(
-                    f"Reading calibrations from {orig_netcdf_filename} into self.{sensor}.cals",
+                    "Reading calibrations from %s into self.%s.cals",
+                    orig_netcdf_filename,
+                    sensor,
                 )
-                if cal_filename.endswith(".cfg"):
+                if str(cal_filename).endswith(".cfg"):
                     try:
                         sensor_info.cals = self._read_cfg(cal_filename)
                     except FileNotFoundError as e:
-                        self.logger.debug(f"{e}")
-                elif cal_filename.endswith(".dev"):
+                        self.logger.debug("%s", e)
+                elif str(cal_filename).endswith(".dev"):
                     try:
                         sensor_info.cals = self._read_eco_dev(cal_filename)
                     except FileNotFoundError as e:
-                        self.logger.debug(f"{e}")
+                        self.logger.debug("%s", e)
 
             setattr(self, sensor, sensor_info)
             if hasattr(sensor_info, "orig_data"):
@@ -964,7 +987,7 @@ class Calibrate_NetCDF:
                         getattr(self, sensor).orig_data.attrs["summary"],
                     )
                 except KeyError:
-                    self.logger.warning(f"{orig_netcdf_filename}: No summary field")
+                    self.logger.warning("%s: No summary field", orig_netcdf_filename)
 
         # TODO: Warn if no data found and if logs2netcdfs.py should be run
 
@@ -972,12 +995,12 @@ class Calibrate_NetCDF:
         """Emulate what get_auv_cal.m and processCTD.m do in the
         Matlab doradosdp toolbox
         """
-        self.logger.debug(f"Opening {cfg_filename}")
+        self.logger.debug("Opening %s", cfg_filename)
         coeffs = Coeffs()
         # Default for non-i2map data
         coeffs.t_coefs = "A"
         coeffs.c_coefs = "A"
-        with open(cfg_filename) as fh:
+        with Path(cfg_filename).open() as fh:
             for line in fh:
                 ##self.logger.debug(line)
                 if line.startswith("//"):
@@ -997,15 +1020,15 @@ class Calibrate_NetCDF:
                 ):
                     coeff, value = [s.strip() for s in line.split("=")]
                     try:
-                        self.logger.debug(f"Saving {line}")
+                        self.logger.debug("Saving %s", line)
                         # Like in Seabird25p.cc use ?_coefs to determine which
                         # calibration scheme to use for i2map data
-                        if coeff == "t_coefs" or coeff == "c_coefs":
+                        if coeff in {"t_coefs", "c_coefs"}:
                             setattr(coeffs, coeff, str(value.split(";")[0]))
                         else:
                             setattr(coeffs, coeff, float(value.split(";")[0]))
                     except ValueError as e:
-                        self.logger.debug(f"{e}")
+                        self.logger.debug("%s", e)
         return coeffs
 
     def _cal_date_xml_files(
@@ -1016,17 +1039,39 @@ class Calibrate_NetCDF:
     ) -> dict:
         cal_date_xml_files = {}
         for cal_date_dir in cal_date_dirs:
-            find_cmd = f'find "{os.path.join(sensor_dir, cal_date_dir)}" -iname "*.xml"'
+            find_cmd = f'find "{Path(sensor_dir, cal_date_dir)}" -iname "*.xml"'
             self.logger.debug("Executing %s", find_cmd)
-            xml_files = [x for x in os.popen(find_cmd).read().split("\n") if x]
+            import subprocess
+
+            safe_sensor_dir = Path(sensor_dir).resolve()
+            safe_cal_date_dir = Path(sensor_dir, cal_date_dir).resolve()
+            import shlex
+
+            find_cmd = f'find "{safe_sensor_dir}" "{safe_cal_date_dir}" -iname "*.xml"'
+            if not safe_sensor_dir.is_dir() or not safe_cal_date_dir.is_dir():
+                error_message = "Invalid directory paths provided."
+                raise ValueError(error_message)
+            if not safe_sensor_dir.is_dir() or not safe_cal_date_dir.is_dir():
+                error_message = "Invalid directory paths provided."
+                raise ValueError(error_message)
+            result = subprocess.run(  # noqa: S603
+                shlex.split(find_cmd), capture_output=True, text=True, check=True
+            )
+            xml_files = [x for x in result.stdout.split("\n") if x]
             if len(xml_files) == 0:
                 self.logger.debug(
-                    f"Cannot find {serial_number}.xml in {sensor_dir}/{cal_date_dir}",
+                    "Cannot find %s.xml in %s/%s",
+                    serial_number,
+                    sensor_dir,
+                    cal_date_dir,
                 )
                 continue
             if len(xml_files) > 1:
                 self.logger.warning(
-                    f"Found {len(xml_files)} xml files in {sensor_dir}/{cal_date_dir}",
+                    "Found %d xml files in %s/%s",
+                    len(xml_files),
+                    sensor_dir,
+                    cal_date_dir,
                 )
                 self.logger.info("{xml_files}")
             cal_xml_filename = xml_files[0]
@@ -1148,7 +1193,7 @@ class Calibrate_NetCDF:
         cal_date_dirs = [x.split("/")[-1] for x in os.popen(dir_find_cmd).read().split("\n") if x]
         self.logger.info(f"Found calibration date dirs: {' '.join(cal_date_dirs)}")
         cal_dates = self._cal_date_xml_files(sensor_dir, cal_date_dirs, serial_number)
-        mission_start = self.seabird25p.orig_data.cf["time"].values[0]
+        mission_start = self.seabird25p.orig_data.cf["time"].to_numpy()[0]
         cal_date_to_use = next(iter(cal_dates))  # Default to first calibration date
         for cal_date in cal_dates.keys():
             # Find the most recent calibration date just before the mission start
@@ -1271,12 +1316,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         # Remove non-monotonic times
@@ -1295,7 +1340,7 @@ class Calibrate_NetCDF:
         # Units of these angles are radians in the original files, we want degrees
         vars_to_qc.append("navigation_roll")
         self.combined_nc["navigation_roll"] = xr.DataArray(
-            orig_nc["mPhi"].values * 180 / np.pi,
+            orig_nc["mPhi"].to_numpy() * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_roll",
@@ -1310,7 +1355,7 @@ class Calibrate_NetCDF:
 
         vars_to_qc.append("navigation_pitch")
         self.combined_nc["navigation_pitch"] = xr.DataArray(
-            orig_nc["mTheta"].values * 180 / np.pi,
+            orig_nc["mTheta"].to_numpy() * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
             dims={"navigation_time"},
             name="pitch",
@@ -1325,7 +1370,7 @@ class Calibrate_NetCDF:
 
         vars_to_qc.append("navigation_yaw")
         self.combined_nc["navigation_yaw"] = xr.DataArray(
-            orig_nc["mPsi"].values * 180 / np.pi,
+            orig_nc["mPsi"].to_numpy() * 180 / np.pi,
             coords=[orig_nc.get_index("time")],
             dims={"navigation_time"},
             name="yaw",
@@ -1339,7 +1384,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["navigation_posx"] = xr.DataArray(
-            orig_nc["mPos_x"].values - orig_nc["mPos_x"].values[0],
+            orig_nc["mPos_x"].to_numpy() - orig_nc["mPos_x"].to_numpy()[0],
             coords=[orig_nc.get_index("time")],
             dims={"navigation_time"},
             name="posx",
@@ -1352,7 +1397,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["navigation_posy"] = xr.DataArray(
-            orig_nc["mPos_y"].values - orig_nc["mPos_y"].values[0],
+            orig_nc["mPos_y"].to_numpy() - orig_nc["mPos_y"].to_numpy()[0],
             coords=[orig_nc.get_index("time")],
             dims={"navigation_time"},
             name="posy",
@@ -1366,7 +1411,7 @@ class Calibrate_NetCDF:
 
         vars_to_qc.append("navigation_depth")
         self.combined_nc["navigation_depth"] = xr.DataArray(
-            orig_nc["mDepth"].values,
+            orig_nc["mDepth"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={"navigation_time"},
             name="navigation_depth",
@@ -1379,7 +1424,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["navigation_mWaterSpeed"] = xr.DataArray(
-            orig_nc["mWaterSpeed"].values,
+            orig_nc["mWaterSpeed"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={"navigation_time"},
             name="navigation_mWaterSpeed",
@@ -1406,12 +1451,12 @@ class Calibrate_NetCDF:
         navlats = None
         if "longitude" in orig_nc:
             # starting with 2004.167.04 latitude & longitude were added to navigation.log
-            navlons = orig_nc["longitude"].values
-            navlats = orig_nc["latitude"].values
+            navlons = orig_nc["longitude"].to_numpy()
+            navlats = orig_nc["latitude"].to_numpy()
         elif "longitudeNav" in orig_nc:
             # Starting with 2022.243.00 the longitude variable name was changed
-            navlons = orig_nc["longitudeNav"].values
-            navlats = orig_nc["latitudeNav"].values
+            navlons = orig_nc["longitudeNav"].to_numpy()
+            navlats = orig_nc["latitudeNav"].to_numpy()
         else:
             # Up through 2004.112.02 we converted from Easting/Northing to lat/lon - all missions in Monterey Bay (Zone 10)
             self.logger.info(
@@ -1419,8 +1464,8 @@ class Calibrate_NetCDF:
             )
             proj = pyproj.Proj(proj="utm", zone=10, ellps="WGS84", radians=False)
             navlons, navlats = proj(
-                orig_nc["mPos_y"].values,
-                orig_nc["mPos_x"].values,
+                orig_nc["mPos_y"].to_numpy(),
+                orig_nc["mPos_x"].to_numpy(),
                 inverse=True,
             )
             navlons = navlons * np.pi / 180.0
@@ -1471,7 +1516,7 @@ class Calibrate_NetCDF:
         # % median.
         # pdIndx = find(Nav.depth > 1);
         # posDepths = Nav.depth(pdIndx);
-        pos_depths = np.where(self.combined_nc["navigation_depth"].values > 1)
+        pos_depths = np.where(self.combined_nc["navigation_depth"].to_numpy() > 1)
         if self.args.mission == "2013.301.02" or self.args.mission == "2009.111.00":
             self.logger.info("Bypassing Nav QC depth check")
             maxGoodDepth = 1250
@@ -1768,8 +1813,8 @@ class Calibrate_NetCDF:
                 except NameError:
                     self.logger.warning("No gps_plot, could not import cartopy")
                     return lon_nudged, lat_nudged
-                nudged = LineString(zip(lon_nudged.values, lat_nudged.values, strict=False))
-                original = LineString(zip(lon.values, lat.values, strict=False))
+                nudged = LineString(zip(lon_nudged.to_numpy(), lat_nudged.to_numpy(), strict=False))
+                original = LineString(zip(lon.to_numpy(), lat.to_numpy(), strict=False))
                 ax.add_geometries(
                     [nudged],
                     crs=ccrs.PlateCarree(),
@@ -1785,8 +1830,8 @@ class Calibrate_NetCDF:
                     label="Original",
                 )
                 handle_gps = ax.scatter(
-                    lon_fix.values,
-                    lat_fix.values,
+                    lon_fix.to_numpy(),
+                    lat_fix.to_numpy(),
                     color="green",
                     label="GPS Fixes",
                 )
@@ -1820,12 +1865,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             if self.args.mission == "2010.151.04":
                 # Gulf of Mexico mission - use data from usbl.dat file(s)
-                usbl_file = os.path.join(
+                usbl_file = Path(
                     self.args.base_path,
                     self.args.auv_name,
                     MISSIONNETCDFS,
@@ -1846,7 +1891,7 @@ class Calibrate_NetCDF:
             else:
                 raise EOFError(
                     f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                    f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                    f" in {Path(MISSIONLOGS, self.args.mission)}",
                 )
 
         lat = orig_nc["latitude"] * 180.0 / np.pi
@@ -1865,7 +1910,7 @@ class Calibrate_NetCDF:
         vars_to_qc = []
         vars_to_qc.append("gps_latitude")
         self.combined_nc["gps_latitude"] = xr.DataArray(
-            lat_to_save.values,
+            lat_to_save.to_numpy(),
             coords=[gps_time_to_save],
             dims={"gps_time"},
             name="gps_latitude",
@@ -1879,7 +1924,7 @@ class Calibrate_NetCDF:
 
         vars_to_qc.append("gps_longitude")
         self.combined_nc["gps_longitude"] = xr.DataArray(
-            lon_to_save.values,
+            lon_to_save.to_numpy(),
             coords=[gps_time_to_save],
             dims={"gps_time"},
             name="gps_longitude",
@@ -2010,8 +2055,8 @@ class Calibrate_NetCDF:
             )[0]
             self.logger.debug(
                 "depths: %d out of range values = %s",
-                len(depths[out_of_range].values),
-                depths[out_of_range].values,
+                len(depths[out_of_range].to_numpy()),
+                depths[out_of_range].to_numpy(),
             )
             self.logger.info(f"Setting {len(out_of_range)} depths values to NaN")
             depths[out_of_range] = np.nan
@@ -2124,7 +2169,7 @@ class Calibrate_NetCDF:
         orig_nc = orig_nc.sel(time=monotonic)
 
         try:
-            cal_fn = os.path.join(logs_dir, self.sinfo["hs2"]["cal_filename"])
+            cal_fn = Path(logs_dir, self.sinfo["hs2"]["cal_filename"])
             cals = hs2_read_cal_file(cal_fn)
         except FileNotFoundError as e:
             self.logger.error(f"Cannot process HS2 data: {e}")
@@ -2138,7 +2183,7 @@ class Calibrate_NetCDF:
         # Blue backscatter
         if hasattr(hs2, "bbp420"):
             blue_bs = xr.DataArray(
-                hs2.bbp420.values,
+                hs2.bbp420.to_numpy(),
                 coords=[hs2.bbp420.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_bbp420",
@@ -2151,7 +2196,7 @@ class Calibrate_NetCDF:
             }
         if hasattr(hs2, "bbp470"):
             blue_bs = xr.DataArray(
-                hs2.bbp470.values,
+                hs2.bbp470.to_numpy(),
                 coords=[hs2.bbp470.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_bbp470",
@@ -2166,7 +2211,7 @@ class Calibrate_NetCDF:
         # Red backscatter
         if hasattr(hs2, "bbp676"):
             red_bs = xr.DataArray(
-                hs2.bbp676.values,
+                hs2.bbp676.to_numpy(),
                 coords=[hs2.bbp676.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_bbp676",
@@ -2179,7 +2224,7 @@ class Calibrate_NetCDF:
             }
         if hasattr(hs2, "bbp700"):
             red_bs = xr.DataArray(
-                hs2.bbp700.values,
+                hs2.bbp700.to_numpy(),
                 coords=[hs2.bbp700.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_bbp700",
@@ -2194,7 +2239,7 @@ class Calibrate_NetCDF:
         # Fluorescence
         if hasattr(hs2, "fl676"):
             fl676 = xr.DataArray(
-                hs2.fl676.values,
+                hs2.fl676.to_numpy(),
                 coords=[hs2.fl676.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_fl676",
@@ -2207,7 +2252,7 @@ class Calibrate_NetCDF:
             fl = fl676
         if hasattr(hs2, "fl700"):
             fl700 = xr.DataArray(
-                hs2.fl700.values,
+                hs2.fl700.to_numpy(),
                 coords=[hs2.fl700.get_index("time")],
                 dims={"hs2_time"},
                 name="hs2_fl700",
@@ -2230,9 +2275,9 @@ class Calibrate_NetCDF:
         bad_hs2 = [
             f"{b}, {r}, {f}"
             for b, r, f in zip(
-                blue_bs.values[:][mblue.mask],
-                red_bs.values[:][mred.mask],
-                fl.values[:][mfl.mask],
+                blue_bs.to_numpy()[:][mblue.mask],
+                red_bs.to_numpy()[:][mred.mask],
+                fl.to_numpy()[:][mfl.mask],
                 strict=False,
             )
         ]
@@ -2240,7 +2285,7 @@ class Calibrate_NetCDF:
         if bad_hs2:
             self.logger.info(
                 f"Number of bad {sensor} points:"
-                f" {len(blue_bs.values[:][mblue.mask])}"
+                f" {len(blue_bs.to_numpy()[:][mblue.mask])}"
                 f" of {len(blue_bs)}",
             )
             self.logger.debug(
@@ -2329,7 +2374,7 @@ class Calibrate_NetCDF:
 
         if sensor == "seabird25p":
             cf, cal_file = self._read_oxy_coeffs(
-                os.path.join(logs_dir, self.sinfo[sensor]["cal_filename"]),
+                Path(logs_dir, self.sinfo[sensor]["cal_filename"]),
                 portstbd,
             )
             (
@@ -2392,12 +2437,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         # Remove non-monotonic times
@@ -2565,7 +2610,7 @@ class Calibrate_NetCDF:
         except KeyError:
             self.logger.debug("No dissolvedO2 data in %s", self.args.mission)
         except ValueError as e:
-            cfg_file = os.path.join(
+            cfg_file = Path(
                 MISSIONLOGS,
                 "".join(self.args.mission.split(".")[:2]),
                 self.args.mission,
@@ -2772,12 +2817,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         # Remove non-monotonic times
@@ -2796,7 +2841,7 @@ class Calibrate_NetCDF:
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["tailcone_propRpm"] = xr.DataArray(
-            orig_nc["propRpm"].values,
+            orig_nc["propRpm"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_propRpm",
@@ -2815,12 +2860,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         # Remove non-monotonic times
@@ -2836,7 +2881,7 @@ class Calibrate_NetCDF:
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         self.combined_nc["ecopuck_bbp700"] = xr.DataArray(
-            cf.bbp700_scale_factor * (orig_nc["BB_Sig"].values - cf.bbp700_dark_counts),
+            cf.bbp700_scale_factor * (orig_nc["BB_Sig"].to_numpy() - cf.bbp700_dark_counts),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_bbp700",
@@ -2849,7 +2894,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["ecopuck_cdom"] = xr.DataArray(
-            cf.cdom_scale_factor * (orig_nc["CDOM_Sig"].values - cf.cdom_dark_counts),
+            cf.cdom_scale_factor * (orig_nc["CDOM_Sig"].to_numpy() - cf.cdom_dark_counts),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_cdom",
@@ -2862,7 +2907,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["ecopuck_chl"] = xr.DataArray(
-            cf.chl_scale_factor * (orig_nc["Chl_Sig"].values - cf.chl_dark_counts),
+            cf.chl_scale_factor * (orig_nc["Chl_Sig"].to_numpy() - cf.chl_dark_counts),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_chl",
@@ -2916,12 +2961,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         # Remove non-monotonic times
@@ -2951,7 +2996,7 @@ class Calibrate_NetCDF:
 
         source = self.sinfo[sensor]["data_filename"]
         self.combined_nc["biolume_flow"] = xr.DataArray(
-            orig_nc["flow"].values * self.sinfo["biolume"]["flow_conversion"],
+            orig_nc["flow"].to_numpy() * self.sinfo["biolume"]["flow_conversion"],
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_flow",
@@ -2969,7 +3014,7 @@ class Calibrate_NetCDF:
             TIME,
         )
         self.combined_nc["biolume_avg_biolume"] = xr.DataArray(
-            orig_nc["avg_biolume"].values,
+            orig_nc["avg_biolume"].to_numpy(),
             coords=[lagged_time],
             dims={f"{sensor}_{TIME}"},
             name=f"{sensor}_avg_biolume",
@@ -2987,7 +3032,7 @@ class Calibrate_NetCDF:
             TIME60HZ,
         )
         self.combined_nc["biolume_raw"] = xr.DataArray(
-            orig_nc["raw"].values,
+            orig_nc["raw"].to_numpy(),
             coords=[lagged_time],
             dims={f"{sensor}_{TIME60HZ}"},
             name=f"{sensor}_raw",
@@ -3026,12 +3071,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         source = self.sinfo[sensor]["data_filename"]
@@ -3042,11 +3087,11 @@ class Calibrate_NetCDF:
         if "time" not in orig_nc.coords:
             raise EOFError(
                 f"{sensor} has no time coordinate - likely an incomplete lopc.nc file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         self.combined_nc["lopc_countListSum"] = xr.DataArray(
-            orig_nc["countListSum"].values,
+            orig_nc["countListSum"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_countListSum",
@@ -3059,7 +3104,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["lopc_transCount"] = xr.DataArray(
-            orig_nc["transCount"].values,
+            orig_nc["transCount"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_transCount",
@@ -3072,7 +3117,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["lopc_nonTransCount"] = xr.DataArray(
-            orig_nc["nonTransCount"].values,
+            orig_nc["nonTransCount"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_nonTransCount",
@@ -3085,7 +3130,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["lopc_LCcount"] = xr.DataArray(
-            orig_nc["LCcount"].values,
+            orig_nc["LCcount"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_LCcount",
@@ -3098,7 +3143,7 @@ class Calibrate_NetCDF:
         }
 
         self.combined_nc["lopc_flowSpeed"] = xr.DataArray(
-            orig_nc["flowSpeed"].values,
+            orig_nc["flowSpeed"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_flowSpeed",
@@ -3114,12 +3159,12 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error(f"{e}")
+            self.logger.error("%s", e)
             return
         except AttributeError:
             raise EOFError(
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {os.path.join(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}",
             )
 
         # Remove non-monotonic times
@@ -3136,7 +3181,7 @@ class Calibrate_NetCDF:
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
 
         self.combined_nc["isus_nitrate"] = xr.DataArray(
-            orig_nc["isusNitrate"].values,
+            orig_nc["isusNitrate"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_nitrate",
@@ -3148,7 +3193,7 @@ class Calibrate_NetCDF:
             "comment": f"isusNitrate from {source}",
         }
         self.combined_nc["isus_temp"] = xr.DataArray(
-            orig_nc["isusTemp"].values,
+            orig_nc["isusTemp"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_temp",
@@ -3160,7 +3205,7 @@ class Calibrate_NetCDF:
             "comment": f"isusTemp from {source}",
         }
         self.combined_nc["isus_quality"] = xr.DataArray(
-            orig_nc["isusQuality"].values,
+            orig_nc["isusQuality"].to_numpy(),
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_quality",
@@ -3184,28 +3229,28 @@ class Calibrate_NetCDF:
         # and https://github.com/scipy/scipy/issues/12707#issuecomment-672794335
         try:
             p_interp = interp1d(
-                self.combined_nc["navigation_time"].values.tolist(),
-                self.combined_nc["navigation_pitch"].values,
+                self.combined_nc["navigation_time"].to_numpy().tolist(),
+                self.combined_nc["navigation_pitch"].to_numpy(),
                 fill_value=(
-                    self.combined_nc["navigation_pitch"].values[0],
-                    self.combined_nc["navigation_pitch"].values[-1],
+                    self.combined_nc["navigation_pitch"].to_numpy()[0],
+                    self.combined_nc["navigation_pitch"].to_numpy()[-1],
                 ),
                 bounds_error=False,
             )
         except KeyError:
             raise EOFError("No navigation_time or navigation_pitch in combined_nc. ")
-        pitch = p_interp(orig_nc["time"].values.tolist())
+        pitch = p_interp(orig_nc["time"].to_numpy().tolist())
 
         d_interp = interp1d(
-            self.combined_nc["depth_time"].values.tolist(),
-            self.combined_nc["depth_filtdepth"].values,
+            self.combined_nc["depth_time"].to_numpy().tolist(),
+            self.combined_nc["depth_filtdepth"].to_numpy(),
             fill_value=(
-                self.combined_nc["depth_filtdepth"].values[0],
-                self.combined_nc["depth_filtdepth"].values[-1],
+                self.combined_nc["depth_filtdepth"].to_numpy()[0],
+                self.combined_nc["depth_filtdepth"].to_numpy()[-1],
             ),
             bounds_error=False,
         )
-        orig_depth = d_interp(orig_nc["time"].values.tolist())
+        orig_depth = d_interp(orig_nc["time"].to_numpy().tolist())
         offs_depth = align_geom(self.sinfo[sensor]["sensor_offset"], pitch)
 
         corrected_depth = xr.DataArray(
@@ -3219,8 +3264,12 @@ class Calibrate_NetCDF:
         # which, with "extrapolate" causes wildly incorrect depths to -359 m
         # There may be other cases where this happens, in which case we'd like
         # a general solution. For now, we'll just correct this mission.
-        d_beg_time_diff = orig_nc["time"].values[0] - self.combined_nc["depth_time"].values[0]
-        d_end_time_diff = orig_nc["time"].values[-1] - self.combined_nc["depth_time"].values[-1]
+        d_beg_time_diff = (
+            orig_nc["time"].to_numpy()[0] - self.combined_nc["depth_time"].to_numpy()[0]
+        )
+        d_end_time_diff = (
+            orig_nc["time"].to_numpy()[-1] - self.combined_nc["depth_time"].to_numpy()[-1]
+        )
         self.logger.info(
             f"{sensor}:"
             f" d_beg_time_diff: {d_beg_time_diff.astype('timedelta64[s]')},"
@@ -3236,23 +3285,23 @@ class Calibrate_NetCDF:
             # determine if this is needed for other missions.
             self.logger.info(
                 f"{sensor}: Special QC for mission {self.args.mission}: Setting corrected_depth"
-                f" to NaN for times after {self.combined_nc['depth_time'][-1].values}",
+                f" to NaN for times after {self.combined_nc['depth_time'][-1].to_numpy()}",
             )
             corrected_depth[
                 np.where(
-                    orig_nc.get_index("time") > self.combined_nc["depth_time"].values[-1],
+                    orig_nc.get_index("time") > self.combined_nc["depth_time"].to_numpy()[-1],
                 )
             ] = np.nan
         if self.args.plot:
             plt.figure(figsize=(18, 6))
             plt.plot(
-                orig_nc["time"].values,
+                orig_nc["time"].to_numpy(),
                 orig_depth,
                 "-",
-                orig_nc["time"].values,
+                orig_nc["time"].to_numpy(),
                 corrected_depth,
                 "--",
-                orig_nc["time"].values,
+                orig_nc["time"].to_numpy(),
                 pitch,
                 ".",
             )
@@ -3302,7 +3351,7 @@ class Calibrate_NetCDF:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         self.combined_nc.attrs = self.global_metadata()
-        out_fn = os.path.join(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
+        out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
         self.logger.info(f"Writing calibrated instrument data to {out_fn}")
         if os.path.exists(out_fn):
             os.remove(out_fn)
@@ -3312,27 +3361,23 @@ class Calibrate_NetCDF:
             ", ".join(sorted(self.combined_nc.variables)),
         )
 
-    def process_logs(
-        self,
-        vehicle: str = None,
-        name: str = None,
-        process_gps: bool = True,
-    ) -> None:
+    def process_logs(self, vehicle: str = "", name: str = "", process_gps: bool = True) -> None:  # noqa: FBT001, FBT002
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
-        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
-        netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
-        start_datetime = datetime.strptime(".".join(name.split(".")[:2]), "%Y.%j")
+        logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
+        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
+        start_datetime = datetime.strptime(".".join(name.split(".")[:2]), "%Y.%j").astimezone(
+            timezone.utc,
+        )
         self._define_sensor_info(start_datetime)
         self._read_data(logs_dir, netcdfs_dir)
         self.combined_nc = xr.Dataset()
 
-        for sensor in self.sinfo.keys():
-            if not process_gps:
-                if sensor == "gps":
-                    continue  # to skip gps processing in conftest.py fixture
+        for sensor in self.sinfo:
+            if not process_gps and sensor == "gps":
+                continue  # to skip gps processing in conftest.py fixture
             getattr(self, sensor).cal_align_data = xr.Dataset()
-            self.logger.debug(f"Processing {vehicle} {name} {sensor}")
+            self.logger.debug("Processing %s %s %s", vehicle, name, sensor)
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
             except EOFError as e:
@@ -3344,8 +3389,8 @@ class Calibrate_NetCDF:
                     self.logger.error(f"Error processing {sensor}: {e}")
                 else:
                     self.logger.debug(f"Error processing {sensor}: {e}")
-            except ValueError as e:
-                self.logger.error(f"Error processing {sensor}: {e}")
+            # except ValueError as e:
+            #     self.logger.error(f"Error processing {sensor}: {e}")
             except KeyError as e:
                 self.logger.error(f"Error processing {sensor}: missing variable {e}")
 
