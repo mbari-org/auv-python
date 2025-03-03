@@ -9,6 +9,7 @@ more flexibility is available via the inndividual processing modules.
 Limit processing to specific steps by providing arugments:
     --download_process
     --calibrate
+    --align
     --resample
     --archive
     --create_products
@@ -38,21 +39,20 @@ from socket import gethostname
 
 from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
-from calibrate import Calibrate_NetCDF, EXPECTED_SENSORS
-from dorado_info import dorado_info
+from calibrate import EXPECTED_SENSORS, Calibrate_NetCDF
 from create_products import CreateProducts
-from emailer import Emailer, NOTIFICATION_EMAIL
+from dorado_info import FAILED, TEST, dorado_info
+from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from resample import (
+    AUVCTD_OPENDAP_BASE,
+    FLASH_THRESHOLD,
     FREQ,
     MF_WIDTH,
-    FLASH_THRESHOLD,
-    AUVCTD_OPENDAP_BASE,
     InvalidAlignFile,
     Resampler,
 )
-from dorado_info import FAILED, TEST
 
 
 class MissingDoradoInfo(Exception):
@@ -143,6 +143,9 @@ class Processor:
             else:
                 self.logger.error("Cannot find %s in %s", mission, self.vehicle_dir)
                 raise FileNotFoundError(f"Cannot find {mission} in {self.vehicle_dir}")
+        elif self.vehicle == "Dorado389":
+            # The Dorado389 vehicle is a special case used for testing locally and in CI
+            path = self.vehicle_dir
         if not os.path.exists(path):
             self.logger.error("%s does not exist.", path)
             raise FileNotFoundError(f"{path} does not exist.")
@@ -175,7 +178,7 @@ class Processor:
         try:
             file_size = os.path.getsize(lopc_bin)
         except FileNotFoundError:
-            if "lopc" in EXPECTED_SENSORS[self.vehicle.lower()]:
+            if "lopc" in EXPECTED_SENSORS[self.vehicle]:
                 self.logger.warning("No lopc.bin file for %s", mission)
             return
         self.logger.info(f"Processing file {lopc_bin} ({file_size} bytes)")
@@ -488,7 +491,12 @@ class Processor:
             if hasattr(self, "log_handler"):
                 # If no log_handler then process_mission() failed, likely due to missing mount
                 # Always archive the mission, especially the processing.log file
-                self.archive(mission)
+                if self.vehicle == "Dorado389" and mission == "2011.256.02":
+                    self.logger.info(
+                        "Not archiving %s %s as it's likely CI testing", self.vehicle, mission,
+                    )
+                else:
+                    self.archive(mission)
                 if not self.args.no_cleanup:
                     self.cleanup(mission)
                 self.logger.info(
@@ -758,7 +766,7 @@ if __name__ == "__main__":
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://titan.shore.mbari.org/M3"
 
-    # Initialize for i2MAP processing, be meant to be subclassed for other vehicles
+    # Initialize for i2MAP processing, meant to be subclassed for other vehicles
     proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
     proc.process_missions()

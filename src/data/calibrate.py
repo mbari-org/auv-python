@@ -87,6 +87,8 @@ EXPECTED_SENSORS = {
         "tailcone",
     ],
 }
+# Used in test fixture in conftetst.py
+EXPECTED_SENSORS["Dorado389"] = EXPECTED_SENSORS["dorado"]
 
 
 def align_geom(sensor_offset, pitches):

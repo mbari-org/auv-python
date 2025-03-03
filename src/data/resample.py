@@ -932,7 +932,8 @@ class Resampler:
             "long_name": "Time (UTC)",
         }
         out_fn = nc_file.replace("_align.nc", f"_{freq}.nc")
-        if self.args.flash_threshold:
+        if self.args.flash_threshold and self.args.flash_threshold != FLASH_THRESHOLD:
+            # Append flash_threshold to output filename
             ft_ending = f"_ft{self.args.flash_threshold:.0E}.nc".replace('E+','E')
             out_fn = out_fn.replace(".nc", ft_ending)
         self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")

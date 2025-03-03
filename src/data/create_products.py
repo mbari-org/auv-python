@@ -19,13 +19,13 @@ from pathlib import Path
 import cmocean
 import matplotlib
 import matplotlib.pyplot as plt
-from scipy.interpolate import griddata
 import numpy as np
 import pyproj
 import xarray as xr
 from gulper import Gulper
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
 from resample import AUVCTD_OPENDAP_BASE, FREQ
+from scipy.interpolate import griddata
 
 MISSIONODVS = "missionodvs"
 MISSIONIMAGES = "missionimages"
@@ -89,15 +89,14 @@ class CreateProducts:
 
     def _open_ds(self):
         if self.args.local:
-            self.ds = xr.open_dataset(
-                os.path.join(
-                    BASE_PATH,
-                    self.args.auv_name,
-                    MISSIONNETCDFS,
-                    self.args.mission,
-                    f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
-                )
+            local_nc = os.path.join(
+                BASE_PATH,
+                self.args.auv_name,
+                MISSIONNETCDFS,
+                self.args.mission,
+                f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
             )
+            self.ds = xr.open_dataset(local_nc)
         else:
             # Requires mission to have been processed and archived to AUVCTD
             self.ds = xr.open_dataset(
