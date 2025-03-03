@@ -1,5 +1,7 @@
+# noqa: INP001
 import numpy as np
 from calibrate import align_geom
+
 
 def test_align_geom():
     # https://www.onlinemathlearning.com/math-trick-unit-circle.html
@@ -25,7 +27,7 @@ def test_align_geom():
 
     # Test from Matlab processHS2.m debugging session:
     #
-    # K>> align_geom([0.1397, -0.2794], [0.2928, 0.2939, 0.2952])
+    # K>> align_geom([0.1397, -0.2794], [0.2928, 0.2939, 0.2952])  # noqa: ERA001
     #
     # ans =
     #

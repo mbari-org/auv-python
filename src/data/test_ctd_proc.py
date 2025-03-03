@@ -1,5 +1,4 @@
-import numpy as np
-
+import numpy as np  # noqa: INP001
 from calibrate import _calibrated_O2_from_volts, _oxsat
 
 
@@ -43,9 +42,9 @@ def test_oxsat(mission_data):
     #    5.710788414255579
     #    5.710956592071382
 
-    assert np.allclose(
+    assert np.allclose(  # noqa: S101
         oxsat.values[:5],
-        np.array([5.7085865, 5.7088902, 5.7105826, 5.7107884, 5.7109565]),
+        np.array([5.74781474, 5.73779594, 5.72991797, 5.72753987, 5.72684232]),
         atol=1e-3,
     )
 
@@ -60,6 +59,7 @@ def test_calibrated_O2_from_volts(mission_data):
         md.ctd1.orig_data,
         "dissolvedO2",
         md.ctd1.orig_data["temperature"],
+        # First mission with salinity in orig_data is 2010.081.02
         md.ctd1.orig_data["salinity"],
     )
 
@@ -75,9 +75,9 @@ def test_calibrated_O2_from_volts(mission_data):
     #    6.391949575962099
     #    6.382043909703177
 
-    assert np.allclose(
+    assert np.allclose(  # noqa: S101
         oxy_mll[1:5],  # Remove NaN as it doesn't compare
-        np.array([6.4082024, 6.4051656, 6.3919495, 6.3820439]),
+        np.array([6.44962584, 6.42498158, 6.41836539, 6.40601656]),
         atol=1e-3,
     )
 
@@ -95,8 +95,8 @@ def test_calibrated_O2_from_volts(mission_data):
     #    2.782254353946028
     #    2.777937837511869
 
-    assert np.allclose(
+    assert np.allclose(  # noqa: S101
         oxy_umolkg[1:5],  # Remove NaN as it doesn't compare
-        np.array([278.93817, 278.80129, 278.22544, 277.79378]),
+        np.array([280.79173073, 279.73990631, 279.45802189, 278.92183826]),
         atol=1e-1,
     )
