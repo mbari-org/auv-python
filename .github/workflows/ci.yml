@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Run linting
-        run: poetry run ruff check
+      - name: Run pre-commit
+        run: poetry run pre-commit run --all-files
 
   test:
     runs-on: ubuntu-latest
@@ -51,7 +51,9 @@ jobs:
         run: poetry install
 
       - name: Set environment variables
-        run: echo "BASE_PATH=$HOME/auv_data" >> $GITHUB_ENV
+        run: |
+          echo "BASE_PATH=$HOME/auv_data" >> $GITHUB_ENV
+          echo "CAL_DIR=$HOME/auv_data" >> $GITHUB_ENV
 
       - name: Download and unzip required data files
         run: |
@@ -59,6 +61,12 @@ jobs:
           # Dorado389.tar.gz contains original log files of short dorado mission for testing: 2003.339.04
           wget -q --no-check-certificate -O "$HOME/auv_data/Dorado389.tar.gz" https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
           tar -xf "$HOME/auv_data/Dorado389.tar.gz" -C "$HOME/auv_data" 2> /dev/null
+          # i2MAP.tar.gz contains original log files of i2MAP mission for testing: 2018.34.01
+          wget -q --no-check-certificate -O "$HOME/auv_data/i2map.tar.gz" https://stoqs.mbari.org/auv_data/i2map.tar.gz
+          tar -xf "$HOME/auv_data/i2map.tar.gz" -C "$HOME/auv_data" 2> /dev/null
+          # i2map processing needs access to calibration files on an on-premisis server, unpack a subset of it here
+          wget -q --no-check-certificate -O "$HOME/auv_data/SBE-43.tar.gz" https://stoqs.mbari.org/auv_data/SBE-43.tar.gz
+          tar -xf "$HOME/auv_data/SBE-43.tar.gz" -C "$HOME/auv_data" 2> /dev/null
 
 
       - name: Run tests
