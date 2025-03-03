@@ -48,6 +48,7 @@ pyproj = "^3.5.0"
 jupyter = "^1.0.0"
 cmocean = "^3.0.3"
 ruff = "^0.9.8"
+pre-commit = "^4.1.0"
 
 
 [tool.poetry.dev-dependencies]
