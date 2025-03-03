@@ -100,7 +100,7 @@ class Processor:
         self.logger.debug("Executing %s", find_cmd)
         if self.args.last_n_days:
             self.logger.info(
-                f"Will be looking back {self.args.last_n_days} days for new missions..."
+                f"Will be looking back {self.args.last_n_days} days for new missions...",
             )
             find_cmd += f" -mtime -{self.args.last_n_days}"
         self.logger.info("Finding missions from %s to %s", start_year, end_year)
@@ -117,7 +117,7 @@ class Processor:
                 continue
             try:
                 year = int(mission.split(".")[0])
-                if start_year <= year and year <= end_year:
+                if start_year <= year <= end_year:
                     missions[mission] = line.rstrip()
             except ValueError:
                 self.logger.warning("Cannot parse year from %s", mission)
@@ -173,7 +173,11 @@ class Processor:
 
         # Run lopcToNetCDF.py - mimic log message from logs2netcdfs.py
         lopc_bin = os.path.join(
-            self.args.base_path, self.vehicle, MISSIONLOGS, mission, "lopc.bin"
+            self.args.base_path,
+            self.vehicle,
+            MISSIONLOGS,
+            mission,
+            "lopc.bin",
         )
         try:
             file_size = os.path.getsize(lopc_bin)
@@ -186,7 +190,11 @@ class Processor:
         lopc_processor.args = argparse.Namespace()
         lopc_processor.args.bin_fileName = lopc_bin
         lopc_processor.args.netCDF_fileName = os.path.join(
-            self.args.base_path, self.vehicle, MISSIONNETCDFS, mission, "lopc.nc"
+            self.args.base_path,
+            self.vehicle,
+            MISSIONNETCDFS,
+            mission,
+            "lopc.nc",
         )
         lopc_processor.args.text_fileName = ""
         lopc_processor.args.trans_AIcrit = 0.4
@@ -351,14 +359,17 @@ class Processor:
 
     def cleanup(self, mission: str) -> None:
         self.logger.info(
-            "Removing %s files from %s and %s", mission, MISSIONNETCDFS, MISSIONLOGS
+            "Removing %s files from %s and %s",
+            mission,
+            MISSIONNETCDFS,
+            MISSIONLOGS,
         )
         try:
             shutil.rmtree(
-                os.path.join(self.args.base_path, self.vehicle, MISSIONLOGS, mission)
+                os.path.join(self.args.base_path, self.vehicle, MISSIONLOGS, mission),
             )
             shutil.rmtree(
-                os.path.join(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission)
+                os.path.join(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission),
             )
             self.logger.info("Done removing %s work files", mission)
         except FileNotFoundError as e:
@@ -366,22 +377,26 @@ class Processor:
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
         netcdfs_dir = os.path.join(
-            self.args.base_path, self.vehicle, MISSIONNETCDFS, mission
+            self.args.base_path,
+            self.vehicle,
+            MISSIONNETCDFS,
+            mission,
         )
         if self.args.clobber:
-            if self.args.noinput:
+            if (
+                self.args.noinput
+                or input("Do you want to remove all work files? [y/N] ").lower() == "y"
+            ):
                 self.cleanup(mission)
-            else:
-                if input("Do you want to remove all work files? [y/N] ").lower() == "y":
-                    self.cleanup(mission)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
-            os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"), mode="w+"
+            os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"),
+            mode="w+",
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
         self.log_handler.setFormatter(AUV_NetCDF._formatter)
         self.logger.info(
-            "====================================================================================================================="
+            "=====================================================================================================================",
         )
         self.logger.addHandler(self.log_handler)
         self.logger.info(f"{self.commandline = }")
@@ -394,20 +409,19 @@ class Processor:
                 program = "i2map"
             if program == TEST:
                 raise TestMission(
-                    f"{TEST} program specified in dorado_info.py. Not processing {mission}"
+                    f"{TEST} program specified in dorado_info.py. Not processing {mission}",
                 )
-            elif program == FAILED:
+            if program == FAILED:
                 raise FailedMission(
-                    f"{FAILED} program specified in dorado_info.py. Not processing {mission}"
+                    f"{FAILED} program specified in dorado_info.py. Not processing {mission}",
                 )
-            else:
-                self.logger.info(
-                    "Processing %s mission %s by user %s on host %s",
-                    program,
-                    mission,
-                    getuser(),
-                    gethostname(),
-                )
+            self.logger.info(
+                "Processing %s mission %s by user %s on host %s",
+                program,
+                mission,
+                getuser(),
+                gethostname(),
+            )
         except KeyError:
             raise MissingDoradoInfo(f"{mission} not in dorado_info")
         if self.args.download_process:
@@ -471,7 +485,9 @@ class Processor:
         return f"[{os.getpid()}] {mission}: {time.time() - t_start:.1f} seconds"
 
     def process_mission_exception_wrapper(
-        self, mission: str, src_dir: str = None
+        self,
+        mission: str,
+        src_dir: str = None,
     ) -> None:
         try:
             t_start = time.time()
@@ -493,7 +509,9 @@ class Processor:
                 # Always archive the mission, especially the processing.log file
                 if self.vehicle == "Dorado389" and mission == "2011.256.02":
                     self.logger.info(
-                        "Not archiving %s %s as it's likely CI testing", self.vehicle, mission,
+                        "Not archiving %s %s as it's likely CI testing",
+                        self.vehicle,
+                        mission,
                     )
                 else:
                     self.archive(mission)
@@ -512,11 +530,13 @@ class Processor:
         if self.args.mission:
             # mission is string like: 2021.062.01 and is assumed to exist
             self.process_mission_exception_wrapper(
-                self.args.mission, src_dir=self.get_mission_dir(self.args.mission)
+                self.args.mission,
+                src_dir=self.get_mission_dir(self.args.mission),
             )
         elif self.args.start_year and self.args.end_year:
             missions = self.mission_list(
-                start_year=self.args.start_year, end_year=self.args.end_year
+                start_year=self.args.start_year,
+                end_year=self.args.end_year,
             )
             if self.args.start_year == self.args.end_year:
                 # Subselect missions by year day, has effect if --start_yd & --end_yd
@@ -531,18 +551,16 @@ class Processor:
                 }
 
             # https://pythonspeed.com/articles/python-multiprocessing/ - Swimming with sharks!
-            ncores = (
-                self.args.num_cores
-                if self.args.num_cores
-                else multiprocessing.cpu_count()
-            )
+            ncores = self.args.num_cores if self.args.num_cores else multiprocessing.cpu_count()
             missions = dict(sorted(missions.items()))
             if ncores > 1:
                 self.logger.info(
-                    "Using %d cores for %d missions", ncores, len(missions)
+                    "Using %d cores for %d missions",
+                    ncores,
+                    len(missions),
                 )
                 with multiprocessing.get_context("spawn").Pool(
-                    processes=ncores
+                    processes=ncores,
                 ) as pool:
                     overall_start = time.time()
                     # TODO: Fix logger to include process.py messages from subprocesses
@@ -562,7 +580,8 @@ class Processor:
                 # Don't use multiprocessing - we get all logger messages with --num_cores 1
                 for mission in missions:
                     self.process_mission_exception_wrapper(
-                        mission, src_dir=self.get_mission_dir(mission)
+                        mission,
+                        src_dir=self.get_mission_dir(mission),
                     )
 
     def process_command_line(self):
@@ -574,8 +593,7 @@ class Processor:
             "--base_path",
             action="store",
             default=BASE_PATH,
-            help="Base directory for missionlogs and"
-            " missionnetcdfs, default: auv_data",
+            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
         )
         parser.add_argument(
             "--local",
@@ -592,14 +610,12 @@ class Processor:
         parser.add_argument(
             "--noinput",
             action="store_true",
-            help="Execute without asking for a response, e.g. "
-            " to not ask to re-download file",
+            help="Execute without asking for a response, e.g.  to not ask to re-download file",
         )
         parser.add_argument(
             "--noreprocess",
             action="store_true",
-            help="Use with --noinput to not re-process existing"
-            " downloaded log files",
+            help="Use with --noinput to not re-process existing downloaded log files",
         )
         parser.add_argument(
             "--start_year",
@@ -705,16 +721,20 @@ class Processor:
                 " remote connection), otherwise copy from mount point"
             ),
         )
-        parser.add_argument(
-            "--skip_download_process",
-            action="store_true",
-            help="Skip download_process() step - start with original .nc files",
-        ),
-        parser.add_argument(
-            "--archive_only_products",
-            action="store_true",
-            help="Rsync to AUVCTD directory only the products, not the netCDF files",
-        ),
+        (
+            parser.add_argument(
+                "--skip_download_process",
+                action="store_true",
+                help="Skip download_process() step - start with original .nc files",
+            ),
+        )
+        (
+            parser.add_argument(
+                "--archive_only_products",
+                action="store_true",
+                help="Rsync to AUVCTD directory only the products, not the netCDF files",
+            ),
+        )
         parser.add_argument(
             "--flash_threshold",
             action="store",
@@ -738,7 +758,7 @@ class Processor:
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
 
@@ -747,14 +767,13 @@ class Processor:
         # Append year to vehicle_dir if --start_year and --end_year identical
         if self.args.start_year == self.args.end_year:
             self.logger.debug(
-                "start_yd and end_yd will be honored as start_year and end_year are identical"
+                "start_yd and end_yd will be honored as start_year and end_year are identical",
             )
-        else:
-            # Warn that --start_yd and --end_yd will be ignored
-            if self.args.start_yd != 1 or self.args.end_yd != 366:
-                self.logger.warn(
-                    "start_yd and end_yd will be ignored as start_year and end_year are different"
-                )
+        # Warn that --start_yd and --end_yd will be ignored
+        elif self.args.start_yd != 1 or self.args.end_yd != 366:
+            self.logger.warning(
+                "start_yd and end_yd will be ignored as start_year and end_year are different",
+            )
 
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)

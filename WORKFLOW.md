@@ -25,13 +25,13 @@ on the local file system's work directory is as follows:
     |   |   |   |   |   |               at original instrument sampling rate -
     |   |   |   |   |   |               created by align.py
     │   │   │   │   │   ├── <nS>    <- .nc file with all measurement variables
-                                       resampled to a common time grid at n 
+                                       resampled to a common time grid at n
                                        Second intervals - created by resample.py
 
     logs2netcdfs.py:
         Download and convert raw .log data recorded the vehicle to netCDF files.
         There is no modification of the original data values - there are some
-        exceptions where egregiously bad values are removed so that valuable 
+        exceptions where egregiously bad values are removed so that valuable
         data can proceed on to the next step of processing. The conversion
         is done to begin with an interoperable data format for subsequent
         processing. Metadata is drawn from information in the .log file and
@@ -44,19 +44,19 @@ on the local file system's work directory is as follows:
         Apply calibration coefficients to the original data. The calibrated data
         are written to a new netCDF file in the missionnetcdfs/<mission>
         directory ending with _cal.nc. This step also includes nudging the
-        underwater portions of the navigation positions to the GPS fixes 
+        underwater portions of the navigation positions to the GPS fixes
         done at the surface and applying pitch corrections to the sensor
         depth for those sensors (instruments) for which offset values are
-        specified in SensorInfo. Some minimal QC is done in this step, namely 
-        removal on non-monotonic times. The record variables in the netCDF 
+        specified in SensorInfo. Some minimal QC is done in this step, namely
+        removal on non-monotonic times. The record variables in the netCDF
         file have only their original coordinates, namely time associated with
         them.
 
     align.py
         Interpolate corrected lat/lon variables to the original sampling
-        intervals for each instrument's record variables. This format is 
+        intervals for each instrument's record variables. This format is
         analogous to the .nc4 files produced by the LRAUV unserialize
-        process. These are the best files to use for the highest temporal 
+        process. These are the best files to use for the highest temporal
         resolution of the data. Unlike the .nc4 files align.py's output files
         use a naming convention rather than netCDF4 groups for each instrument.
 
@@ -72,4 +72,4 @@ on the local file system's work directory is as follows:
         Copy the netCDF files to the archive directory. The archive directory
         is initally in the AUVCTD share on atlas which is shared with the
         data from the Dorado Gulper vehicle, but can also be on the M3 share
-        on titan near the original log data. 
+        on titan near the original log data.

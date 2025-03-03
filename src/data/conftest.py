@@ -19,6 +19,7 @@ TEST_CALIBRATION_DIR = ""
 TEST_MOUNT_DIR = ""
 TEST_START_YEAR = 2011
 
+
 @pytest.fixture(scope="session", autouse=False)
 def mission_data():
     """Load a short recent mission to have some real data to work with"""
@@ -39,10 +40,14 @@ def mission_data():
 def calibration(mission_data):
     md = mission_data
     logs_dir = Path(
-        md.args.base_path, md.args.auv_name, MISSIONLOGS, md.args.mission,
+        md.args.base_path,
+        md.args.auv_name,
+        MISSIONLOGS,
+        md.args.mission,
     )
     cal_fn = Path(logs_dir, md.sinfo["hs2"]["cal_filename"])
     return hs2_read_cal_file(cal_fn)
+
 
 @pytest.fixture(scope="session", autouse=False)
 def complete_processing():

@@ -18,7 +18,6 @@ import struct
 import sys
 import time
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import requests
@@ -42,7 +41,7 @@ LOG_FILES = (
     "biolume.log",
 )
 BASE_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../data/auv_data")
+    os.path.join(os.path.dirname(__file__), "../../data/auv_data"),
 )
 
 MISSIONLOGS = "missionlogs"
@@ -55,18 +54,17 @@ SUMMARY_SOURCE = "Original log files copied from {}"
 
 
 class AUV_NetCDF(AUV):
-
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _formatter = logging.Formatter(
         "%(levelname)s %(asctime)s %(filename)s "
-        "%(funcName)s():%(lineno)d [%(process)d] %(message)s"
+        "%(funcName)s():%(lineno)d [%(process)d] %(message)s",
     )
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def read(self, file: str) -> List[log_record]:
+    def read(self, file: str) -> list[log_record]:
         """Reads and parses an AUV log and returns a list of `log_records`"""
         byte_offset = 0
         records = []
@@ -82,7 +80,7 @@ class AUV_NetCDF(AUV):
 
     def _read_header(self, file: str):
         """Parses the ASCII header of the log file"""
-        with open(file, "r", encoding="ISO-8859-15") as f:
+        with open(file, encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
             instrument_name = os.path.basename(f.name)
@@ -93,26 +91,30 @@ class AUV_NetCDF(AUV):
             while line:
                 if "begin" in line:
                     break
-                else:
-                    # parse line
-                    ssv = line.split(" ")
-                    data_type = ssv[1]
-                    short_name = ssv[2]
+                # parse line
+                ssv = line.split(" ")
+                data_type = ssv[1]
+                short_name = ssv[2]
 
-                    csv = line.split(",")
-                    if len(csv) == 1:
-                        # Likely early missions before commas were used
-                        raise ValueError(
-                            "Failed to parse long_name & units from header"
-                        )
-                    long_name = csv[1].strip()
-                    units = csv[2].strip()
-                    if short_name == "time":
-                        units = "seconds since 1970-01-01 00:00:00Z"
-                    r = log_record(
-                        data_type, short_name, long_name, units, instrument_name, []
+                csv = line.split(",")
+                if len(csv) == 1:
+                    # Likely early missions before commas were used
+                    raise ValueError(
+                        "Failed to parse long_name & units from header",
                     )
-                    records.append(r)
+                long_name = csv[1].strip()
+                units = csv[2].strip()
+                if short_name == "time":
+                    units = "seconds since 1970-01-01 00:00:00Z"
+                r = log_record(
+                    data_type,
+                    short_name,
+                    long_name,
+                    units,
+                    instrument_name,
+                    [],
+                )
+                records.append(r)
 
                 line = f.readline()
                 byte_offset = f.tell()
@@ -122,7 +124,7 @@ class AUV_NetCDF(AUV):
     def _read_biolume_header(self, file: str):
         """Parses the ASCII header of the log file, collapse all the raw_
         variables into a single 60 hz raw variable"""
-        with open(file, "r", encoding="ISO-8859-15") as f:
+        with open(file, encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
             instrument_name = os.path.basename(f.name)
@@ -158,14 +160,19 @@ class AUV_NetCDF(AUV):
                     if len(csv) == 1:
                         # Likely early missions before commas were used
                         raise ValueError(
-                            "Failed to parse long_name & units from header"
+                            "Failed to parse long_name & units from header",
                         )
                     long_name = csv[1].strip()
                     units = csv[2].strip()
                     if short_name == "time":
                         units = "seconds since 1970-01-01 00:00:00Z"
                     r = log_record(
-                        data_type, short_name, long_name, units, instrument_name, []
+                        data_type,
+                        short_name,
+                        long_name,
+                        units,
+                        instrument_name,
+                        [],
                     )
                     records.append(r)
 
@@ -174,7 +181,7 @@ class AUV_NetCDF(AUV):
 
             return (byte_offset, records)
 
-    def _read_data(self, file: str, records: List[log_record], byte_offset: int):
+    def _read_data(self, file: str, records: list[log_record], byte_offset: int):
         """Parse the binary section of the log file"""
         if byte_offset == 0:
             raise EOFError(f"{file}: 0 sized file")
@@ -205,20 +212,19 @@ class AUV_NetCDF(AUV):
                     except struct.error as e:
                         self.logger.warning(
                             f"{e}, b = {b} at record {rec_count},"
-                            f" for {r.short_name} in file {file}"
+                            f" for {r.short_name} in file {file}",
                         )
                         self.logger.info(
-                            f"bytes read = {byte_offset + len_sum}"
-                            f" file size = {file_size}"
+                            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
                         )
                         self.logger.info(
                             f"Tried to read {r.length()} bytes, but"
-                            f" only {byte_offset+len_sum-file_size}"
-                            f" bytes remaining"
+                            f" only {byte_offset + len_sum - file_size}"
+                            f" bytes remaining",
                         )
                         if rec_count > 0:
                             self.logger.info(
-                                f"Successfully unpacked {rec_count} records"
+                                f"Successfully unpacked {rec_count} records",
                             )
                         else:
                             self.logger.error("No records uppacked")
@@ -227,11 +233,14 @@ class AUV_NetCDF(AUV):
                 rec_count += 1
 
         self.logger.debug(
-            f"bytes read = {byte_offset + len_sum}" f" file size = {file_size}"
+            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
         )
 
     def _read_biolume_data(
-        self, file: str, records: List[log_record], byte_offset: int
+        self,
+        file: str,
+        records: list[log_record],
+        byte_offset: int,
     ):
         """Parse the binary section of the log file, collecting the 60 hz
         raw values into a 60 hz time series.  Subtract 1/2 second from the
@@ -281,20 +290,19 @@ class AUV_NetCDF(AUV):
                     except struct.error as e:
                         self.logger.warning(
                             f"{e}, b = {b} at record {rec_count},"
-                            f" for {r.short_name} in file {file}"
+                            f" for {r.short_name} in file {file}",
                         )
                         self.logger.info(
-                            f"bytes read = {byte_offset + len_sum}"
-                            f" file size = {file_size}"
+                            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
                         )
                         self.logger.info(
                             f"Tried to read {r.length()} bytes, but"
-                            f" only {byte_offset+len_sum-file_size}"
-                            f" bytes remaining"
+                            f" only {byte_offset + len_sum - file_size}"
+                            f" bytes remaining",
                         )
                         if rec_count > 0:
                             self.logger.info(
-                                f"Successfully unpacked {rec_count} records"
+                                f"Successfully unpacked {rec_count} records",
                             )
                         else:
                             self.logger.error("No records uppacked")
@@ -302,7 +310,7 @@ class AUV_NetCDF(AUV):
                 rec_count += 1
 
         self.logger.debug(
-            f"bytes read = {byte_offset + len_sum}" f" file size = {file_size}"
+            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
         )
 
     def _unique_vehicle_names(self):
@@ -310,10 +318,9 @@ class AUV_NetCDF(AUV):
         with requests.get(self.deployments_url) as resp:
             if resp.status_code != 200:
                 self.logger.error(
-                    f"Cannot read {self.deployments_url},"
-                    f" status_code = {resp.status_code}"
+                    f"Cannot read {self.deployments_url}, status_code = {resp.status_code}",
                 )
-                return
+                return None
 
             return set([d["vehicle"] for d in resp.json()])
 
@@ -335,7 +342,7 @@ class AUV_NetCDF(AUV):
                     if self.args.auv_name:
                         if item["vehicle"].upper() != self.args.auv_name.upper():
                             self.logger.debug(
-                                f"{item['vehicle']} != {self.args.auv_name}"
+                                f"{item['vehicle']} != {self.args.auv_name}",
                             )
                             continue
                     try:
@@ -343,13 +350,13 @@ class AUV_NetCDF(AUV):
                     except asyncio.exceptions.TimeoutError:
                         self.logger.warning(
                             f"TimeoutError for self.download_process_logs("
-                            f"'{item['vehicle']}'', '{item['name']}')"
+                            f"'{item['vehicle']}'', '{item['name']}')",
                         )
                         self.logger.info("Sleeping for 60 seconds...")
                         time.sleep(60)
                         self.logger.info(
                             f"Trying to download_process_logs("
-                            f"'{item['vehicle']}'', '{item['name']}') again..."
+                            f"'{item['vehicle']}'', '{item['name']}') again...",
                         )
                         self.download_process_logs(item["vehicle"], item["name"])
 
@@ -361,20 +368,19 @@ class AUV_NetCDF(AUV):
         with requests.get(files_url) as resp:
             if resp.status_code != 200:
                 self.logger.error(
-                    f"Cannot read {files_url}, status_code = {resp.status_code}"
+                    f"Cannot read {files_url}, status_code = {resp.status_code}",
                 )
-                return
+                return None
             if names := resp.json()["names"]:
                 return names
-            else:
-                raise LookupError(f"Nothing in names from {files_url}")
+            raise LookupError(f"Nothing in names from {files_url}")
 
     async def _get_file(self, download_url, local_filename, session):
         try:
             async with session.get(download_url, timeout=TIMEOUT) as resp:
                 if resp.status != 200:
                     self.logger.warning(
-                        f"Cannot read {download_url}, status = {resp.status}"
+                        f"Cannot read {download_url}, status = {resp.status}",
                     )
                 else:
                     self.logger.info(f"Started download to {local_filename}...")
@@ -397,14 +403,12 @@ class AUV_NetCDF(AUV):
         tasks = []
         async with ClientSession(timeout=TIMEOUT) as session:
             for ffm in self._files_from_mission(name, vehicle):
-                download_url = (
-                    f"{self.portal_base}/files/download/{name}/{vehicle}/{ffm}"
-                )
+                download_url = f"{self.portal_base}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
                 local_filename = os.path.join(logs_dir, ffm)
                 task = asyncio.ensure_future(
-                    self._get_file(download_url, local_filename, session)
+                    self._get_file(download_url, local_filename, session),
                 )
                 tasks.append(task)
 
@@ -417,7 +421,7 @@ class AUV_NetCDF(AUV):
         loop = asyncio.get_event_loop()
         try:
             future = asyncio.ensure_future(
-                self._download_files(logs_dir, name, vehicle)
+                self._download_files(logs_dir, name, vehicle),
             )
         except asyncio.exceptions.TimeoutError as e:
             self.logger.warning(f"{e}")
@@ -434,12 +438,12 @@ class AUV_NetCDF(AUV):
         dupes = set([x for n, x in enumerate(short_names) if x in short_names[:n]])
         if len(dupes) > 1:
             raise ValueError(f"Found more than one duplicate: {dupes}")
-        elif len(dupes) == 1:
+        if len(dupes) == 1:
             count = 0
             for i, variable in enumerate(log_data):
                 if variable.short_name in dupes:
                     count += 1
-                    log_data[i].short_name = f"{log_data[i].short_name}{count}"
+                    log_data[i].short_name = f"{variable.short_name}{count}"
 
         return log_data
 
@@ -451,13 +455,19 @@ class AUV_NetCDF(AUV):
             standard_name = "sea_water_temperature"
         if standard_name:
             self.logger.debug(
-                f"Setting standard_name = {standard_name} for {long_name}"
+                f"Setting standard_name = {standard_name} for {long_name}",
             )
 
         return standard_name
 
     def _create_variable(
-        self, data_type, short_name, long_name, units, data, time_axis=TIME
+        self,
+        data_type,
+        short_name,
+        long_name,
+        units,
+        data,
+        time_axis=TIME,
     ):
         if data_type == "short":
             nc_data_type = "h"
@@ -480,25 +490,24 @@ class AUV_NetCDF(AUV):
             self.nc_file.createVariable(short_name, nc_data_type, (time_axis,)),
         )
         if standard_name := self._get_standard_name(short_name, long_name):
-            setattr(getattr(self, short_name), "standard_name", standard_name)
-        setattr(getattr(self, short_name), "long_name", long_name)
-        setattr(getattr(self, short_name), "units", units)
+            getattr(self, short_name).standard_name = standard_name
+        getattr(self, short_name).long_name = long_name
+        getattr(self, short_name).units = units
         try:
             self.logger.debug(
                 f"{short_name}.shape[0] ({getattr(self, short_name).shape[0]})"
-                f" should equal len(data) ({len(data)})"
+                f" should equal len(data) ({len(data)})",
             )
             getattr(self, short_name)[:] = data
         except ValueError as e:
             self.logger.warning(f"{short_name}: {e}")
             self.logger.info(
                 f"len(data) ({len(data)}) does not match shape of"
-                f" {short_name}.shape[0] ({getattr(self, short_name).shape[0]})"
+                f" {short_name}.shape[0] ({getattr(self, short_name).shape[0]})",
             )
             if getattr(self, short_name).shape[0] - len(data) == 1:
                 self.logger.warning(
-                    f"{short_name} data is short by one,"
-                    f" appending the last value: {data[-1]}"
+                    f"{short_name} data is short by one, appending the last value: {data[-1]}",
                 )
                 data.append(data[-1])
                 getattr(self, short_name)[:] = data
@@ -511,28 +520,23 @@ class AUV_NetCDF(AUV):
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         for variable in log_data:
             self.logger.debug(
-                f"Creating Variable {variable.short_name}:"
-                f" {variable.long_name} ({variable.units})"
+                f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})",
             )
             if "biolume" in netcdf_filename:
                 if variable.short_name == "raw":
                     # The "raw" log is the last one in the list, and time is the first
-                    assert "raw" == log_data[-1].short_name
+                    assert log_data[-1].short_name == "raw"
                     self.nc_file.createDimension(TIME60HZ, len(log_data[0].data) * 60)
-                    assert "timeTag" == log_data[0].data_type
+                    assert log_data[0].data_type == "timeTag"
                     self.logger.info(
-                        "Expanding original timeTag to time60Hz variable for raw data"
+                        "Expanding original timeTag to time60Hz variable for raw data",
                     )
                     self._create_variable(
                         "timeTag",
                         TIME60HZ,
                         "60Hz time",
                         "seconds since 1970-01-01 00:00:00Z",
-                        [
-                            tv + frac
-                            for tv in log_data[0].data
-                            for frac in np.arange(0, 1, 1 / 60)
-                        ],
+                        [tv + frac for tv in log_data[0].data for frac in np.arange(0, 1, 1 / 60)],
                         time_axis=TIME60HZ,
                     )
                     self._create_variable(
@@ -626,9 +630,7 @@ class AUV_NetCDF(AUV):
         # Add the global metadata, overriding with command line options provided
         self.add_global_metadata()
         vehicle = self.args.auv_name
-        self.nc_file.title = (
-            f"Original AUV {vehicle} data converted from {log_filename}"
-        )
+        self.nc_file.title = f"Original AUV {vehicle} data converted from {log_filename}"
         if hasattr(self.args, "title"):
             if self.args.title:
                 self.nc_file.title = self.args.title
@@ -680,22 +682,18 @@ class AUV_NetCDF(AUV):
                             self.logger.info(f"Not reprocessing {logs_dir}")
                             return
                 else:
-                    yes_no = (
-                        input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ")
-                        or "Y"
-                    )
+                    yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or "Y"
             if yes_no.upper().startswith("Y"):
                 if self.args.use_portal:
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
+                elif src_dir:
+                    self.logger.info(f"Rsyncing {src_dir} to {logs_dir}")
+                    os.system(f"rsync -av {src_dir} {os.path.dirname(logs_dir)}")
                 else:
-                    if src_dir:
-                        self.logger.info(f"Rsyncing {src_dir} to {logs_dir}")
-                        os.system(f"rsync -av {src_dir} {os.path.dirname(logs_dir)}")
-                    else:
-                        self.logger.info(
-                            "src_dir not provided, so downloading from portal"
-                        )
-                        self._portal_download(logs_dir, name=name, vehicle=vehicle)
+                    self.logger.info(
+                        "src_dir not provided, so downloading from portal",
+                    )
+                    self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
         netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
@@ -732,7 +730,7 @@ class AUV_NetCDF(AUV):
         resp = requests.post(url)
         if resp.status_code != 200:
             self.logger.error(
-                f"Update failed for url = {url}," f" status_code = {resp.status_code}"
+                f"Update failed for url = {url}, status_code = {resp.status_code}",
             )
         else:
             self.logger.info("Wait a few minutes for new missions to appear")
@@ -761,8 +759,7 @@ class AUV_NetCDF(AUV):
             "--base_path",
             action="store",
             default=BASE_PATH,
-            help="Base directory for missionlogs and"
-            " missionnetcdfs, default: auv_data",
+            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
         )
         parser.add_argument(
             "--auv_name",
@@ -773,7 +770,9 @@ class AUV_NetCDF(AUV):
             ),
         )
         parser.add_argument(
-            "--mission", action="store", help="Mission directory, e.g.: 2020.064.10"
+            "--mission",
+            action="store",
+            help="Mission directory, e.g.: 2020.064.10",
         )
         parser.add_argument(
             "--local",
@@ -782,49 +781,50 @@ class AUV_NetCDF(AUV):
         )
 
         parser.add_argument(
-            "--title", action="store", help="A short description" " of the dataset"
+            "--title",
+            action="store",
+            help="A short description of the dataset",
         )
         parser.add_argument(
-            "--summary", action="store", help="Additional information about the dataset"
+            "--summary",
+            action="store",
+            help="Additional information about the dataset",
         )
 
         parser.add_argument(
             "--noinput",
             action="store_true",
-            help="Execute without asking for a response, e.g. "
-            " to not ask to re-download file",
+            help="Execute without asking for a response, e.g.  to not ask to re-download file",
         )
         parser.add_argument(
             "--clobber",
             action="store_true",
-            help="Use with --noinput to overwrite existing" " downloaded log files",
+            help="Use with --noinput to overwrite existing downloaded log files",
         )
         parser.add_argument(
             "--noreprocess",
             action="store_true",
-            help="Use with --noinput to not re-process existing"
-            " downloaded log files",
+            help="Use with --noinput to not re-process existing downloaded log files",
         )
         parser.add_argument(
             "--start",
             action="store",
-            help="Convert a range of missions wth start time in" " YYYYMMDD format",
+            help="Convert a range of missions wth start time in YYYYMMDD format",
         )
         parser.add_argument(
             "--end",
             action="store",
-            help="Convert a range of missions wth end time in" " YYYYMMDD format",
+            help="Convert a range of missions wth end time in YYYYMMDD format",
         )
         parser.add_argument(
             "--preview",
             action="store_true",
-            help="List missions that will be downloaded and"
-            " processed with --start and --end",
+            help="List missions that will be downloaded and processed with --start and --end",
         )
         parser.add_argument(
             "--update",
             action="store_true",
-            help='Send an "update" POST request to the ' " auv-portal data service",
+            help='Send an "update" POST request to the  auv-portal data service',
         )
         parser.add_argument(
             "--portal",
@@ -852,7 +852,7 @@ class AUV_NetCDF(AUV):
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
 
@@ -863,7 +863,6 @@ class AUV_NetCDF(AUV):
 
 
 if __name__ == "__main__":
-
     auv_netcdf = AUV_NetCDF()
     auv_netcdf.process_command_line()
 
@@ -876,9 +875,10 @@ if __name__ == "__main__":
         auv_netcdf._deployments_between()
     else:
         raise argparse.ArgumentError(
-            None, "Must provide either (--auv_name &" " --mission) OR (--start & --end)"
+            None,
+            "Must provide either (--auv_name & --mission) OR (--start & --end)",
         )
 
     auv_netcdf.logger.info(
-        f"Time to download and process:" f" {(time.time() - p_start):.2f} seconds"
+        f"Time to download and process: {(time.time() - p_start):.2f} seconds",
     )

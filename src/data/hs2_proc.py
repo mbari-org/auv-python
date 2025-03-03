@@ -126,10 +126,7 @@ def hs2_calc_bb(orig_nc, cals):
             (
                 1
                 + float(cals[f"Ch{chan}"]["TempCoeff"])
-                * (
-                    (orig_nc["RawTempValue"] / 5 - 10)
-                    - float(cals["General"]["CalTemp"])
-                )
+                * ((orig_nc["RawTempValue"] / 5 - 10) - float(cals["General"]["CalTemp"]))
             ),
             (getattr(hs2, f"Gain{chan}") * float(cals[f"Ch{chan}"]["RNominal"])),
         )
@@ -179,11 +176,8 @@ def hs2_calc_bb(orig_nc, cals):
     snorm3 = _int_signer(orig_nc["Snorm3"])
     setattr(hs2, f"fl{wavelength}", np.divide(snorm3 * 50, denom))
 
-    setattr(
-        hs2,
-        "caldepth",
-        float(cals["General"]["DepthCal"]) * orig_nc["RawDepthValue"]
-        - float(cals["General"]["DepthOff"]),
+    hs2.caldepth = float(cals["General"]["DepthCal"]) * orig_nc["RawDepthValue"] - float(
+        cals["General"]["DepthOff"]
     )
 
     return hs2
@@ -244,7 +238,7 @@ def typ_absorption(lamda):
             [680, 0.502],
             [690, 0.329],
             [700, 0.215],
-        ]
+        ],
     )
 
     a_interp = interp1d(a_star_values[:, 0], a_star_values[:, 1])

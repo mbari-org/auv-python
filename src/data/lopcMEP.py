@@ -9,7 +9,7 @@ __idt__ = "$Id: lopcMEP.py,v 1.8 2010/08/30 23:24:40 ssdsadmin Exp $"
 
 __doc__ = """
 
-Module for processing MEP data from the Brooke Ocean Technology Laser 
+Module for processing MEP data from the Brooke Ocean Technology Laser
 Optical Plankton Counter.  The functions here work in concert with the
 .bin file processing done in the lopcToNetCDF.py module.  That module
 unpacks MEP binary data and passes them as python objects to functions
@@ -44,7 +44,6 @@ class MEP:
     """Class for an MEP.  Instances are a single MEP."""
 
     def __init__(self, p, e, l, s):  # noqa: E741
-
         self.p = [p]
         self.e = [e]
         self.l = [l]
@@ -94,9 +93,7 @@ class MEP:
         a4 = 9.54e-15
 
         DS = numpy.array(self.p).sum()
-        self.esd = 1000 * (
-            a1 + a2 * DS + a3 * DS**2 + a4 * DS**3
-        )  # in units of microns
+        self.esd = 1000 * (a1 + a2 * DS + a3 * DS**2 + a4 * DS**3)  # in units of microns
 
     def __repr__(self):
         """Return a string that is reasonable to print"""
@@ -106,7 +103,7 @@ class MEP:
         # Format used in Alex Herman papers
         str = ""
         n = 1
-        for p, e, l, s in zip(self.p, self.e, self.l, self.s):  # noqa: E741
+        for p, e, l, s in zip(self.p, self.e, self.l, self.s, strict=False):  # noqa: E741
             if n == 1:
                 p += 32768  # Add the bit back
 
@@ -153,7 +150,7 @@ class MepData:
         """
 
         # Build MEP list from raw data parsed from M frames
-        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):  # noqa: E741
+        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s, strict=False):  # noqa: E741
             logger.debug("n = %s, p = %s, e = %s, l = %s, s = %s" % (n, p, e, l, s))
             if n == 1:
                 # Instantiate MEP object (n == 1 indicates a new MEP detected by the instrument)
@@ -231,8 +228,7 @@ class MepData:
 
         lcCount = 0
         logger.debug(
-            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f"
-            % (aiCrit, esdLowCrit, esdHiCrit)
+            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f" % (aiCrit, esdLowCrit, esdHiCrit),
         )
         for mep in self.mepList:
             logger.debug("mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
@@ -264,7 +260,7 @@ class MepData:
 
         # Format used in Alex Herman papers
         str = ""
-        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s):  # noqa: E741
+        for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s, strict=False):  # noqa: E741
             if n == 1:
                 p += 32768  # Add the bit back
 
@@ -277,7 +273,7 @@ class MepData:
 
         # Format used in Alex Herman papers
         str = ""
-        for n, p, e, l, s in zip(nL, pL, eL, lL, sL):  # noqa: E741
+        for n, p, e, l, s in zip(nL, pL, eL, lL, sL, strict=False):  # noqa: E741
             if n == 1:
                 p += 32768  # Add the bit back
 
@@ -332,7 +328,7 @@ if __name__ == "__main__":
     """Run tests if executed at command line.  This module is designed to be imported."""
 
     logging.getLogger("MEP").setLevel(
-        logging.DEBUG
+        logging.DEBUG,
     )  # Set debug for additional output from the methods
     ##logging.getLogger("MEP").setLevel(logging.INFO)
 
@@ -356,7 +352,7 @@ if __name__ == "__main__":
 
     # Run the count() method
     counts = mepDataFake.count(
-        numpy.array(list(range(108, 15015, 15)), dtype="float32")
+        numpy.array(list(range(108, 15015, 15)), dtype="float32"),
     )
     logger.info("counts = %s" % counts)
     logger.info("len(mepDataFake.mepList)  = %d" % len(mepDataFake.mepList))
@@ -370,7 +366,7 @@ if __name__ == "__main__":
     for mep in mepDataFake.mepList:
         i += 1
         logger.info(
-            "%d. mep: ai = %f, od = %f, esd = %f" % (i, mep.ai, mep.od, mep.esd)
+            "%d. mep: ai = %f, od = %f, esd = %f" % (i, mep.ai, mep.od, mep.esd),
         )
 
     #
@@ -405,5 +401,5 @@ if __name__ == "__main__":
     for mep in mepData.mepList:
         i += 1
         logger.info(
-            "%d. mep: ai = %f, od = %f, esd = %f" % (i, mep.ai, mep.od, mep.esd)
+            "%d. mep: ai = %f, od = %f, esd = %f" % (i, mep.ai, mep.od, mep.esd),
         )

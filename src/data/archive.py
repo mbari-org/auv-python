@@ -55,7 +55,8 @@ class Archiver:
             if hasattr(self.args, "flash_threshold"):
                 if self.args.flash_threshold and self.args.resample:
                     ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
-                        "E+", "E",
+                        "E+",
+                        "E",
                     )
                     ftypes = (ft_ending,)
                 else:
@@ -84,7 +85,11 @@ class Archiver:
                 # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
                 YYYYJJJ = "".join(self.args.mission.split(".")[:2])
                 missionnetcdfs_dir = Path(
-                    AUVCTD_VOL, MISSIONNETCDFS, year, YYYYJJJ, self.args.mission,
+                    AUVCTD_VOL,
+                    MISSIONNETCDFS,
+                    year,
+                    YYYYJJJ,
+                    self.args.mission,
                 )
                 Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
                 src_dir = Path(nc_file_base).parent
@@ -103,7 +108,10 @@ class Archiver:
         self.logger.info("Archiving product files")
         for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
             src_dir = Path(  # noqa: PLW2901
-                BASE_PATH, self.args.auv_name, src_dir, self.args.mission,
+                BASE_PATH,
+                self.args.auv_name,
+                src_dir,
+                self.args.mission,
             )
             if Path(src_dir).exists():
                 dst_dir = Path(surveys_dir, year, dst_dir)  # noqa: PLW2901
@@ -112,10 +120,11 @@ class Archiver:
                 self.logger.info("rsync %s/* %s done.", src_dir, dst_dir)
             else:
                 self.logger.debug("%s not found", src_dir)
-        if self.args.create_products or (hasattr(self.args,"resample") and self.args.resample):
+        if self.args.create_products or (hasattr(self.args, "resample") and self.args.resample):
             # Do not rsync processing.log file if only partial processing was done
             self.logger.info(
-                "Partial processing, not archiving %s", f"{nc_file_base}_{LOG_NAME}",
+                "Partial processing, not archiving %s",
+                f"{nc_file_base}_{LOG_NAME}",
             )
         else:
             # Rsync the processing.log file last so that we get everything
@@ -140,8 +149,7 @@ class Archiver:
             "--base_path",
             action="store",
             default=BASE_PATH,
-            help="Base directory for missionlogs and"
-            " missionnetcdfs, default: auv_data",
+            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
         )
         parser.add_argument(
             "--auv_name",
@@ -196,7 +204,7 @@ class Archiver:
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))],
+                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
         self.args = parser.parse_args()

@@ -50,7 +50,7 @@ Gulper bottle numbers and data at sample collection (ODV tab-delimited) file:
 Google Earth sensor point tracks
 KML
 
-The above web links are a mapping from the \\atlas\AUVCTD\surveys directory.
+The above web links are a mapping from the \\atlas\\AUVCTD\\surveys directory.
 You may get the data from this network share or from the above URLs.
 
 The processing log output:
@@ -94,24 +94,27 @@ class Emailer:
             formatter_class=argparse.RawTextHelpFormatter,
             description=__doc__,
         )
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help="Base directory for missionlogs and"
-            " missionnetcdfs, default: auv_data",
-        ),
+        (
+            parser.add_argument(
+                "--base_path",
+                action="store",
+                default=BASE_PATH,
+                help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
+            ),
+        )
         parser.add_argument(
             "--auv_name",
             action="store",
             default="Dorado389",
             help="Dorado389 (default), i2map, or Multibeam",
         )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        ),
+        (
+            parser.add_argument(
+                "--mission",
+                action="store",
+                help="Mission directory, e.g.: 2020.064.10",
+            ),
+        )
         parser.add_argument(
             "--email_to",
             action="store",
@@ -129,7 +132,7 @@ class Emailer:
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
         self.args = parser.parse_args()

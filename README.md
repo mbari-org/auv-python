@@ -41,7 +41,7 @@ To install on a workstation:
 * cd auv-python
 * poetry install
 
-The above steps need to be done just once on a system. Afterwards and whenever 
+The above steps need to be done just once on a system. Afterwards and whenever
 opening a new terminal execute these commands before executing the programs or
 running the Jupyter Notebooks:
 
@@ -73,8 +73,8 @@ The following commands are available:
 * src/data/align.py --help              # 3.0 - help for third processing step
 * src/data/resample.py --help           # 4.0 - help for fourth processing step
 * src/data/archive.py --help            # 5.0 - help for fifth processing step
-* src/data/process_i2map.py --help      # Process i2MAP data 
-* src/data/process_dorado.py --help     # Process Dorado/Gulper data 
+* src/data/process_i2map.py --help      # Process i2MAP data
+* src/data/process_dorado.py --help     # Process Dorado/Gulper data
 
 See the Jupyter Notebooks in the notebooks directory for data visualization and analysis tools that are available.
 

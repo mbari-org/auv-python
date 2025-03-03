@@ -16,7 +16,7 @@ use SSDS;
 sub usage() {
 	print "Usage: $0 YYYY | mission \n\nWhere YYYY is between 2006 and the current year or mission is of form YYYYY.DDD.NN\n\n";
 	exit(0)
-} 
+}
 
 # Very short test mission
 # $binFile = '/mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin';
@@ -44,7 +44,7 @@ $extraArgs = " --LargeCopepod_AIcrit 0.3";
 if ( $arg =~ /^\d\d\d\d$/ ) {
 	$YYYY = $arg;
 	usage() if $arg < 2006;
-	
+
 	# Process all missions within the year
 	$findCmd = "find /mbari/AUVCTD/missionlogs/$YYYY -name lopc.bin -print";
 	print "Executing command: \n$findCmd\n";
@@ -54,14 +54,14 @@ if ( $arg =~ /^\d\d\d\d$/ ) {
         	##print $_;
 		chop($binFile = $_);
 		if ($binFile =~ /mbari\/AUVCTD\/(.+)\/lopc.bin/ ) {
-			$mPath = $1;	
+			$mPath = $1;
 		}
 		##die $mPath;
 		$ncFile = "/mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/${mPath}/lopc.nc";
 		$logFile = "${ncFile}.log";
 
 		$cmd = "lopcToNetCDF.py -i $binFile -n $ncFile -v -f $extraArgs 2>&1 | tee $logFile";
-	
+
 		print "$cmd\n";
 		system($cmd)
 	} # End while(<FIND>)
@@ -83,5 +83,4 @@ elsif ( $arg =~ /(\d\d\d\d)\.(\d\d\d)\.(\d\d)/ ) {
 else {
 	usage();
 
-} # End if ( $arg =~ /\d\d\d\d/ ) 
-
+} # End if ( $arg =~ /\d\d\d\d/ )

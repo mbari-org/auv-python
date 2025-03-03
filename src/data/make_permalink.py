@@ -8,12 +8,13 @@ Can be used with the stoqs_all_dorado database to zoom in on the data.
 
 import csv
 import json
-import lzstring
 import os
-import requests
 import sys
-import xarray as xr
 from datetime import datetime
+
+import lzstring
+import requests
+import xarray as xr
 
 
 def get_times_depths(ds_url):
@@ -29,7 +30,8 @@ def get_times_depths(ds_url):
 
 def get_parameter_id(base_url, parameter_name="fl700_uncorr"):
     csv_query = os.path.join(
-        base_url, "api/parameter.csv?name__contains=" + parameter_name
+        base_url,
+        "api/parameter.csv?name__contains=" + parameter_name,
     )
     with requests.Session() as s:
         download = s.get(csv_query)
@@ -62,7 +64,7 @@ def gen_permalink(times, depths, parm_id):
     ##print(depth_time)
     compressor = lzstring.LZString()
     permalink = compressor.compressToEncodedURIComponent(
-        json.dumps(depth_time, separators=(",", ":"))
+        json.dumps(depth_time, separators=(",", ":")),
     )
     return permalink
 
@@ -79,6 +81,7 @@ if __name__ == "__main__":
     times, depths = get_times_depths(ds_url)
     print(
         os.path.join(
-            base_url, "query/?permalink_id=" + gen_permalink(times, depths, parm_id)
-        )
+            base_url,
+            "query/?permalink_id=" + gen_permalink(times, depths, parm_id),
+        ),
     )

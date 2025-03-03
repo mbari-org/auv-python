@@ -107,27 +107,27 @@ dorado_info["2003.125.02"] = {
 for mission_number in range(2, 5):
     dorado_info[f"2003.164.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("OCCO2003164: missions {02,03,04}" " - ctdToUse = ctd1 "),
+        "comment": ("OCCO2003164: missions {02,03,04} - ctdToUse = ctd1 "),
     }
 for mission_number in range(2, 5):
     dorado_info[f"2003.167.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("OCCO2003167: missions {02,03,04}" " - ctdToUse = ctd1 "),
+        "comment": ("OCCO2003167: missions {02,03,04} - ctdToUse = ctd1 "),
     }
 for mission_number in range(4, 7):
     dorado_info[f"2003.169.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("OCCO2003169: missions {04,05,06}" " - ctdToUse = ctd1 "),
+        "comment": ("OCCO2003169: missions {04,05,06} - ctdToUse = ctd1 "),
     }
 for mission_number in range(3, 6):
     dorado_info[f"2003.174.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("OCCO2003174: missions {03,04,05}" " - ctdToUse = ctd1 "),
+        "comment": ("OCCO2003174: missions {03,04,05} - ctdToUse = ctd1 "),
     }
 for mission_number in range(2, 5):
     dorado_info[f"2003.176.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("OCCO2003176: missions {02,03,04}" " - ctdToUse = ctd1 "),
+        "comment": ("OCCO2003176: missions {02,03,04} - ctdToUse = ctd1 "),
     }
 dorado_info["2003.177.02"] = {
     "program": AUVCTD,
@@ -211,137 +211,122 @@ dorado_info["2003.223.02"] = {
 }
 dorado_info["2003.224.05"] = {
     "program": BIOLUME,
-    "comment": (
-        "Re-portaled 7/1/05: 2 separate surveys close to the beach"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Re-portaled 7/1/05: 2 separate surveys close to the beach - ctdToUse = ctd1 "),
 }
 dorado_info["2003.224.08"] = {
     "program": AUVCTD,
-    "comment": (
-        "Re-portaled 7/1/05: 2 separate surveys close to the beach"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Re-portaled 7/1/05: 2 separate surveys close to the beach - ctdToUse = ctd1 "),
 }
 dorado_info["2003.225.02"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 7/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/7/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.226.02"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 7/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/7/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.226.05"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled 7/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/7/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.227.02"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 7/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/7/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.228.02"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 7/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/7/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.228.05"] = {
     "program": AOSN,
-    "comment": ("Re-portaled 7/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/7/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(2, 6):
     dorado_info[f"2003.230.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
-            "Re-portaled 7/7/05: maybe these 4 missions are one survey ?"
-            " - ctdToUse = ctd1 "
+            "Re-portaled 7/7/05: maybe these 4 missions are one survey ? - ctdToUse = ctd1 "
         ),
     }
 dorado_info["2003.232.02"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled 7/8/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/8/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(2, 7):
     dorado_info[f"2003.233.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": (
-            "Re-portaled 7/8/05.  Increased tDiffCrit to 800 on 8/3/06"
-            " - ctdToUse = ctd1 "
-        ),
+        "comment": ("Re-portaled 7/8/05.  Increased tDiffCrit to 800 on 8/3/06 - ctdToUse = ctd1 "),
     }
 dorado_info["2003.234.02"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled 7/8/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/8/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(3, 5):
     dorado_info[f"2003.237.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": (
-            "OCCO2003237: missions {03,04}: Re-portaled 7/11/05" " - ctdToUse = ctd1 "
-        ),
+        "comment": ("OCCO2003237: missions {03,04}: Re-portaled 7/11/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2003.238.02"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled 7/11/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/11/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.241.02"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled 7/11/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 7/11/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(2, 5):
     dorado_info[f"2003.245.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": (
-            "OCCO2003245: missions {02,03,04}: Re-portaled 7/11/05"
-            " - ctdToUse = ctd1 "
-        ),
+        "comment": ("OCCO2003245: missions {02,03,04}: Re-portaled 7/11/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2003.246.02"] = {
     "program": OCCO,
-    "comment": ("OCCO2003246: missions {02}" " - ctdToUse = ctd1 "),
+    "comment": ("OCCO2003246: missions {02} - ctdToUse = ctd1 "),
 }
 for mission_number in range(2, 4):
     dorado_info[f"2003.280.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Portaled 7/11/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/11/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2003.281.02"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 7/11/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/11/05 - ctdToUse = ctd1 "),
 }
 for mission_number in (2, 4):
     dorado_info[f"2003.308.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
     }
 for mission_number in [0, 1, 2, 4]:
     dorado_info[f"2003.309.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
     }
 for mission_number in range(2, 5):
     dorado_info[f"2003.317.{mission_number:02d}"] = {
         "program": "DMOSeaTrials",
-        "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2003.336.02"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.337.04"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(15, 23):
     dorado_info[f"2003.338.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2003.339.04"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2003.340.02"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 7/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/12/05 - ctdToUse = ctd1 "),
 }
 
 # ----------------------------- 2004 ---------------------------------------
@@ -372,13 +357,12 @@ dorado_info["2004.029.05"] = {
 }
 dorado_info["2004.035.05"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 8/9/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 8/9/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.069.03"] = {
     "program": AUVCTD,
     "comment": (
-        "Isus data (nitrate) is missing for 069.03 - re-portaled 8/9/05"
-        " - ctdToUse = ctd1 "
+        "Isus data (nitrate) is missing for 069.03 - re-portaled 8/9/05 - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2004.094.04"] = {
@@ -390,23 +374,20 @@ dorado_info["2004.094.04"] = {
 }
 dorado_info["2004.095.02"] = {
     "program": BIOLUME,
-    "comment": (
-        "Missing netCDF files, cant process yet - re-portaled 8/10/05"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Missing netCDF files, cant process yet - re-portaled 8/10/05 - ctdToUse = ctd1 "),
 }
 for mission_number in (3, 5, 6):
     dorado_info[f"2004.096.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Portaled 8/10/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 8/10/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2004.111.04"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 8/11/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 8/11/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.112.02"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 8/11/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 8/11/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.167.04"] = {
     "program": AUVCTD,
@@ -426,22 +407,22 @@ dorado_info["2004.168.01"] = {
 }
 dorado_info["2004.168.03"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 8/11/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 8/11/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(1, 4):
     dorado_info[f"2004.169.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("SDP 10/6/04 - re-portaled 8/11/05" " - ctdToUse = ctd1 "),
+        "comment": ("SDP 10/6/04 - re-portaled 8/11/05 - ctdToUse = ctd1 "),
     }
 for mission_number in range(1, 4):
     dorado_info[f"2004.170.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("SDP 10/6/04 - re-portaled 8/11/05" " - ctdToUse = ctd1 "),
+        "comment": ("SDP 10/6/04 - re-portaled 8/11/05 - ctdToUse = ctd1 "),
     }
 for mission_number in range(2, 4):
     dorado_info[f"2004.196.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("re-portaled 8/11/05" " - ctdToUse = ctd1 "),
+        "comment": ("re-portaled 8/11/05 - ctdToUse = ctd1 "),
     }
 for mission_number in range(1, 3):
     dorado_info[f"2004.197.{mission_number:02d}"] = {
@@ -454,43 +435,43 @@ for mission_number in range(1, 3):
     }
 dorado_info["2004.208.01"] = {
     "program": AUVCTD,
-    "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.209.03"] = {
     "program": AUVCTD,
-    "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Not processed 11/1/04 - Re-portaled 8/12/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.211.00"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 8/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/12/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.211.01"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 8/12/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/12/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.233.01"] = {
     "program": OCCO,
-    "comment": ("Re-portaled 8/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/16/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.236.00"] = {
     "program": OCCO,
-    "comment": ("Re-portaled 8/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/16/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.237.00"] = {
     "program": OCCO,
-    "comment": ("Re-portaled 8/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/16/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.238.00"] = {
     "program": OCCO,
-    "comment": ("Re-portaled 8/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/16/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.239.01"] = {
     "program": OCCO,
-    "comment": ("Re-portaled 8/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/16/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.240.00"] = {
     "program": OCCO,
-    "comment": ("Re-portaled 8/18/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/18/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.251.00"] = {
     "program": AUVCTD,
@@ -504,7 +485,7 @@ dorado_info["2004.251.00"] = {
 }
 dorado_info["2004.252.00"] = {
     "program": AUVCTD,
-    "comment": ("Re-portaled 8/18/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/18/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.254.00"] = {
     "program": BIOLUME,
@@ -533,28 +514,28 @@ dorado_info["2004.271.00"] = {
 }
 dorado_info["2004.272.00"] = {
     "program": AUVCTD,
-    "comment": ("SDP on 29 Sep 2004" " Re-portaled 8/18/05" " - ctdToUse = ctd1 "),
+    "comment": ("SDP on 29 Sep 2004 Re-portaled 8/18/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.272.01"] = {
     "program": AUVCTD,
-    "comment": ("SDP on 29 Sep 2004" " Re-portaled 8/18/05" " - ctdToUse = ctd1 "),
+    "comment": ("SDP on 29 Sep 2004 Re-portaled 8/18/05 - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 2):
+for mission_number in range(2):
     dorado_info[f"2004.273.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Added 10 March 2005 Re-portaled 8/19/05" " - ctdToUse = ctd1 "),
+        "comment": ("Added 10 March 2005 Re-portaled 8/19/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2004.274.00"] = {
     "program": AUVCTD,
-    "comment": ("Added 11 March 2005 Re-portaled 8/19/05" " - ctdToUse = ctd1 "),
+    "comment": ("Added 11 March 2005 Re-portaled 8/19/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.275.00"] = {
     "program": AUVCTD,
-    "comment": ("Added 11 March 2005 Re-portaled 8/19/05" " - ctdToUse = ctd1 "),
+    "comment": ("Added 11 March 2005 Re-portaled 8/19/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.295.03"] = {
     "program": AUVCTD,
-    "comment": ("SDP on 1 Nov 2004 Re-portaled 8/19/05" " - ctdToUse = ctd1 "),
+    "comment": ("SDP on 1 Nov 2004 Re-portaled 8/19/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(3, 5):
     dorado_info[f"2004.296.{mission_number:02d}"] = {
@@ -568,60 +549,56 @@ for mission_number in range(3, 5):
     }
 dorado_info["2004.314.00"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 8/19/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 8/19/05 - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 3):
+for mission_number in range(3):
     dorado_info[f"2004.315.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
-            "Processed fine on prey, a volume survey Re-portaled 8/21/05"
-            " - ctdToUse = ctd1 "
+            "Processed fine on prey, a volume survey Re-portaled 8/21/05 - ctdToUse = ctd1 "
         ),
     }
-for mission_number in range(0, 3):
+for mission_number in range(3):
     dorado_info[f"2004.317.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Re-portaled 8/21/05" " - ctdToUse = ctd1 "),
+        "comment": ("Re-portaled 8/21/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2004.321.00"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/22/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(5, 8):
     dorado_info[f"2004.344.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
+        "comment": ("Re-portaled 8/22/05 - ctdToUse = ctd1 "),
     }
-for mission_number in range(0, 10):
+for mission_number in range(10):
     dorado_info[f"2004.345.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
+        "comment": ("Re-portaled 8/22/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2004.348.00"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/22/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2004.349.00"] = {
     "program": BIOLUME,
-    "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
+    "comment": ("Re-portaled 8/22/05 - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 2):
+for mission_number in range(2):
     dorado_info[f"2004.352.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Re-portaled 8/22/05" " - ctdToUse = ctd1 "),
+        "comment": ("Re-portaled 8/22/05 - ctdToUse = ctd1 "),
     }
 
 # ---------------------------- 2005 ----------------------------
 dorado_info["2005.006.21"] = {
     "program": OCCO,
-    "comment": ("One mission on Elkhorn tidal plume race track" " - ctdToUse = ctd1 "),
+    "comment": ("One mission on Elkhorn tidal plume race track - ctdToUse = ctd1 "),
 }
 dorado_info["2005.010.00"] = {
     "program": OCCO,
-    "comment": (
-        "OFirst one portaled to predator with new directory structure"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("OFirst one portaled to predator with new directory structure - ctdToUse = ctd1 "),
 }
 dorado_info["2005.012.00"] = {
     "program": OCCO,
@@ -630,13 +607,10 @@ dorado_info["2005.012.00"] = {
         " - ctdToUse = ctd1 "
     ),
 }
-for mission_number in range(0, 5):
+for mission_number in range(5):
     dorado_info[f"2005.014.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": (
-            "BIOLUME night missions, touched bottom on mission .00"
-            " - ctdToUse = ctd1 "
-        ),
+        "comment": ("BIOLUME night missions, touched bottom on mission .00 - ctdToUse = ctd1 "),
     }
 for mission_number in (0, 2, 3, 4, 5):
     dorado_info[f"2005.020.{mission_number:02d}"] = {
@@ -646,19 +620,16 @@ for mission_number in (0, 2, 3, 4, 5):
             " - ctdToUse = ctd1 "
         ),
     }
-for mission_number in range(0, 5):
+for mission_number in range(5):
     dorado_info[f"2005.021.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": (
-            "Elkhorn Slough plume racetrack Monterey triangle" " - ctdToUse = ctd1 "
-        ),
+        "comment": ("Elkhorn Slough plume racetrack Monterey triangle - ctdToUse = ctd1 "),
     }
-for mission_number in range(0, 18):
+for mission_number in range(18):
     dorado_info[f"2005.027.{mission_number:02d}"] = {
         "program": BIOLUME,
         "comment": (
-            "Depth abort problems - lots of missions for this biolume survey"
-            " - ctdToUse = ctd1 "
+            "Depth abort problems - lots of missions for this biolume survey - ctdToUse = ctd1 "
         ),
     }
 dorado_info["2005.061.00"] = {
@@ -679,16 +650,11 @@ for mission_number in range(7, 9):
 for mission_number in range(1, 3):
     dorado_info[f"2005.103.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": (
-            "Night-time survey that hit mud near Pt. Pinos." " - ctdToUse = ctd1 "
-        ),
+        "comment": ("Night-time survey that hit mud near Pt. Pinos. - ctdToUse = ctd1 "),
     }
 dorado_info["2005.118.05"] = {
     "program": AUVCTD,
-    "comment": (
-        "M1.5 to M1 Hans mentioned goofy data from hydroscat on this"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("M1.5 to M1 Hans mentioned goofy data from hydroscat on this - ctdToUse = ctd1 "),
 }
 for mission_number in (16, 19):
     dorado_info[f"2005.119.{mission_number:02d}"] = {
@@ -723,12 +689,11 @@ dorado_info["2005.159.00"] = {
     "program": AUVCTD,
     "comment": ("ctdToUse = ctd1"),
 }
-for mission_number in range(0, 3):
+for mission_number in range(3):
     dorado_info[f"2005.161.{mission_number:02d}"] = {
         "program": BIOLUME,
         "comment": (
-            "First mission (161.00) failed to make netCDFs by SSDS (??)"
-            " - ctdToUse = ctd1 "
+            "First mission (161.00) failed to make netCDFs by SSDS (??) - ctdToUse = ctd1 "
         ),
     }
 dorado_info["2005.175.00"] = {
@@ -740,7 +705,7 @@ dorado_info["2005.175.00"] = {
 }
 dorado_info["2005.179.01"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 7/8/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/8/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.180.00"] = {
     "program": LOCO,
@@ -749,14 +714,14 @@ dorado_info["2005.180.00"] = {
         " - ctdToUse = ctd1 "
     ),
 }
-for mission_number in range(0, 3):
+for mission_number in range(3):
     dorado_info[f"2005.182.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Portaled 7/8/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/8/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2005.194.00"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/26/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.196.00"] = {
     "program": BIOLUME,
@@ -767,31 +732,29 @@ dorado_info["2005.196.00"] = {
 }
 dorado_info["2005.196.01"] = {
     "program": FAILED,
-    "comment": (
-        "Portaled 7/26/05:  196.01 had battery failure - do not include in survey"
-    ),
+    "comment": ("Portaled 7/26/05:  196.01 had battery failure - do not include in survey"),
 }
 dorado_info["2005.201.00"] = {
     "program": AUVCTD,
-    "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/26/05 - ctdToUse = ctd1 "),
 }
 for mission_number in range(1, 3):
     dorado_info[f"2005.203.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 7/26/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2005.217.00"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 7/26/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 7/26/05 - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 2):
+for mission_number in range(2):
     dorado_info[f"2005.222.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Portaled 8/30/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled 8/30/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2005.224.00"] = {
     "program": BIOLUME,
-    "comment": ("Portaled 8/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled 8/16/05 - ctdToUse = ctd1 "),
 }
 for day, mission_number in [
     (230, 0),
@@ -819,64 +782,61 @@ for day, mission_number in [
 ]:
     dorado_info[f"2005.{day:03d}.{mission_number:02d}"] = {
         "program": LOCO,
-        "comment": (
-            "Conducted from the Sproul on John Ryan's LOCO project"
-            " - ctdToUse = ctd1 "
-        ),
+        "comment": ("Conducted from the Sproul on John Ryan's LOCO project - ctdToUse = ctd1 "),
     }
 dorado_info["2005.249.00"] = {
     "program": LOCO,
-    "comment": ("Portaled by DMO 9/6/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 9/6/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.250.00"] = {
     "program": LOCO,
-    "comment": ("Portaled by DMO 9/7/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 9/7/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.257.00"] = {
     "program": AUVCTD,
-    "comment": ("Portaled by DMO 9/14/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 9/14/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.259.00"] = {
     "program": BIOLUME,
-    "comment": ("Portaled by DMO 9/16/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 9/16/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.299.12"] = {
     "program": AUVCTD,
-    "comment": ("Portaled by DMO 10/26/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 10/26/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.301.00"] = {
     "program": BIOLUME,
-    "comment": ("Portaled by DMO 10/28/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 10/28/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.306.00"] = {
     "program": AUVCTD,
-    "comment": ("Portaled by DMO 10/28/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 10/28/05 - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 2):
+for mission_number in range(2):
     dorado_info[f"2005.308.{mission_number:02d}"] = {
         "program": BIOLUME,
-        "comment": ("Portaled by DMO 10/28/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled by DMO 10/28/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2005.324.03"] = {
     "program": AUVCTD,
-    "comment": ("Portaled by DMO 11/22/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 11/22/05 - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 5):
+for mission_number in range(5):
     dorado_info[f"2005.332.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Portaled by DMO 11/28/05" " - ctdToUse = ctd1 "),
+        "comment": ("Portaled by DMO 11/28/05 - ctdToUse = ctd1 "),
     }
 dorado_info["2005.334.03"] = {
     "program": AUVCTD,
-    "comment": ("Portaled by DMO 11/28/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 11/28/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.342.00"] = {
     "program": BIOLUME,
-    "comment": ("Portaled by DMO 11/28/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 11/28/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.348.00"] = {
     "program": AUVCTD,
-    "comment": ("Portaled by DMO 12/14/05" " - ctdToUse = ctd1 "),
+    "comment": ("Portaled by DMO 12/14/05 - ctdToUse = ctd1 "),
 }
 dorado_info["2005.350.03"] = {
     "program": BIOLUME,
@@ -958,15 +918,15 @@ dorado_info["2006.130.01"] = {
 for day, mission_number in [(135, 3), (135, 4), (137, 0), (138, 1)]:
     dorado_info[f"2006.{day:03d}.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Davidson Seamount - John Ryan" " - ctdToUse = ctd1 "),
+        "comment": ("Davidson Seamount - John Ryan - ctdToUse = ctd1 "),
     }
 dorado_info["2006.200.01"] = {
     "program": LOCO,
-    "comment": ("LOCO mission - as part of MB06 - John Ryan" " - ctdToUse = ctd1 "),
+    "comment": ("LOCO mission - as part of MB06 - John Ryan - ctdToUse = ctd1 "),
 }
 dorado_info["2006.206.38"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - as part of MB06 - John Ryan" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - as part of MB06 - John Ryan - ctdToUse = ctd1 "),
 }
 dorado_info["2006.214.01"] = {
     "program": BIOLUME,
@@ -999,10 +959,7 @@ dorado_info["2006.227.08"] = {
 }
 dorado_info["2006.227.09"] = {
     "program": BIOLUME,
-    "comment": (
-        "AUVCTD mission - as part of MB06 - Standard C1 to M2 and back"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - as part of MB06 - Standard C1 to M2 and back - ctdToUse = ctd1 "),
 }
 dorado_info["2006.234.02"] = {
     "program": AUVCTD,
@@ -1021,46 +978,39 @@ dorado_info["2006.235.01"] = {
 }
 dorado_info["2006.249.01"] = {
     "program": BIOLUME,
-    "comment": ("BIOLUME mission" " - ctdToUse = ctd1 "),
+    "comment": ("BIOLUME mission - ctdToUse = ctd1 "),
 }
 dorado_info["2006.249.03"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - out to between M1 & M2" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - out to between M1 & M2 - ctdToUse = ctd1 "),
 }
 dorado_info["2006.264.00"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - out to between M1 & M2" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - out to between M1 & M2 - ctdToUse = ctd1 "),
 }
 dorado_info["2006.270.00"] = {
     "program": BIOLUME,
-    "comment": (
-        "AUVCTD mission - Standard Biolume run.  CTD1 was noisey" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Standard Biolume run.  CTD1 was noisey - ctdToUse = ctd1 "),
 }
 dorado_info["2006.270.01"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - out to between M1 & M2.  CTD1 was noisey"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - out to between M1 & M2.  CTD1 was noisey - ctdToUse = ctd1 "),
 }
 dorado_info["2006.291.03"] = {
     "program": BIOLUME,
-    "comment": (
-        "AUVCTD mission - Standard Biolume run.  CTD1 was noisey" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Standard Biolume run.  CTD1 was noisey - ctdToUse = ctd1 "),
 }
 dorado_info["2006.291.04"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - out to M1 and back" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - out to M1 and back - ctdToUse = ctd1 "),
 }
 dorado_info["2006.324.11"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - out to between M1 & M2" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - out to between M1 & M2 - ctdToUse = ctd1 "),
 }
 dorado_info["2006.331.02"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - out to between M1 & M2" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - out to between M1 & M2 - ctdToUse = ctd1 "),
 }
 dorado_info["2006.338.11"] = {
     "program": AUVCTD,
@@ -1078,7 +1028,7 @@ dorado_info["2006.346.03"] = {
 }
 dorado_info["2006.347.05"] = {
     "program": LOCO,
-    "comment": ("LOCO mission - HAB incubator area (off Soquel)" " - ctdToUse = ctd1 "),
+    "comment": ("LOCO mission - HAB incubator area (off Soquel) - ctdToUse = ctd1 "),
 }
 dorado_info["2006.348.01"] = {
     "program": LOCO,
@@ -1123,33 +1073,25 @@ dorado_info["2007.067.01"] = {
 }
 dorado_info["2007.085.01"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Short survey at M1" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Short survey at M1 - ctdToUse = ctd1 "),
 }
 for mission_number in [0, 1]:
     dorado_info[f"2007.120.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": (
-            "AUVCTD mission - Volume survey around M0 for Scholin" " - ctdToUse = ctd1 "
-        ),
+        "comment": ("AUVCTD mission - Volume survey around M0 for Scholin - ctdToUse = ctd1 "),
     }
 dorado_info["2007.093.12"] = {
     "program": AUVCTD,
-    "comment": (
-        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
-    ),
+    "comment": ("Portaled files exist in archive, but not processed by reprocess_surveys.m"),
 }
 dorado_info["2007.094.02"] = {
     "program": AUVCTD,
-    "comment": (
-        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
-    ),
+    "comment": ("Portaled files exist in archive, but not processed by reprocess_surveys.m"),
 }
 for mission_number in [5, 7]:
     dorado_info[f"2007.123.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": (
-            "AUVCTD mission - Volume survey around M0 for Scholin" " - ctdToUse = ctd1 "
-        ),
+        "comment": ("AUVCTD mission - Volume survey around M0 for Scholin - ctdToUse = ctd1 "),
     }
 for mission_number in [4, 6, 7, 9]:
     dorado_info[f"2007.134.{mission_number:02d}"] = {
@@ -1168,17 +1110,15 @@ dorado_info["2007.142.02"] = {
 }
 dorado_info["2007.143.01"] = {
     "program": AUVCTD,
-    "comment": (
-        "Portaled files exist in archive, but not processed by reprocess_surveys.m"
-    ),
+    "comment": ("Portaled files exist in archive, but not processed by reprocess_surveys.m"),
 }
 dorado_info["2007.144.02"] = {
     "program": BIOLUME,
-    "comment": ("BIOLUME mission" " - ctdToUse = ctd1 "),
+    "comment": ("BIOLUME mission - ctdToUse = ctd1 "),
 }
 dorado_info["2007.149.02"] = {
     "program": BIOLUME,
-    "comment": ("BIOLUME mission" " - ctdToUse = ctd1 "),
+    "comment": ("BIOLUME mission - ctdToUse = ctd1 "),
 }
 dorado_info["2007.171.04"] = {
     "program": BIOLUME,
@@ -1196,25 +1136,19 @@ dorado_info["2007.211.02"] = {
 }
 dorado_info["2007.234.05"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Canyon Axis" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Canyon Axis - ctdToUse = ctd1 "),
 }
 dorado_info["2007.235.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Northern shelf, then cross-bay" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Northern shelf, then cross-bay - ctdToUse = ctd1 "),
 }
 dorado_info["2007.239.03"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Internal wave study near Monterey" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Internal wave study near Monterey - ctdToUse = ctd1 "),
 }
 dorado_info["2007.239.05"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Internal wave study near Monterey" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Internal wave study near Monterey - ctdToUse = ctd1 "),
 }
 dorado_info["2007.247.05"] = {
     "program": OCCO,
@@ -1239,25 +1173,19 @@ dorado_info["2007.249.00"] = {
 }
 dorado_info["2007.253.02"] = {
     "program": OCCO,
-    "comment": ("OCCO mission - Tight box survey about ESP site" " - ctdToUse = ctd1 "),
+    "comment": ("OCCO mission - Tight box survey about ESP site - ctdToUse = ctd1 "),
 }
 dorado_info["2007.254.01"] = {
     "program": OCCO,
-    "comment": ("OCCO mission - Canyon axis survey" " - ctdToUse = ctd1 "),
+    "comment": ("OCCO mission - Canyon axis survey - ctdToUse = ctd1 "),
 }
 dorado_info["2007.255.01"] = {
     "program": OCCO,
-    "comment": (
-        "OCCO mission - Northern shelf and cross-bay chevron survey"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("OCCO mission - Northern shelf and cross-bay chevron survey - ctdToUse = ctd1 "),
 }
 dorado_info["2007.260.00"] = {
     "program": OCCO,
-    "comment": (
-        "OCCO mission - Northern shelf survey about ESP deployments"
-        " - ctdToUse = ctd2 "
-    ),
+    "comment": ("OCCO mission - Northern shelf survey about ESP deployments - ctdToUse = ctd2 "),
 }
 dorado_info["2007.261.00"] = {
     "program": OCCO,
@@ -1270,13 +1198,12 @@ for day, mission_number in [(261, 1), (263, 1)]:
     dorado_info[f"2007.{day:02d}.{mission_number:02d}"] = {
         "program": OCCO,
         "comment": (
-            "OCCO mission - Northern shelf survey about ESP deployments"
-            " - ctdToUse = ctd1 "
+            "OCCO mission - Northern shelf survey about ESP deployments - ctdToUse = ctd1 "
         ),
     }
 dorado_info["2007.264.09"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Kanna control tests around M0" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Kanna control tests around M0 - ctdToUse = ctd1 "),
 }
 for day, mission_number in [
     (267, 4),
@@ -1284,29 +1211,23 @@ for day, mission_number in [
 ]:
     dorado_info[f"2007.{day:02d}.{mission_number:02d}"] = {
         "program": OCCO,
-        "comment": (
-            "OCCO mission - Tight box survey about ESP site" " - ctdToUse = ctd1 "
-        ),
+        "comment": ("OCCO mission - Tight box survey about ESP site - ctdToUse = ctd1 "),
     }
 dorado_info["2007.269.00"] = {
     "program": OCCO,
-    "comment": ("OCCO mission - Last one for Sept 2007" " - ctdToUse = ctd1 "),
+    "comment": ("OCCO mission - Last one for Sept 2007 - ctdToUse = ctd1 "),
 }
 dorado_info["2007.325.16"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Kanna control tests south of M0" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Kanna control tests south of M0 - ctdToUse = ctd1 "),
 }
 dorado_info["2007.330.05"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Bellingham internal waves near MISO" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Bellingham internal waves near MISO - ctdToUse = ctd1 "),
 }
 dorado_info["2007.331.01"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Canyon Axis with Gulper" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Canyon Axis with Gulper - ctdToUse = ctd1 "),
 }
 
 # From: Monique Messié <monique@mbari.org>
@@ -1359,30 +1280,24 @@ for mission_number in [7, 8, 10]:
     }
 dorado_info["2008.107.02"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Canyon axis (after 3 months off)" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Canyon axis (after 3 months off) - ctdToUse = ctd1 "),
 }
 for mission_number in [4, 5]:
     dorado_info[f"2008.133.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("AUVCTD mission - Autonomy TREX mission" " - ctdToUse = ctd1 "),
+        "comment": ("AUVCTD mission - Autonomy TREX mission - ctdToUse = ctd1 "),
     }
 dorado_info["2008.140.00"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Autonomy TREX mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Autonomy TREX mission - ctdToUse = ctd1 "),
 }
 dorado_info["2008.154.01"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan - ESP inner northern shelf" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Ryan - ESP inner northern shelf - ctdToUse = ctd1 "),
 }
 dorado_info["2008.155.01"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan - ESP inner northern shelf" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Ryan - ESP inner northern shelf - ctdToUse = ctd1 "),
 }
 dorado_info["2008.161.02"] = {
     "program": AUVCTD,
@@ -1393,13 +1308,11 @@ dorado_info["2008.161.02"] = {
 }
 dorado_info["2008.168.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan - ESP inner northern shelf" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Ryan - ESP inner northern shelf - ctdToUse = ctd1 "),
 }
 dorado_info["2008.178.01"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Autonomy TREX around M0" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Autonomy TREX around M0 - ctdToUse = ctd1 "),
 }
 for mission_number in [0, 1, 2]:
     dorado_info[f"2008.261.{mission_number:02d}"] = {
@@ -1425,22 +1338,22 @@ dorado_info["2008.281.04"] = {
 }
 dorado_info["2008.287.05"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - North bay shelf survey " " - ctdToUse = ctd2 "),
+    "comment": ("AUVCTD mission - North bay shelf survey  - ctdToUse = ctd2 "),
 }
 for day, mission_number in [(288, 0), (295, 1), (296, 0), (297, 1)]:
     dorado_info[f"2008.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("AUVCTD mission - North bay shelf survey" " - ctdToUse = ctd2 "),
+        "comment": ("AUVCTD mission - North bay shelf survey - ctdToUse = ctd2 "),
     }
 for day, mission_number in [(289, 3), (297, 0)]:
     dorado_info[f"2008.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("AUVCTD mission - North bay shelf survey" " - ctdToUse = ctd1 "),
+        "comment": ("AUVCTD mission - North bay shelf survey - ctdToUse = ctd1 "),
     }
 for day, mission_number in [(315, 1), (318, 1), (318, 2)]:
     dorado_info[f"2008.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("AUVCTD mission - Kanna trex mission" " - ctdToUse = ctd1 "),
+        "comment": ("AUVCTD mission - Kanna trex mission - ctdToUse = ctd1 "),
     }
 
 # ----------------------------- 2009 ---------------------------------------
@@ -1453,22 +1366,15 @@ dorado_info["2009.055.05"] = {
 }
 dorado_info["2009.084.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan short mission, Gulpers fired" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - Ryan short mission, Gulpers fired - ctdToUse = ctd2 "),
 }
 dorado_info["2009.084.02"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan short mission, Gulpers fired" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - Ryan short mission, Gulpers fired - ctdToUse = ctd2 "),
 }
 dorado_info["2009.085.02"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Ryan along north coast across bay overnight"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Ryan along north coast across bay overnight - ctdToUse = ctd1 "),
 }
 dorado_info["2009.111.00"] = {
     "program": AUVCTD,
@@ -1480,41 +1386,31 @@ dorado_info["2009.111.00"] = {
 }
 dorado_info["2009.111.01"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - On N-S line by M0 for ESP deployment" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment - ctdToUse = ctd2 "),
 }
 dorado_info["2009.112.07"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - On N-S line by M0 for ESP deployment" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment - ctdToUse = ctd2 "),
 }
 dorado_info["2009.113.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - On N-S line by M0 for ESP deployment" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment - ctdToUse = ctd2 "),
 }
 dorado_info["2009.113.08"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - On N-S line by M0 for ESP deployment" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - On N-S line by M0 for ESP deployment - ctdToUse = ctd2 "),
 }
 dorado_info["2009.124.03"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Autonomy mission" " - ctdToUse = ctd2 "),
+    "comment": ("AUVCTD mission - Autonomy mission - ctdToUse = ctd2 "),
 }
 dorado_info["2009.125.00"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Canyon transect" " - ctdToUse = ctd2 "),
+    "comment": ("AUVCTD mission - Canyon transect - ctdToUse = ctd2 "),
 }
 dorado_info["2009.126.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Single dive to trip bottles at M1" " - ctdToUse = ctd2 "
-    ),
+    "comment": ("AUVCTD mission - Single dive to trip bottles at M1 - ctdToUse = ctd2 "),
 }
 dorado_info["2009.127.02"] = {
     "program": FAILED,
@@ -1526,24 +1422,22 @@ dorado_info["2009.127.02"] = {
 for day, mission_number in [(152, 0), (153, 0), (153, 1), (154, 0), (155, 3)]:
     dorado_info[f"2009.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("AUVCTD mission - Ryan - around ESP" " - ctdToUse = ctd2 "),
+        "comment": ("AUVCTD mission - Ryan - around ESP - ctdToUse = ctd2 "),
     }
 dorado_info["2009.182.01"] = {
     "program": AUVCTD,
-    "comment": ("UVCTD mission - TREX" " - ctdToUse = ctd2 "),
+    "comment": ("UVCTD mission - TREX - ctdToUse = ctd2 "),
 }
 dorado_info["2009.272.00"] = {
     "program": AUVCTD,
     "comment": (
-        "AUVCTD mission - Yanwu's detection - bottle tripping algorithm"
-        " - ctdToUse = ctd2 "
+        "AUVCTD mission - Yanwu's detection - bottle tripping algorithm - ctdToUse = ctd2 "
     ),
 }
 dorado_info["2009.274.03"] = {
     "program": AUVCTD,
     "comment": (
-        "AUVCTD mission - Yanwu's detection - bottle tripping algorithm"
-        " - ctdToUse = ctd1 "
+        "AUVCTD mission - Yanwu's detection - bottle tripping algorithm - ctdToUse = ctd1 "
     ),
 }
 for mission_number in [1, 2]:
@@ -1556,9 +1450,7 @@ for mission_number in [1, 2]:
     }
 dorado_info["2009.279.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "AUVCTD mission - Truncated section for some reason..." " - ctdToUse = ctd1 "
-    ),
+    "comment": ("AUVCTD mission - Truncated section for some reason... - ctdToUse = ctd1 "),
 }
 dorado_info["2009.280.00"] = {
     "program": AUVCTD,
@@ -1569,13 +1461,13 @@ dorado_info["2009.280.00"] = {
 }
 dorado_info["2009.281.01"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - " " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission -  - ctdToUse = ctd1 "),
 }
 dorado_info["2009.308.04"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Kanna mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Kanna mission - ctdToUse = ctd1 "),
 }
-for mission_number in range(0, 4):
+for mission_number in range(4):
     dorado_info[f"2009.309.{mission_number:02d}"] = {
         "program": AUVCTD,
         "comment": (
@@ -1585,15 +1477,15 @@ for mission_number in range(0, 4):
     }
 dorado_info["2009.313.02"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Kanna mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Kanna mission - ctdToUse = ctd1 "),
 }
 dorado_info["2009.342.04"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Kanna mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Kanna mission - ctdToUse = ctd1 "),
 }
 dorado_info["2009.348.05"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Kanna mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Kanna mission - ctdToUse = ctd1 "),
 }
 
 # ----------------------------- 2010 ---------------------------------------
@@ -1607,7 +1499,7 @@ dorado_info["2010.081.02"] = {
 }
 dorado_info["2010.082.02"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Autonomy mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Autonomy mission - ctdToUse = ctd1 "),
 }
 dorado_info["2010.083.03"] = {
     "program": AUVCTD,
@@ -1625,11 +1517,11 @@ dorado_info["2010.083.08"] = {
 }
 dorado_info["2010.118.00"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Ryan mission" " - ctdToUse = ctd2 "),
+    "comment": ("AUVCTD mission - Ryan mission - ctdToUse = ctd2 "),
 }
 dorado_info["2010.119.01"] = {
     "program": AUVCTD,
-    "comment": ("AUVCTD mission - Ryan mission" " - ctdToUse = ctd1 "),
+    "comment": ("AUVCTD mission - Ryan mission - ctdToUse = ctd1 "),
 }
 dorado_info["2010.151.04"] = {
     "program": AUVCTD,
@@ -1723,10 +1615,7 @@ for day, mission_number in [
     }
 dorado_info["2010.265.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "Cross-bay survey in preparation for BloomEx in October 2010"
-        " - ctdToUse = ctd2 "
-    ),
+    "comment": ("Cross-bay survey in preparation for BloomEx in October 2010 - ctdToUse = ctd2 "),
 }
 dorado_info["2010.277.01"] = {
     "program": AUVCTD,
@@ -1754,8 +1643,7 @@ dorado_info["2010.279.02"] = {
 dorado_info["2010.280.01"] = {
     "program": AUVCTD,
     "comment": (
-        "Inner-bay survey fourth day-time one for BloomEx in October 2010"
-        " - ctdToUse = ctd1 "
+        "Inner-bay survey fourth day-time one for BloomEx in October 2010 - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2010.284.00"] = {
@@ -1782,33 +1670,26 @@ for mission_number in [1, 2]:
     }
 dorado_info["2010.287.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "Inner-bay survey eigth - Lap around LatMix array" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Inner-bay survey eigth - Lap around LatMix array - ctdToUse = ctd1 "),
 }
 dorado_info["2010.291.00"] = {
     "program": AUVCTD,
-    "comment": (
-        "Inner-bay survey ninth - Overnight after the bay was flushed"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Inner-bay survey ninth - Overnight after the bay was flushed - ctdToUse = ctd1 "),
 }
 dorado_info["2010.292.01"] = {
     "program": AUVCTD,
-    "comment": ("Inner-bay survey tenth - Overnight" " - ctdToUse = ctd1 "),
+    "comment": ("Inner-bay survey tenth - Overnight - ctdToUse = ctd1 "),
 }
 dorado_info["2010.293.00"] = {
     "program": AUVCTD,
     "comment": (
-        "Inner-bay survey eleveth - Overnight TREX mission following CHL_PATCH"
-        " - ctdToUse = ctd1 "
+        "Inner-bay survey eleveth - Overnight TREX mission following CHL_PATCH - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2010.294.01"] = {
     "program": AUVCTD,
     "comment": (
-        "Inner-bay survey twelfth - Daytime short misison around LatMix"
-        " - ctdToUse = ctd1 "
+        "Inner-bay survey twelfth - Daytime short misison around LatMix - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2010.298.01"] = {
@@ -1834,12 +1715,12 @@ dorado_info["2010.300.00"] = {
 }
 dorado_info["2010.301.00"] = {
     "program": AUVCTD,
-    "comment": ("Inner-bay survey fifteenth - Daytime run" " - ctdToUse = ctd1 "),
+    "comment": ("Inner-bay survey fifteenth - Daytime run - ctdToUse = ctd1 "),
 }
 for day, mission_number in [(340, 0), (340, 1), (341, 0), (341, 1)]:
     dorado_info[f"2010.{day:02d}.{mission_number:02d}"] = {
         "program": AUVCTD,
-        "comment": ("Out and back from M1" " - ctdToUse = ctd1 "),
+        "comment": ("Out and back from M1 - ctdToUse = ctd1 "),
     }
 dorado_info["2010.342.04"] = {
     "program": AUVCTD,
@@ -1873,9 +1754,7 @@ dorado_info["2011.062.05"] = {
 }
 dorado_info["2011.074.02"] = {
     "program": AUVCTD,
-    "comment": (
-        "Cross-bay Gulper mission for Vrijenhouk Lab - John Ryan" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Cross-bay Gulper mission for Vrijenhouk Lab - John Ryan - ctdToUse = ctd1 "),
 }
 dorado_info["2011.110.12"] = {
     "program": AUVCTD,
@@ -1981,37 +1860,30 @@ dorado_info["2011.172.00"] = {
 dorado_info["2011.249.00"] = {
     "program": f"{CANONSEP2011}",
     "comment": (
-        "TREX mission - first of Sept 2011 CANON aborted due to software"
-        " - ctdToUse = ctd1 "
+        "TREX mission - first of Sept 2011 CANON aborted due to software - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2011.250.01"] = {
     "program": f"{CANONSEP2011}",
     "comment": (
-        "TREX mission - M0 around M1 corner then out to upwelling region"
-        " - ctdToUse = ctd2 "
+        "TREX mission - M0 around M1 corner then out to upwelling region - ctdToUse = ctd2 "
     ),
 }
 dorado_info["2011.255.00"] = {
     "program": f"{CANONSEP2011}",
-    "comment": (
-        "TREX mission - Following SIO_WWL_1 for September 2011 CANON"
-        " - ctdToUse = ctd2 "
-    ),
+    "comment": ("TREX mission - Following SIO_WWL_1 for September 2011 CANON - ctdToUse = ctd2 "),
 }
 for mission_num in [2, 3]:
     dorado_info[f"2011.256.{mission_num:02}"] = {
         "program": f"{CANONSEP2011}",
         "comment": (
-            "TREX mission - Following SIO_WWL_1 for September 2011 CANON"
-            " - ctdToUse = ctd1 "
+            "TREX mission - Following SIO_WWL_1 for September 2011 CANON - ctdToUse = ctd1 "
         ),
     }
 dorado_info["2011.257.00"] = {
     "program": f"{CANONSEP2011}",
     "comment": (
-        "TREX mission - Following Lagrangian mission - no upwelling yet"
-        " - ctdToUse = ctd1 "
+        "TREX mission - Following Lagrangian mission - no upwelling yet - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2011.262.00"] = {
@@ -2037,15 +1909,11 @@ dorado_info["2011.264.00"] = {
 }
 dorado_info["2011.285.01"] = {
     "program": f"{CANONSEP2011}",
-    "comment": (
-        "TREX mission - Maria Fox's algorithm in Monterey Bay" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("TREX mission - Maria Fox's algorithm in Monterey Bay - ctdToUse = ctd1 "),
 }
 dorado_info["2011.286.00"] = {
     "program": f"{CANONSEP2011}",
-    "comment": (
-        "TREX mission - Maria Fox's algorithm in Monterey Bay" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("TREX mission - Maria Fox's algorithm in Monterey Bay - ctdToUse = ctd1 "),
 }
 # ----------------------------- 2012 ---------------------------------------
 
@@ -2053,14 +1921,13 @@ for day, mission_num in [(142, 1), (142, 2), (143, 7), (143, 8)]:
     dorado_info[f"2012.{day:03}.{mission_num:02}"] = {
         "program": f"{AUVCTD}",
         "comment": (
-            "TREX missions - Initial engineering test from Yanwu & Frederic"
-            " - ctdToUse = ctd1 "
+            "TREX missions - Initial engineering test from Yanwu & Frederic - ctdToUse = ctd1 "
         ),
     }
 for day, mission_num in [(150, 0), (151, 0), (152, 0), (157, 7), (158, 0)]:
     dorado_info[f"2012.{day:03}.{mission_num:02}"] = {
         "program": f"{CANONMAY2012}",
-        "comment": ("For CANON May 2012 - yoyo along 36.9N" " - ctdToUse = ctd2 "),
+        "comment": ("For CANON May 2012 - yoyo along 36.9N - ctdToUse = ctd2 "),
     }
 dorado_info["2012.256.00"] = {
     "program": f"{CANONSEP2012}",
@@ -2071,7 +1938,7 @@ dorado_info["2012.256.00"] = {
 }
 dorado_info["2012.257.01"] = {
     "program": f"{CANONSEP2012}",
-    "comment": ("CANON September 2012 - laps around ESP drifter" " - ctdToUse = ctd1 "),
+    "comment": ("CANON September 2012 - laps around ESP drifter - ctdToUse = ctd1 "),
 }
 dorado_info["2012.258.00"] = {
     "program": f"{CANONSEP2012}",
@@ -2089,19 +1956,18 @@ dorado_info["2012.268.07"] = {
 }
 dorado_info["2012.269.00"] = {
     "program": f"{CANONSEP2012}",
-    "comment": ("CANON September 2012 - Distributed Autonomy" " - ctdToUse = ctd1 "),
+    "comment": ("CANON September 2012 - Distributed Autonomy - ctdToUse = ctd1 "),
 }
 dorado_info["2012.270.04"] = {
     "program": f"{CANONSEP2012}",
-    "comment": ("CANON September 2012 - Distributed Autonomy" " - ctdToUse = ctd1 "),
+    "comment": ("CANON September 2012 - Distributed Autonomy - ctdToUse = ctd1 "),
 }
 
 # ----------------------------- 2013 ---------------------------------------
 dorado_info["2013.074.02"] = {
     "program": f"{CANONMAR2013}",
     "comment": (
-        "ECOHAB - CANON March 2013 - outbound mission, Gulpers did not fire"
-        " - ctdToUse = ctd1 "
+        "ECOHAB - CANON March 2013 - outbound mission, Gulpers did not fire - ctdToUse = ctd1 "
     ),
 }
 for mission_num in [5, 6]:
@@ -2129,17 +1995,11 @@ dorado_info["2013.079.00"] = {
 }
 dorado_info["2013.079.04"] = {
     "program": f"{CANONMAR2013}",
-    "comment": (
-        "ECOHAB - CANON March 2013 - Outbound mission, 7 Gulpers fired"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("ECOHAB - CANON March 2013 - Outbound mission, 7 Gulpers fired - ctdToUse = ctd1 "),
 }
 dorado_info["2013.080.02"] = {
     "program": f"{CANONMAR2013}",
-    "comment": (
-        "ECOHAB - CANON March 2013 - Outbound mission, 9 Gulpers fired"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("ECOHAB - CANON March 2013 - Outbound mission, 9 Gulpers fired - ctdToUse = ctd1 "),
 }
 dorado_info["2013.081.05"] = {
     "program": f"{CANONMAR2013}",
@@ -2168,16 +2028,14 @@ for day, mission_num in [
     dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZAUG2013}",
         "comment": (
-            "SIMZ Molecular Ecology - August 2013 - North Monterey Bay "
-            " - ctdToUse = ctd1 "
+            "SIMZ Molecular Ecology - August 2013 - North Monterey Bay  - ctdToUse = ctd1 "
         ),
     }
 for day, mission_num in [(228, 0)]:
     dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZAUG2013}",
         "comment": (
-            "SIMZ Molecular Ecology - August 2013 - North Monterey Bay "
-            " - ctdToUse = ctd2 "
+            "SIMZ Molecular Ecology - August 2013 - North Monterey Bay  - ctdToUse = ctd2 "
         ),
     }
 for day, mission_num in [
@@ -2197,14 +2055,12 @@ for day, mission_num in [
 ]:
     dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
         "program": f"{CANONSEP2013}",
-        "comment": ("CANON September 2013 in Monterey Bay " " - ctdToUse = ctd1 "),
+        "comment": ("CANON September 2013 in Monterey Bay  - ctdToUse = ctd1 "),
     }
 for day, mission_num in [(282, 0), (283, 0), (287, 0), (287, 1), (287, 2), (290, 0)]:
     dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
         "program": f"{AUVCTD}",
-        "comment": (
-            "Autonomy group's short missions in Soquel Bight" " - ctdToUse = ctd1 "
-        ),
+        "comment": ("Autonomy group's short missions in Soquel Bight - ctdToUse = ctd1 "),
     }
 for day, mission_num in [
     (295, 0),
@@ -2221,13 +2077,13 @@ for day, mission_num in [
 ]:
     dorado_info[f"2013.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZOCT2013}",
-        "comment": ("SIMZ October 2013 in Soquel Bight" " - ctdToUse = ctd1 "),
+        "comment": ("SIMZ October 2013 in Soquel Bight - ctdToUse = ctd1 "),
     }
 # ----------------------------- 2014 ---------------------------------------
 for day, mission_num in [(50, 0), (50, 1), (71, 1), (71, 2), (72, 0), (72, 1)]:
     dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZSPRING2014}",
-        "comment": ("SIMZ Spring 2014 in Soquel Bight" " - ctdToUse = ctd1 "),
+        "comment": ("SIMZ Spring 2014 in Soquel Bight - ctdToUse = ctd1 "),
     }
 for day, mission_num in [
     (102, 0),
@@ -2242,17 +2098,17 @@ for day, mission_num in [
 ]:
     dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
         "program": f"{CANONAPR2014}",
-        "comment": ("San Pedro Bay CANON-ECOHAB" " - ctdToUse = ctd1 "),
+        "comment": ("San Pedro Bay CANON-ECOHAB - ctdToUse = ctd1 "),
     }
 for day, mission_num in [(211, 2), (212, 0)]:
     dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZJUL2014}",
-        "comment": ("SIMZ Summer 2014 in Bodega Bay" " - ctdToUse = ctd1 "),
+        "comment": ("SIMZ Summer 2014 in Bodega Bay - ctdToUse = ctd1 "),
     }
 for day, mission_num in [(210, 1), (210, 2), (211, 3)]:
     dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZJUL2014}",
-        "comment": ("SIMZ Summer 2014 in Bodega Bay" " - ctdToUse = ctd2 "),
+        "comment": ("SIMZ Summer 2014 in Bodega Bay - ctdToUse = ctd2 "),
     }
 for day, mission_num in [
     (265, 3),
@@ -2276,43 +2132,34 @@ for day, mission_num in [
 for day, mission_num in [(289, 4), (290, 0), (293, 0), (294, 0)]:
     dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZOCT2014}",
-        "comment": (
-            "SIMZ October 2014 Northern Monterey Bay gulper missions"
-            " - ctdToUse = ctd1 "
-        ),
+        "comment": ("SIMZ October 2014 Northern Monterey Bay gulper missions - ctdToUse = ctd1 "),
     }
 for day, mission_num in [(295, 0)]:
     dorado_info[f"2014.{day:03}.{mission_num:02}"] = {
         "program": f"{SIMZOCT2014}",
-        "comment": (
-            "SIMZ October 2014 Northern Monterey Bay gulper missions"
-            " - ctdToUse = ctd2 "
-        ),
+        "comment": ("SIMZ October 2014 Northern Monterey Bay gulper missions - ctdToUse = ctd2 "),
     }
 
 # ----------------------------- 2015 ---------------------------------------
 for day, mission_num in [(132, 4), (148, 1), (156, 0)]:
     dorado_info[f"2015.{day:03}.{mission_num:02}"] = {
         "program": f"{CANONMAY2015}",
-        "comment": ("CANON-ECOHAB Spring 2015" " - ctdToUse = ctd1 "),
+        "comment": ("CANON-ECOHAB Spring 2015 - ctdToUse = ctd1 "),
     }
 for day, mission_num in [(265, 3), (267, 1), (285, 0), (286, 0), (287, 0)]:
     dorado_info[f"2015.{day:03}.{mission_num:02}"] = {
         "program": f"{CANONSEP2015}",
-        "comment": ("CANON September 2015" " - ctdToUse = ctd1 "),
+        "comment": ("CANON September 2015 - ctdToUse = ctd1 "),
     }
 
 # ----------------------------- 2016 ---------------------------------------
 dorado_info["2016.090.01"] = {
     "program": f"{CANONOS2016}",
-    "comment": ("Mini CANON - 20 gulper fires C1 to M1" " - ctdToUse = ctd1 "),
+    "comment": ("Mini CANON - 20 gulper fires C1 to M1 - ctdToUse = ctd1 "),
 }
 dorado_info["2016.161.00"] = {
     "program": DIAMOND,
-    "comment": (
-        "Mini CANON - 1/4 mission completed: diamond between C1 and M1"
-        " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Mini CANON - 1/4 mission completed: diamond between C1 and M1 - ctdToUse = ctd1 "),
 }
 dorado_info["2016.179.01"] = {
     "program": DIAMOND,
@@ -2323,13 +2170,11 @@ dorado_info["2016.179.01"] = {
 }
 dorado_info["2016.181.00"] = {
     "program": DIAMOND,
-    "comment": ("QC notes: Best CTD is ctd1" " - ctdToUse = ctd1 "),
+    "comment": ("QC notes: Best CTD is ctd1 - ctdToUse = ctd1 "),
 }
 dorado_info["2016.270.00"] = {
     "program": f"{CANONSEP2016} {DIAMOND}",
-    "comment": (
-        "CANON" " QC notes: Best CTD is ctd1, no HS2 data" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("CANON QC notes: Best CTD is ctd1, no HS2 data - ctdToUse = ctd1 "),
 }
 dorado_info["2016.307.00"] = {
     "program": DIAMOND,
@@ -2342,9 +2187,7 @@ dorado_info["2016.307.00"] = {
 dorado_info["2016.348.00"] = {
     "program": DIAMOND,
     "comment": (
-        "Around-the-bay overnight tow-out mission"
-        " QC notes: Best CTD is ctd1"
-        " - ctdToUse = ctd1 "
+        "Around-the-bay overnight tow-out mission QC notes: Best CTD is ctd1 - ctdToUse = ctd1 "
     ),
 }
 
@@ -2360,9 +2203,7 @@ dorado_info["2017.044.00"] = {
 dorado_info["2017.068.00"] = {
     "program": DIAMOND,
     "comment": (
-        "Around-the-bay overnight tow-out mission"
-        " QC notes: Best CTD is ctd1"
-        " - ctdToUse = ctd1 "
+        "Around-the-bay overnight tow-out mission QC notes: Best CTD is ctd1 - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2017.108.01"] = {
@@ -2507,15 +2348,11 @@ dorado_info["2018.156.00"] = {
 }
 dorado_info["2018.164.00"] = {
     "program": f"{CANONMAY2018}",
-    "comment": (
-        "Criss-cross pattern in Monterey Bay for CANON May 2018" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Criss-cross pattern in Monterey Bay for CANON May 2018 - ctdToUse = ctd1 "),
 }
 dorado_info["2018.170.00"] = {
     "program": f"{CANONMAY2018}",
-    "comment": (
-        "Criss-cross pattern in Monterey Bay for CANON May 2018" " - ctdToUse = ctd1 "
-    ),
+    "comment": ("Criss-cross pattern in Monterey Bay for CANON May 2018 - ctdToUse = ctd1 "),
 }
 dorado_info["2018.191.00"] = {
     "program": f"{CANONMAY2018} {DIAMOND}",
@@ -2643,9 +2480,7 @@ dorado_info["2019.351.00"] = {
 dorado_info["2020.006.06"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "Monterey Bay Diamond Mission - aMBTS2001"
-        " QC note: Best CTD is ctd1"
-        " - ctdToUse = ctd1 "
+        "Monterey Bay Diamond Mission - aMBTS2001 QC note: Best CTD is ctd1 - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2020.035.00"] = {
@@ -2659,9 +2494,7 @@ dorado_info["2020.035.00"] = {
 dorado_info["2020.064.10"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "Monterey Bay Diamond Mission - aMBTS2003"
-        " QC note: Best CTD is ctd1"
-        " - ctdToUse = ctd1 "
+        "Monterey Bay Diamond Mission - aMBTS2003 QC note: Best CTD is ctd1 - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2020.218.03"] = {
@@ -2682,7 +2515,7 @@ dorado_info["2020.231.01"] = {
 }
 dorado_info["2020.233.14"] = {
     "program": f"{AUVCTD}",
-    "comment": ("Overnight compass evaluation mission" " - ctdToUse = ctd1 "),
+    "comment": ("Overnight compass evaluation mission - ctdToUse = ctd1 "),
 }
 dorado_info["2020.245.00"] = {
     "program": f"{DIAMOND}",
@@ -2705,9 +2538,7 @@ dorado_info["2020.246.01"] = {
 dorado_info["2020.282.01"] = {
     "program": f"{CANONOCT2020} {DIAMOND}",
     "comment": (
-        "Monterey Bay Diamond Mission - 28220G"
-        " QC note: Best CTD is ctd2"
-        " - ctdToUse = ctd1 "
+        "Monterey Bay Diamond Mission - 28220G QC note: Best CTD is ctd2 - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2020.286.00"] = {
@@ -2857,31 +2688,31 @@ dorado_info["2021.334.00"] = {
 # ----------------------------- 2022 ---------------------------------------
 dorado_info["2022.006.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 00622G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 00622G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.054.01"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 05422G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 05422G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.075.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 07522G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 07522G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.110.13"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 11022G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 11022G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.138.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 13822G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 13822G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.158.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 15822G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 15822G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.201.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 20122G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 20122G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.243.00"] = {
     "program": f"{DIAMOND}",
@@ -2906,25 +2737,25 @@ dorado_info["2022.286.01"] = {
 }
 dorado_info["2022.313.01"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 31322G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 31322G - ctdToUse = ctd1 "),
 }
 dorado_info["2022.348.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 34822G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 34822G - ctdToUse = ctd1 "),
 }
 
 # ----------------------------- 2023 ---------------------------------------
 dorado_info["2023.018.03"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 01823G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 01823G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.046.06"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 04623G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 04623G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.123.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 12323G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 12323G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.132.02"] = {
     # On May 12, 2023, at 1:01 PM, Erik Trauschke <etrauschke@mbari.org> wrote:
@@ -2936,13 +2767,11 @@ dorado_info["2023.132.02"] = {
     # Thanks
     # Erik
     "program": TEST,
-    "comment": (
-        "Test by Erik Trauschke of new config files - see email from Erik on 2023-05-12"
-    ),
+    "comment": ("Test by Erik Trauschke of new config files - see email from Erik on 2023-05-12"),
 }
 dorado_info["2023.159.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 15923G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 15923G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.192.01"] = {
     "program": f"{DIAMOND}",
@@ -2954,26 +2783,24 @@ dorado_info["2023.192.01"] = {
 }
 dorado_info["2023.254.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 25423G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 25423G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.285.01"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 28523G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 28523G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.324.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 32423G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 32423G - ctdToUse = ctd1 "),
 }
 dorado_info["2023.346.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 34623G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 34623G - ctdToUse = ctd1 "),
 }
 dorado_info["2024.023.00"] = {
     "program": f"{DIAMOND}",
     "comment": (
-        "Monterey Bay Diamond Mission - 02324G"
-        " ISUS instrument back on board"
-        " - ctdToUse = ctd1 "
+        "Monterey Bay Diamond Mission - 02324G ISUS instrument back on board - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2024.046.00"] = {
@@ -3002,60 +2829,78 @@ dorado_info["2024.107.02"] = {
 }
 dorado_info["2024.144.05"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 14424G" " - ctdToUse = ctd1 "),
+    "comment": ("Monterey Bay Diamond Mission - 14424G - ctdToUse = ctd1 "),
 }
 dorado_info["2024.170.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 17024G" 
-                " The UBAT is still reporting 0 flow but collecting good data. The LISST is still deactivated. "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 17024G"
+        " The UBAT is still reporting 0 flow but collecting good data. The LISST is still deactivated. "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2024.205.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 20524G" 
-                " Biolume and LISST payloads removed, noticed the AUV has a slight roll/list post the reballast. "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 20524G"
+        " Biolume and LISST payloads removed, noticed the AUV has a slight roll/list post the reballast. "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2024.226.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 22624G"
-                " Biolume, ISUS, and LISST payloads removed, speed test done on last yoyo, decreased from 1.5 to 1.4 m/s. "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 22624G"
+        " Biolume, ISUS, and LISST payloads removed, speed test done on last yoyo, decreased from 1.5 to 1.4 m/s. "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2024.255.01"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 25524G"
-                " Biolume, ISUS, and LISST payloads removed "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 25524G"
+        " Biolume, ISUS, and LISST payloads removed "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2024.303.00"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 30324G"
-                " Biolume, ISUS, and LISST payloads removed "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 30324G"
+        " Biolume, ISUS, and LISST payloads removed "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2024.317.01"] = {
     "program": f"{DIAMOND}",
-    "comment": ("Monterey Bay Diamond Mission - 31724G"
-                " Biolume, ISUS, and LISST payloads removed "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay Diamond Mission - 31724G"
+        " Biolume, ISUS, and LISST payloads removed "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2024.351.00"] = {
     "program": f"{MBTSLINE}",
-    "comment": ("Monterey Bay MBTS Mission - 35124G"
-                " Biolume, ISUS, and LISST payloads removed, "
-                " Stations C1->M1->M2 and back. Gulper #7 did not fire. "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay MBTS Mission - 35124G"
+        " Biolume, ISUS, and LISST payloads removed, "
+        " Stations C1->M1->M2 and back. Gulper #7 did not fire. "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2025.008.00"] = {
     "program": f"{MBTSLINE}",
-    "comment": ("Monterey Bay MBTS Mission - 00825G"
-                " Biolume, ISUS, and LISST payloads removed "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay MBTS Mission - 00825G"
+        " Biolume, ISUS, and LISST payloads removed "
+        " - ctdToUse = ctd1 "
+    ),
 }
 dorado_info["2025.036.00"] = {
     "program": f"{MBTSLINE}",
-    "comment": ("Monterey Bay MBTS Mission - 00365G"
-                " Biolume, ISUS, and LISST payloads removed "
-                " - ctdToUse = ctd1 "),
+    "comment": (
+        "Monterey Bay MBTS Mission - 00365G"
+        " Biolume, ISUS, and LISST payloads removed "
+        " - ctdToUse = ctd1 "
+    ),
 }

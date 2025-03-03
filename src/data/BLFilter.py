@@ -22,7 +22,6 @@ logger = logging.getLogger("pybl")
 
 class Filter:
     def __init__(self, window_size, target_record_size=60):
-
         self.window_size = window_size  # rolling filter window size
         self.target_record_size = target_record_size  # target size of filtered record
 
@@ -67,15 +66,13 @@ class Filter:
         # determine appropriate window type: default to a fixed size window, but use a variable
         # window if sample size is insufficient
         window_type = (
-            "fixed"
-            if (N - self.target_record_size >= self.window_size - 1)
-            else "variable"
+            "fixed" if (N - self.target_record_size >= self.window_size - 1) else "variable"
         )
         # logger.info('Applying a {} {} dp {} filter to data with {} dp.'.format(window_type, self.window_size,
         #                                                                        filt_func.__name__, len(data)))
         # apply the filter!
         filt_ = list(
-            filt_func(data, window_size=self.window_size, window_type=window_type)
+            filt_func(data, window_size=self.window_size, window_type=window_type),
         )
         # extract the filtered data that's relevant to the current record and return
         return self.extract_filtered_data(filt_, window_type)
@@ -93,7 +90,7 @@ class Filter:
         N = len(filt_data)  # actual size of filtered record
         win_size = self.window_size
 
-        if window_type == "fixed" or (window_type == "variable" and N < win_size):
+        if window_type == "fixed" or (window_type == "variable" and win_size > N):
             ret_val = filt_data[-n:]
         else:
             ret_val = filt_data[1 - n - win_size : 1 - win_size]

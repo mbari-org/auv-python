@@ -106,7 +106,7 @@ class CreateProducts:
                     self.args.mission.split(".")[0],
                     "netcdf",
                     f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
-                )
+                ),
             )
 
     def _grid_dims(self) -> tuple:
@@ -145,7 +145,8 @@ class CreateProducts:
             self.ds.cf["latitude"].values[::n_subsample],
         )
         x, y = pyproj.Proj(proj="utm", zone=utm_zone, ellps="WGS84")(
-            lon_sub_intrp, lat_sub_intrp
+            lon_sub_intrp,
+            lat_sub_intrp,
         )
         dx = np.insert(np.diff(x - x[0]), 0, 0)
         dy = np.insert(np.diff(y - y[0]), 0, 0)
@@ -169,14 +170,16 @@ class CreateProducts:
         iz = np.arange(2.0, self.ds.cf["depth"].max(), 0.5)
         if not iz.any():
             self.logger.warning(
-                "Gridding vertical for a surface only mission: {self.ds.cf['depth'].max() =}"
+                "Gridding vertical for a surface only mission: {self.ds.cf['depth'].max() =}",
             )
             iz = np.arange(0, self.ds.cf["depth"].max(), 0.05)
 
         return idist, iz, distnav
 
     def _profile_bottoms(
-        self, distnav: xr.DataArray, window_frac: float = 0.01
+        self,
+        distnav: xr.DataArray,
+        window_frac: float = 0.01,
     ) -> np.array:
         """Return array of distance and depth points defining the bottom of the profiles
         where there is no data"""
@@ -189,7 +192,7 @@ class CreateProducts:
         )
         # Set rolling window to fraction of the total distance of the mission
         window = int(len(distnav) * window_frac)
-        bot_depths = depth_dist.rolling(**{"dist": window}).max()
+        bot_depths = depth_dist.rolling(dist=window).max()
 
         return bot_depths
 
@@ -222,7 +225,8 @@ class CreateProducts:
         color_map_name = "cividis"
         try:
             color_map_name = self.cmocean_lookup.get(
-                self.ds[var].attrs["standard_name"], "cividis"
+                self.ds[var].attrs["standard_name"],
+                "cividis",
             )
         except KeyError:
             pass
@@ -235,11 +239,12 @@ class CreateProducts:
         v2_5 = np.percentile(var_to_plot[~np.isnan(var_to_plot)], 2.5)
         v97_5 = np.percentile(var_to_plot[~np.isnan(var_to_plot)], 97.5)
         norm = matplotlib.colors.BoundaryNorm(
-            np.linspace(v2_5, v97_5, num_colors), num_colors
+            np.linspace(v2_5, v97_5, num_colors),
+            num_colors,
         )
 
         self.logger.info(
-            f"{var} using {color_map_name} cmap with ranges {v2_5:.1f} {v97_5:.1f}"
+            f"{var} using {color_map_name} cmap with ranges {v2_5:.1f} {v97_5:.1f}",
         )
         ax[row, col].set_ylim(max(iz), min(iz))
         cntrf = ax[row, col].contourf(
@@ -352,12 +357,11 @@ class CreateProducts:
             os.path.join(
                 images_dir,
                 f"{self.args.auv_name}_{self.args.mission}_{FREQ}_2column.png",
-            )
+            ),
         )
 
     def plot_biolume(self) -> str:
         "Create biolume plot"
-        pass
 
     def _get_best_ctd(self) -> str:
         """Determine best CTD to use for ODV lookup table based on metadata"""
@@ -395,7 +399,10 @@ class CreateProducts:
             self.logger.info(f"No gulper times found for {self.args.mission}")
             return
         odv_dir = os.path.join(
-            BASE_PATH, self.args.auv_name, MISSIONODVS, self.args.mission
+            BASE_PATH,
+            self.args.auv_name,
+            MISSIONODVS,
+            self.args.mission,
         )
         Path(odv_dir).mkdir(parents=True, exist_ok=True)
         gulper_odv_filename = os.path.join(
@@ -420,42 +427,42 @@ class CreateProducts:
                     time=slice(
                         datetime.utcfromtimestamp(esec - sec_bnds),
                         datetime.utcfromtimestamp(esec + sec_bnds),
-                    )
+                    ),
                 )
                 for count, name in enumerate(odv_column_names):
                     if name == "Cruise":
                         f.write(f"{self.args.auv_name}_{self.args.mission}_{FREQ}")
                     elif name == "Station":
-                        f.write(f'{int(gulper_data["profile_number"].values.mean()):d}')
+                        f.write(f"{int(gulper_data['profile_number'].values.mean()):d}")
                     elif name == "Type":
                         f.write("B")
                     elif name == "mon/day/yr":
                         f.write(
-                            f'{gulper_data.cf["T"][0].dt.month.values:02d}/'
-                            f'{gulper_data.cf["T"][0].dt.day.values:02d}/'
-                            f'{gulper_data.cf["T"][0].dt.year.values}'
+                            f"{gulper_data.cf['T'][0].dt.month.values:02d}/"
+                            f"{gulper_data.cf['T'][0].dt.day.values:02d}/"
+                            f"{gulper_data.cf['T'][0].dt.year.values}",
                         )
                     elif name == "hh:mm":
                         f.write(
-                            f'{gulper_data.cf["T"][0].dt.hour.values:02d}:'
-                            f'{gulper_data.cf["T"][0].dt.minute.values:02d}'
+                            f"{gulper_data.cf['T'][0].dt.hour.values:02d}:"
+                            f"{gulper_data.cf['T'][0].dt.minute.values:02d}",
                         )
                     elif name == "Lon (degrees_east)":
                         f.write(
-                            f'{gulper_data.cf["longitude"].values.mean() + 360.0:9.5f}'
+                            f"{gulper_data.cf['longitude'].values.mean() + 360.0:9.5f}",
                         )
                     elif name == "Lat (degrees_north)":
-                        f.write(f'{gulper_data.cf["latitude"].values.mean():8.5f}')
+                        f.write(f"{gulper_data.cf['latitude'].values.mean():8.5f}")
                     elif name == "Bot. Depth [m]":
                         f.write(
-                            f"{float(1000):8.1f}"
+                            f"{float(1000):8.1f}",
                         )  # TODO: add proper bottom depth values
                     elif name == "Bottle Number [count]":
                         f.write(f"{bottle}")
                     elif name == "QF":
                         f.write("0")  # TODO: add proper quality flag values
                     elif name == "DEPTH [m]":
-                        f.write(f'{gulper_data.cf["depth"].values.mean():6.2f}')
+                        f.write(f"{gulper_data.cf['depth'].values.mean():6.2f}")
                     elif name == "TEMPERATURE [°C]":
                         temp = gulper_data[f"{best_ctd}_temperature"].values.mean()
                         f.write(f"{temp:5.2f}")
@@ -463,7 +470,7 @@ class CreateProducts:
                         sal = gulper_data[f"{best_ctd}_salinity"].values.mean()
                         f.write(f"{sal:6.3f}")
                     elif name == "Oxygen [ml/l]":
-                        f.write(f'{gulper_data["ctd1_oxygen_mll"].values.mean():5.3f}')
+                        f.write(f"{gulper_data['ctd1_oxygen_mll'].values.mean():5.3f}")
                     elif name == "NITRATE [µmol/kg]":
                         if "isus_nitrate" in gulper_data:
                             no3 = gulper_data["isus_nitrate"].dropna(dim="time").values
@@ -475,43 +482,43 @@ class CreateProducts:
                             f.write("NaN")
                     elif name == "ChlFluor [raw]":
                         if "hs2_fl700" in gulper_data:
-                            f.write(f'{gulper_data["hs2_fl700"].values.mean():11.8f}')
+                            f.write(f"{gulper_data['hs2_fl700'].values.mean():11.8f}")
                         elif "hs2_fl676" in gulper_data:
-                            f.write(f'{gulper_data["hs2_fl676"].values.mean():.8f}')
+                            f.write(f"{gulper_data['hs2_fl676'].values.mean():.8f}")
                         else:
                             f.write("NaN")
                     elif name == "bbp420 [m^{-1}]":
                         if "hs2_bb420" in gulper_data:
-                            f.write(f'{gulper_data["hs2_bb420"].values.mean():8.7f}')
+                            f.write(f"{gulper_data['hs2_bb420'].values.mean():8.7f}")
                         else:
                             f.write("NaN")
                     elif name == "bbp470 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb470"].values.mean():8.7f}')
+                        f.write(f"{gulper_data['hs2_bb470'].values.mean():8.7f}")
                     elif name == "bbp700 [m^{-1}]":
                         if "hs2_bb700" in gulper_data:
-                            f.write(f'{gulper_data["hs2_bb700"].values.mean():8.7f}')
+                            f.write(f"{gulper_data['hs2_bb700'].values.mean():8.7f}")
                         else:
                             f.write("NaN")
                     elif name == "bbp676 [m^{-1}]":
-                        f.write(f'{gulper_data["hs2_bb676"].values.mean():8.7f}')
+                        f.write(f"{gulper_data['hs2_bb676'].values.mean():8.7f}")
                     elif name == "PAR [V]":
                         if "ctd2_par" in gulper_data:
-                            f.write(f'{gulper_data["ctd2_par"].values.mean():6.3f}')
+                            f.write(f"{gulper_data['ctd2_par'].values.mean():6.3f}")
                         else:
                             f.write("NaN")
                     elif name == "YearDay [day]":
-                        fractional_ns = gulper_data.cf["T"][0] - gulper_data.cf["T"][
-                            0
-                        ].dt.floor("D")
+                        fractional_ns = gulper_data.cf["T"][0] - gulper_data.cf["T"][0].dt.floor(
+                            "D"
+                        )
                         fractional_day = float(fractional_ns) / 86400000000000.0
                         f.write(
-                            f'{gulper_data.cf["T"][0].dt.dayofyear.values + fractional_day:9.5f}'
+                            f"{gulper_data.cf['T'][0].dt.dayofyear.values + fractional_day:9.5f}",
                         )
                     if count < len(odv_column_names) - 1:
                         f.write("\t")
                 f.write("\n")
         self.logger.info(
-            f"Wrote {len(gulper_times)} Gulper data lines to {gulper_odv_filename}"
+            f"Wrote {len(gulper_times)} Gulper data lines to {gulper_odv_filename}",
         )
 
     def process_command_line(self):
@@ -519,24 +526,27 @@ class CreateProducts:
             formatter_class=argparse.RawTextHelpFormatter,
             description=__doc__,
         )
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help="Base directory for missionlogs and"
-            f" missionnetcdfs, default: {BASE_PATH}",
-        ),
+        (
+            parser.add_argument(
+                "--base_path",
+                action="store",
+                default=BASE_PATH,
+                help=f"Base directory for missionlogs and missionnetcdfs, default: {BASE_PATH}",
+            ),
+        )
         parser.add_argument(
             "--auv_name",
             action="store",
             default="dorado",
             help="dorado (default), i2map",
         )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        ),
+        (
+            parser.add_argument(
+                "--mission",
+                action="store",
+                help="Mission directory, e.g.: 2020.064.10",
+            ),
+        )
         parser.add_argument(
             "--start_esecs",
             help="Start time of mission in epoch seconds, optional for gulper time lookup",
@@ -554,7 +564,7 @@ class CreateProducts:
             nargs="?",
             help="verbosity level: "
             + ", ".join(
-                [f"{i}: {v}" for i, v, in enumerate(("WARN", "INFO", "DEBUG"))]
+                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
         self.args = parser.parse_args()

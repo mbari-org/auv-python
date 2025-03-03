@@ -5,12 +5,13 @@ from hs2_proc import _get_gains, hs2_calc_bb, purewater_scatter, typ_absorption
 # Arrays used in asserts are for short mission that's in conftest.py
 # As of 2025-03-02 it is Dorado389 mission 2011.256.02.
 
+
 def test_typ_absorption():
     assert round(typ_absorption(420), 4) == 0.0235  # noqa: PLR2004, S101
     assert round(typ_absorption(470), 4) == 0.0179  # noqa: PLR2004, S101
 
-def test_purewater_scatter():
 
+def test_purewater_scatter():
     # Matlab RunReprocess on 2020.245.00
 
     # K>> [a, b] = purewater_scatter(420)
@@ -27,6 +28,7 @@ def test_purewater_scatter():
 
     assert np.allclose(purewater_scatter(420), (5.7162e-04, 0.0031), atol=1e-4)  # noqa: S101
     assert np.allclose(purewater_scatter(700), (6.2910e-05, 3.3764e-04), atol=1e-4)  # noqa: S101
+
 
 def test_get_gains(mission_data, calibration):
     # mission_data and calibration are fixtures from the conftest.py module;
@@ -64,9 +66,10 @@ def test_get_gains(mission_data, calibration):
     #     0.9325
     #     0.9325
 
-    assert np.all(hs2.Gain1[:5] == np.array([998.81  ,  98.1544, 998.81  , 998.81  , 998.81  ]))  # noqa: S101
-    assert np.all(hs2.Gain2[:5] == np.array([  94.547,   94.547,  929.18 , 9715.1  , 9715.1  ]))  # noqa: S101
-    assert np.all(hs2.Gain3[:5] == np.array([  94.547,   94.547,  929.18 , 9715.1  , 9715.1  ]))  # noqa: S101
+    assert np.all(hs2.Gain1[:5] == np.array([998.81, 98.1544, 998.81, 998.81, 998.81]))  # noqa: S101
+    assert np.all(hs2.Gain2[:5] == np.array([94.547, 94.547, 929.18, 9715.1, 9715.1]))  # noqa: S101
+    assert np.all(hs2.Gain3[:5] == np.array([94.547, 94.547, 929.18, 9715.1, 9715.1]))  # noqa: S101
+
 
 def test_hs2_calc_bb(mission_data, calibration):
     # mission_data and calibration are fixtures from the conftest.py module;
@@ -120,6 +123,8 @@ def test_hs2_calc_bb(mission_data, calibration):
 
     assert np.allclose(hs2.bb420[:5], [0.00946282, 0.01565809, 0.01053635, 0.00943493, 0.00976532])  # noqa: S101
     assert np.allclose(hs2.bbp420[:5], [0.00639495, 0.01259022, 0.00746848, 0.00636706, 0.00669745])  # noqa: S101
-    assert np.allclose(hs2.bb700[:5], [0.00590656,  0.00607707, -0.00457753,  0.00577039,  0.00555023])  # noqa: S101, E501
-    assert np.allclose(hs2.bbp700[:5], [0.00556892,  0.00573943, -0.00491517,  0.00543275,  0.00521259])  # noqa: S101, E501
-    assert np.allclose(hs2.fl700[:5], [ 0.00112378,  0.00079326, -0.02851304,  0.00504691,  0.00103833])  # noqa: S101, E501
+    assert np.allclose(hs2.bb700[:5], [0.00590656, 0.00607707, -0.00457753, 0.00577039, 0.00555023])  # noqa: S101, E501
+    assert np.allclose(
+        hs2.bbp700[:5], [0.00556892, 0.00573943, -0.00491517, 0.00543275, 0.00521259]
+    )  # noqa: S101, E501
+    assert np.allclose(hs2.fl700[:5], [0.00112378, 0.00079326, -0.02851304, 0.00504691, 0.00103833])  # noqa: S101, E501

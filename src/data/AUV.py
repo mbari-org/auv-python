@@ -30,9 +30,8 @@ def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
     return np.array(monotonic)
 
 
-class AUV(object):
+class AUV:
     def add_global_metadata(self):
-
         iso_now = datetime.utcnow().isoformat() + "Z"
 
         self.nc_file.netcdf_version = "4"
@@ -51,13 +50,9 @@ class AUV(object):
             coards.from_udunits(self.time[-1], self.time.units).isoformat() + "Z"
         )
 
-        self.nc_file.distribution_statement = (
-            "Any use requires prior approval from MBARI"
-        )
+        self.nc_file.distribution_statement = "Any use requires prior approval from MBARI"
         self.nc_file.license = self.nc_file.distribution_statement
-        self.nc_file.useconst = (
-            "Not intended for legal use. Data may contain inaccuracies."
-        )
+        self.nc_file.useconst = "Not intended for legal use. Data may contain inaccuracies."
         self.nc_file.history = 'Created by "%s" on %s' % (
             " ".join(sys.argv),
             iso_now,
