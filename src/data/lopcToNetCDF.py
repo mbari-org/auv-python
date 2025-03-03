@@ -37,11 +37,11 @@ import string
 import struct
 import sys
 import time
-from netCDF4 import Dataset
-
-import numpy
 
 import lopcMEP
+import numpy
+from netCDF4 import Dataset
+
 
 #
 # Exceptions
