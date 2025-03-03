@@ -121,6 +121,8 @@ select = [
   "RUF",
 ]
 ignore = [
+    "COM812", # Missing-trailing-comma
+    "ERA001", # Commented-out code
     "N801", # Class name should use CapWords convention
     "N802", # Function name should be lowercase
     "N806", # Variable in function should be lowercase
