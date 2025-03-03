@@ -11,7 +11,7 @@ Defines the Filter class for filtering UBAT data using rolling window filters.
 
 @author: __author__
 @license: __license__
-"""
+"""  # noqa: A001
 import logging
 
 import numpy as np
@@ -32,7 +32,7 @@ class Filter:
         :param data: data tuple containing (un-filtered time-series data, filtered time-series data before mean)
         :param filt_func: a pointer to the rolling filter function (e.g., rolling.Min, rolling.Median)
         :return: tuple (filtered time-series, mean filtered time-series data)
-        """
+        """  # noqa: E501
         # unpack data tuple
         data_, data_filt_ = data
 
@@ -60,7 +60,7 @@ class Filter:
         :param data: data to be filtered
         :param filt_func: a pointer to the rolling filter function (e.g., rolling.Min, rolling.Median)
         :return: filtered data of target size length
-        """
+        """  # noqa: E501
         N = len(data)
 
         # determine appropriate window type: default to a fixed size window, but use a variable
@@ -68,8 +68,8 @@ class Filter:
         window_type = (
             "fixed" if (N - self.target_record_size >= self.window_size - 1) else "variable"
         )
-        # logger.info('Applying a {} {} dp {} filter to data with {} dp.'.format(window_type, self.window_size,
-        #                                                                        filt_func.__name__, len(data)))
+        # logger.info('Applying a {} {} dp {} filter to data with {} dp.'.format(window_type, self.window_size,  # noqa: E501
+        #                                                                        filt_func.__name__, len(data)))  # noqa: E501
         # apply the filter!
         filt_ = list(
             filt_func(data, window_size=self.window_size, window_type=window_type),

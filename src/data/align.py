@@ -315,13 +315,13 @@ class Align_NetCDF:
             # Update spatial temporal bounds for the global metadata
             # https://github.com/pydata/xarray/issues/4917#issue-809708107
             if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
-                timezone.utc
+                timezone.utc,
             ) < pd.to_datetime(self.min_time):
                 self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
                     timezone.utc,
                 )
             if pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
-                timezone.utc
+                timezone.utc,
             ) > pd.to_datetime(self.max_time):
                 self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
                     timezone.utc,
