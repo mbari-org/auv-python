@@ -39,7 +39,7 @@ BASE_PATH = "auv_data"
 MISSIONLOGS = "missionlogs"
 MISSIONNETCDFS = "missionnetcdfs"
 PORTAL_BASE = "http://portal.shore.mbari.org:8080/auvdata/v1"
-DEPLOYMENTS_URL = os.path.join(PORTAL_BASE, "deployments")
+DEPLOYMENTS_URL = Path(PORTAL_BASE, "deployments")
 TIME = "time"
 
 
@@ -170,7 +170,7 @@ class TimeCorrect(AUV):
 
     def _add_and_write(self, log_data, header_text, new_logs_dir, filename):
         log_data = self._correct_dup_short_names(log_data)
-        log_filename = os.path.join(new_logs_dir, filename)
+        log_filename = Path(new_logs_dir, filename)
         self.logger.debug(f"Writing log file {log_filename}")
         self.logger.info(
             f"Adding {self.args.add_seconds} seconds to variable {TIME}",
@@ -209,17 +209,17 @@ class TimeCorrect(AUV):
     def correct_times(self):
         vehicle = self.args.auv_name
         name = self.args.mission
-        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
+        logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
         new_basename = self._new_base_filename()
-        new_logs_dir = os.path.join(
+        new_logs_dir = Path(
             self.args.base_path,
             vehicle,
             MISSIONLOGS,
             new_basename,
         )
         Path(new_logs_dir).mkdir(parents=True, exist_ok=True)
-        for log_filename in glob(os.path.join(logs_dir, "*")):
-            nlfn = os.path.join(new_logs_dir, os.path.basename(log_filename))
+        for log_filename in glob(Path(logs_dir, "*")):
+            nlfn = Path(new_logs_dir, os.path.basename(log_filename))
             if os.path.getsize(log_filename) == 0 or not log_filename.endswith(".log"):
                 self.logger.info(f"Copying file {log_filename}")
                 copyfile(log_filename, nlfn)

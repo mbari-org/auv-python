@@ -89,7 +89,7 @@ class CreateProducts:
 
     def _open_ds(self):
         if self.args.local:
-            local_nc = os.path.join(
+            local_nc = Path(
                 BASE_PATH,
                 self.args.auv_name,
                 MISSIONNETCDFS,
@@ -100,7 +100,7 @@ class CreateProducts:
         else:
             # Requires mission to have been processed and archived to AUVCTD
             self.ds = xr.open_dataset(
-                os.path.join(
+                Path(
                     AUVCTD_OPENDAP_BASE,
                     "surveys",
                     self.args.mission.split(".")[0],
@@ -350,11 +350,11 @@ class CreateProducts:
                 col = 1
 
         # Save plot to file
-        images_dir = os.path.join(BASE_PATH, self.args.auv_name, MISSIONIMAGES)
+        images_dir = Path(BASE_PATH, self.args.auv_name, MISSIONIMAGES)
         Path(images_dir).mkdir(parents=True, exist_ok=True)
 
         plt.savefig(
-            os.path.join(
+            Path(
                 images_dir,
                 f"{self.args.auv_name}_{self.args.mission}_{FREQ}_2column.png",
             ),
@@ -398,14 +398,14 @@ class CreateProducts:
         if not gulper_times:
             self.logger.info(f"No gulper times found for {self.args.mission}")
             return
-        odv_dir = os.path.join(
+        odv_dir = Path(
             BASE_PATH,
             self.args.auv_name,
             MISSIONODVS,
             self.args.mission,
         )
         Path(odv_dir).mkdir(parents=True, exist_ok=True)
-        gulper_odv_filename = os.path.join(
+        gulper_odv_filename = Path(
             odv_dir,
             f"{self.args.auv_name}_{self.args.mission}_{FREQ}_Gulper.txt",
         )

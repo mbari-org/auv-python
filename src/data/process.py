@@ -132,7 +132,7 @@ class Processor:
         if self.vehicle.lower() == "dorado":
             year = mission.split(".")[0]
             yearyd = "".join(mission.split(".")[:2])
-            path = os.path.join(self.vehicle_dir, year, yearyd, mission)
+            path = Path(self.vehicle_dir, year, yearyd, mission)
         elif self.vehicle.lower() == "i2map":
             year = int(mission.split(".")[0])
             # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
@@ -172,7 +172,7 @@ class Processor:
         auv_netcdf.logger.removeHandler(self.log_handler)
 
         # Run lopcToNetCDF.py - mimic log message from logs2netcdfs.py
-        lopc_bin = os.path.join(
+        lopc_bin = Path(
             self.args.base_path,
             self.vehicle,
             MISSIONLOGS,
@@ -189,7 +189,7 @@ class Processor:
         lopc_processor = LOPC_Processor()
         lopc_processor.args = argparse.Namespace()
         lopc_processor.args.bin_fileName = lopc_bin
-        lopc_processor.args.netCDF_fileName = os.path.join(
+        lopc_processor.args.netCDF_fileName = Path(
             self.args.base_path,
             self.vehicle,
             MISSIONNETCDFS,
@@ -273,7 +273,7 @@ class Processor:
         resamp.logger.setLevel(self._log_levels[self.args.verbose])
         resamp.logger.addHandler(self.log_handler)
         file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
-        nc_file = os.path.join(
+        nc_file = Path(
             self.args.base_path,
             resamp.args.auv_name,
             MISSIONNETCDFS,
@@ -285,7 +285,7 @@ class Processor:
                 "Executing only resample step to produce netCDF file with flash_threshold = %s",
                 f"{self.args.flash_threshold:.0e}",
             )
-            dap_file = os.path.join(
+            dap_file = Path(
                 AUVCTD_OPENDAP_BASE.replace("opendap/", ""),
                 "surveys",
                 resamp.args.mission.split(".")[0],
@@ -325,7 +325,8 @@ class Processor:
             arch.args.mission,
             file_name_base,
         )
-        if BASE_PATH.startswith("/home/runner/"):
+        self.logger.info("nc_file_base = %s, BASE_PATH = %s", nc_file_base, BASE_PATH)
+        if str(BASE_PATH).startswith(("/home/runner/", "/root")):
             arch.logger.info(
                 "Not archiving %s %s to AUVCTD as it's likely CI testing",
                 arch.args.auv_name,
@@ -373,17 +374,17 @@ class Processor:
         )
         try:
             shutil.rmtree(
-                os.path.join(self.args.base_path, self.vehicle, MISSIONLOGS, mission),
+                Path(self.args.base_path, self.vehicle, MISSIONLOGS, mission),
             )
             shutil.rmtree(
-                os.path.join(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission),
+                Path(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission),
             )
             self.logger.info("Done removing %s work files", mission)
         except FileNotFoundError as e:
             self.logger.info("File not found: %s", e)
 
     def process_mission(self, mission: str, src_dir: str = None) -> None:
-        netcdfs_dir = os.path.join(
+        netcdfs_dir = Path(
             self.args.base_path,
             self.vehicle,
             MISSIONNETCDFS,
@@ -397,7 +398,7 @@ class Processor:
                 self.cleanup(mission)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
-            os.path.join(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"),
+            Path(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"),
             mode="w+",
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])

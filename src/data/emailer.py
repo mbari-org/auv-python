@@ -9,10 +9,10 @@ __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import os
 import platform
 import sys
 import time
+from pathlib import Path
 
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     email = Emailer()
     email.process_command_line()
     file_name_base = f"{email.args.auv_name}_{email.args.mission}"
-    nc_file_base = os.path.join(
+    nc_file_base = Path(
         BASE_PATH,
         email.args.auv_name,
         MISSIONNETCDFS,

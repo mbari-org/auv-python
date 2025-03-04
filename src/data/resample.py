@@ -11,12 +11,12 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import os
 import re
 import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from socket import gethostname
 
 import cf_xarray  # Needed for the .cf accessor  # noqa: F401
@@ -922,13 +922,13 @@ class Resampler:
             "standard_name": "time",
             "long_name": "Time (UTC)",
         }
-        out_fn = nc_file.replace("_align.nc", f"_{freq}.nc")
+        out_fn = str(nc_file).replace("_align.nc", f"_{freq}.nc")
         if self.args.flash_threshold and self.args.flash_threshold != FLASH_THRESHOLD:
             # Append flash_threshold to output filename
             ft_ending = f"_ft{self.args.flash_threshold:.0E}.nc".replace("E+", "E")
             out_fn = out_fn.replace(".nc", ft_ending)
         self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")
-        self.logger.info(f"Saved resampled mission to {out_fn}")
+        self.logger.info("Saved resampled mission to %s", out_fn)
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -1006,7 +1006,7 @@ if __name__ == "__main__":
     resamp = Resampler()
     resamp.process_command_line()
     file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
-    nc_file = os.path.join(
+    nc_file = Path(
         BASE_PATH,
         resamp.args.auv_name,
         MISSIONNETCDFS,

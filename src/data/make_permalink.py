@@ -29,7 +29,7 @@ def get_times_depths(ds_url):
 
 
 def get_parameter_id(base_url, parameter_name="fl700_uncorr"):
-    csv_query = os.path.join(
+    csv_query = Path(
         base_url,
         "api/parameter.csv?name__contains=" + parameter_name,
     )
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     parm_id = get_parameter_id(base_url)
     times, depths = get_times_depths(ds_url)
     print(
-        os.path.join(
+        Path(
             base_url,
             "query/?permalink_id=" + gen_permalink(times, depths, parm_id),
         ),

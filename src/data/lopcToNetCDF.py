@@ -704,7 +704,7 @@ class LOPC_Processor:
         """
 
         self.logger.info(">>> Unpacking LOPC data from " + binFile.name)
-        self.logger.info(">>> Will write to NetCDF file " + self.args.netCDF_fileName)
+        self.logger.info(">>> Will write to NetCDF file %s", self.args.netCDF_fileName)
 
         if textFile is not None:
             self.logger.info(">>> Writing ASCII text file " + self.args.text_fileName)
@@ -1840,7 +1840,7 @@ class LOPC_Processor:
 
         missionName = ""
         try:
-            missionName = ncFileName.split("/")[-2]
+            missionName = str(ncFileName).split("/")[-2]
         except IndexError:
             self.logger.warning(
                 "Could not parse missionName from netCDF file name - probably not production processing.",

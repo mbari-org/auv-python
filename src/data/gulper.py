@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import sys
+from pathlib import Path
 
 import requests
 import xarray as xr
@@ -30,10 +31,8 @@ class Gulper:
 
         # Get the first time record from mission's navigation.nc file
         if self.args.local:
-            base_path = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "../../data/auv_data"),
-            )
-            url = os.path.join(
+            base_path = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
+            url = Path(
                 base_path,
                 "dorado",
                 "missionnetcdfs",
@@ -42,7 +41,7 @@ class Gulper:
             )
         else:
             # Relies on auv-python having processed the mission
-            url = os.path.join(
+            url = Path(
                 "http://dods.mbari.org/opendap/data/auvctd/",
                 "missionnetcdfs",
                 self.args.mission.split(".")[0],
@@ -63,24 +62,22 @@ class Gulper:
         bottles = {}
         if self.args.local:
             # Read from local file - useful for testing in auv-python
-            base_path = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "../../data/auv_data"),
-            )
-            mission_dir = os.path.join(
+            base_path = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
+            mission_dir = Path(
                 base_path,
                 "dorado",
                 "missionlogs",
                 self.args.mission,
             )
-            syslog_file = os.path.join(mission_dir, "syslog")
+            syslog_file = Path(mission_dir, "syslog")
             self.logger.info(f"Reading local file {syslog_file}")
-            if not os.path.exists(syslog_file):
+            if not syslog_file.exists():
                 self.logger.error(f"{syslog_file} not found")
                 raise FileNotFoundError(syslog_file)
-            with open(syslog_file, encoding="utf-8", errors="ignore") as f:
+            with syslog_file.open(encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
         else:
-            syslog_url = os.path.join(
+            syslog_url = Path(
                 "http://dods.mbari.org/data/auvctd/",
                 "missionlogs",
                 self.args.mission.split(".")[0],
@@ -89,7 +86,7 @@ class Gulper:
                 "syslog",
             )
             self.logger.info(f"Reading {syslog_url}")
-            with requests.get(syslog_url, stream=True) as resp:
+            with requests.get(str(syslog_url), stream=True) as resp:
                 if resp.status_code != 200:
                     self.logger.error(
                         f"Cannot read {syslog_url}, resp.status_code = {resp.status_code}",

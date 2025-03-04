@@ -26,7 +26,7 @@ def test_process_i2map(complete_i2map_processing):
     assert nc_file.exists()  # noqa: S101
     assert time() - nc_file.stat().st_mtime < MAX_SECS  # noqa: S101
     assert nc_file.stat().st_size > 0  # noqa: S101
-    if proc.args.base_path.startswith("/home/runner"):
+    if str(proc.args.base_path).startswith("/home/runner"):
         # The size is smaller in GitHub Actions, maybe due to different metadata
         assert nc_file.stat().st_size == 60130  # noqa: PLR2004, S101
     else:

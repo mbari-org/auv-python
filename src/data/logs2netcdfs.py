@@ -40,9 +40,7 @@ LOG_FILES = (
     "tailCone.log",
     "biolume.log",
 )
-BASE_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../data/auv_data"),
-)
+BASE_PATH = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
 
 MISSIONLOGS = "missionlogs"
 MISSIONNETCDFS = "missionnetcdfs"
@@ -69,7 +67,7 @@ class AUV_NetCDF(AUV):
         byte_offset = 0
         records = []
         (byte_offset, records) = self._read_header(file)
-        if "biolume" in file:
+        if "biolume" in str(file):
             (byte_offset, records) = self._read_biolume_header(file)
             self._read_biolume_data(file, records, byte_offset)
         else:
@@ -406,7 +404,7 @@ class AUV_NetCDF(AUV):
                 download_url = f"{self.portal_base}/files/download/{name}/{vehicle}/{ffm}"
                 self.logger.debug(f"Getting file contents from {download_url}")
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
-                local_filename = os.path.join(logs_dir, ffm)
+                local_filename = Path(logs_dir, ffm)
                 task = asyncio.ensure_future(
                     self._get_file(download_url, local_filename, session),
                 )
@@ -522,7 +520,7 @@ class AUV_NetCDF(AUV):
             self.logger.debug(
                 f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})",
             )
-            if "biolume" in netcdf_filename:
+            if "biolume" in str(netcdf_filename):
                 if variable.short_name == "raw":
                     # The "raw" log is the last one in the list, and time is the first
                     assert log_data[-1].short_name == "raw"
@@ -660,7 +658,7 @@ class AUV_NetCDF(AUV):
     ) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
-        logs_dir = os.path.join(self.args.base_path, vehicle, MISSIONLOGS, name)
+        logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
 
         if src_dir:
             self.logger.info(f"{src_dir = }")
@@ -671,7 +669,7 @@ class AUV_NetCDF(AUV):
             #   f"Unique vehicle names: {self._unique_vehicle_names()} seconds"
             # )
             yes_no = "Y"
-            if os.path.exists(os.path.join(logs_dir, "vehicle.cfg")):
+            if Path(logs_dir, "vehicle.cfg").exists():
                 if self.args.noinput:
                     if self.args.clobber:
                         self.logger.info(f"Clobbering existing {logs_dir} files")
@@ -696,29 +694,29 @@ class AUV_NetCDF(AUV):
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
         self.logger.info(f"Processing mission: {vehicle} {name}")
-        netcdfs_dir = os.path.join(self.args.base_path, vehicle, MISSIONNETCDFS, name)
+        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         p_start = time.time()
         for log in LOG_FILES:
-            log_filename = os.path.join(logs_dir, log)
-            netcdf_filename = os.path.join(netcdfs_dir, log.replace(".log", ".nc"))
+            log_filename = Path(logs_dir, log)
+            netcdf_filename = Path(netcdfs_dir, log.replace(".log", ".nc"))
             try:
                 file_size = os.path.getsize(log_filename)
                 self.logger.info(f"Processing file {log_filename} ({file_size} bytes)")
                 if file_size == 0:
-                    self.logger.warning(f"{log_filename} is empty")
+                    self.logger.warning("%s is empty", str(log_filename))
                 self._process_log_file(log_filename, netcdf_filename, src_dir)
             except (FileNotFoundError, EOFError, struct.error, IndexError) as e:
                 self.logger.debug(f"{e}")
             except ValueError as e:
                 self.logger.warning(f"{e} in file {log_filename}")
 
-            if log == "navigation.log" and "2010.172.01" in log_filename:
+            if log == "navigation.log" and "2010.172.01" in str(log_filename):
                 # Remove egregiously bad values as found in 2010.172.01's navigation.log - Comment from processNav.m:
                 # % For Mission 2010.172.01 the first part of the time array had really large negative epoch second values.
                 # % Take only the positive time values in addition to the good depth values
                 self._remove_bad_values(netcdf_filename)
-            if log == "ctdDriver.log" and "2010.265.00" in log_filename:
+            if log == "ctdDriver.log" and "2010.265.00" in str(log_filename):
                 self._remove_bad_values(netcdf_filename)
 
         self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
@@ -737,11 +735,11 @@ class AUV_NetCDF(AUV):
 
     def set_portal(self) -> None:
         self.portal_base = PORTAL_BASE
-        self.deployments_url = os.path.join(self.portal_base, "deployments")
+        self.deployments_url = Path(self.portal_base, "deployments")
         if hasattr(self.args, "portal"):
             if self.args.portal:
                 self.portal_base = self.args.portal
-                self.deployments_url = os.path.join(self.args.portal, "deployments")
+                self.deployments_url = Path(self.args.portal, "deployments")
 
     def process_command_line(self):
         examples = "Examples:" + "\n\n"
