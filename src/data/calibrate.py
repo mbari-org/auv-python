@@ -1087,7 +1087,13 @@ class Calibrate_NetCDF:
             #     <Boc>0.0000</Boc>
             #     <Soc>0.0000e+000</Soc>
             #     ....
-            root = ET.parse(cal_xml_filename).getroot()
+            try:
+                root = ET.parse(cal_xml_filename).getroot()
+            except ET.ParseError as e:
+                self.logger.warning(
+                    "Cannot parse %s: %s", cal_xml_filename, e,
+                )
+                continue
             try:
                 cal_date = datetime.strptime(
                     root.find("CalibrationDate").text,
@@ -1183,6 +1189,9 @@ class Calibrate_NetCDF:
             f"Finding calibration file for oxygen serial number = {serial_number} on mission {self.args.mission}",
         )
 
+        if not Path(self.calibration_dir).is_dir():
+            error_message = f"Calibration directory '{self.calibration_dir}' does not exist"
+            raise ValueError(error_message)
         find_cmd = f'find "{self.calibration_dir}" -name "{serial_number}"'
         self.logger.info("Executing: %s ", find_cmd)
         sensor_dir = os.popen(find_cmd).read().strip()
