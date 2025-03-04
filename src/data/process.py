@@ -318,14 +318,21 @@ class Processor:
             self.logger.info("Archiving steps for %s", mission)
             arch.logger.addHandler(self.log_handler)
         file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
-        nc_file_base = os.path.join(
+        nc_file_base = Path(
             BASE_PATH,
             arch.args.auv_name,
             MISSIONNETCDFS,
             arch.args.mission,
             file_name_base,
         )
-        arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
+        if BASE_PATH.startswith("/home/runner/"):
+            arch.logger.info(
+                "Not archiving %s %s to AUVCTD as it's likely CI testing",
+                arch.args.auv_name,
+                arch.args.mission,
+            )
+        else:
+            arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
         arch.logger.removeHandler(self.log_handler)
 
     def create_products(self, mission: str) -> None:

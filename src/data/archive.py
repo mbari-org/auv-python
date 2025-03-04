@@ -34,7 +34,7 @@ class Archiver:
         if add_handlers:
             self.logger.addHandler(self._handler)
 
-    def copy_to_AUVTCD(self, nc_file_base: str, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
+    def copy_to_AUVTCD(self, nc_file_base: Path, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
         surveys_dir = Path(AUVCTD_VOL) / "surveys"
         try:
