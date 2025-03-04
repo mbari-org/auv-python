@@ -249,9 +249,10 @@
             //"args": ["-v", "1", "--noinput",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "0", "--noinput", "--num_cores", "1", "--mission", "2023.285.01"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2018.079.00"]
-            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2024.317.01"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2024.317.01"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2016.090.01", "--resample", "--archive", "--flash_threshold", "3E10"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "1"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2011.256.02", "--clobber"]
         },
     ]
 }
