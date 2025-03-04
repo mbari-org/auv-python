@@ -20,10 +20,10 @@ a NetCDF file that can be read by the doradosdp software.
 
 import datetime
 import logging
-import os
 import sys
 import time
 from optparse import OptionParser
+from pathlib import Path
 
 import Nio
 
@@ -250,18 +250,17 @@ Examples:
         if opts.debugLevel:
             logging.getLogger("logger").setLevel(logging.DEBUG)
 
-        # Check for output file and offer to overwrite
-        if os.path.exists(opts.netCDF_fileName):
+        if Path(opts.netCDF_fileName).exists():
             if opts.force:
-                if os.path.exists(opts.netCDF_fileName):
-                    os.remove(opts.netCDF_fileName)
+                if Path(opts.netCDF_fileName).exists():
+                    Path(opts.netCDF_fileName).unlink()
             else:
                 ans = input(
                     opts.netCDF_fileName
                     + " file exists.\nDo you want to remove it and continue processing? (y/[N]) "
                 )
                 if ans.upper() == "Y":
-                    os.remove(opts.netCDF_fileName)
+                    Path(opts.netCDF_fileName).unlink()
                 else:
                     sys.exit(0)
 

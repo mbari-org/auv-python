@@ -12,11 +12,9 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import os
 import struct
 import sys
 from datetime import datetime, timedelta
-from glob import glob
 from pathlib import Path
 from shutil import copyfile
 
@@ -64,7 +62,7 @@ class TimeCorrect(AUV):
         with open(file, encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
-            instrument_name = os.path.basename(f.name)
+            instrument_name = Path(f.name).name
 
             # Yes, read 2 lines here.
             line = f.readline()
@@ -102,8 +100,9 @@ class TimeCorrect(AUV):
     def _read_data(self, file: str, records: list[log_record], byte_offset: int):
         """Parse the binary section of the log file"""
         if byte_offset == 0:
-            raise EOFError(f"{file}: 0 sized file")
-        file_size = os.path.getsize(file)
+            error_message = f"{file}: 0 sized file"
+            raise EOFError(error_message)
+        file_size = Path(file).stat().st_size
 
         ok = True
         rec_count = 0
@@ -218,23 +217,23 @@ class TimeCorrect(AUV):
             new_basename,
         )
         Path(new_logs_dir).mkdir(parents=True, exist_ok=True)
-        for log_filename in glob(Path(logs_dir, "*")):
-            nlfn = Path(new_logs_dir, os.path.basename(log_filename))
-            if os.path.getsize(log_filename) == 0 or not log_filename.endswith(".log"):
-                self.logger.info(f"Copying file {log_filename}")
+        for log_filename in Path(logs_dir).glob("*"):
+            nlfn = Path(new_logs_dir, Path(log_filename).name)
+            if Path(log_filename).stat().st_size == 0 or not str(log_filename).endswith(".log"):
+                self.logger.info("Copying file %s", log_filename)
                 copyfile(log_filename, nlfn)
             else:
                 try:
-                    self.logger.info(f"Reading file {log_filename}")
+                    self.logger.info("Reading file %s", log_filename)
                     log_data, header_text = self.read(log_filename)
                 except (FileNotFoundError, EOFError, struct.error) as e:
-                    self.logger.debug(f"{e}")
+                    self.logger.debug("%s", e)
 
                 self._add_and_write(
                     log_data,
                     header_text,
                     new_logs_dir,
-                    os.path.basename(log_filename),
+                    Path(log_filename).name,
                 )
 
             # Uncomment to verify correct writing - use with debugger

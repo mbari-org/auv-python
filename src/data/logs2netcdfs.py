@@ -81,7 +81,7 @@ class AUV_NetCDF(AUV):
         with open(file, encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
-            instrument_name = os.path.basename(f.name)
+            instrument_name = Path(f.name).name
 
             # Yes, read 2 lines here.
             line = f.readline()
@@ -125,7 +125,7 @@ class AUV_NetCDF(AUV):
         with open(file, encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
-            instrument_name = os.path.basename(f.name)
+            instrument_name = Path(f.name).name
 
             # Yes, read 2 lines here.
             line = f.readline()
@@ -182,8 +182,9 @@ class AUV_NetCDF(AUV):
     def _read_data(self, file: str, records: list[log_record], byte_offset: int):
         """Parse the binary section of the log file"""
         if byte_offset == 0:
-            raise EOFError(f"{file}: 0 sized file")
-        file_size = os.path.getsize(file)
+            error_message = f"{file}: 0 sized file"
+            raise EOFError(error_message)
+        file_size = Path(file).stat().st_size
 
         ok = True
         rec_count = 0
@@ -246,8 +247,9 @@ class AUV_NetCDF(AUV):
         sampling period.
         """
         if byte_offset == 0:
-            raise EOFError(f"{file}: 0 sized file")
-        file_size = os.path.getsize(file)
+            error_message = f"{file}: 0 sized file"
+            raise EOFError(error_message)
+        file_size = Path(file).stat().st_size
 
         ok = True
         rec_count = 0
@@ -386,8 +388,8 @@ class AUV_NetCDF(AUV):
                         async for chunk in resp.content.iter_chunked(1024):
                             handle.write(chunk)
                         if self.args.verbose > 1:
-                            print(
-                                f"{os.path.basename(local_filename)}(done) ",
+                            print(  # noqa: T201
+                                f"{Path(local_filename).name}(done) ",
                                 end="",
                                 flush=True,
                             )
@@ -619,9 +621,9 @@ class AUV_NetCDF(AUV):
 
     def _process_log_file(self, log_filename, netcdf_filename, src_dir=None):
         log_data = self.read(log_filename)
-        if os.path.exists(netcdf_filename):
+        if Path(netcdf_filename).exists():
             # xarray's Dataset raises permission denied error if file exists
-            os.remove(netcdf_filename)
+            Path(netcdf_filename).unlink()
         self.nc_file = Dataset(netcdf_filename, "w")
         self.write_variables(log_data, netcdf_filename)
 
@@ -685,15 +687,15 @@ class AUV_NetCDF(AUV):
                 if self.args.use_portal:
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
                 elif src_dir:
-                    self.logger.info(f"Rsyncing {src_dir} to {logs_dir}")
-                    os.system(f"rsync -av {src_dir} {os.path.dirname(logs_dir)}")
+                    self.logger.info("Rsyncing %s to %s", src_dir, logs_dir)
+                    os.system(f"rsync -av {src_dir} {logs_dir.parent}")
                 else:
                     self.logger.info(
                         "src_dir not provided, so downloading from portal",
                     )
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
-        self.logger.info(f"Processing mission: {vehicle} {name}")
+        self.logger.info("Processing mission: %s %s", vehicle, name)
         netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         p_start = time.time()
@@ -701,8 +703,8 @@ class AUV_NetCDF(AUV):
             log_filename = Path(logs_dir, log)
             netcdf_filename = Path(netcdfs_dir, log.replace(".log", ".nc"))
             try:
-                file_size = os.path.getsize(log_filename)
-                self.logger.info(f"Processing file {log_filename} ({file_size} bytes)")
+                file_size = Path(log_filename).stat().st_size
+                self.logger.info("Processing file %s (%d bytes)", log_filename, file_size)
                 if file_size == 0:
                     self.logger.warning("%s is empty", str(log_filename))
                 self._process_log_file(log_filename, netcdf_filename, src_dir)

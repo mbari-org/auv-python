@@ -3362,8 +3362,8 @@ class Calibrate_NetCDF:
         self.combined_nc.attrs = self.global_metadata()
         out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
         self.logger.info(f"Writing calibrated instrument data to {out_fn}")
-        if os.path.exists(out_fn):
-            os.remove(out_fn)
+        if Path(out_fn).exists():
+            Path(out_fn).unlink()
         self.combined_nc.to_netcdf(out_fn)
         self.logger.info(
             "Data variables written: %s",

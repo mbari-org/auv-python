@@ -26,7 +26,7 @@ Examples:
     3. A communications fixed short mission C Frame epoch seconds with output to ASCII text file:
     lopcToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010083/2010.083.08/lopc.bin -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010083/2010.083.08/lopc.nc -t lopc_2010_083_08.dat -v -f
 
-"""
+"""  # noqa: A001
 
 import argparse
 import logging
@@ -37,6 +37,7 @@ import string
 import struct
 import sys
 import time
+from pathlib import Path
 
 import lopcMEP
 import numpy
@@ -2193,9 +2194,9 @@ class LOPC_Processor:
                 logging.getLogger("self.logger").setLevel(logging.DEBUG)
 
             # Check for output file and offer to overwrite
-            if os.path.exists(self.args.netCDF_fileName):
+            if Path(self.args.netCDF_fileName).exists():
                 if self.args.force or self.args.noinput:
-                    if os.path.exists(self.args.netCDF_fileName):
+                    if Path(self.args.netCDF_fileName).exists():
                         os.remove(self.args.netCDF_fileName)
                 else:
                     ans = input(
@@ -2209,10 +2210,10 @@ class LOPC_Processor:
 
             textFile = None
             if self.args.text_fileName:
-                if os.path.exists(self.args.text_fileName):
+                if Path(self.args.text_fileName).exists():
                     if self.args.force:
-                        if os.path.exists(self.args.text_fileName):
-                            os.remove(self.args.text_fileName)
+                        if Path(self.args.text_fileName).exists():
+                            Path(self.args.text_fileName).unlink()
                     else:
                         ans = input(
                             self.args.text_fileName

@@ -1,7 +1,8 @@
+ # noqa: INP001
 import argparse
-import os
 import struct
 from dataclasses import dataclass
+from pathlib import Path
 
 __author__ = "Brian Schlining"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
@@ -51,8 +52,8 @@ def _read_header(file: str):
     """Parses the ASCII header of the log file"""
     with open(file, encoding="ISO-8859-15") as f:
         byte_offset = 0
-        records = []
-        instrument_name = os.path.basename(f.name)
+        instrument_name = Path(f.name).name
+        instrument_name = Path(f.name).name
 
         # Yes, read 2 lines here.
         line = f.readline()

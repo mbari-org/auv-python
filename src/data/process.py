@@ -110,7 +110,7 @@ class Processor:
             self.logger.debug(line)
             if "No such file or directory" in line:
                 self.logger.error("%s", line)
-                self.logger.info(f"Is {self.mount_dir} mounted?")
+                self.logger.info("Is %s mounted?", self.mount_dir)
                 return missions
             mission = line.split("/")[-1]
             if not mission:
@@ -125,9 +125,9 @@ class Processor:
 
     def get_mission_dir(self, mission: str) -> str:
         """Return the mission directory."""
-        if not os.path.exists(self.vehicle_dir):
+        if not Path(self.vehicle_dir).exists():
             self.logger.error("%s does not exist.", self.vehicle_dir)
-            self.logger.info(f"Is {self.mount_dir} mounted?")
+            self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
         if self.vehicle.lower() == "dorado":
             year = mission.split(".")[0]
@@ -146,9 +146,10 @@ class Processor:
         elif self.vehicle == "Dorado389":
             # The Dorado389 vehicle is a special case used for testing locally and in CI
             path = self.vehicle_dir
-        if not os.path.exists(path):
+        if not Path(path).exists():
             self.logger.error("%s does not exist.", path)
-            raise FileNotFoundError(f"{path} does not exist.")
+            error_message = f"{path} does not exist."
+            raise FileNotFoundError(error_message)
         return path
 
     def download_process(self, mission: str, src_dir: str) -> None:
@@ -180,7 +181,7 @@ class Processor:
             "lopc.bin",
         )
         try:
-            file_size = os.path.getsize(lopc_bin)
+            file_size = Path(lopc_bin).stat().st_size
         except FileNotFoundError:
             if "lopc" in EXPECTED_SENSORS[self.vehicle]:
                 self.logger.warning("No lopc.bin file for %s", mission)
