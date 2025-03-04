@@ -12,7 +12,7 @@ from process import Processor
 from resample import FLASH_THRESHOLD, FREQ, MF_WIDTH
 
 TEST_VEHICLE = "Dorado389"
-TEST_MISSION = "2011.256.02"
+TEST_MISSION = "2011.256.02"  # http://stoqs.mbari.org/p/DmHOaxI
 # Set TEST_VEHICLE_DIR to local path for testing
 TEST_VEHICLE_DIR = Path(os.getenv("BASE_PATH", BASE_PATH), TEST_VEHICLE, "missionlogs")
 TEST_CALIBRATION_DIR = ""
