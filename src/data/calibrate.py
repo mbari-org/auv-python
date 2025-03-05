@@ -30,6 +30,8 @@ __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import os
+import shlex
+import subprocess
 import sys
 import time
 from argparse import RawTextHelpFormatter
@@ -1046,7 +1048,6 @@ class Calibrate_NetCDF:
 
             safe_sensor_dir = Path(sensor_dir).resolve()
             safe_cal_date_dir = Path(sensor_dir, cal_date_dir).resolve()
-            import shlex
 
             find_cmd = f'find "{safe_sensor_dir}" "{safe_cal_date_dir}" -iname "*.xml"'
             if not safe_sensor_dir.is_dir() or not safe_cal_date_dir.is_dir():
@@ -1200,17 +1201,27 @@ class Calibrate_NetCDF:
             self.args.mission,
         )
 
-        if not Path(self.calibration_dir).is_dir():
+        safe_calibration_dir = Path(self.calibration_dir).resolve()
+        if not safe_calibration_dir.is_dir():
             error_message = f"Calibration directory '{self.calibration_dir}' does not exist"
             raise LookupError(error_message)
-        find_cmd = f'find "{self.calibration_dir}" -name "{serial_number}"'
+        find_cmd = f'find "{safe_calibration_dir}" -name "{serial_number}"'
         self.logger.info("Executing: %s ", find_cmd)
-        sensor_dir = os.popen(find_cmd).read().strip()
+        safe_find_cmd = shlex.split(find_cmd)
+        sensor_dir = subprocess.run(  # noqa: S603
+            safe_find_cmd, capture_output=True, text=True, check=True
+        ).stdout.strip()
         self.logger.debug("%s", sensor_dir)
-        # https://stackoverflow.com/a/20103980
-        dir_find_cmd = f'find "{sensor_dir}"/* -maxdepth 0 -type d'
+
+        safe_sensor_dir = Path(sensor_dir).resolve()
+        if not safe_sensor_dir.is_dir():
+            error_message = f"Sensor directory '{sensor_dir}' does not exist"
+            raise LookupError(error_message)
+        # Find only the direct child directories: https://stackoverflow.com/a/20103980
+        # Unable to use subprocess.run() with find an "*" in the command, apparently
+        dir_find_cmd = f'find "{safe_sensor_dir}"/* -maxdepth 0 -type d'
         self.logger.debug("Executing: dir_find_cmd = %s", dir_find_cmd)
-        cal_date_dirs = [x.split("/")[-1] for x in os.popen(dir_find_cmd).read().split("\n") if x]
+        cal_date_dirs = [x.split("/")[-1] for x in os.popen(dir_find_cmd).read().split("\n") if x]  # noqa: S605
         self.logger.info("Found calibration date dirs: %s", " ".join(cal_date_dirs))
         cal_dates = self._cal_date_xml_files(sensor_dir, cal_date_dirs, serial_number)
         mission_start = self.seabird25p.orig_data.cf["time"].to_numpy()[0]
@@ -1321,7 +1332,7 @@ class Calibrate_NetCDF:
         """
         # Read the calibration coefficients from the .dev file, in case they change
         coeffs = Coeffs()
-        with open(dev_filename) as fh:
+        with dev_filename.open() as fh:
             for line in fh:
                 if line.startswith("CHL"):
                     # CHL (μg/l) = Scale Factor * (Output - Dark counts)
@@ -3384,7 +3395,9 @@ class Calibrate_NetCDF:
             # determine if this is needed for other missions.
             self.logger.info(
                 "%s: Special QC for mission %s: Setting corrected_depth to NaN for times after %s",
-                sensor, self.args.mission, self.combined_nc["depth_time"][-1].to_numpy(),
+                sensor,
+                self.args.mission,
+                self.combined_nc["depth_time"][-1].to_numpy(),
             )
             corrected_depth[
                 np.where(
@@ -3446,7 +3459,7 @@ class Calibrate_NetCDF:
         elif hasattr(getattr(self, sensor), "orig_data"):
             self.logger.warning("No method (yet) to process %s", sensor)
 
-    def write_netcdf(self, netcdfs_dir, vehicle: str="", name: str="") -> None:
+    def write_netcdf(self, netcdfs_dir, vehicle: str = "", name: str = "") -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         self.combined_nc.attrs = self.global_metadata()
