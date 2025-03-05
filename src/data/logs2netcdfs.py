@@ -17,6 +17,7 @@ import os
 import struct
 import sys
 import time
+from http import HTTPStatus
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +51,9 @@ TIME60HZ = "time60hz"
 TIMEOUT = 240
 SUMMARY_SOURCE = "Original log files copied from {}"
 
+
+class CustomException(Exception):
+    pass
 
 class AUV_NetCDF(AUV):
     logger = logging.getLogger(__name__)
@@ -97,9 +101,8 @@ class AUV_NetCDF(AUV):
                 csv = line.split(",")
                 if len(csv) == 1:
                     # Likely early missions before commas were used
-                    raise ValueError(
-                        "Failed to parse long_name & units from header",
-                    )
+                    error_message = "Failed to parse long_name & units from header"
+                    raise ValueError(error_message)
                 long_name = csv[1].strip()
                 units = csv[2].strip()
                 if short_name == "time":
@@ -157,9 +160,8 @@ class AUV_NetCDF(AUV):
                     csv = line.split(",")
                     if len(csv) == 1:
                         # Likely early missions before commas were used
-                        raise ValueError(
-                            "Failed to parse long_name & units from header",
-                        )
+                        error_message = "Failed to parse long_name & units from header"
+                        raise ValueError(error_message)
                     long_name = csv[1].strip()
                     units = csv[2].strip()
                     if short_name == "time":
@@ -210,32 +212,31 @@ class AUV_NetCDF(AUV):
                         v = struct.unpack(s, b)[0]
                     except struct.error as e:
                         self.logger.warning(
-                            f"{e}, b = {b} at record {rec_count},"
-                            f" for {r.short_name} in file {file}",
+                            "%s, b = %s at record %d, for %s in file %s",
+                            e, b, rec_count, r.short_name, file,
                         )
                         self.logger.info(
-                            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
+                            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
                         )
                         self.logger.info(
-                            f"Tried to read {r.length()} bytes, but"
-                            f" only {byte_offset + len_sum - file_size}"
-                            f" bytes remaining",
+                            "Tried to read %d bytes, but only %d bytes remaining",
+                            r.length(), byte_offset + len_sum - file_size
                         )
                         if rec_count > 0:
                             self.logger.info(
-                                f"Successfully unpacked {rec_count} records",
+                                "Successfully unpacked %d records", rec_count,
                             )
                         else:
-                            self.logger.error("No records uppacked")
+                            self.logger.exception("No records unpacked")
                             raise
                     r.data.append(v)
                 rec_count += 1
 
         self.logger.debug(
-            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
+            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
         )
 
-    def _read_biolume_data(
+    def _read_biolume_data(  # noqa: C901, PLR0912, PLR0915
         self,
         file: str,
         records: list[log_record],
@@ -260,7 +261,9 @@ class AUV_NetCDF(AUV):
                 for r in records:
                     try:
                         if r.short_name == "raw":
-                            assert records[2].short_name == "cal_striing"
+                            if records[2].short_name != "cal_striing":
+                                error_message = "Expected 'cal_striing' in records[2].short_name"
+                                raise ValueError(error_message)
                             for _ in range(60):
                                 b = f.read(r.length())
                                 len_sum += r.length()
@@ -289,74 +292,74 @@ class AUV_NetCDF(AUV):
                             r.data.append(v)
                     except struct.error as e:
                         self.logger.warning(
-                            f"{e}, b = {b} at record {rec_count},"
-                            f" for {r.short_name} in file {file}",
+                            "%s, b = %s at record %d, for %s in file %s",
+                            e, b, rec_count, r.short_name, file,
                         )
                         self.logger.info(
-                            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
+                            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
                         )
                         self.logger.info(
-                            f"Tried to read {r.length()} bytes, but"
-                            f" only {byte_offset + len_sum - file_size}"
-                            f" bytes remaining",
+                            "Tried to read %d bytes, but only %d bytes remaining",
+                            r.length(), byte_offset + len_sum - file_size,
                         )
                         if rec_count > 0:
                             self.logger.info(
-                                f"Successfully unpacked {rec_count} records",
+                                "Successfully unpacked %d records", rec_count,
                             )
                         else:
-                            self.logger.error("No records uppacked")
+                            self.logger.error("No records uppacked")  # noqa: TRY400
                             raise
                 rec_count += 1
 
         self.logger.debug(
-            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
+            "bytes read = %d file size = %d", byte_offset + len_sum, file_size
         )
 
     def _unique_vehicle_names(self):
-        self.logger.debug(f"Getting deployments from {self.deployments_url}")
+        self.logger.debug("Getting deployments from %s", self.deployments_url)
         with requests.get(self.deployments_url) as resp:
-            if resp.status_code != 200:
+            if resp.status_code != HTTPStatus.OK:
                 self.logger.error(
-                    f"Cannot read {self.deployments_url}, status_code = {resp.status_code}",
+                    "Cannot read %s, status_code = %d", self.deployments_url, resp.status_code,
                 )
                 return None
 
-            return set([d["vehicle"] for d in resp.json()])
+            return {d["vehicle"] for d in resp.json()}
 
     def _deployments_between(self):
         start = f"{self.args.start}T000000Z"
         end = f"{self.args.end}T235959Z"
         url = f"{self.deployments_url}?from={start}&to={end}"
-        self.logger.debug(f"Getting missions from {url}")
+        self.logger.debug("Getting missions from %s", url)
         with requests.get(url) as resp:
-            if resp.status_code != 200:
-                raise Exception(f"Cannot read {url}, status_code = {resp.status_code}")
+            if resp.status_code != HTTPStatus.OK:
+                error_message = f"Cannot read {url}, status_code = {resp.status_code}"
+                raise LookupError(error_message)
             if not resp.json():
-                raise LookupError(f"No missions from {url}")
+                error_message = f"No missions from {url}"
+                raise LookupError(error_message)
             for item in resp.json():
                 if self.args.preview:
                     self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
-                    self.logger.info(f"{item['vehicle']} {item['name']}")
+                    self.logger.info("%s %s", item["vehicle"], item["name"])
                 else:
-                    if self.args.auv_name:
-                        if item["vehicle"].upper() != self.args.auv_name.upper():
+                    if self.args.auv_name and item["vehicle"].upper() != self.args.auv_name.upper():
                             self.logger.debug(
-                                f"{item['vehicle']} != {self.args.auv_name}",
+                                "%s != %s", item["vehicle"], self.args.auv_name,
                             )
                             continue
                     try:
                         self.download_process_logs(item["vehicle"], item["name"])
                     except asyncio.exceptions.TimeoutError:
                         self.logger.warning(
-                            f"TimeoutError for self.download_process_logs("
-                            f"'{item['vehicle']}'', '{item['name']}')",
+                            "TimeoutError for self.download_process_logs('%s', '%s')",
+                            item["vehicle"], item["name"],
                         )
                         self.logger.info("Sleeping for 60 seconds...")
                         time.sleep(60)
                         self.logger.info(
-                            f"Trying to download_process_logs("
-                            f"'{item['vehicle']}'', '{item['name']}') again...",
+                            "Trying to download_process_logs('%s', '%s') again...",
+                            item["vehicle"], item["name"],
                         )
                         self.download_process_logs(item["vehicle"], item["name"])
 
@@ -364,26 +367,27 @@ class AUV_NetCDF(AUV):
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         files_url = f"{self.portal_base}/files/list/{name}/{vehicle}"
-        self.logger.debug(f"Getting files list from {files_url}")
+        self.logger.debug("Getting files list from %s", files_url)
         with requests.get(files_url) as resp:
-            if resp.status_code != 200:
+            if resp.status_code != HTTPStatus.OK:
                 self.logger.error(
-                    f"Cannot read {files_url}, status_code = {resp.status_code}",
+                    "Cannot read %s, status_code = %d", files_url, resp.status_code,
                 )
                 return None
             if names := resp.json()["names"]:
                 return names
-            raise LookupError(f"Nothing in names from {files_url}")
+            error_message = f"Nothing in names from {files_url}"
+            raise LookupError(error_message)
 
     async def _get_file(self, download_url, local_filename, session):
         try:
             async with session.get(download_url, timeout=TIMEOUT) as resp:
-                if resp.status != 200:
+                if resp.status != HTTPStatus.OK:
                     self.logger.warning(
-                        f"Cannot read {download_url}, status = {resp.status}",
+                        "Cannot read %s, status = %d", download_url, resp.status,
                     )
                 else:
-                    self.logger.info(f"Started download to {local_filename}...")
+                    self.logger.info("Started download to %s...", local_filename)
                     with open(local_filename, "wb") as handle:
                         async for chunk in resp.content.iter_chunked(1024):
                             handle.write(chunk)
@@ -394,8 +398,8 @@ class AUV_NetCDF(AUV):
                                 flush=True,
                             )
 
-        except (ClientConnectorError, concurrent.futures._base.TimeoutError) as e:
-            self.logger.error(f"{e}")
+        except (ClientConnectorError, concurrent.futures._base.TimeoutError):
+            self.logger.exception()
 
     async def _download_files(self, logs_dir, name=None, vehicle=None):
         name = name or self.args.mission
@@ -404,7 +408,7 @@ class AUV_NetCDF(AUV):
         async with ClientSession(timeout=TIMEOUT) as session:
             for ffm in self._files_from_mission(name, vehicle):
                 download_url = f"{self.portal_base}/files/download/{name}/{vehicle}/{ffm}"
-                self.logger.debug(f"Getting file contents from {download_url}")
+                self.logger.debug("Getting file contents from %s", download_url)
                 Path(logs_dir).mkdir(parents=True, exist_ok=True)
                 local_filename = Path(logs_dir, ffm)
                 task = asyncio.ensure_future(
@@ -415,8 +419,8 @@ class AUV_NetCDF(AUV):
             await asyncio.gather(*tasks)
 
     def _portal_download(self, logs_dir, name=None, vehicle=None):
-        self.logger.debug(f"Getting logs from {self.portal_base}")
-        self.logger.info(f"Downloading mission: {vehicle} {name}")
+        self.logger.debug("Getting logs from %s", self.portal_base)
+        self.logger.info("Downloading mission: %s %s", vehicle, name)
         d_start = time.time()
         loop = asyncio.get_event_loop()
         try:
@@ -424,20 +428,21 @@ class AUV_NetCDF(AUV):
                 self._download_files(logs_dir, name, vehicle),
             )
         except asyncio.exceptions.TimeoutError as e:
-            self.logger.warning(f"{e}")
+            self.logger.warning("%s", e)
         try:
             loop.run_until_complete(future)
-        except LookupError as e:
-            self.logger.error(f"{e}")
+        except LookupError:
+            self.logger.exception()
             self.logger.info("Perhaps use '--update' option?")
             return
-        self.logger.info(f"Time to download: {(time.time() - d_start):.2f} seconds")
+        self.logger.info("Time to download: %.2f seconds", time.time() - d_start)
 
     def _correct_dup_short_names(self, log_data):
         short_names = [v.short_name for v in log_data]
-        dupes = set([x for n, x in enumerate(short_names) if x in short_names[:n]])
+        dupes = {x for n, x in enumerate(short_names) if x in short_names[:n]}
         if len(dupes) > 1:
-            raise ValueError(f"Found more than one duplicate: {dupes}")
+            error_message = f"Found more than one duplicate: {dupes}"
+            raise ValueError(error_message)
         if len(dupes) == 1:
             count = 0
             for i, variable in enumerate(log_data):
@@ -455,12 +460,12 @@ class AUV_NetCDF(AUV):
             standard_name = "sea_water_temperature"
         if standard_name:
             self.logger.debug(
-                f"Setting standard_name = {standard_name} for {long_name}",
+                "Setting standard_name = %s for %s", standard_name, long_name,
             )
 
         return standard_name
 
-    def _create_variable(
+    def _create_variable(  # noqa: PLR0913
         self,
         data_type,
         short_name,
@@ -474,16 +479,14 @@ class AUV_NetCDF(AUV):
         elif data_type == "integer":
             nc_data_type = "i"
         elif (
-            data_type == "float"
-            or data_type == "timeTag"
-            or data_type == "double"
-            or data_type == "angle"
+            data_type in {"float", "timeTag", "double", "angle"}
         ):
             nc_data_type = "f8"
         else:
-            raise ValueError(f"No conversion for data_type = {data_type}")
+            error_message = f"No conversion for data_type = {data_type}"
+            raise ValueError(error_message)
 
-        self.logger.debug(f"createVariable {short_name}")
+        self.logger.debug("createVariable %s", short_name)
         setattr(
             self,
             short_name,
@@ -495,24 +498,24 @@ class AUV_NetCDF(AUV):
         getattr(self, short_name).units = units
         try:
             self.logger.debug(
-                f"{short_name}.shape[0] ({getattr(self, short_name).shape[0]})"
-                f" should equal len(data) ({len(data)})",
+                "%s.shape[0] (%d) should equal len(data) (%d)",
+                short_name, getattr(self, short_name).shape[0], len(data)
             )
             getattr(self, short_name)[:] = data
         except ValueError as e:
-            self.logger.warning(f"{short_name}: {e}")
+            self.logger.warning("%s: %s", short_name, e)
             self.logger.info(
-                f"len(data) ({len(data)}) does not match shape of"
-                f" {short_name}.shape[0] ({getattr(self, short_name).shape[0]})",
+                "len(data) (%d) does not match shape of %s.shape[0] (%d)",
+                    len(data), short_name, getattr(self, short_name).shape[0]
             )
             if getattr(self, short_name).shape[0] - len(data) == 1:
                 self.logger.warning(
-                    f"{short_name} data is short by one, appending the last value: {data[-1]}",
+                    "%s data is short by one, appending the last value: %s", short_name, data[-1],
                 )
                 data.append(data[-1])
                 getattr(self, short_name)[:] = data
             else:
-                self.logger.error("data seriously does not match shape")
+                self.logger.error("data seriously does not match shape")  # noqa: TRY400
                 raise
 
     def write_variables(self, log_data, netcdf_filename):
@@ -520,14 +523,19 @@ class AUV_NetCDF(AUV):
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         for variable in log_data:
             self.logger.debug(
-                f"Creating Variable {variable.short_name}: {variable.long_name} ({variable.units})",
+                "Creating Variable %s: %s (%s)",
+                variable.short_name, variable.long_name, variable.units,
             )
             if "biolume" in str(netcdf_filename):
                 if variable.short_name == "raw":
                     # The "raw" log is the last one in the list, and time is the first
-                    assert log_data[-1].short_name == "raw"
+                    if log_data[-1].short_name != "raw":
+                        error_message = "Expected the last log_data short_name to be 'raw'"
+                        raise ValueError(error_message)
                     self.nc_file.createDimension(TIME60HZ, len(log_data[0].data) * 60)
-                    assert log_data[0].data_type == "timeTag"
+                    if log_data[0].data_type != "timeTag":
+                        error_message = "Expected data_type to be 'timeTag'"
+                        raise ValueError(error_message)
                     self.logger.info(
                         "Expanding original timeTag to time60Hz variable for raw data",
                     )
@@ -589,14 +597,14 @@ class AUV_NetCDF(AUV):
         ds_orig = Dataset(netcdf_filename)
         #  Finding < -1.0e20 works for 2010.172.01's navigation.log
         #                          and 2010.265.00's ctdDriver.log
-        bad_indices = np.where(ds_orig[TIME][:] < -1.0e20)[0]
+        bad_indices = np.where(ds_orig[TIME][:] < -1.0e20)[0]  # noqa: PLR2004
         self.logger.warning(
             "Removing %s bad_indices from %s: %s",
             len(bad_indices),
             netcdf_filename,
             bad_indices,
         )
-        os.rename(netcdf_filename, f"{netcdf_filename}.orig")
+        netcdf_filename.rename(f"{netcdf_filename}.orig")
         self.logger.info("Renamed original file to  %s", f"{netcdf_filename}.orig")
         self.nc_file = Dataset(netcdf_filename, "w")
         clean_time_values = np.delete(ds_orig[TIME][:], bad_indices)
@@ -606,8 +614,7 @@ class AUV_NetCDF(AUV):
         # copy global attributes all at once via dictionary
         self.nc_file.setncatts(ds_orig.__dict__)
         # copy dimensions
-        for name, dimension in ds_orig.dimensions.items():
-            # name, (len(dimension) if not dimension.isunlimited() else None)
+        for name in ds_orig.dimensions:
             self.nc_file.createDimension(name, len(clean_time_values))
         # copy all file data except for the excluded
         for name, variable in ds_orig.variables.items():
@@ -631,15 +638,13 @@ class AUV_NetCDF(AUV):
         self.add_global_metadata()
         vehicle = self.args.auv_name
         self.nc_file.title = f"Original AUV {vehicle} data converted from {log_filename}"
-        if hasattr(self.args, "title"):
-            if self.args.title:
+        if hasattr(self.args, "title") and self.args.title:
                 self.nc_file.title = self.args.title
         if src_dir:
             # The source attribute might make more sense for the location of
             # the source data, but the summary field is shown in STOQS metadata
             self.nc_file.summary = SUMMARY_SOURCE.format(src_dir)
-        if hasattr(self.args, "summary"):
-            if self.args.summary:
+        if hasattr(self.args, "summary") and self.args.summary:
                 self.nc_file.summary = self.args.summary
         monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
         if (~monotonic).any():
@@ -652,18 +657,18 @@ class AUV_NetCDF(AUV):
             self.nc_file.comment += "Non-monotonic increasing times detected."
         self.nc_file.close()
 
-    def download_process_logs(
+    def download_process_logs(  # noqa: C901, PLR0912
         self,
-        vehicle: str = None,
-        name: str = None,
-        src_dir: str = None,
+        vehicle: str="",
+        name: str="",
+        src_dir: str="",
     ) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
         logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
 
         if src_dir:
-            self.logger.info(f"{src_dir = }")
+            self.logger.info("src_dir = %s", src_dir)
 
         if not self.args.local:
             # As of 20 July 2023 this returns 404, which is dstracting
@@ -674,12 +679,12 @@ class AUV_NetCDF(AUV):
             if Path(logs_dir, "vehicle.cfg").exists():
                 if self.args.noinput:
                     if self.args.clobber:
-                        self.logger.info(f"Clobbering existing {logs_dir} files")
+                        self.logger.info("Clobbering existing %s files", logs_dir)
                     else:
-                        self.logger.info(f"{logs_dir} exists")
+                        self.logger.info("%s exists", logs_dir)
                         yes_no = "N"
                         if self.args.noreprocess:
-                            self.logger.info(f"Not reprocessing {logs_dir}")
+                            self.logger.info("Not reprocessing %s", logs_dir)
                             return
                 else:
                     yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or "Y"
@@ -709,28 +714,30 @@ class AUV_NetCDF(AUV):
                     self.logger.warning("%s is empty", str(log_filename))
                 self._process_log_file(log_filename, netcdf_filename, src_dir)
             except (FileNotFoundError, EOFError, struct.error, IndexError) as e:
-                self.logger.debug(f"{e}")
+                self.logger.debug("%s", e)
             except ValueError as e:
-                self.logger.warning(f"{e} in file {log_filename}")
+                self.logger.warning("%s in file %s", e, log_filename)
 
             if log == "navigation.log" and "2010.172.01" in str(log_filename):
-                # Remove egregiously bad values as found in 2010.172.01's navigation.log - Comment from processNav.m:
-                # % For Mission 2010.172.01 the first part of the time array had really large negative epoch second values.
+                # Remove egregiously bad values as found in 2010.172.01's navigation.log - Comment
+                # from processNav.m:
+                # % For Mission 2010.172.01 the first part of the time array had really
+                # % large negative epoch second values.
                 # % Take only the positive time values in addition to the good depth values
                 self._remove_bad_values(netcdf_filename)
             if log == "ctdDriver.log" and "2010.265.00" in str(log_filename):
                 self._remove_bad_values(netcdf_filename)
 
-        self.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+        self.logger.info("Time to process: %.2f seconds", time.time() - p_start)
 
     def update(self):
         self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
         url = "http://portal.shore.mbari.org:8080/auvdata/v1/deployments/update"
-        auv_netcdf.logger.info(f"Sending an 'update' request: {url}")
+        auv_netcdf.logger.info("Sending an 'update' request: %s", url)
         resp = requests.post(url)
-        if resp.status_code != 200:
+        if resp.status_code != HTTPStatus.OK:
             self.logger.error(
-                f"Update failed for url = {url}, status_code = {resp.status_code}",
+                "Update failed for url = %s, status_code = %d", url, resp.status_code,
             )
         else:
             self.logger.info("Wait a few minutes for new missions to appear")
@@ -738,8 +745,7 @@ class AUV_NetCDF(AUV):
     def set_portal(self) -> None:
         self.portal_base = PORTAL_BASE
         self.deployments_url = Path(self.portal_base, "deployments")
-        if hasattr(self.args, "portal"):
-            if self.args.portal:
+        if hasattr(self.args, "portal") and self.args.portal:
                 self.portal_base = self.args.portal
                 self.deployments_url = Path(self.args.portal, "deployments")
 
@@ -880,5 +886,5 @@ if __name__ == "__main__":
         )
 
     auv_netcdf.logger.info(
-        f"Time to download and process: {(time.time() - p_start):.2f} seconds",
+        "Time to download and process: %.2f seconds", (time.time() - p_start),
     )
