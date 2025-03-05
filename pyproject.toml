@@ -50,6 +50,7 @@ cmocean = "^3.0.3"
 ruff = "^0.9.8"
 pre-commit = "^4.1.0"
 lzstring = "^1.0.4"
+aiofiles = "^24.1.0"
 
 
 [tool.poetry.dev-dependencies]
@@ -130,3 +131,7 @@ ignore = [
     "N818", # Exception name should be named with an Error suffix
     "SLF001", # Private member accessed
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"src/data/dorado_info.py" = ["E501"]
+
