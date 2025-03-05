@@ -16,7 +16,7 @@ a NetCDF file that can be read by the doradosdp software.
 @undocumented: __doc__ parser
 @status: In development
 @license: GPL
-"""
+"""  # noqa: A001
 
 import datetime
 import logging
@@ -25,14 +25,14 @@ import time
 from optparse import OptionParser
 from pathlib import Path
 
-import Nio
+import Nio  # type: ignore  # noqa: PGH003
 
 #
 # Make a global logging object.
 #
 h = logging.StreamHandler()
 f = logging.Formatter("%(levelname)s %(asctime)s %(message)s")
-##f = logging.Formatter("%(levelname)s %(asctime)s %(funcName)s %(lineno)d %(message)s")	# Python 2.4 does not support funcName :-(
+##f = logging.Formatter("%(levelname)s %(asctime)s %(funcName)s %(lineno)d %(message)s")	# Python 2.4 does not support funcName :-(  # noqa: E501
 h.setFormatter(f)
 
 logger = logging.getLogger("logger")
@@ -45,33 +45,32 @@ logging.getLogger("logger").setLevel(logging.INFO)
 #
 # Variables global to this module
 #
-verboseFlag = False
-debugLevel = 0
+verboseFlag = False  # noqa: N816
+debugLevel = 0  # noqa: N816
 
 
-def processRecords(aFile, ncFile):
+def processRecords(aFile, ncFile):  # noqa: N803
     """Read record from ascii ubl file, parse it and write netCDF records"""
 
-    count = 0
-    for rec in aFile.readlines():
-        logger.debug("processRecords(): rec = " + rec)
+    for count, rec in enumerate(aFile.readlines()):
+        logger.debug("processRecords(): rec = %s", rec)
         items = rec.split(",")
 
         # Parse date/time
-        logger.debug("processRecords(): date = %s" % items[1].split(" ")[0])
+        logger.debug("processRecords(): date = %s", items[1].split(" ")[0])
         mo = int(items[1].split(" ")[0].split("-")[0])
         da = int(items[1].split(" ")[0].split("-")[1])
         yr = int(items[1].split(" ")[0].split("-")[2]) + 2000
-        logger.debug("processRecords(): time = %s" % items[1].split(" ")[1])
+        logger.debug("processRecords(): time = %s", items[1].split(" ")[1])
         hr = int(items[1].split(" ")[1].split(":")[0])
         mn = int(items[1].split(" ")[1].split(":")[1])
         se = int(items[1].split(" ")[1].split(":")[2].split(".")[0])
         us = int(items[1].split(" ")[1].split(":")[2].split(".")[1]) / 10 * 1000000  # microseconds
 
-        t = datetime.datetime(yr, mo, da, hr, mn, se, us)
+        t = datetime.datetime(yr, mo, da, hr, mn, se, us, tzinfo=datetime.timezone.utc)
         t = t - datetime.timedelta(hours=5)  # Try subtracking 5 hours to make local time GMT
         esec = time.mktime(t.timetuple())
-        logger.debug("processRecords(): esec = %s" % esec)
+        logger.debug("processRecords(): esec = %s", esec)
 
         # Parse Latitude (ship index = 2, auv index = 22)
         latD = float(items[22].split(" ")[0][1:])
@@ -79,7 +78,7 @@ def processRecords(aFile, ncFile):
         lat = latD + latFrac
         if items[22].split(" ")[0][0] == "S":
             lat = -lat
-        logger.debug("processRecords(): lat = %f" % lat)
+        logger.debug("processRecords(): lat = %f", lat)
 
         # Parse Longitude (ship index = 3, auv index = 23)
         lonD = float(items[23].split(" ")[0][1:])
@@ -87,20 +86,19 @@ def processRecords(aFile, ncFile):
         lon = lonD + lonFrac
         if items[23].split(" ")[0][0] == "W":
             lon = -lon
-        logger.debug("processRecords(): lon = %f" % lon)
+        logger.debug("processRecords(): lon = %f", lon)
 
         # Write the record
         writeNetCDFRecord(ncFile, count, esec, lon, lat)
-        count += 1
 
 
-def openNetCDFFile(ncFileName):
+def openNetCDFFile(ncFileName):  # noqa: N803
     """Open netCDF file and write some global attributes and dimensions that
     we know at the beginning of processing.
 
     """
 
-    logger.info("openNetCDFFile(): Will output NetCDF file to %s" % ncFileName)
+    logger.info("openNetCDFFile(): Will output NetCDF file to %s", ncFileName)
 
     #
     # Set the PreFill option to False to improve writing performance
@@ -123,19 +121,25 @@ def openNetCDFFile(ncFileName):
         missionName = ncFileName.split("/")[-2]
     except IndexError:
         logger.warning(
-            "openNetCDFFile(): Could not parse missionName from netCDF file name - probably not production processing."
+            "openNetCDFFile(): Could not parse missionName from netCDF file name - "
+            "probably not production processing."
         )
 
-    logger.info("openNetCDFFile(): missionName = %s" % missionName)
+    logger.info("openNetCDFFile(): missionName = %s", missionName)
 
     ncFile.title = "USBL data from AUV mission " + missionName
     ncFile.institution = "Monterey Bay Aquarium Research Institute"
-    ncFile.summary = "These data have been processed from the original USBL.  The data in this file are to be considered as simple time series data only and are as close to the original data as possible. "
+    ncFile.summary = (
+        "These data have been processed from the original USBL. "
+        "The data in this file are to be considered as simple time series data only "
+        "and are as close to the original data as possible."
+    )
     ncFile.keywords = "Ultra Short Baseline, Navigation"
     ncFile.Conventions = "CF-1.1"
     ncFile.standard_name_vocabulary = "CF-1.1"
 
-    # Time dimension is unlimited, we'll write variable records then write the time data at the end of processing
+    # Time dimension is unlimited, we'll write variable records then
+    # write the time data at the end of processing
     ncFile.create_dimension("time", None)  # Unlimited dimension
 
     ncFile.create_variable("time", "d", ("time",))
@@ -154,7 +158,7 @@ def openNetCDFFile(ncFileName):
     return ncFile  # End openNetCDFFile()
 
 
-def writeNetCDFRecord(ncFile, indx, esec, lon, lat):
+def writeNetCDFRecord(ncFile, indx, esec, lon, lat):  # noqa: N803
     """Write records to the unlimited (time) dimension"""
 
     ncFile.variables["time"][indx] = esec
@@ -162,7 +166,7 @@ def writeNetCDFRecord(ncFile, indx, esec, lon, lat):
     ncFile.variables["latitude"][indx] = lat
 
 
-def closeNetCDFFile(ncFile):
+def closeNetCDFFile(ncFile):  # noqa: N803
     """Write the time axis data, additional global attributes and close the file"""
 
     ncFile.close()
@@ -178,7 +182,7 @@ def main():
     >>> usblToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010151/2010.151.04/usbl.dat \
         -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010151/2010.151.04/usbl.nc
 
-    """
+    """  # noqa: E501
 
     parser = OptionParser(
         usage="""\
@@ -199,21 +203,27 @@ Options:
 Examples:
 	usblToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010151/2010.151.04/usbl.dat -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010151/2010.151.04/usbl.nc
 
-"""
+"""  # noqa: E501
     )
     parser.add_option(
         "-i",
         "--ascii_fileName",
         type="string",
         action="store",
-        help="Specify an input binary data file name, e.g. /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin.",
+        help=(
+            "Specify an input binary data file name, "
+            "e.g. /mbari/AUVCTD/missionlogs/2009/2009084/2009.084.00/lopc.bin."
+        ),
     )
     parser.add_option(
         "-n",
         "--netCDF_fileName",
         type="string",
         action="store",
-        help="Specify a fully qualified output NetCDF file path, e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.nc",
+        help=(
+            "Specify a fully qualified output NetCDF file path, "
+            "e.g. /mbari/tempbox/mccann/lopc/2009_084_00lopc.nc"
+        ),
     )
     parser.add_option(
         "-v",
@@ -227,7 +237,10 @@ Examples:
         "--debugLevel",
         action="store",
         type="int",
-        help="Turn on debugLevel [1..3].  The higher the number, the more the output.  E.g. us '-d 1' to understand framing errors, '-d 3' for all debug statements.",
+        help=(
+            "Turn on debugLevel [1..3].  The higher the number, the more the output. "
+            "E.g. us '-d 1' to understand framing errors, '-d 3' for all debug statements."
+        ),
     )
     parser.add_option(
         "-f",
@@ -245,8 +258,7 @@ Examples:
         start = time.time()
 
         # Set global output flags
-        global verboseFlag
-        global hasMBARICframeData
+        global verboseFlag  # noqa: PLW0603
         verboseFlag = opts.verbose
         if opts.debugLevel:
             logging.getLogger("logger").setLevel(logging.DEBUG)
@@ -265,7 +277,7 @@ Examples:
                 else:
                     sys.exit(0)
 
-        logger.info("main(): Processing begun: %s" % time.ctime())
+        logger.info("main(): Processing begun: %s", time.ctime())
 
         # Open input file
         asciiFile = open(opts.ascii_fileName)
@@ -279,16 +291,18 @@ Examples:
         # Close the netCDF file writing the proper tsList data first
         closeNetCDFFile(ncFile)
 
-        logger.info("main(): Created file: %s" % opts.netCDF_fileName)
+        logger.info("main(): Created file: %s", opts.netCDF_fileName)
 
         mark = time.time()
         logger.info(
-            "main(): Processing finished: %s Elapsed processing time from start of processing = %d seconds"
-            % (time.ctime(), (mark - start))
+            "main(): Processing finished: %s Elapsed processing time from start of processing = %d "
+            "seconds",
+            time.ctime(),
+            (mark - start),
         )
 
     else:
-        print("\nCannot process input.  Execute with -h for usage note.\n")
+        print("\nCannot process input.  Execute with -h for usage note.\n")  # noqa: T201
 
 
 # Allow this file to be imported as a module

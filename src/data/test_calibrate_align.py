@@ -42,7 +42,7 @@ def test_align_geom():
 
     # Test from Matlab processHS2.m debugging session:
     #
-    # K>> align_geom([0.1397, -0.2794], [0.2928, 0.2939, 0.2952])  # noqa: ERA001
+    # K>> align_geom([0.1397, -0.2794], [0.2928, 0.2939, 0.2952])
     #
     # ans =
     #

@@ -129,21 +129,30 @@ class TimeCorrect(AUV):
                     except struct.error as e:
                         self.logger.warning(
                             "%s, b = %s at record %d, for %s in file %s",
-                            e, b, rec_count, r.short_name, file,
+                            e,
+                            b,
+                            rec_count,
+                            r.short_name,
+                            file,
                         )
                         self.logger.info(
-                            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
+                            "bytes read = %d file size = %d",
+                            byte_offset + len_sum,
+                            file_size,
                         )
                         self.logger.info(
                             "Tried to read %d bytes, but only %d bytes remaining",
-                            r.length(), byte_offset + len_sum - file_size,
+                            r.length(),
+                            byte_offset + len_sum - file_size,
                         )
                         raise
                     r.data.append(v)
                 rec_count += 1
 
         self.logger.debug(
-            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
+            "bytes read = %d file size = %d",
+            byte_offset + len_sum,
+            file_size,
         )
 
     def _correct_dup_short_names(self, log_data):
@@ -172,7 +181,9 @@ class TimeCorrect(AUV):
         log_filename = Path(new_logs_dir, filename)
         self.logger.debug("Writing log file %s", log_filename)
         self.logger.info(
-            "Adding %s seconds to variable %s", self.args.add_seconds, TIME,
+            "Adding %s seconds to variable %s",
+            self.args.add_seconds,
+            TIME,
         )
         with open(log_filename, "wb") as fh:
             fh.write(bytes(header_text, encoding="utf8"))

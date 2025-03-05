@@ -32,7 +32,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from getpass import getuser
 from pathlib import Path
 from socket import gethostname
@@ -100,7 +100,7 @@ class Processor:
         self.logger.debug("Executing %s", find_cmd)
         if self.args.last_n_days:
             self.logger.info(
-                f"Will be looking back {self.args.last_n_days} days for new missions...",
+                "Will be looking back %d days for new missions...", self.args.last_n_days
             )
             find_cmd += f" -mtime -{self.args.last_n_days}"
         self.logger.info("Finding missions from %s to %s", start_year, end_year)
@@ -142,7 +142,8 @@ class Processor:
                 path = missions[mission]
             else:
                 self.logger.error("Cannot find %s in %s", mission, self.vehicle_dir)
-                raise FileNotFoundError(f"Cannot find {mission} in {self.vehicle_dir}")
+                error_message = f"Cannot find {mission} in {self.vehicle_dir}"
+                raise FileNotFoundError(error_message)
         elif self.vehicle == "Dorado389":
             # The Dorado389 vehicle is a special case used for testing locally and in CI
             path = self.vehicle_dir
@@ -186,7 +187,7 @@ class Processor:
             if "lopc" in EXPECTED_SENSORS[self.vehicle]:
                 self.logger.warning("No lopc.bin file for %s", mission)
             return
-        self.logger.info(f"Processing file {lopc_bin} ({file_size} bytes)")
+        self.logger.info("Processing file %s (%d bytes)", lopc_bin, file_size)
         lopc_processor = LOPC_Processor()
         lopc_processor.args = argparse.Namespace()
         lopc_processor.args.bin_fileName = lopc_bin
@@ -211,7 +212,7 @@ class Processor:
         try:
             lopc_processor.main()
         except UnexpectedAreaOfCode as e:
-            self.logger.error(e)
+            self.logger.error(e)  # noqa: TRY400
         lopc_processor.logger.removeHandler(self.log_handler)
 
     def calibrate(self, mission: str) -> None:
@@ -235,7 +236,7 @@ class Processor:
             netcdf_dir = cal_netcdf.process_logs()
             cal_netcdf.write_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
-            cal_netcdf.logger.error("%s %s", mission, e)
+            cal_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
         cal_netcdf.logger.removeHandler(self.log_handler)
 
     def align(self, mission: str) -> None:
@@ -254,8 +255,9 @@ class Processor:
             netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
-            align_netcdf.logger.error("%s %s", mission, e)
-            raise InvalidCalFile(f"{mission} {e}")
+            align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
+            error_message = f"{mission} {e}"
+            raise InvalidCalFile(error_message) from e
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 
@@ -298,11 +300,11 @@ class Processor:
         try:
             resamp.resample_mission(nc_file)
         except FileNotFoundError as e:
-            self.logger.error("%s %s", mission, e)
+            self.logger.error("%s %s", mission, e)  # noqa: TRY400
         finally:
             resamp.logger.removeHandler(self.log_handler)
 
-    def archive(self, mission: str, add_logger_handlers: bool = True) -> None:
+    def archive(self, mission: str, add_logger_handlers: bool = True) -> None:  # noqa: FBT001, FBT002
         arch = Archiver(add_logger_handlers)
         arch.args = argparse.Namespace()
         arch.args.auv_name = self.vehicle
@@ -384,19 +386,18 @@ class Processor:
         except FileNotFoundError as e:
             self.logger.info("File not found: %s", e)
 
-    def process_mission(self, mission: str, src_dir: str = None) -> None:
+    def process_mission(self, mission: str, src_dir: str = "") -> None:  # noqa: C901, PLR0912, PLR0915
         netcdfs_dir = Path(
             self.args.base_path,
             self.vehicle,
             MISSIONNETCDFS,
             mission,
         )
-        if self.args.clobber:
-            if (
-                self.args.noinput
-                or input("Do you want to remove all work files? [y/N] ").lower() == "y"
-            ):
-                self.cleanup(mission)
+        if self.args.clobber and (
+            self.args.noinput
+            or input("Do you want to remove all work files? [y/N] ").lower() == "y"
+        ):
+            self.cleanup(mission)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
             Path(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"),
@@ -408,22 +409,26 @@ class Processor:
             "=====================================================================================================================",
         )
         self.logger.addHandler(self.log_handler)
-        self.logger.info(f"{self.commandline = }")
+        self.logger.info("commandline = %s", self.commandline)
         try:
             program = ""
             if self.vehicle.lower() == "dorado":
                 program = dorado_info[mission]["program"]
-                self.logger.info(f'{dorado_info[mission]["comment"] = }')
+                self.logger.info(
+                    'dorado_info[mission]["comment"] = %s', dorado_info[mission]["comment"]
+                )
             elif self.vehicle.lower() == "i2map":
                 program = "i2map"
             if program == TEST:
-                raise TestMission(
-                    f"{TEST} program specified in dorado_info.py. Not processing {mission}",
+                error_message = (
+                    f"{TEST} program specified in dorado_info.py. Not processing {mission}"
                 )
+                raise TestMission(error_message)
             if program == FAILED:
-                raise FailedMission(
-                    f"{FAILED} program specified in dorado_info.py. Not processing {mission}",
+                error_message = (
+                    f"{FAILED} program specified in dorado_info.py. Not processing {mission}"
                 )
+                raise FailedMission(error_message)
             self.logger.info(
                 "Processing %s mission %s by user %s on host %s",
                 program,
@@ -432,7 +437,8 @@ class Processor:
                 gethostname(),
             )
         except KeyError:
-            raise MissingDoradoInfo(f"{mission} not in dorado_info")
+            error_message = f"{mission} not in dorado_info"
+            raise MissingDoradoInfo(error_message) from None
         if self.args.download_process:
             self.download_process(mission, src_dir)
         elif self.args.calibrate:
@@ -464,7 +470,7 @@ class Processor:
             self.create_products(mission)
             # self.archive() is called in finally: blocks in process_missions()
 
-    def process_mission_job(self, mission: str, src_dir: str = None) -> None:
+    def process_mission_job(self, mission: str, src_dir: str = "") -> None:
         try:
             t_start = time.time()
             self.process_mission(mission, src_dir)
@@ -475,8 +481,8 @@ class Processor:
             EOFError,
             MissingDoradoInfo,
         ) as e:
-            self.logger.error(repr(e))
-            self.logger.error("Failed to process to completion: %s", mission)
+            self.logger.error(repr(e))  # noqa: TRY400
+            self.logger.error("Failed to process to completion: %s", mission)  # noqa: TRY400
         except (TestMission, FailedMission) as e:
             self.logger.info(str(e))
         finally:
@@ -496,7 +502,7 @@ class Processor:
     def process_mission_exception_wrapper(
         self,
         mission: str,
-        src_dir: str = None,
+        src_dir: str = "",
     ) -> None:
         try:
             t_start = time.time()
@@ -508,8 +514,8 @@ class Processor:
             EOFError,
             MissingDoradoInfo,
         ) as e:
-            self.logger.error(repr(e))
-            self.logger.error("Failed to process to completion: %s", mission)
+            self.logger.error(repr(e))  # noqa: TRY400
+            self.logger.error("Failed to process to completion: %s", mission)  # noqa: TRY400
         except (TestMission, FailedMission) as e:
             self.logger.info(str(e))
         finally:
@@ -636,7 +642,7 @@ class Processor:
             "--end_year",
             action="store",
             type=int,
-            default=datetime.now().year,
+            default=datetime.now().astimezone(timezone.utc).year,
             help="End processing at this year",
         )
         parser.add_argument(
@@ -692,12 +698,18 @@ class Processor:
         parser.add_argument(
             "--email_to",
             action="store",
-            help=f"Send email to this address when processing is complete, use {NOTIFICATION_EMAIL} for everyone who cares",
+            help=(
+                f"Send email to this address when processing is complete, use "
+                f"{NOTIFICATION_EMAIL} for everyone who cares"
+            ),
         )
         parser.add_argument(
             "--cleanup",
             action="store_true",
-            help=f"Remove {MISSIONLOGS} and {MISSIONNETCDFS} files following archive of processed mission",
+            help=(
+                f"Remove {MISSIONLOGS} and {MISSIONNETCDFS} files following "
+                "archive of processed mission"
+            ),
         )
         parser.add_argument(
             "--no_cleanup",
@@ -748,7 +760,10 @@ class Processor:
             "--flash_threshold",
             action="store",
             type=float,
-            help=f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} and append to the netCDF file name",
+            help=(
+                f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} "
+                "and append to the netCDF file name"
+            ),
         )
         parser.add_argument(
             "--num_cores",
@@ -779,7 +794,7 @@ class Processor:
                 "start_yd and end_yd will be honored as start_year and end_year are identical",
             )
         # Warn that --start_yd and --end_yd will be ignored
-        elif self.args.start_yd != 1 or self.args.end_yd != 366:
+        elif self.args.start_yd != 1 or self.args.end_yd != 366:  # noqa: PLR2004
             self.logger.warning(
                 "start_yd and end_yd will be ignored as start_year and end_year are different",
             )

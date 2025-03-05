@@ -1653,7 +1653,7 @@ class LOPC_Processor:
                         sampleCountList[indx : spike_indx[i + 1]],
                     )
                     self.logger.debug(
-                        "Spike values are greater than the true values, good values are less than %d",
+                        "Spike values are greater than the true values, good values are less than %d",  # noqa: E501
                         spikeValue,
                     )
 
@@ -1811,7 +1811,8 @@ class LOPC_Processor:
         lopcNC="http://dods.mbari.org/cgi-bin/nph-nc/data/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2009/2009084/2009.084.02/lopc.nc",  # noqa: N803
     ):
         """
-            Test the correctSampleCountList() function by reading (via NetCDF4) a previously saved netCDF file's original sampleCount.
+            Test the correctSampleCountList() function by reading (via NetCDF4)
+            a previously saved netCDF file's original sampleCount.
             Runs the code with debugging turned on.
 
             ipyhton test procedure:
@@ -1890,7 +1891,13 @@ class LOPC_Processor:
             "Laser Optical Plankton Counter measurements from AUV mission " + missionName
         )
         self.ncFile.institution = "Monterey Bay Aquarium Research Institute"
-        self.ncFile.summary = "These data have been processed from the original lopc.bin file produced by the LOPC instrument.  The data in this file are to be considered as simple time series data only and are as close to the original data as possible.  Further processing is required to turn the data into a time series of profiles."
+        self.ncFile.summary = (
+            "These data have been processed from the original lopc.bin file"
+            " produced by the LOPC instrument.  The data in this file are to be"
+            " considered as simple time series data only and are as close to the"
+            " original data as possible.  Further processing is required to turn"
+            " the data into a time series of profiles."
+        )
         self.ncFile.keywords = "plankton, particles, detritus, marine snow, particle counter"
         self.ncFile.Conventions = "CF-1.6"
         self.ncFile.standard_name_vocabulary = "CF-1.6"

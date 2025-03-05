@@ -11,7 +11,6 @@ way other Samples (Sipper, ESP) are loaded and accessible in STOQS.
 
 import argparse
 import logging
-import os
 import re
 import sys
 from pathlib import Path

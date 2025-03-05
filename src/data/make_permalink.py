@@ -8,7 +8,6 @@ Can be used with the stoqs_all_dorado database to zoom in on the data.
 
 import csv
 import json
-import os
 import sys
 from datetime import datetime
 

@@ -9,7 +9,6 @@ __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import os
 import re
 import sys
 import time

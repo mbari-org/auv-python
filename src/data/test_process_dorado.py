@@ -7,6 +7,7 @@ from logs2netcdfs import MISSIONNETCDFS
 # The test should not take more than 2 minutes to run, so this is as old as the _1S.nc file can be
 MAX_SECS = 2 * 60  # 2 minutes
 
+
 def test_process_dorado(complete_dorado_processing):
     """Test that Dorado processing runs without error"""
     # complete_processing ia a fixture from the conftest.py module;

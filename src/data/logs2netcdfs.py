@@ -55,6 +55,7 @@ SUMMARY_SOURCE = "Original log files copied from {}"
 class CustomException(Exception):
     pass
 
+
 class AUV_NetCDF(AUV):
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -213,18 +214,26 @@ class AUV_NetCDF(AUV):
                     except struct.error as e:
                         self.logger.warning(
                             "%s, b = %s at record %d, for %s in file %s",
-                            e, b, rec_count, r.short_name, file,
+                            e,
+                            b,
+                            rec_count,
+                            r.short_name,
+                            file,
                         )
                         self.logger.info(
-                            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
+                            "bytes read = %d file size = %d",
+                            byte_offset + len_sum,
+                            file_size,
                         )
                         self.logger.info(
                             "Tried to read %d bytes, but only %d bytes remaining",
-                            r.length(), byte_offset + len_sum - file_size
+                            r.length(),
+                            byte_offset + len_sum - file_size,
                         )
                         if rec_count > 0:
                             self.logger.info(
-                                "Successfully unpacked %d records", rec_count,
+                                "Successfully unpacked %d records",
+                                rec_count,
                             )
                         else:
                             self.logger.exception("No records unpacked")
@@ -233,7 +242,9 @@ class AUV_NetCDF(AUV):
                 rec_count += 1
 
         self.logger.debug(
-            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
+            "bytes read = %d file size = %d",
+            byte_offset + len_sum,
+            file_size,
         )
 
     def _read_biolume_data(  # noqa: C901, PLR0912, PLR0915
@@ -293,34 +304,42 @@ class AUV_NetCDF(AUV):
                     except struct.error as e:
                         self.logger.warning(
                             "%s, b = %s at record %d, for %s in file %s",
-                            e, b, rec_count, r.short_name, file,
+                            e,
+                            b,
+                            rec_count,
+                            r.short_name,
+                            file,
                         )
                         self.logger.info(
-                            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
+                            "bytes read = %d file size = %d",
+                            byte_offset + len_sum,
+                            file_size,
                         )
                         self.logger.info(
                             "Tried to read %d bytes, but only %d bytes remaining",
-                            r.length(), byte_offset + len_sum - file_size,
+                            r.length(),
+                            byte_offset + len_sum - file_size,
                         )
                         if rec_count > 0:
                             self.logger.info(
-                                "Successfully unpacked %d records", rec_count,
+                                "Successfully unpacked %d records",
+                                rec_count,
                             )
                         else:
                             self.logger.error("No records uppacked")  # noqa: TRY400
                             raise
                 rec_count += 1
 
-        self.logger.debug(
-            "bytes read = %d file size = %d", byte_offset + len_sum, file_size
-        )
+        self.logger.debug("bytes read = %d file size = %d", byte_offset + len_sum, file_size)
 
     def _unique_vehicle_names(self):
         self.logger.debug("Getting deployments from %s", self.deployments_url)
         with requests.get(self.deployments_url) as resp:
             if resp.status_code != HTTPStatus.OK:
                 self.logger.error(
-                    "Cannot read %s, status_code = %d", self.deployments_url, resp.status_code,
+                    "Cannot read %s, status_code = %d",
+                    self.deployments_url,
+                    resp.status_code,
                 )
                 return None
 
@@ -344,22 +363,26 @@ class AUV_NetCDF(AUV):
                     self.logger.info("%s %s", item["vehicle"], item["name"])
                 else:
                     if self.args.auv_name and item["vehicle"].upper() != self.args.auv_name.upper():
-                            self.logger.debug(
-                                "%s != %s", item["vehicle"], self.args.auv_name,
-                            )
-                            continue
+                        self.logger.debug(
+                            "%s != %s",
+                            item["vehicle"],
+                            self.args.auv_name,
+                        )
+                        continue
                     try:
                         self.download_process_logs(item["vehicle"], item["name"])
                     except asyncio.exceptions.TimeoutError:
                         self.logger.warning(
                             "TimeoutError for self.download_process_logs('%s', '%s')",
-                            item["vehicle"], item["name"],
+                            item["vehicle"],
+                            item["name"],
                         )
                         self.logger.info("Sleeping for 60 seconds...")
                         time.sleep(60)
                         self.logger.info(
                             "Trying to download_process_logs('%s', '%s') again...",
-                            item["vehicle"], item["name"],
+                            item["vehicle"],
+                            item["name"],
                         )
                         self.download_process_logs(item["vehicle"], item["name"])
 
@@ -371,7 +394,9 @@ class AUV_NetCDF(AUV):
         with requests.get(files_url) as resp:
             if resp.status_code != HTTPStatus.OK:
                 self.logger.error(
-                    "Cannot read %s, status_code = %d", files_url, resp.status_code,
+                    "Cannot read %s, status_code = %d",
+                    files_url,
+                    resp.status_code,
                 )
                 return None
             if names := resp.json()["names"]:
@@ -384,7 +409,9 @@ class AUV_NetCDF(AUV):
             async with session.get(download_url, timeout=TIMEOUT) as resp:
                 if resp.status != HTTPStatus.OK:
                     self.logger.warning(
-                        "Cannot read %s, status = %d", download_url, resp.status,
+                        "Cannot read %s, status = %d",
+                        download_url,
+                        resp.status,
                     )
                 else:
                     self.logger.info("Started download to %s...", local_filename)
@@ -460,7 +487,9 @@ class AUV_NetCDF(AUV):
             standard_name = "sea_water_temperature"
         if standard_name:
             self.logger.debug(
-                "Setting standard_name = %s for %s", standard_name, long_name,
+                "Setting standard_name = %s for %s",
+                standard_name,
+                long_name,
             )
 
         return standard_name
@@ -478,9 +507,7 @@ class AUV_NetCDF(AUV):
             nc_data_type = "h"
         elif data_type == "integer":
             nc_data_type = "i"
-        elif (
-            data_type in {"float", "timeTag", "double", "angle"}
-        ):
+        elif data_type in {"float", "timeTag", "double", "angle"}:
             nc_data_type = "f8"
         else:
             error_message = f"No conversion for data_type = {data_type}"
@@ -499,18 +526,24 @@ class AUV_NetCDF(AUV):
         try:
             self.logger.debug(
                 "%s.shape[0] (%d) should equal len(data) (%d)",
-                short_name, getattr(self, short_name).shape[0], len(data)
+                short_name,
+                getattr(self, short_name).shape[0],
+                len(data),
             )
             getattr(self, short_name)[:] = data
         except ValueError as e:
             self.logger.warning("%s: %s", short_name, e)
             self.logger.info(
                 "len(data) (%d) does not match shape of %s.shape[0] (%d)",
-                    len(data), short_name, getattr(self, short_name).shape[0]
+                len(data),
+                short_name,
+                getattr(self, short_name).shape[0],
             )
             if getattr(self, short_name).shape[0] - len(data) == 1:
                 self.logger.warning(
-                    "%s data is short by one, appending the last value: %s", short_name, data[-1],
+                    "%s data is short by one, appending the last value: %s",
+                    short_name,
+                    data[-1],
                 )
                 data.append(data[-1])
                 getattr(self, short_name)[:] = data
@@ -524,7 +557,9 @@ class AUV_NetCDF(AUV):
         for variable in log_data:
             self.logger.debug(
                 "Creating Variable %s: %s (%s)",
-                variable.short_name, variable.long_name, variable.units,
+                variable.short_name,
+                variable.long_name,
+                variable.units,
             )
             if "biolume" in str(netcdf_filename):
                 if variable.short_name == "raw":
@@ -639,13 +674,13 @@ class AUV_NetCDF(AUV):
         vehicle = self.args.auv_name
         self.nc_file.title = f"Original AUV {vehicle} data converted from {log_filename}"
         if hasattr(self.args, "title") and self.args.title:
-                self.nc_file.title = self.args.title
+            self.nc_file.title = self.args.title
         if src_dir:
             # The source attribute might make more sense for the location of
             # the source data, but the summary field is shown in STOQS metadata
             self.nc_file.summary = SUMMARY_SOURCE.format(src_dir)
         if hasattr(self.args, "summary") and self.args.summary:
-                self.nc_file.summary = self.args.summary
+            self.nc_file.summary = self.args.summary
         monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
         if (~monotonic).any():
             self.logger.info(
@@ -659,9 +694,9 @@ class AUV_NetCDF(AUV):
 
     def download_process_logs(  # noqa: C901, PLR0912
         self,
-        vehicle: str="",
-        name: str="",
-        src_dir: str="",
+        vehicle: str = "",
+        name: str = "",
+        src_dir: str = "",
     ) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
@@ -737,7 +772,9 @@ class AUV_NetCDF(AUV):
         resp = requests.post(url)
         if resp.status_code != HTTPStatus.OK:
             self.logger.error(
-                "Update failed for url = %s, status_code = %d", url, resp.status_code,
+                "Update failed for url = %s, status_code = %d",
+                url,
+                resp.status_code,
             )
         else:
             self.logger.info("Wait a few minutes for new missions to appear")
@@ -746,8 +783,8 @@ class AUV_NetCDF(AUV):
         self.portal_base = PORTAL_BASE
         self.deployments_url = Path(self.portal_base, "deployments")
         if hasattr(self.args, "portal") and self.args.portal:
-                self.portal_base = self.args.portal
-                self.deployments_url = Path(self.args.portal, "deployments")
+            self.portal_base = self.args.portal
+            self.deployments_url = Path(self.args.portal, "deployments")
 
     def process_command_line(self):
         examples = "Examples:" + "\n\n"
@@ -886,5 +923,6 @@ if __name__ == "__main__":
         )
 
     auv_netcdf.logger.info(
-        "Time to download and process: %.2f seconds", (time.time() - p_start),
+        "Time to download and process: %.2f seconds",
+        (time.time() - p_start),
     )

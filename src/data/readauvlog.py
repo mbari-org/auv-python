@@ -1,4 +1,4 @@
- # noqa: INP001
+# noqa: INP001
 import argparse
 import struct
 from dataclasses import dataclass
@@ -30,7 +30,7 @@ class log_record:
 
     def length(self):
         n = 8
-        if self.data_type == "float" or self.data_type == "integer":
+        if self.data_type in {"float", "integer"}:
             n = 4
         elif self.data_type == "short":
             n = 2
@@ -107,4 +107,4 @@ if __name__ == "__main__":
     parser.add_argument("logfile", type=str, help="The name of the log to read")
     args = parser.parse_args()
     records = read(args.logfile)
-    print(records)
+    print(records)  # noqa: T201
