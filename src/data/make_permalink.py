@@ -1,4 +1,3 @@
-# cat make_permalink.py
 #!/usr/bin/env python3
 
 """
@@ -10,6 +9,7 @@ import csv
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import lzstring
 import requests
@@ -18,8 +18,8 @@ import xarray as xr
 
 def get_times_depths(ds_url):
     ds = xr.open_dataset(ds_url)
-    stime = datetime.strptime(ds.attrs.get("time_coverage_start"), "%Y-%m-%dT%H:%M:%SZ")
-    etime = datetime.strptime(ds.attrs.get("time_coverage_end"), "%Y-%m-%dT%H:%M:%SZ")
+    stime = datetime.fromisoformat(ds.attrs.get("time_coverage_start").replace("Z", "+00:00"))
+    etime = datetime.fromisoformat(ds.attrs.get("time_coverage_end").replace("Z", "+00:00"))
 
     min_depth = float(ds.attrs.get("geospatial_vertical_min"))
     max_depth = float(ds.attrs.get("geospatial_vertical_max"))
@@ -46,8 +46,12 @@ def get_parameter_id(base_url, parameter_name="fl700_uncorr"):
 def gen_permalink(times, depths, parm_id):
     # Create link to examine this Sample in the STOQS UI within the context of other campaign data
     depth_time = {
-        "start-ems": (min(times) - datetime(1970, 1, 1)).total_seconds() * 1000,
-        "end-ems": (max(times) - datetime(1970, 1, 1)).total_seconds() * 1000,
+        "start-ems": (
+            (min(times) - datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)).total_seconds() * 1000
+        ),
+        "end-ems": (
+            (max(times) - datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)).total_seconds() * 1000
+        ),
         "start-depth": min(depths) - 1,
         "end-depth": max(depths) + 1,
         "tabs": [["#temporalTabs", 0], ["#spatialTabs", 1]],
@@ -62,23 +66,22 @@ def gen_permalink(times, depths, parm_id):
     }
     ##print(depth_time)
     compressor = lzstring.LZString()
-    permalink = compressor.compressToEncodedURIComponent(
+    return compressor.compressToEncodedURIComponent(
         json.dumps(depth_time, separators=(",", ":")),
     )
-    return permalink
 
 
 if __name__ == "__main__":
     try:
         ds_url = sys.argv[1]
     except IndexError:
-        print("Need argement of OPeNDAP url to dataset with ACDD metadata.")
+        print("Need argement of OPeNDAP url to dataset with ACDD metadata.")  # noqa: T201
         sys.exit(-1)
 
     base_url = "https://stoqs.shore.mbari.org/stoqs_all_dorado"
     parm_id = get_parameter_id(base_url)
     times, depths = get_times_depths(ds_url)
-    print(
+    print(  # noqa: T201
         Path(
             base_url,
             "query/?permalink_id=" + gen_permalink(times, depths, parm_id),
