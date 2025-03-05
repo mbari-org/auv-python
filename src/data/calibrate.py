@@ -32,7 +32,6 @@ import logging
 import os
 import sys
 import time
-import xml.etree.ElementTree as ET
 from argparse import RawTextHelpFormatter
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -41,6 +40,7 @@ from socket import gethostname
 from typing import NamedTuple
 
 import cf_xarray  # Needed for the .cf accessor  # noqa: F401
+import defusedxml.ElementTree as ET  # noqa: N817
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
@@ -1091,37 +1091,40 @@ class Calibrate_NetCDF:
                 root = ET.parse(cal_xml_filename).getroot()
             except ET.ParseError as e:
                 self.logger.warning(
-                    "Cannot parse %s: %s", cal_xml_filename, e,
+                    "Cannot parse %s: %s",
+                    cal_xml_filename,
+                    e,
                 )
                 continue
             try:
                 cal_date = datetime.strptime(
                     root.find("CalibrationDate").text,
                     "%d-%b-%y",
-                )
+                ).replace(tzinfo=timezone.utc)
             except ValueError as e:
                 self.logger.warning(
-                    f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}",
+                    "Cannot parse CalibrationDate, %s",
+                    root.find("CalibrationDate").text,
                 )
-                # "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files/SBE-43/143/2011_June/Oxygen_SBE43_0143.XML"
+                # "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files/SBE-43/143/2011_June/Oxygen_SBE43_0143.XML"  # noqa: E501
                 # has:  <CalibrationDate>08-Jun-11p</CalibrationDate>
                 if root.find("CalibrationDate").text.endswith("p"):
                     self.logger.info("Trying to parse CalibrationDate without 'p'")
                     cal_date = datetime.strptime(
                         root.find("CalibrationDate").text[:-1],
                         "%d-%b-%y",
+                    ).replace(tzinfo=timezone.utc)
+                    error_message = (
+                        f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}"
                     )
-                else:
-                    raise ValueError(
-                        f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}",
-                    ).with_traceback(e)
+                    raise ValueError(error_message) from e
             cal_date_xml_files[cal_date] = cal_xml_filename
 
         return OrderedDict(sorted(cal_date_xml_files.items()))
 
-    def _read_oxy_coeffs(
+    def _read_oxy_coeffs(  # noqa: C901, PLR0912, PLR0915
         self,
-        cfg_filename: str,
+        cfg_filename: Path,
         portstbd: str = "",
     ) -> tuple[Coeffs, str]:
         """Based on the serial number found as a comment in the .cfg file find
@@ -1148,14 +1151,14 @@ class Calibrate_NetCDF:
         # PCor = 1.3500e-04; //not given in new calibration sheet
 
         # Read from .cfg file to get the serial numbers of the oxygen sensors
-        self.logger.debug(f"Opening {cfg_filename}")
+        self.logger.debug("Opening %s", cfg_filename)
         coeffs = Coeffs()
 
         portstbd_order = {
             "port": 0,
             "stbd": 1,
         }  # Typical order of oxygen sensors in seabird25p.cfg file
-        with open(cfg_filename) as fh:
+        with cfg_filename.open() as fh:
             sensor_count = 0
             serial_numbers = []
             for line in fh:
@@ -1164,66 +1167,86 @@ class Calibrate_NetCDF:
                     serial_numbers.append(int(line.split()[-1].strip(";")))
                     sensor_count += 1
         if len(serial_numbers) == 0:
-            raise ValueError(f"No oxygen sensor serial number found in {cfg_filename}")
-        if len(serial_numbers) > 2:
-            raise ValueError(
-                f"More than 2 oxygen sensor serial numbers found in {cfg_filename}",
-            )
+            error_message = f"No oxygen sensor serial number found in {cfg_filename}"
+            raise ValueError(error_message)
+        if len(serial_numbers) > 2:  # noqa: PLR2004
+            error_message = f"More than 2 oxygen sensor serial numbers found in {cfg_filename}"
+            raise ValueError(error_message)
         if portstbd:
             serial_number = serial_numbers[portstbd_order[portstbd]]
             self.logger.info(
-                f"Looking for calibration file for O2 sensor serial number {serial_number} on {portstbd} side",
+                "Looking for calibration file for O2 sensor serial number %s on %s side",
+                serial_number,
+                portstbd,
             )
         elif len(serial_numbers) == 1:
             self.logger.info(
-                f"Looking for calibration file for O2 sensor serial number {serial_numbers[0]}",
+                "Looking for calibration file for O2 sensor serial number %s",
+                serial_numbers[0],
             )
             serial_number = serial_numbers[0]
         else:
-            raise ValueError(
-                f"Multiple oxygen sensor serial numbers found in {cfg_filename} with no port or stbd specified",
+            error_message = (
+                f"Multiple oxygen sensor serial numbers found in {cfg_filename} "
+                "with no port or stbd specified"
             )
+            raise ValueError(error_message)
 
         # Find the calibration file for the oxygen sensor
         self.logger.debug(
-            f"Finding calibration file for oxygen serial number = {serial_number} on mission {self.args.mission}",
+            "Finding calibration file for oxygen serial number = %s on mission %s",
+            serial_number,
+            self.args.mission,
         )
 
         if not Path(self.calibration_dir).is_dir():
             error_message = f"Calibration directory '{self.calibration_dir}' does not exist"
-            raise ValueError(error_message)
+            raise LookupError(error_message)
         find_cmd = f'find "{self.calibration_dir}" -name "{serial_number}"'
         self.logger.info("Executing: %s ", find_cmd)
         sensor_dir = os.popen(find_cmd).read().strip()
-        self.logger.debug(f"{sensor_dir}")
+        self.logger.debug("%s", sensor_dir)
         # https://stackoverflow.com/a/20103980
         dir_find_cmd = f'find "{sensor_dir}"/* -maxdepth 0 -type d'
-        self.logger.debug(f"Executing: {dir_find_cmd =}")
+        self.logger.debug("Executing: dir_find_cmd = %s", dir_find_cmd)
         cal_date_dirs = [x.split("/")[-1] for x in os.popen(dir_find_cmd).read().split("\n") if x]
-        self.logger.info(f"Found calibration date dirs: {' '.join(cal_date_dirs)}")
+        self.logger.info("Found calibration date dirs: %s", " ".join(cal_date_dirs))
         cal_dates = self._cal_date_xml_files(sensor_dir, cal_date_dirs, serial_number)
         mission_start = self.seabird25p.orig_data.cf["time"].to_numpy()[0]
         cal_date_to_use = next(iter(cal_dates))  # Default to first calibration date
-        for cal_date in cal_dates.keys():
+        for cal_date in cal_dates:
             # Find the most recent calibration date just before the mission start
-            self.logger.debug(f"Comparing {cal_date=} with {mission_start=}")
+            self.logger.debug(
+                "Comparing cal_date=%s with mission_start=%s", cal_date, mission_start
+            )
             self.logger.info(
-                f"File {cal_dates[cal_date]} has CalibrationDate {cal_date!s}",
+                "File %s has CalibrationDate %s",
+                cal_dates[cal_date],
+                cal_date,
             )
             if np.datetime64(cal_date) > mission_start:
                 self.logger.info(
-                    f"Breaking from loop as {cal_dates[cal_date]} is after {self.args.mission} with {mission_start=!s}",
+                    "Breaking from loop as %s is after %s with mission_start=%s",
+                    cal_dates[cal_date],
+                    self.args.mission,
+                    mission_start,
                 )
                 break
             cal_date_to_use = cal_date
 
         if np.datetime64(cal_date_to_use) < mission_start:
             self.logger.info(
-                f"File {cal_dates[cal_date_to_use]} is just before {self.args.mission} with {mission_start=!s}",
+                "File %s is just before %s with mission_start=%s",
+                cal_dates[cal_date_to_use],
+                self.args.mission,
+                mission_start,
             )
         else:
             self.logger.info(
-                f"File {cal_dates[cal_date_to_use]} is the first calibration file, but is after {self.args.mission} with {mission_start=!s}",
+                "File %s is the first calibration file, but is after %s with mission_start=%s",
+                cal_dates[cal_date_to_use],
+                self.args.mission,
+                mission_start,
             )
 
         # Read the calibration coefficients from the .cal file which looks like:
@@ -1259,7 +1282,10 @@ class Calibrate_NetCDF:
         cal_xml_serial_number = int(root.find("SerialNumber").text)
         if cal_xml_serial_number != serial_number:
             self.logger.warning(
-                f"Serial number in {cal_dates[cal_date_to_use]} = {cal_xml_serial_number} does not match {serial_number}",
+                "Serial number in %s = %s does not match %s",
+                cal_dates[cal_date_to_use],
+                cal_xml_serial_number,
+                serial_number,
             )
         for elem in root.findall("CalibrationCoefficients[@equation]"):
             if elem.attrib["equation"] == "1":
@@ -1267,7 +1293,7 @@ class Calibrate_NetCDF:
         for child in eq1:
             try:
                 setattr(coeffs, child.tag, float(child.text))
-            except ValueError:
+            except ValueError:  # noqa: PERF203
                 setattr(coeffs, child.tag, child.text)
 
         return coeffs, cal_dates[cal_date_to_use]
@@ -1312,7 +1338,7 @@ class Calibrate_NetCDF:
                     coeffs.cdom_dark_counts = float(line.split()[2])
         return coeffs
 
-    def _navigation_process(self, sensor):
+    def _navigation_process(self, sensor):  # noqa: C901, PLR0912, PLR0915
         # AUV navigation data, which comes from a process on the vehicle that
         # integrates data from several instruments.  We use it to grab the DVL
         # data to help determine vehicle position when it is below the surface.
@@ -1325,13 +1351,14 @@ class Calibrate_NetCDF:
         try:
             orig_nc = getattr(self, sensor).orig_data
         except FileNotFoundError as e:
-            self.logger.error("%s", e)
+            self.logger.error("%s", e)  # noqa: TRY400
             return
         except AttributeError:
-            raise EOFError(
+            error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}",
+                f" in {Path(MISSIONLOGS, self.args.mission)}"
             )
+            raise EOFError(error_message) from None
 
         # Remove non-monotonic times
         self.logger.debug("Checking for non-monotonic increasing times")
@@ -1467,7 +1494,8 @@ class Calibrate_NetCDF:
             navlons = orig_nc["longitudeNav"].to_numpy()
             navlats = orig_nc["latitudeNav"].to_numpy()
         else:
-            # Up through 2004.112.02 we converted from Easting/Northing to lat/lon - all missions in Monterey Bay (Zone 10)
+            # Up through 2004.112.02 we converted from Easting/Northing to lat/lon 
+            # - all missions in Monterey Bay (Zone 10)
             self.logger.info(
                 f"Converting from Easting/Northing to lat/lon for mission {self.args.mission}",
             )
@@ -1521,8 +1549,8 @@ class Calibrate_NetCDF:
         # % (First seen on mission 2008.281.03)
         # % In case we ever use this software for the D Allan B mapping vehicle determine
         # % the good depth range from the median of the depths
-        # % From mission 2011.250.11 we need to first eliminate the near surface values before taking the
-        # % median.
+        # % From mission 2011.250.11 we need to first eliminate the near surface values 
+        # % before taking the median.
         # pdIndx = find(Nav.depth > 1);
         # posDepths = Nav.depth(pdIndx);
         pos_depths = np.where(self.combined_nc["navigation_depth"].to_numpy() > 1)

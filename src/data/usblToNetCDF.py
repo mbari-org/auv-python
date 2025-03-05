@@ -175,7 +175,8 @@ def main():
 
     Example:
 
-    >>> usblToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010151/2010.151.04/usbl.dat -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010151/2010.151.04/usbl.nc
+    >>> usblToNetCDF.py -i /mbari/AUVCTD/missionlogs/2010/2010151/2010.151.04/usbl.dat \
+        -n /mbari/ssdsdata/ssds/generated/netcdf/files/ssds.shore.mbari.org/auvctd/missionlogs/2010/2010151/2010.151.04/usbl.nc
 
     """
 

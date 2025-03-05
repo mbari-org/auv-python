@@ -128,30 +128,30 @@ class TimeCorrect(AUV):
                         v = struct.unpack(s, b)[0]
                     except struct.error as e:
                         self.logger.warning(
-                            f"{e}, b = {b} at record {rec_count},"
-                            f" for {r.short_name} in file {file}",
+                            "%s, b = %s at record %d, for %s in file %s",
+                            e, b, rec_count, r.short_name, file,
                         )
                         self.logger.info(
-                            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
+                            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
                         )
                         self.logger.info(
-                            f"Tried to read {r.length()} bytes, but"
-                            f" only {byte_offset + len_sum - file_size}"
-                            f" bytes remaining",
+                            "Tried to read %d bytes, but only %d bytes remaining",
+                            r.length(), byte_offset + len_sum - file_size,
                         )
                         raise
                     r.data.append(v)
                 rec_count += 1
 
         self.logger.debug(
-            f"bytes read = {byte_offset + len_sum} file size = {file_size}",
+            "bytes read = %d file size = %d", byte_offset + len_sum, file_size,
         )
 
     def _correct_dup_short_names(self, log_data):
         short_names = [v.short_name for v in log_data]
-        dupes = set([x for n, x in enumerate(short_names) if x in short_names[:n]])
+        dupes = {x for n, x in enumerate(short_names) if x in short_names[:n]}
         if len(dupes) > 1:
-            raise ValueError(f"Found more than one duplicate: {dupes}")
+            error_message = f"Found more than one duplicate: {dupes}"
+            raise ValueError(error_message)
         if len(dupes) == 1:
             count = 0
             for i, variable in enumerate(log_data):
@@ -162,17 +162,17 @@ class TimeCorrect(AUV):
         return log_data
 
     def _new_base_filename(self):
-        ndt = datetime.strptime("".join(self.args.mission.split(".")[:2]), "%Y%j")
+        mission_date = "".join(self.args.mission.split(".")[:2])
+        ndt = datetime.strptime(mission_date, "%Y%j").replace(tzinfo=datetime.timezone.utc)
         ndt += timedelta(seconds=self.args.add_seconds)
-        nbf = f"{ndt.strftime('%Y.%j')}.{self.args.mission.split('.')[-1]}"
-        return nbf
+        return f"{ndt.strftime('%Y.%j')}.{self.args.mission.split('.')[-1]}"
 
     def _add_and_write(self, log_data, header_text, new_logs_dir, filename):
         log_data = self._correct_dup_short_names(log_data)
         log_filename = Path(new_logs_dir, filename)
-        self.logger.debug(f"Writing log file {log_filename}")
+        self.logger.debug("Writing log file %s", log_filename)
         self.logger.info(
-            f"Adding {self.args.add_seconds} seconds to variable {TIME}",
+            "Adding %s seconds to variable %s", self.args.add_seconds, TIME,
         )
         with open(log_filename, "wb") as fh:
             fh.write(bytes(header_text, encoding="utf8"))
@@ -199,10 +199,10 @@ class TimeCorrect(AUV):
                 fh.write(sdata)
 
         fh.close()
-        self.logger.info(f"Wrote log file {log_filename}")
+        self.logger.info("Wrote log file %s", log_filename)
 
     def _verify(self, log_filename):
-        self.logger.info(f"verifying file {log_filename}")
+        self.logger.info("verifying file %s", log_filename)
         log_data, header_text = self.read(log_filename)
 
     def correct_times(self):
