@@ -21,8 +21,9 @@
             //"args": ["--auv_name", "dorado", "--mission", "2003.156.09", "--noinput", "-v", "2", "--clobber"]
             //"args": ["--auv_name", "dorado", "--mission", "2010.172.01", "--noinput", "-v", "2", "--clobber", "--local"]
             //"args": ["--auv_name", "dorado", "--mission", "2020.245.00", "--noinput", "-v", "1", "--clobber", "--local"]
-            "args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v", "num_cores", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "--noinput",  "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--noinput", "-v"]
         },
         {
             "name": "1.1 - lopcToNetCDF",
