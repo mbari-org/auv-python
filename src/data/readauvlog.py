@@ -50,7 +50,7 @@ def read(file: str) -> list[log_record]:
 
 def _read_header(file: str):
     """Parses the ASCII header of the log file"""
-    with open(file, encoding="ISO-8859-15") as f:
+    with Path(file).open(encoding="ISO-8859-15") as f:
         byte_offset = 0
         instrument_name = Path(f.name).name
         instrument_name = Path(f.name).name
@@ -83,7 +83,7 @@ def _read_header(file: str):
 def _read_data(file: str, records: list[log_record], byte_offset: int):
     """Parse the binary section of the log file"""
     ok = True
-    with open(file, "rb") as f:
+    with Path(file).open("rb") as f:
         f.seek(byte_offset)
         while ok:
             for r in records:

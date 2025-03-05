@@ -80,12 +80,8 @@ class Resampler:
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
         self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
         self.metadata["time_coverage_duration"] = str(
-            datetime.utcfromtimestamp(
-                max(self.resampled_nc.time.values).astype("float64") / 1.0e9,
-            )
-            - datetime.utcfromtimestamp(
-                min(self.resampled_nc.time.values).astype("float64") / 1.0e9,
-            ),
+            pd.to_datetime(max(self.resampled_nc.time.values))
+            - pd.to_datetime(min(self.resampled_nc.time.values)),
         )
         self.metadata["geospatial_vertical_min"] = min(
             self.resampled_nc.cf["depth"].values,
@@ -108,7 +104,7 @@ class Resampler:
         self.metadata["license"] = "Any use requires prior approval from MBARI"
         self.metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
-        if "process_" in self.commandline:
+        if "process_" in self.commandline:  # noqa: SIM108
             # Either process_i2map.py or process_dorado.py was used which
             # means the starting point was the original log files
             from_data = "original log files"
@@ -140,7 +136,8 @@ class Resampler:
                 )
         except KeyError:
             self.logger.warning(
-                f"No entry for for mission {self.args.mission} program in dorado_info.py",
+                "No entry for for mission %s program in dorado_info.py",
+                self.args.mission,
             )
         self.metadata["title"] += (
             f"aligned, and resampled AUV sensor data from"
@@ -155,7 +152,8 @@ class Resampler:
         except KeyError:
             # Likely no _1S.nc file was created, hence no summary to append to
             self.logger.warning(
-                f"Could not add processing log file to summary matadata for mission {self.args.mission}",
+                "Could not add processing log file to summary matadata for mission %s",
+                self.args.mission,
             )
 
         try:
@@ -165,7 +163,8 @@ class Resampler:
                 self.metadata["comment"] = dorado_info[self.args.mission].get("comment")
         except KeyError:
             self.logger.warning(
-                f"No entry for for mission {self.args.mission} program or comment in dorado_info.py",
+                "No entry for for mission %s program or comment in dorado_info.py",
+                self.args.mission,
             )
         try:
             # Parse from ctd1_depth comment: "using SensorOffset(x=1.003, y=0.0001)"
@@ -175,7 +174,8 @@ class Resampler:
             )
         except KeyError:
             self.logger.warning(
-                f"No comment for pitch correction in ctd1_depth for mission {self.args.mission}",
+                "No comment for pitch correction in ctd1_depth for mission %s",
+                self.args.mission,
             )
 
         return self.metadata
@@ -204,8 +204,7 @@ class Resampler:
             # Append shortened location of original data files to title
             # Useful for I2Map data as it's in a YYYY/MM directory structure
             self.metadata["title"] += (
-                ", "
-                + "original data in /mbari/M3/master/i2MAP/: "
+                ", original data in /mbari/M3/master/i2MAP/: "
                 + matches.group(1)
                 .replace("Original log files copied from ", "")
                 .replace("/Volumes/M3/master/i2MAP/", "")
@@ -221,7 +220,8 @@ class Resampler:
             )
         except KeyError:
             self.logger.warning(
-                f"No entry for for mission {self.args.mission} comment in dorado_info.py",
+                "No entry for for mission %s comment in dorado_info.py",
+                self.args.mission,
             )
 
         return self.metadata
@@ -231,14 +231,14 @@ class Resampler:
         Return a dictionary of all the variables in the mission netCDF file,
         keyed by instrument name
         """
-        self.logger.info(f"Reading variables from {nc_file} mission netCDF file")
+        self.logger.info("Reading variables from %s mission netCDF file", nc_file)
         last_instr = None
         instr_vars = defaultdict(list)
-        for variable in self.ds.keys():
+        for variable in self.ds:
             instr, *_ = variable.split("_")
             if instr == "navigation":
                 freq = "0.1S"  # noqa: F841
-            elif instr == "gps" or instr == "depth":
+            elif instr in {"gps", "depth"}:
                 continue
             if instr != last_instr:
                 instr_vars[instr].append(variable)
@@ -246,29 +246,35 @@ class Resampler:
 
     def resample_coordinates(self, instr: str, mf_width: int, freq: str) -> None:
         self.logger.info(
-            f"Resampling coordinates depth, latitude and longitude with"
-            f" frequency {freq} following {mf_width} point median filter ",
+            "Resampling coordinates depth, latitude and longitude with"
+            " frequency %s following %d point median filter ",
+            freq,
+            mf_width,
         )
         # Original
         try:
             self.df_o[f"{instr}_depth"] = self.ds[f"{instr}_depth"].to_pandas()
         except KeyError:
             self.logger.warning(
-                f"Variable {instr}_depth not found in {self.args.mission} align.nc file",
+                "Variable %s_depth not found in %s align.nc file",
+                instr,
+                self.args.mission,
             )
             self.logger.info(
                 "Cannot continue without a pitch corrected depth coordinate",
             )
-            raise InvalidAlignFile(
-                f"{instr}_depth not found in {self.args.auv_name}_{self.args.mission}_align.nc",
-            )
+            msg = f"{instr}_depth not found in {self.args.auv_name}_{self.args.mission}_align.nc"
+            raise InvalidAlignFile(msg) from None
         try:
             self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
             self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
         except KeyError:
-            msg = f"Variable {instr}_latitude or {instr}_longitude not found in {self.args.mission} align.nc file"
+            msg = (
+                f"Variable {instr}_latitude or {instr}_longitude not found in "
+                f"{self.args.mission} align.nc file"
+            )
             self.logger.warning(msg)
-            raise InvalidAlignFile(msg)
+            raise InvalidAlignFile(msg) from None
         # Median Filtered - back & forward filling nan values at ends
         self.df_o[f"{instr}_depth_mf"] = (
             self.ds[f"{instr}_depth"]
@@ -319,11 +325,11 @@ class Resampler:
         aggregator: str,
     ) -> None:
         in_fn = self.ds.encoding["source"].split("/")[-1]
-        self.df_r["depth"].index.rename("time", inplace=True)
+        self.df_r["depth"].index.rename("time", inplace=True)  # noqa: PD002
         self.resampled_nc["depth"] = self.df_r["depth"].to_xarray()
-        self.df_r["latitude"].index.rename("time", inplace=True)
+        self.df_r["latitude"].index.rename("time", inplace=True)  # noqa: PD002
         self.resampled_nc["latitude"] = self.df_r["latitude"].to_xarray()
-        self.df_r["longitude"].index.rename("time", inplace=True)
+        self.df_r["longitude"].index.rename("time", inplace=True)  # noqa: PD002
         self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
         self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
         self.resampled_nc["depth"].attrs["comment"] += (
@@ -356,9 +362,9 @@ class Resampler:
         lon = float(self.ds["navigation_longitude"].median())
         self.logger.debug("Getting sun altitudes for nighttime selection")
         sun_alts = []
-        for ts in self.ds["navigation_time"].values[::stride]:
+        for ts in self.ds["navigation_time"].to_numpy()[::stride]:
             # About 10 minute resolution from 5 hz navigation data
-            sun_alts.append(
+            sun_alts.append(  # noqa: PERF401
                 get_altitude(
                     lat,
                     lon,
@@ -368,30 +374,32 @@ class Resampler:
         # Find sunset and sunrise - where sun altitude changes sign
         sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
         ss_sr_times = (
-            self.ds["navigation_time"].isel({"navigation_time": sign_changes * stride}).values
+            self.ds["navigation_time"].isel({"navigation_time": sign_changes * stride}).to_numpy()
         )
-        self.logger.debug(f"Sunset sunrise times {ss_sr_times}")
+        self.logger.debug("Sunset sunrise times %s", ss_sr_times)
         sunset = None
         sunrise = None
         if np.sign(sun_alts[0]) == 1:
             # Sun is up at start of mission
-            if len(ss_sr_times) == 2:
+            if len(ss_sr_times) == 2:  # noqa: PLR2004
                 sunset, sunrise = ss_sr_times
                 sunset += pd.to_timedelta(1, "h")
                 sunrise -= pd.to_timedelta(1, "h")
             elif len(ss_sr_times) == 1:
                 sunset = ss_sr_times[0]
                 sunset += pd.to_timedelta(1, "h")
-                sunrise = self.ds["biolume_time60hz"].values[-1]
+                sunrise = self.ds["biolume_time60hz"].to_numpy()[-1]
                 self.logger.warning(
-                    f"Could not find sunrise time, using last time in dataset: {sunrise}",
+                    "Could not find sunrise time, using last time in dataset: %s", sunrise
                 )
             else:
                 self.logger.info("Sun is up at start, but no sunset in this mission")
         if np.sign(sun_alts[0]) == -1:
             try:
                 self.logger.warning(
-                    f"Sun is not up at start of mission: {ss_sr_times[0]}: alt = {sun_alts[0]}",
+                    "Sun is not up at start of mission: %s: alt = %s",
+                    ss_sr_times[0],
+                    sun_alts[0],
                 )
             except IndexError:
                 # Likely no values in ss_sr_times[]
@@ -404,7 +412,9 @@ class Resampler:
             nighttime_bl_raw = pd.Series(dtype="float64")
         else:
             self.logger.info(
-                f"Extracting biolume_raw data between sunset {sunset} and sunrise {sunrise}",
+                "Extracting biolume_raw data between sunset %s and sunrise %s",
+                sunset,
+                sunrise,
             )
             nighttime_bl_raw = (
                 (
@@ -421,7 +431,7 @@ class Resampler:
 
     def add_profile(self, depth_threshold: float = 15) -> None:
         # Find depth vertices value using scipy's find_peaks algorithm
-        options = dict(prominence=10, width=30)
+        options = {"prominence": 10, "width": 30}
         peaks_pos, _ = signal.find_peaks(self.resampled_nc["depth"], **options)
         peaks_neg, _ = signal.find_peaks(-self.resampled_nc["depth"], **options)
         # Need to add the first and last time values to the list of peaks
@@ -435,7 +445,7 @@ class Resampler:
         profiles = []
         count = 1
         k = 0
-        for tv in self.resampled_nc["time"].values:
+        for tv in self.resampled_nc["time"].to_numpy():
             if tv > s_peaks.index[k + 1]:
                 # Encountered a new simple_depth point
                 k += 1
@@ -449,7 +459,7 @@ class Resampler:
         self.resampled_nc["profile_number"] = xr.DataArray(
             profiles,
             dims="time",
-            coords=[self.resampled_nc["time"].values],
+            coords=[self.resampled_nc["time"].to_numpy()],
             name="profile_number",
         )
         self.resampled_nc["profile_number"].attrs["coordinates"] = "time depth latitude longitude"
@@ -457,7 +467,7 @@ class Resampler:
             "long_name": "Profile number",
         }
 
-    def add_biolume_proxies(
+    def add_biolume_proxies(  # noqa: PLR0913, PLR0915
         self,
         freq,
         window_size_secs: int = 5,
@@ -486,7 +496,9 @@ class Resampler:
             min_periods=0,
             center=True,
         ).min()
-        min_bg = min_bg_unsmoothed.rolling(window_size, min_periods=0, center=True).mean().values
+        min_bg = (
+            min_bg_unsmoothed.rolling(window_size, min_periods=0, center=True).mean().to_numpy()
+        )
 
         self.logger.debug("Applying rolling median filter")
         med_bg_unsmoothed = s_biolume_raw.rolling(
@@ -499,9 +511,11 @@ class Resampler:
             min_periods=0,
             center=True,
         ).mean()
-        med_bg = s_med_bg.values
+        med_bg = s_med_bg.to_numpy()
         max_bg = med_bg * 2.0 - min_bg
-        # envelope_mini: minimum value for the envelope (max_bgrd - med_bgrd) to avoid very dim flashes when the background is low (default 1.5E10 ph/s)
+        # envelope_mini: minimum value for the envelope (max_bgrd - med_bgrd)
+        # to avoid very dim flashes when the background is low
+        # (default 1.5E10 ph/s)
         max_bg[max_bg - med_bg < envelope_mini] = (
             med_bg[max_bg - med_bg < envelope_mini] + envelope_mini
         )
@@ -514,7 +528,7 @@ class Resampler:
         if self.args.flash_threshold:
             flash_threshold = self.args.flash_threshold
         flash_threshold_note = f"Computed with flash_threshold = {flash_threshold:.0e}"
-        self.logger.info(f"Using flash_threshold = {flash_threshold:.4e}")
+        self.logger.info("Using flash_threshold = %.4e", flash_threshold)
         nbflash_high = s_peaks[s_peaks > (s_med_bg_peaks + flash_threshold)]
         nbflash_low = s_peaks[s_peaks <= (s_med_bg_peaks + flash_threshold)]
 
@@ -527,7 +541,7 @@ class Resampler:
         # Count the number of flashes per second - use 15 second window stepping every second
         flash_count_seconds = 15
         flash_window = flash_count_seconds * sample_rate
-        self.logger.debug(f"Counting flashes using {flash_count_seconds} second window")
+        self.logger.debug("Counting flashes using %d second window", flash_count_seconds)
         nbflash_high_counts = (
             s_nbflash_high.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
@@ -563,18 +577,14 @@ class Resampler:
             "High intensity flashes (copepods proxy)"
         )
         self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_high"].attrs["comment"] = " - ".join(
-            (zero_note, flash_threshold_note)
-        )
+        self.df_r["biolume_nbflash_high"].attrs["comment"] = f"{zero_note} - {flash_threshold_note}"
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
         self.df_r["biolume_nbflash_low"].attrs["long_name"] = (
             "Low intensity flashes (Larvacean proxy)"
         )
         self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_low"].attrs["comment"] = " - ".join(
-            (zero_note, flash_threshold_note)
-        )
+        self.df_r["biolume_nbflash_low"].attrs["comment"] = f"{zero_note} - {flash_threshold_note}"
 
         # Flash intensity in ph/s - proxy for small jellies - for entire mission, not just nightime
         all_raw = self.ds[["biolume_raw"]]["biolume_raw"].to_pandas()
@@ -637,8 +647,8 @@ class Resampler:
             )
             # Set negative values from hs2_fl700 to NaN
             fluo[fluo < 0] = np.nan
-            self.logger.info(f"Using proxy_ratio_adinos = {proxy_ratio_adinos:.4e}")
-            self.logger.info(f"Using proxy_cal_factor = {proxy_cal_factor:.6f}")
+            self.logger.info("Using proxy_ratio_adinos = %.4e", proxy_ratio_adinos)
+            self.logger.info("Using proxy_cal_factor = %.6f", proxy_cal_factor)
 
             nighttime_bg_biolume = (
                 pd.Series(s_min_bg, index=nighttime_bl_raw.index).resample("1S").mean()
@@ -667,7 +677,7 @@ class Resampler:
                 f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
             )
 
-    def resample_variable(
+    def resample_variable(  # noqa: PLR0913
         self,
         instr: str,
         variable: str,
@@ -689,11 +699,13 @@ class Resampler:
             )
             # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
             self.logger.info(
-                f"Resampling {variable} with frequency {freq} following {mf_width} point median filter ",
+                "Resampling %s with frequency %s following %d point median filter",
+                variable, freq, mf_width,
             )
             if instr in instrs_to_pad:
                 self.logger.info(
-                    f"Padding {variable} with {instrs_to_pad[instr]} of NaNs to the end of mission",
+                    "Padding %s with %s of NaNs to the end of mission",
+                    variable, instrs_to_pad[instr],
                 )
                 dt_index = pd.date_range(mission_start, mission_end, freq=freq)
                 self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
@@ -782,11 +794,11 @@ class Resampler:
         mission_start = datetime.max
         mission_end = datetime.min
         instrs_to_pad = {}
-        for instr, _ in self.instruments_variables(nc_file).items():
+        for instr in self.instruments_variables(nc_file):
             time_coord = f"{instr}_{TIME}"
             mission_start = min(pd.to_datetime(self.ds[time_coord].min().values), mission_start)
             mission_end = max(pd.to_datetime(self.ds[time_coord].max().values), mission_end)
-        for instr, _ in self.instruments_variables(nc_file).items():
+        for instr in self.instruments_variables(nc_file):
             time_coord = f"{instr}_{TIME}"
             duration = mission_end - pd.to_datetime(self.ds[time_coord].max().values)
             self.logger.info(
@@ -810,14 +822,14 @@ class Resampler:
         mission_start = datetime.strptime(
             mission_start.strftime("%Y-%m-%dT%H:%M:%S"),
             "%Y-%m-%dT%H:%M:%S",
-        )
+        ).astimezone(timezone.utc)
         mission_end = datetime.strptime(
             mission_end.strftime("%Y-%m-%dT%H:%M:%S"),
             "%Y-%m-%dT%H:%M:%S",
-        )
+        ).astimezone(timezone.utc)
         return mission_start, mission_end, instrs_to_pad
 
-    def resample_mission(
+    def resample_mission(  # noqa: C901, PLR0912, PLR0915
         self,
         nc_file: str,  # align.nc file
         mf_width: int = MF_WIDTH,
@@ -843,7 +855,7 @@ class Resampler:
                 pitch_corrected_instr = "ctd1"
                 if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
-                    if pitch_corrected_instr in instrs_to_pad.keys():
+                    if pitch_corrected_instr in instrs_to_pad:
                         # Use navigation if seabird25p failed to record
                         # data all the way to the end of the mission
                         pitch_corrected_instr = "navigation"
@@ -861,7 +873,8 @@ class Resampler:
                 self.df_r = pd.DataFrame()
             for variable in variables:
                 if instr == "biolume" and variable == "biolume_raw":
-                    # resample_variable() creates new proxy variables not in the original align.nc file
+                    # resample_variable() creates new proxy variables
+                    # not in the original align.nc file
                     self.resample_variable(
                         instr,
                         variable,
@@ -871,18 +884,19 @@ class Resampler:
                         mission_end,
                         instrs_to_pad,
                     )
-                    for var in self.df_r.keys():
+                    for var in self.df_r:
                         if var not in variables:
                             # save new proxy variable
-                            self.df_r[var].index.rename("time", inplace=True)
+                            self.df_r[var].index.rename("time", inplace=True)  # noqa: PD002
                             self.resampled_nc[var] = self.df_r[var].to_xarray()
                             self.resampled_nc[var].attrs = self.df_r[var].attrs
                             self.resampled_nc[var].attrs["coordinates"] = (
                                 "time depth latitude longitude"
                             )
-                elif variable == "biolume_latitude" or variable == "biolume_longitude":
+                elif variable in {"biolume_latitude", "biolume_longitude"}:
                     self.logger.info(
-                        f"Not saving instrument coordinate variable {variable} to resampled file",
+                        "Not saving instrument coordinate variable %s to resampled file",
+                        variable,
                     )
                 else:
                     aggregator = self.resample_variable(
@@ -894,7 +908,7 @@ class Resampler:
                         mission_end,
                         instrs_to_pad,
                     )
-                    self.df_r[variable].index.rename("time", inplace=True)
+                    self.df_r[variable].index.rename("time", inplace=True)  # noqa: PD002
                     self.resampled_nc[variable] = self.df_r[variable].to_xarray()
                     self.resampled_nc[variable].attrs = self.ds[variable].attrs
                     self.resampled_nc[variable].attrs["coordinates"] = (
@@ -910,9 +924,10 @@ class Resampler:
         try:
             self._build_global_metadata()
         except KeyError as e:
-            self.logger.error(
-                f"Missing global attribute {e} in {nc_file}. "
-                "Cannot add global metadata to resampled mission.",
+            self.logger.exception(
+                "Missing global attribute %s in %s. Cannot add global metadata to "
+                "resampled mission.",
+                e, nc_file,  # noqa: TRY401
             )
         if self.args.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
@@ -981,7 +996,10 @@ class Resampler:
             "--flash_threshold",
             action="store",
             type=float,
-            help=f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} and append to output filename",
+            help=(
+                f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} "
+                "and append to output filename"
+            ),
         )
         parser.add_argument(
             "-v",
@@ -1020,4 +1038,4 @@ if __name__ == "__main__":
         freq=resamp.args.freq,
         plot_seconds=resamp.args.plot_seconds,
     )
-    resamp.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    resamp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))

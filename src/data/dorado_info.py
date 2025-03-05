@@ -1,3 +1,5 @@
+# noqa: INP001
+
 # Module for providing mission specific information for the Dorado missions.
 # What has been added as comments in reprocess_surveys.m is now here in
 # the form of a dictionary.  This dictionary is then used in the workflow
@@ -61,7 +63,7 @@ for mission_number in range(2, 14):
         "program": OCCO,
         "comment": (
             "OCCO2003106: missions {02,03,04,05,06,07,08,09,10,11,12,13}"
-            " - Very first Dorado missions in the archive - does not process with legacy Matlab code "
+            " - Very first Dorado missions in the archive - does not process with legacy Matlab code"
             " - ctdToUse = ctd1 "
         ),
     }

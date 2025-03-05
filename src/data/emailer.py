@@ -38,7 +38,8 @@ FULL_MAT
 its NetCDF counterpart (via OPeNDAP URL):
 {FULL_NC}
 
-Decimated NetCDF file (sampled at the ISUS or 2 sec sampling frequency) with all variables interpolated to the same time axis:
+Decimated NetCDF file (sampled at the ISUS or 2 sec sampling frequency) with all
+variables interpolated to the same time axis:
 {DECIM_NC}
 
 Decimated Ocean Data View import data file:
@@ -68,7 +69,7 @@ class Emailer:
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     def compose_message(self) -> str:
-        msg = TEMPLATE.format(
+        return TEMPLATE.format(
             SURVEY_NAME=self.args.mission,
             BIOLUME_SECTION="",
             _2COLUMN_SECTION="",
@@ -87,7 +88,6 @@ class Emailer:
             HOSTNAME=platform.node(),
             DATE=time.strftime("%Y-%m-%d %H:%M:%S"),
         )
-        return msg
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -119,7 +119,10 @@ class Emailer:
             "--email_to",
             action="store",
             default=NOTIFICATION_EMAIL,
-            help=f"Send email to this address when processing is complete, default: {NOTIFICATION_EMAIL}",
+            help=(
+                f"Send email to this address when processing is complete, "
+                f"default: {NOTIFICATION_EMAIL}"
+            ),
         )
         parser.add_argument(
             "-v",
@@ -154,4 +157,4 @@ if __name__ == "__main__":
     p_start = time.time()
     msg = email.compose_message()
     email.send_email(msg)
-    email.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    email.logger.info("Time to process: %.2f seconds", (time.time() - p_start))

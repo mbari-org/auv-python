@@ -21,11 +21,11 @@ snow estimates.
 @undocumented: __doc__ parser
 @status: In development
 @license: GPL
-"""
+"""  # noqa: A001
 
 import logging
 
-import numpy
+import numpy  # noqa: ICN001
 from logs2netcdfs import AUV_NetCDF
 
 #
@@ -74,14 +74,9 @@ class MEP:
         # Optical Density - count the number of 1-mm elements that are occluded
         eDict = {}
         for e in self.e:
-            try:
-                eDict[e] += 1
-            except KeyError:
-                eDict[e] = 0
+            eDict[e] = eDict.get(e, 0) + 1
 
-        eSum = 0
-        for k in list(eDict.keys()):
-            eSum += 1
+        eSum = len(eDict.keys())
 
         self.od = eSum
 
@@ -101,24 +96,24 @@ class MEP:
         ##str = "p = %s\ne = %s\nl = %s\ns = %s\n" % (self.p, self.e, self.l, self.s)
 
         # Format used in Alex Herman papers
-        str = ""
+        cstr = ""
         n = 1
         for p, e, l, s in zip(self.p, self.e, self.l, self.s, strict=False):  # noqa: E741
             if n == 1:
-                p += 32768  # Add the bit back
+                p += 32768  # Add the bit back  # noqa: PLW2901
 
-            str += "M %2d %5d %4d %5d\n" % (e, s, l, p)
+            cstr += "M %2d %5d %4d %5d\n" % (e, s, l, p)  # noqa: UP031
             n += 1
 
         try:
-            str += "ai = %f\n" % self.ai
-            str += "od = %f\n" % self.od
-            str += "esd = %.1f microns\n" % self.esd
+            cstr += "ai = %f\n" % self.ai  # noqa: UP031
+            cstr += "od = %f\n" % self.od  # noqa: UP031
+            cstr += "esd = %.1f microns\n" % self.esd  # noqa: UP031
         except AttributeError:
             ##logger.debug("__repr__(): Attribute 'ai' does not exist.  Call build() to create it.")
             pass
 
-        return str
+        return cstr
 
 
 class MepData:
@@ -126,15 +121,15 @@ class MepData:
 
     def __init__(self):
         """Initialze member variables"""
-        self.n = list()
-        self.p = list()
-        self.e = list()
-        self.l = list()
-        self.s = list()
+        self.n = []
+        self.p = []
+        self.e = []
+        self.l = []
+        self.s = []
 
         self.mepList = []
 
-    def extend(self, nL, pL, eL, lL, sL):
+    def extend(self, nL, pL, eL, lL, sL):  # noqa: N803
         """Extend the member list items with passed in lists"""
         self.n.extend(nL)
         self.p.extend(pL)
@@ -142,7 +137,7 @@ class MepData:
         self.l.extend(lL)
         self.s.extend(sL)
 
-    def build(self, previousMEP=None):
+    def build(self, previousMEP=None):  # noqa: N803
         """Loop through collected lists and assemble data for each unique MEP.  The
         `previousMEP` is passed in for the case when the binning interval splits an
         MEP. In this case the beginning of the last MEP from the last binning interval
@@ -151,7 +146,7 @@ class MepData:
 
         # Build MEP list from raw data parsed from M frames
         for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s, strict=False):  # noqa: E741
-            logger.debug("n = %s, p = %s, e = %s, l = %s, s = %s" % (n, p, e, l, s))
+            logger.debug("n = %s, p = %s, e = %s, l = %s, s = %s" % (n, p, e, l, s))  # noqa: G002, UP031
             if n == 1:
                 # Instantiate MEP object (n == 1 indicates a new MEP detected by the instrument)
                 mep = MEP(p, e, l, s)
@@ -183,7 +178,7 @@ class MepData:
         aiList = []
         esdList = []
         for mep in self.mepList:
-            i += 1
+            i += 1  # noqa: SIM113
             mep.build()
             aiList.append(mep.ai)
             esdList.append(mep.esd)
@@ -195,7 +190,7 @@ class MepData:
 
         return  # End build(self):
 
-    def count(self, binSizeList, countList=None):
+    def count(self, binSizeList, countList=None):  # noqa: N803
         """Gived a sizeclass numpy.array `binSizeList` loop through the MEPs and increment the
         count for the ESD. Return the countList for this set of MEP data. Add to the countList
         that is passed in if it is provided.
@@ -208,15 +203,15 @@ class MepData:
         for mep in self.mepList:
             """Find the index of the closest bin to the mep's esd and increment the count"""
 
-            logger.debug("Finding index for mep.esd = %f" % (mep.esd))
+            logger.debug("Finding index for mep.esd = %f", mep.esd)
             diffBin = abs(binSizeList - mep.esd)
             indx = numpy.nonzero(diffBin == diffBin.min())[0][0]
-            logger.debug("increment index = %d for mep.esd = %f" % (indx, mep.esd))
+            logger.debug("increment index = %d for mep.esd = %f", indx, mep.esd)
             countList[indx] += 1
 
         return countList
 
-    def countLC(self, aiCrit=0.6, esdLowCrit=1100.0, esdHiCrit=1700.0):
+    def countLC(self, aiCrit=0.6, esdLowCrit=1100.0, esdHiCrit=1700.0):  # noqa: N803
         """Using a criteria based on attenuation index (ai) and Equivalent Spherical Diameter (esd)
         create a count of large copepods (LC) for all the MEPs in the mepList.
         The default criteria values are from Checkley et. al 2008:
@@ -228,16 +223,16 @@ class MepData:
 
         lcCount = 0
         logger.debug(
-            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f" % (aiCrit, esdLowCrit, esdHiCrit),
+            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f", aiCrit, esdLowCrit, esdHiCrit,
         )
         for mep in self.mepList:
-            logger.debug("mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
+            logger.debug("mep.ai = %f, mep.esd = %f", mep.ai, mep.esd)
             if mep.ai > aiCrit and mep.esd > esdLowCrit and mep.esd < esdHiCrit:
                 lcCount += 1
 
         return lcCount
 
-    def countTrans(self, aiCrit=0.6):
+    def countTrans(self, aiCrit=0.6):  # noqa: N803
         """Divide all the MEPs based on an attenuation index criteria and return counts of those
         below and above that value.
 
@@ -245,9 +240,9 @@ class MepData:
 
         transCount = 0
         nonTransCount = 0
-        logger.debug("aiCrit = %f" % aiCrit)
+        logger.debug("aiCrit = %f", aiCrit)
         for mep in self.mepList:
-            logger.debug("mep.ai = %f, mep.esd = %f" % (mep.ai, mep.esd))
+            logger.debug("mep.ai = %f, mep.esd = %f", mep.ai, mep.esd)
             if mep.ai > aiCrit:
                 nonTransCount += 1
             else:
@@ -259,68 +254,68 @@ class MepData:
         """Convert member lists to ASCII string"""
 
         # Format used in Alex Herman papers
-        str = ""
+        cstr = ""
         for n, p, e, l, s in zip(self.n, self.p, self.e, self.l, self.s, strict=False):  # noqa: E741
             if n == 1:
-                p += 32768  # Add the bit back
+                p += 32768  # Add the bit back  # noqa: PLW2901
 
-            str += "M %2d %5d %4d %5d\n" % (e, s, l, p)
+            cstr += "M %2d %5d %4d %5d\n" % (e, s, l, p)  # noqa: UP031
 
-        return str
+        return cstr
 
-    def frameToASCII(self, nL, pL, eL, lL, sL):
+    def frameToASCII(self, nL, pL, eL, lL, sL):  # noqa: N803
         """Convert just the passed in lists to ASCII string"""
 
         # Format used in Alex Herman papers
-        str = ""
+        cstr = ""
         for n, p, e, l, s in zip(nL, pL, eL, lL, sL, strict=False):  # noqa: E741
             if n == 1:
-                p += 32768  # Add the bit back
+                p += 32768  # Add the bit back  # noqa: PLW2901
 
-            str += "M %d %d %d %d\n" % (e, s, l, p)
+            cstr += "M %d %d %d %d\n" % (e, s, l, p)  # noqa: UP031
 
-        return str
+        return cstr
 
     def __repr__(self):
         """Return a string that is reasonable to print"""
 
         # Raw input data
-        ##str =  "n = %s\np = %s\ne = %s\nl = %s\ns = %s\n" % (self.n, self.p, self.e, self.l, self.s)
+        ##str="n = %s\np = %s\ne = %s\nl = %s\ns = %s\n" % (self.n, self.p, self.e, self.l, self.s)
 
         # Format used in Alex Herman papers
-        str = self.toASCII()
+        cstr = self.toASCII()
 
         # Loop trough the MEPs built and print some attributes
         try:
             i = 0
             for mep in self.mepList:
-                i += 1
-                str += "%d. mep: ai = %f, od = %d, esd = %.1f microns\n" % (
+                i += 1  # noqa: SIM113
+                cstr += "%d. mep: ai = %f, od = %d, esd = %.1f microns\n" % (  # noqa: UP031
                     i,
                     mep.ai,
                     mep.od,
                     mep.esd,
                 )
         except AttributeError:
-            ##logger.debug("__repr__(): Attribute 'mepList' does not exist.  Call build() to create it.")
+            ##logger.debug("__repr__(): Attribute 'mepList' does not exist.  Call build() to create it.")  # noqa: E501
             pass
 
         # Output some stats on ai and esd
-        str += "\nNumber of MEPs = %d\n" % len(self.aiArray)
-        str += "ai:   mean = %f, min = %f, max = %f, std = %f\n" % (
+        cstr += "\nNumber of MEPs = %d\n" % len(self.aiArray)  # noqa: UP031
+        cstr += "ai:   mean = %f, min = %f, max = %f, std = %f\n" % (  # noqa: UP031
             self.aiArray.mean(),
             self.aiArray.min(),
             self.aiArray.max(),
             self.aiArray.std(),
         )
-        str += "esd:  mean = %f, min = %f, max = %f, std = %f\n" % (
+        cstr += "esd:  mean = %f, min = %f, max = %f, std = %f\n" % (  # noqa: UP031
             self.esdArray.mean(),
             self.esdArray.min(),
             self.esdArray.max(),
             self.esdArray.std(),
         )
 
-        return str
+        return cstr
 
 
 # Allow this file to be imported as a module
@@ -333,7 +328,7 @@ if __name__ == "__main__":
     ##logging.getLogger("MEP").setLevel(logging.INFO)
 
     # Get a MepData object
-    mepDataFake = MepData()
+    mepDataFake = MepData()  # noqa: N816
 
     # Accunmulate some bogus test data
     mepDataFake.extend([1, 0], [1234, 1235], [11, 12], [1432, 1433], [1456, 1457])
@@ -348,25 +343,23 @@ if __name__ == "__main__":
     mepDataFake.build()
 
     # Print out the input data and the built values
-    logger.info("Input sample (really fake) MEP data = \n%s" % (mepDataFake))
+    logger.info("Input sample (really fake) MEP data = \n%s", mepDataFake)
 
     # Run the count() method
     counts = mepDataFake.count(
         numpy.array(list(range(108, 15015, 15)), dtype="float32"),
     )
-    logger.info("counts = %s" % counts)
-    logger.info("len(mepDataFake.mepList)  = %d" % len(mepDataFake.mepList))
+    logger.info("counts = %s", counts)
+    logger.info("len(mepDataFake.mepList)  = %d", len(mepDataFake.mepList))
     LCcount = mepDataFake.countLC()
-    logger.info("LCcount = %d" % LCcount)
-    (transCount, nonTransCount) = mepDataFake.countTrans()
-    logger.info("transCount = %d, nonTransCount = %d" % (transCount, nonTransCount))
+    logger.info("LCcount = %d", LCcount)
+    (transCount, nonTransCount) = mepDataFake.countTrans()  # noqa: N816
+    logger.info("transCount = %d, nonTransCount = %d", transCount, nonTransCount)
 
     # Loop trough the MEPs built and print some attributes
-    i = 0
-    for mep in mepDataFake.mepList:
-        i += 1
+    for i, mep in enumerate(mepDataFake.mepList):
         logger.info(
-            "%d. mep: ai = %f, od = %f, esd = %f" % (i, mep.ai, mep.od, mep.esd),
+            "%d. mep: ai = %f, od = %f, esd = %f", i, mep.ai, mep.od, mep.esd,
         )
 
     #
@@ -374,7 +367,7 @@ if __name__ == "__main__":
     #
 
     # Get a new MepData object
-    mepData = MepData()
+    mepData = MepData()  # noqa: N816
 
     # Example from Alex Herman data analysis paper of June 2009
     # M 8 50987 12 33814
@@ -389,17 +382,17 @@ if __name__ == "__main__":
     mepData.build()
 
     # Print out the input data and the built values
-    logger.info("\n\nInput sample from Herman June 2009 MEP data = \n%s" % (mepData))
+    logger.info("\n\nInput sample from Herman June 2009 MEP data = \n%s", mepData)
 
     # Run the count() method
     counts = mepData.count(numpy.array(list(range(108, 15015, 15)), dtype="float32"))
-    logger.info("counts = %s" % counts)
-    logger.info("len(mepData.mepList)  = %d" % len(mepData.mepList))
+    logger.info("counts = %s", counts)
+    logger.info("len(mepData.mepList)  = %d", len(mepData.mepList))
 
     # Loop trough the MEPs built and print some attributes
     i = 0
     for mep in mepData.mepList:
         i += 1
         logger.info(
-            "%d. mep: ai = %f, od = %f, esd = %f" % (i, mep.ai, mep.od, mep.esd),
+            "%d. mep: ai = %f, od = %f, esd = %f", i, mep.ai, mep.od, mep.esd
         )

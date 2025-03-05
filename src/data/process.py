@@ -93,10 +93,15 @@ class Processor:
         """Return a dictionary of source directories keyed by mission name."""
         missions = {}
         REGEX = r".*\/[0-9][0-9][0-9][0-9]\.[0-9][0-9][0-9]\.[0-9][0-9]"
+        safe_vehicle_dir = Path(self.vehicle_dir).resolve()
+        if not safe_vehicle_dir.exists():
+            self.logger.error("%s does not exist.", safe_vehicle_dir)
+            self.logger.info("Is %s mounted?", self.mount_dir)
+            sys.exit(1)
         if platform.system() == "Darwin":
-            find_cmd = f'find -E {self.vehicle_dir} -regex "{REGEX}"'
+            find_cmd = f'find -E {safe_vehicle_dir} -regex "{REGEX}"'
         else:
-            find_cmd = f'find {self.vehicle_dir} -regex "{REGEX}"'
+            find_cmd = f'find {safe_vehicle_dir} -regex "{REGEX}"'
         self.logger.debug("Executing %s", find_cmd)
         if self.args.last_n_days:
             self.logger.info(
@@ -105,7 +110,7 @@ class Processor:
             find_cmd += f" -mtime -{self.args.last_n_days}"
         self.logger.info("Finding missions from %s to %s", start_year, end_year)
         # Can be time consuming - use to discover missions
-        lines = subprocess.getoutput(f"{find_cmd} | sort").split("\n")
+        lines = subprocess.getoutput(f"{find_cmd} | sort").split("\n")  # noqa: S605
         for line in lines:
             self.logger.debug(line)
             if "No such file or directory" in line:
@@ -288,15 +293,23 @@ class Processor:
                 "Executing only resample step to produce netCDF file with flash_threshold = %s",
                 f"{self.args.flash_threshold:.0e}",
             )
-            dap_file = Path(
+            dap_file_str = os.path.join(  # noqa: PTH118
                 AUVCTD_OPENDAP_BASE.replace("opendap/", ""),
                 "surveys",
                 resamp.args.mission.split(".")[0],
                 "netcdf",
                 file_name,
             )
-            self.logger.info("Copying file %s", dap_file)
-            os.system(f"wget {dap_file} -O {nc_file}")
+            self.logger.info("Copying file %s", dap_file_str)
+            wget_path = shutil.which("wget")
+            if not wget_path:
+                error_message = "wget not found"
+                raise LookupError(error_message)
+            nc_file_str = str(nc_file)
+            if not dap_file_str.startswith("http"):
+                error_message = f"Invalid URL for dap_file: {dap_file_str}"
+                raise ValueError(error_message)
+            subprocess.run([wget_path, dap_file_str, "-O", nc_file_str], check=True)  # noqa: S603
         try:
             resamp.resample_mission(nc_file)
         except FileNotFoundError as e:

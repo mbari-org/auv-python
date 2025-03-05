@@ -35,7 +35,6 @@ Examples:
 import argparse
 import logging
 import math
-import os
 import re
 import string
 import struct
@@ -2265,7 +2264,7 @@ class LOPC_Processor:
             if Path(self.args.netCDF_fileName).exists():
                 if self.args.force or self.args.noinput:
                     if Path(self.args.netCDF_fileName).exists():
-                        os.remove(self.args.netCDF_fileName)
+                        Path(self.args.netCDF_fileName).unlink()
                 else:
                     ans = input(
                         self.args.netCDF_fileName
@@ -2273,32 +2272,31 @@ class LOPC_Processor:
                         + "Do you want to remove it and continue processing? (y/[N]) ",
                     )
                     if ans.upper() == "Y":
-                        os.remove(self.args.netCDF_fileName)
+                        Path(self.args.netCDF_fileName).unlink()
                     else:
                         sys.exit(0)
 
             textFile = None
-            if self.args.text_fileName:
-                if Path(self.args.text_fileName).exists():
-                    if self.args.force:
-                        if Path(self.args.text_fileName).exists():
-                            Path(self.args.text_fileName).unlink()
+            if self.args.text_fileName and Path(self.args.text_fileName).exists():
+                if self.args.force:
+                    if Path(self.args.text_fileName).exists():
+                        Path(self.args.text_fileName).unlink()
+                else:
+                    ans = input(
+                        self.args.text_fileName
+                        + " file exists.\n"
+                        + "Do you want to remove it and continue processing? (y/[N]) ",
+                    )
+                    if ans.upper() == "Y":
+                        Path(self.args.text_fileName).unlink()
                     else:
-                        ans = input(
-                            self.args.text_fileName
-                            + " file exists.\n"
-                            + "Do you want to remove it and continue processing? (y/[N]) ",
-                        )
-                        if ans.upper() == "Y":
-                            os.remove(self.args.text_fileName)
-                        else:
-                            sys.exit(0)
+                        sys.exit(0)
 
-                textFile = open(self.args.text_fileName, "w")
+                textFile = Path(self.args.text_fileName).open("w")  # noqa: SIM115
 
             self.logger.info("Processing begun: %s", time.ctime())
             # Open input file
-            binFile = open(self.args.bin_fileName, "rb")
+            binFile = Path(self.args.bin_fileName).open("rb")  # noqa: SIM115
 
             # Set flag for whether we need to look for data that Hans writes to the C Frame
             # - implemented after 15 March 2010 (day 2010074)

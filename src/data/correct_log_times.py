@@ -59,7 +59,7 @@ class TimeCorrect(AUV):
 
     def _read_header(self, file: str):
         """Parses the ASCII header of the log file"""
-        with open(file, encoding="ISO-8859-15") as f:
+        with Path(file).open(encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
             instrument_name = Path(f.name).name
@@ -107,7 +107,7 @@ class TimeCorrect(AUV):
         ok = True
         rec_count = 0
         len_sum = 0
-        with open(file, "rb") as f:
+        with Path(file).open("rb") as f:
             f.seek(byte_offset)
             while ok:
                 for r in records:
@@ -185,7 +185,7 @@ class TimeCorrect(AUV):
             self.args.add_seconds,
             TIME,
         )
-        with open(log_filename, "wb") as fh:
+        with Path(log_filename).open("wb") as fh:
             fh.write(bytes(header_text, encoding="utf8"))
             ok = True
             while ok:

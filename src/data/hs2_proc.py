@@ -1,5 +1,8 @@
+# noqa: INP001
+
 from collections import defaultdict
 from math import exp, pi
+from pathlib import Path
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -13,11 +16,11 @@ class HS2:
     pass
 
 
-def hs2_read_cal_file(cal_filename):
+def hs2_read_cal_file(cal_filename: Path):
     cals = defaultdict(dict)
     channels = []
 
-    with open(cal_filename) as fh:
+    with cal_filename.open() as fh:
         for line in fh:
             if "[General]" in line:
                 category = "General"
@@ -29,10 +32,11 @@ def hs2_read_cal_file(cal_filename):
             elif "=" in line:
                 name, value = [s.strip() for s in line.split("=")]
                 cals[category][name] = value
-            elif line == "\n" or line == "[End]\n":
+            elif line in ("\n", "[End]\n"):
                 pass
             else:
-                raise (ValueError(f"Unexpected line: {line}"))
+                error_message = f"Unexpected line: {line}"
+                raise ValueError(error_message)
 
     # From the CVS log: revision 1.3
     # date: 2007/07/13 17:59:06;  author: ssdsadmin;  state: Exp;  lines: +11 -0
@@ -61,7 +65,7 @@ def _get_gains(orig_nc, cals, hs2):
     # See section 9.2.7 in HS2ManualRevI-2011-12.pdf (between >> << below):
     # ---------------------------------------------------------------------
     # There is one 4-bit gain/status value for each of the optical data channels.
-    # The three LSB’s comprise a gain setting, and the MSB indicates status.
+    # The three LSB's comprise a gain setting, and the MSB indicates status.
     # A gain setting of zero indicates that the channel is disabled and its
     # data should be ignored. >> Gains of 1 to 5 are used to select one of five
     # coefficients to be applied to Snorm. Gains 6 and 7 are undefined. <<
@@ -72,9 +76,9 @@ def _get_gains(orig_nc, cals, hs2):
     for chan, gs in ((1, "Gain_Status_1"), (2, "Gain_Status_2"), (3, "Gain_Status_3")):
         gv = orig_nc[gs]
         for gnum in range(1, 6):
-            if chan <= 2:
+            if chan <= 2:  # noqa: PLR2004
                 gc = float(cals[f"Ch{chan}"][f"Gain{gnum}"])
-            elif chan == 3:
+            elif chan == 3:  # noqa: PLR2004
                 gc = float(cals[f"Ch{chan - 1}"][f"Gain{gnum}"])
 
             gv = np.where(orig_nc[gs] == gnum, gc, gv)
@@ -87,7 +91,7 @@ def _int_signer(ints_in):
     # -% signed_int = int_in - 65536*(int_in > 32767);
     signed_ints = []
     for int_in in ints_in.values:
-        if int_in > 32767:
+        if int_in > 32767:  # noqa: PLR2004
             signed_ints.append(int_in - 65536)
         else:
             signed_ints.append(int_in)
@@ -121,7 +125,7 @@ def hs2_calc_bb(orig_nc, cals):
     # Item cals[f'Ch{chan}']['Name'] identifies which one
     for chan in (1, 2):
         # -% RAW SIGNAL CONVERSION
-        # -% hs2.beta420_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'
+        # -% hs2.beta420_uncorr = (hs2.Snorm1.*str2num(CAL.Ch(1).Mu))./((1 + str2num(CAL.Ch(1).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain1.*str2num(CAL.Ch(1).RNominal));'  # noqa: E501
         denom = np.multiply(
             (
                 1
@@ -163,7 +167,7 @@ def hs2_calc_bb(orig_nc, cals):
         # This is likely the correct way to do it, with b_bw subtracted before multiplying by sigma
         # setattr(hs2, f"bbp{wavelength}", b_bp_corr)
 
-    # -% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'
+    # -% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'  # noqa: E501
     denom = (
         (
             1
@@ -244,8 +248,6 @@ def typ_absorption(lamda):
     a_interp = interp1d(a_star_values[:, 0], a_star_values[:, 1])
     a_star = a_interp(lamda)
 
-    a = (0.06 * a_star * (C**0.65)) * (1 + 0.2 * exp(-gamma_y * (lamda - 440))) + (
+    return (0.06 * a_star * (C**0.65)) * (1 + 0.2 * exp(-gamma_y * (lamda - 440))) + (
         a_d_400 * exp(-gamma_d * (lamda - 400))
     )
-
-    return a

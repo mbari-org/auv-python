@@ -8,15 +8,15 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
 import argparse
+import contextlib
 import logging
 import re
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 import cmocean
-import matplotlib
+import matplotlib  # noqa: ICN001
 import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
@@ -38,7 +38,7 @@ class CreateProducts:
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
     # Column name format required by ODV - will be tab delimited
-    ODV_COLUMN_NAMES = [
+    ODV_COLUMN_NAMES = [  # noqa: RUF012
         "Cruise",
         "Station",
         "Type",
@@ -70,7 +70,7 @@ class CreateProducts:
         "YearDay [day]",
         "QF",
     ]
-    cmocean_lookup = {
+    cmocean_lookup = {  # noqa: RUF012
         "sea_water_temperature": "thermal",
         "sea_water_salinity": "haline",
         "sea_water_sigma_t": "dense",
@@ -110,8 +110,10 @@ class CreateProducts:
 
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
-        # auvnav positions are too fine for distance calculations, they resolve spiral ascents and circling while on station
-        # subsample, interpolate back, use subsampled - interpolated positions for distance calculation
+        # auvnav positions are too fine for distance calculations, they resolve
+        # spiral ascents and circling while on station
+        # subsample, interpolate back, use subsampled - interpolated positions
+        # for distance calculation
         # npos = length(auvnav.fixLat);
         # if npos > 400,
         # 	nSubSample = 200;			% Test plots show that about 200 removes the spirals
@@ -120,8 +122,8 @@ class CreateProducts:
         # end
         # fixLonSubSamp = auvnav.fixLon(1:nSubSample:npos);
         # fixLatSubSamp = auvnav.fixLat(1:nSubSample:npos);
-        # fixLonSubIntrp = interp1(auvnav.fixTime(1:nSubSample:npos), fixLonSubSamp, auvnav.fixTime, 'linear', 'extrap');
-        # fixLatSubIntrp = interp1(auvnav.fixTime(1:nSubSample:npos), fixLatSubSamp, auvnav.fixTime, 'linear', 'extrap');
+        # fixLonSubIntrp = interp1(auvnav.fixTime(1:nSubSample:npos), fixLonSubSamp, auvnav.fixTime, 'linear', 'extrap');  # noqa: E501
+        # fixLatSubIntrp = interp1(auvnav.fixTime(1:nSubSample:npos), fixLatSubSamp, auvnav.fixTime, 'linear', 'extrap');  # noqa: E501
         # [xFix yFix] = geo2utm(fixLonSubIntrp, fixLatSubIntrp);
         # dxFix = [0; diff(xFix - xFix(1))];
         # dyFix = [0; diff(yFix - yFix(1))];
@@ -129,10 +131,8 @@ class CreateProducts:
         # dists = distnav / 1000; 	% in km
 
         utm_zone = int(31 + (self.ds.cf["longitude"].values.mean() // 6))
-        if len(self.ds.cf["longitude"].values) > 400:
-            n_subsample = 200
-        else:
-            n_subsample = 1
+        MAX_LONGITUDE_VALUES = 400
+        n_subsample = 200 if len(self.ds.cf["longitude"].values) > MAX_LONGITUDE_VALUES else 1
         lon_sub_intrp = np.interp(
             self.ds.cf["time"].values.astype(np.int64),
             self.ds.cf["time"].values[::n_subsample].astype(np.int64),
@@ -191,11 +191,9 @@ class CreateProducts:
         )
         # Set rolling window to fraction of the total distance of the mission
         window = int(len(distnav) * window_frac)
-        bot_depths = depth_dist.rolling(dist=window).max()
+        return depth_dist.rolling(dist=window).max()
 
-        return bot_depths
-
-    def _plot_var(
+    def _plot_var(  # noqa: PLR0913
         self,
         var: str,
         idist: np.array,
@@ -209,10 +207,7 @@ class CreateProducts:
         scale: str = "linear",
         num_colors: int = 256,
     ):
-        if scale == "log":
-            var_to_plot = np.log10(self.ds[var].values)
-        else:
-            var_to_plot = self.ds[var].values
+        var_to_plot = np.log10(self.ds[var].values) if scale == "log" else self.ds[var].values
         scafac = max(idist) / max(iz)
         gridded_var = griddata(
             (distnav.values / 1000.0 / scafac, self.ds.cf["depth"].values),
@@ -222,13 +217,11 @@ class CreateProducts:
             rescale=True,
         )
         color_map_name = "cividis"
-        try:
+        with contextlib.suppress(KeyError):
             color_map_name = self.cmocean_lookup.get(
                 self.ds[var].attrs["standard_name"],
                 "cividis",
             )
-        except KeyError:
-            pass
         try:
             cmap = plt.get_cmap(color_map_name)
         except ValueError:
@@ -243,7 +236,7 @@ class CreateProducts:
         )
 
         self.logger.info(
-            f"{var} using {color_map_name} cmap with ranges {v2_5:.1f} {v97_5:.1f}",
+            "%s using %s cmap with ranges %.1f %.1f", var, color_map_name, v2_5, v97_5,
         )
         ax[row, col].set_ylim(max(iz), min(iz))
         cntrf = ax[row, col].contourf(
@@ -321,9 +314,9 @@ class CreateProducts:
             ("isus_nitrate", "linear"),
             ("biolume_avg_biolume", "log"),
         ):
-            self.logger.info(f"Plotting {var}...")
+            self.logger.info("Plotting %s...", var)
             if var not in self.ds:
-                self.logger.warning(f"{var} not in dataset")
+                self.logger.warning("%s not in dataset", var)
                 ax[row, col].get_xaxis().set_visible(False)
                 ax[row, col].get_yaxis().set_visible(False)
             else:
@@ -339,7 +332,7 @@ class CreateProducts:
                     profile_bottoms,
                     scale=scale,
                 )
-            if row != 4:
+            if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
 
             if col == 1:
@@ -370,17 +363,17 @@ class CreateProducts:
             return best_ctd
         matches = re.search(r"Best CTD is (ctd1|ctd2)", self.ds.attrs["comment"])
         if matches:
-            self.logger.info(f"Best CTD is {matches.group(1)}")
+            self.logger.info("Best CTD is %s", matches.group(1))
             best_ctd = matches.group(1)
         else:
             matches = re.search(r"ctdToUse = ([\S]+)", self.ds.attrs["comment"])
             if matches:
-                self.logger.info(f"ctdToUse = {matches.group(1)}")
+                self.logger.info("ctdToUse = %s", matches.group(1))
                 best_ctd = matches.group(1)
 
         return best_ctd
 
-    def gulper_odv(self, sec_bnds: int = 1) -> str:
+    def gulper_odv(self, sec_bnds: int = 1) -> str:  # noqa: C901, PLR0912, PLR0915
         "Create gulper bottle numbers and data at sample collection (ODV tab-delimited) file"
 
         gulper = Gulper()
@@ -395,7 +388,7 @@ class CreateProducts:
 
         gulper_times = gulper.parse_gulpers()
         if not gulper_times:
-            self.logger.info(f"No gulper times found for {self.args.mission}")
+            self.logger.info("No gulper times found for %s", self.args.mission)
             return
         odv_dir = Path(
             BASE_PATH,
@@ -418,14 +411,14 @@ class CreateProducts:
             odv_column_names[24] = "bbp676 [m^{-1}]"
 
         best_ctd = self._get_best_ctd()
-        with open(gulper_odv_filename, "w") as f:
+        with gulper_odv_filename.open("w") as f:
             f.write("\t".join(odv_column_names) + "\n")
             for bottle, esec in gulper_times.items():
-                self.logger.debug(f"bottle: {bottle} of {len(gulper_times)}")
+                self.logger.debug("bottle: %d of %d", bottle, len(gulper_times))
                 gulper_data = self.ds.sel(
                     time=slice(
-                        datetime.utcfromtimestamp(esec - sec_bnds),
-                        datetime.utcfromtimestamp(esec + sec_bnds),
+                        np.datetime64(int((esec - sec_bnds) * 1e9), "ns"),
+                        np.datetime64(int((esec + sec_bnds) * 1e9), "ns"),
                     ),
                 )
                 for count, name in enumerate(odv_column_names):
@@ -517,7 +510,7 @@ class CreateProducts:
                         f.write("\t")
                 f.write("\n")
         self.logger.info(
-            f"Wrote {len(gulper_times)} Gulper data lines to {gulper_odv_filename}",
+            "Wrote %d Gulper data lines to %s", len(gulper_times), gulper_odv_filename,
         )
 
     def process_command_line(self):
@@ -578,4 +571,4 @@ if __name__ == "__main__":
     cp.plot_2column()
     cp.plot_biolume()
     # cp.gulper_odv()
-    cp.logger.info(f"Time to process: {(time.time() - p_start):.2f} seconds")
+    cp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))

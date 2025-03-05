@@ -11,12 +11,15 @@ way other Samples (Sipper, ESP) are loaded and accessible in STOQS.
 
 import argparse
 import logging
+import os
 import re
 import sys
+from http import HTTPStatus
 from pathlib import Path
 
 import requests
 import xarray as xr
+from logs2netcdfs import TIMEOUT
 
 
 class Gulper:
@@ -48,11 +51,11 @@ class Gulper:
                 self.args.mission,
                 "navigation.nc",
             )
-        self.logger.info(f"Reading mission start time from {url}")
+        self.logger.info("Reading mission start time from %s", url)
         ds = xr.open_dataset(url)
         return ds.time[0].values.astype("float64") / 1e9
 
-    def parse_gulpers(self, sec_delay: int = 1) -> dict:
+    def parse_gulpers(self, sec_delay: int = 1) -> dict:  # noqa: C901, PLR0912, PLR0915
         """Parse the Gulper times and bottle numbers from the auvctd syslog file.
         Subtract bottle times by sec_delay seconds to account for the time it takes
         the gulper midsection to reach the water that's measured by the nosecone
@@ -69,14 +72,14 @@ class Gulper:
                 self.args.mission,
             )
             syslog_file = Path(mission_dir, "syslog")
-            self.logger.info(f"Reading local file {syslog_file}")
+            self.logger.info("Reading local file %s", syslog_file)
             if not syslog_file.exists():
-                self.logger.error(f"{syslog_file} not found")
+                self.logger.error("%s not found", syslog_file)
                 raise FileNotFoundError(syslog_file)
             with syslog_file.open(encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
         else:
-            syslog_url = Path(
+            syslog_url = os.path.join(  # noqa: PTH118
                 "http://dods.mbari.org/data/auvctd/",
                 "missionlogs",
                 self.args.mission.split(".")[0],
@@ -84,11 +87,11 @@ class Gulper:
                 self.args.mission,
                 "syslog",
             )
-            self.logger.info(f"Reading {syslog_url}")
-            with requests.get(str(syslog_url), stream=True) as resp:
-                if resp.status_code != 200:
+            self.logger.info("Reading %s", syslog_url)
+            with requests.get(str(syslog_url), stream=True, timeout=TIMEOUT) as resp:
+                if resp.status_code != HTTPStatus.OK:
                     self.logger.error(
-                        f"Cannot read {syslog_url}, resp.status_code = {resp.status_code}",
+                        "Cannot read %s, resp.status_code = %d", syslog_url, resp.status_code,
                     )
                     if self.args.mission in (
                         "2012.256.00",
@@ -98,10 +101,11 @@ class Gulper:
                         # Hans created tarballs for offshore missions do not include syslogs
                         # per email thread on 12 September 2012 - Mike McCann
                         self.logger.info(
-                            f"Known missing syslog for mission {self.args.mission}",
+                            "Known missing syslog for mission %s", self.args.mission,
                         )
                         return bottles
-                    raise FileNotFoundError(f"Cannot read {syslog_url}")
+                    error_message = f"Cannot read {syslog_url}"
+                    raise FileNotFoundError(error_message)
                 lines = [line.decode(errors="ignore") for line in resp.iter_lines()]
 
         mission_start_esecs = self.mission_start_esecs()
@@ -139,33 +143,33 @@ class Gulper:
                 # The navigation.nc file has the best match to mission start time.
                 # Use that to match to this zero elapsed mission time.
                 self.logger.debug(
-                    f"Mission {self.args.mission} started at {mission_start_esecs}",
+                    "Mission %s started at %s", self.args.mission, mission_start_esecs,
                 )
             if match := fire_the_gulper_re.search(line):
                 # .+t =\s+([\d\.]+)\).+Behavior FireTheGulper
                 etime = float(match.group(1))
-                self.logger.debug(f"etime = {etime}")
+                self.logger.debug("etime = %s", etime)
             if match := gulper_number_re.search(line):
                 # GulperServer - firing gulper (\d+)
                 number = int(match.group(1))
-                self.logger.debug(f"number = {number}")
+                self.logger.debug("number = %s", number)
             if match := adaptive_gulper_re.search(line):
                 # Adaptive Sampler has fired gulper (\d+) at t =\s+([\d\.]+)
                 number = int(match.group(1))
                 esecs = float(match.group(2))
-                self.logger.debug(f"number = {number}, esecs = {esecs}")
+                self.logger.debug("number = %s, esecs = %s", number, esecs)
                 bottles[number] = esecs
 
             if match := num_fire_gulper_cmd_re.search(line):
                 # ": (\d+) Gulper::fireGulper - cmd is \$(\d\d)1Fff
                 esecs = float(match.group(1))
                 number = int(match.group(2))
-                self.logger.debug(f"eseconds = {esecs}, number = {number}")
+                self.logger.debug("eseconds = %s, number = %s", esecs, number)
                 if etime:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        f"Saving time {etime + mission_start_esecs} for bottle number {number}",
+                        "Saving time %s for bottle number %s", etime + mission_start_esecs, number,
                     )
                     etime = None
                 bottles[number] = esecs
@@ -176,7 +180,7 @@ class Gulper:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        f"Saving time {etime + mission_start_esecs} for bottle number {number}",
+                        "Saving time %s for bottle number %s", etime + mission_start_esecs, number,
                     )
                     etime = None
             elif match := fire_gulper_cmd_re.search(line):
@@ -186,19 +190,20 @@ class Gulper:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        f"Saving time {etime + mission_start_esecs} for bottle number {number}",
+                        "Saving time %s for bottle number %s", etime + mission_start_esecs, number,
                     )
                     etime = None
-        self.logger.debug(f"Subtracting {sec_delay = } second(s) from bottle times")
+        self.logger.debug("Subtracting %s second(s) from bottle times", sec_delay)
         for number, esecs in bottles.items():
             self.logger.debug(
-                f"number = {number}, esecs = {esecs}, new esecs = {esecs - sec_delay}",
+                "number = %s, esecs = %s, new esecs = %s",
+                number, esecs, esecs - sec_delay
             )
             bottles[number] = esecs - sec_delay
         if not bottles:
             self.logger.debug("No gulper times found in syslog")
         else:
-            self.logger.info(f"Found {len(bottles)} gulper times in syslog")
+            self.logger.info("Found %d gulper times in syslog", len(bottles))
         return bottles
 
     def process_command_line(self) -> None:
@@ -252,4 +257,4 @@ if __name__ == "__main__":
     gulper_times = gulper.parse_gulpers()
     gulper.logger.info("number, epoch seconds")
     for number, esecs in gulper_times.items():
-        gulper.logger.info(f"{number}, {esecs}")
+        gulper.logger.info("%s, %s", number, esecs)

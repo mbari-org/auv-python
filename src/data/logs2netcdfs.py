@@ -13,13 +13,14 @@ import argparse
 import asyncio
 import concurrent
 import logging
-import os
 import struct
+import subprocess
 import sys
 import time
 from http import HTTPStatus
 from pathlib import Path
 
+import aiofiles
 import numpy as np
 import requests
 from aiohttp import ClientSession
@@ -67,7 +68,7 @@ class AUV_NetCDF(AUV):
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def read(self, file: str) -> list[log_record]:
+    def read(self, file: Path) -> list[log_record]:
         """Reads and parses an AUV log and returns a list of `log_records`"""
         byte_offset = 0
         records = []
@@ -81,9 +82,9 @@ class AUV_NetCDF(AUV):
 
         return records
 
-    def _read_header(self, file: str):
+    def _read_header(self, file: Path):
         """Parses the ASCII header of the log file"""
-        with open(file, encoding="ISO-8859-15") as f:
+        with file.open(encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
             instrument_name = Path(f.name).name
@@ -123,10 +124,10 @@ class AUV_NetCDF(AUV):
 
             return (byte_offset, records)
 
-    def _read_biolume_header(self, file: str):
+    def _read_biolume_header(self, file: Path):
         """Parses the ASCII header of the log file, collapse all the raw_
         variables into a single 60 hz raw variable"""
-        with open(file, encoding="ISO-8859-15") as f:
+        with file.open(encoding="ISO-8859-15") as f:
             byte_offset = 0
             records = []
             instrument_name = Path(f.name).name
@@ -182,7 +183,7 @@ class AUV_NetCDF(AUV):
 
             return (byte_offset, records)
 
-    def _read_data(self, file: str, records: list[log_record], byte_offset: int):
+    def _read_data(self, file: Path, records: list[log_record], byte_offset: int):
         """Parse the binary section of the log file"""
         if byte_offset == 0:
             error_message = f"{file}: 0 sized file"
@@ -192,7 +193,7 @@ class AUV_NetCDF(AUV):
         ok = True
         rec_count = 0
         len_sum = 0
-        with open(file, "rb") as f:
+        with file.open("rb") as f:
             f.seek(byte_offset)
             while ok:
                 for r in records:
@@ -249,7 +250,7 @@ class AUV_NetCDF(AUV):
 
     def _read_biolume_data(  # noqa: C901, PLR0912, PLR0915
         self,
-        file: str,
+        file: Path,
         records: list[log_record],
         byte_offset: int,
     ):
@@ -266,7 +267,7 @@ class AUV_NetCDF(AUV):
         ok = True
         rec_count = 0
         len_sum = 0
-        with open(file, "rb") as f:
+        with file.open("rb") as f:
             f.seek(byte_offset)
             while ok:
                 for r in records:
@@ -334,7 +335,7 @@ class AUV_NetCDF(AUV):
 
     def _unique_vehicle_names(self):
         self.logger.debug("Getting deployments from %s", self.deployments_url)
-        with requests.get(self.deployments_url) as resp:
+        with requests.get(self.deployments_url, timeout=TIMEOUT) as resp:
             if resp.status_code != HTTPStatus.OK:
                 self.logger.error(
                     "Cannot read %s, status_code = %d",
@@ -350,7 +351,7 @@ class AUV_NetCDF(AUV):
         end = f"{self.args.end}T235959Z"
         url = f"{self.deployments_url}?from={start}&to={end}"
         self.logger.debug("Getting missions from %s", url)
-        with requests.get(url) as resp:
+        with requests.get(url, timeout=TIMEOUT) as resp:
             if resp.status_code != HTTPStatus.OK:
                 error_message = f"Cannot read {url}, status_code = {resp.status_code}"
                 raise LookupError(error_message)
@@ -391,7 +392,7 @@ class AUV_NetCDF(AUV):
         vehicle = vehicle or self.args.auv_name
         files_url = f"{self.portal_base}/files/list/{name}/{vehicle}"
         self.logger.debug("Getting files list from %s", files_url)
-        with requests.get(files_url) as resp:
+        with requests.get(files_url, timeout=TIMEOUT) as resp:
             if resp.status_code != HTTPStatus.OK:
                 self.logger.error(
                     "Cannot read %s, status_code = %d",
@@ -414,9 +415,9 @@ class AUV_NetCDF(AUV):
                         resp.status,
                     )
                 else:
-                    self.logger.info("Started download to %s...", local_filename)
-                    with open(local_filename, "wb") as handle:
+                    async with aiofiles.open(local_filename, "wb") as handle:
                         async for chunk in resp.content.iter_chunked(1024):
+                            await handle.write(chunk)
                             handle.write(chunk)
                         if self.args.verbose > 1:
                             print(  # noqa: T201
@@ -692,11 +693,11 @@ class AUV_NetCDF(AUV):
             self.nc_file.comment += "Non-monotonic increasing times detected."
         self.nc_file.close()
 
-    def download_process_logs(  # noqa: C901, PLR0912
+    def download_process_logs(  # noqa: C901, PLR0912, PLR0915
         self,
         vehicle: str = "",
         name: str = "",
-        src_dir: str = "",
+        src_dir: Path = Path(),
     ) -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
@@ -727,8 +728,16 @@ class AUV_NetCDF(AUV):
                 if self.args.use_portal:
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
                 elif src_dir:
+                    safe_src_dir = Path(src_dir).resolve()
+                    if not safe_src_dir.exists():
+                        error_message = f"src_dir {safe_src_dir} does not exist"
+                        raise FileNotFoundError(error_message)
+
                     self.logger.info("Rsyncing %s to %s", src_dir, logs_dir)
-                    os.system(f"rsync -av {src_dir} {logs_dir.parent}")
+                    subprocess.run(  # noqa: S603
+                        ["/usr/bin/rsync", "-av", str(safe_src_dir), str(logs_dir.parent)],
+                        check=True,
+                    )
                 else:
                     self.logger.info(
                         "src_dir not provided, so downloading from portal",
@@ -769,7 +778,7 @@ class AUV_NetCDF(AUV):
         self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
         url = "http://portal.shore.mbari.org:8080/auvdata/v1/deployments/update"
         auv_netcdf.logger.info("Sending an 'update' request: %s", url)
-        resp = requests.post(url)
+        resp = requests.post(url, timeout=TIMEOUT)
         if resp.status_code != HTTPStatus.OK:
             self.logger.error(
                 "Update failed for url = %s, status_code = %d",
