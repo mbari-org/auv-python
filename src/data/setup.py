@@ -1,3 +1,5 @@
+# noqa: INP001
+
 from setuptools import find_packages, setup
 
 setup(

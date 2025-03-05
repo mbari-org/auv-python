@@ -279,14 +279,12 @@ Examples:
 
         logger.info("main(): Processing begun: %s", time.ctime())
 
-        # Open input file
-        asciiFile = open(opts.ascii_fileName)
-
         # Open output file
         ncFile = openNetCDFFile(opts.netCDF_fileName)
 
-        # Read records and write netCDF records
-        processRecords(asciiFile, ncFile)
+        # Open input file, read records, and write netCDF records
+        with Path(opts.ascii_fileName).open() as asciiFile:
+            processRecords(asciiFile, ncFile)
 
         # Close the netCDF file writing the proper tsList data first
         closeNetCDFFile(ncFile)

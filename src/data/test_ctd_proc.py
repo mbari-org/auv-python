@@ -29,7 +29,7 @@ def test_oxsat(mission_data):
     #    33.7018
     #
     # K>> dbstep
-    # 24  OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );
+    # 24  OXSAT = exp(A1 + A2*(100./TK) + A3*log(TK/100) + A4*(TK/100) + [S .* (B1 + B2*(TK/100) + (B3*(TK/100).*(TK/100)))] );  # noqa: E501
     #
     # K>> format long
     # K>> OXSAT(1:5)
@@ -64,7 +64,7 @@ def test_calibrated_O2_from_volts(mission_data):
     )
 
     # K>> dbstep
-    # 32  O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;
+    # 32  O2 = [O2cal.SOc * ((O2V+O2cal.offset)+(tau*docdt)) + O2cal.BOc * exp(-0.03*T)].*exp(O2cal.Tcor*T + O2cal.Pcor*P).*OXSAT;  # noqa: E501
     # K>> O2(1:5)
     #
     # ans =

@@ -10,13 +10,15 @@ def main():
     elif REQUIRED_PYTHON == "python3":
         required_major = 3
     else:
-        raise ValueError(f"Unrecognized python interpreter: {REQUIRED_PYTHON}")
+        error_message = f"Unrecognized python interpreter: {REQUIRED_PYTHON}"
+        raise ValueError(error_message)
 
     if system_major != required_major:
-        raise TypeError(
+        error_message = (
             f"This project requires Python {required_major}. Found: Python {sys.version}"
         )
-    print(">>> Development environment passes all tests!")
+        raise TypeError(error_message)
+    print(">>> Development environment passes all tests!")  # noqa: T201
 
 
 if __name__ == "__main__":

@@ -236,7 +236,11 @@ class CreateProducts:
         )
 
         self.logger.info(
-            "%s using %s cmap with ranges %.1f %.1f", var, color_map_name, v2_5, v97_5,
+            "%s using %s cmap with ranges %.1f %.1f",
+            var,
+            color_map_name,
+            v2_5,
+            v97_5,
         )
         ax[row, col].set_ylim(max(iz), min(iz))
         cntrf = ax[row, col].contourf(
@@ -510,7 +514,9 @@ class CreateProducts:
                         f.write("\t")
                 f.write("\n")
         self.logger.info(
-            "Wrote %d Gulper data lines to %s", len(gulper_times), gulper_odv_filename,
+            "Wrote %d Gulper data lines to %s",
+            len(gulper_times),
+            gulper_odv_filename,
         )
 
     def process_command_line(self):

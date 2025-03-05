@@ -91,7 +91,9 @@ class Gulper:
             with requests.get(str(syslog_url), stream=True, timeout=TIMEOUT) as resp:
                 if resp.status_code != HTTPStatus.OK:
                     self.logger.error(
-                        "Cannot read %s, resp.status_code = %d", syslog_url, resp.status_code,
+                        "Cannot read %s, resp.status_code = %d",
+                        syslog_url,
+                        resp.status_code,
                     )
                     if self.args.mission in (
                         "2012.256.00",
@@ -101,7 +103,8 @@ class Gulper:
                         # Hans created tarballs for offshore missions do not include syslogs
                         # per email thread on 12 September 2012 - Mike McCann
                         self.logger.info(
-                            "Known missing syslog for mission %s", self.args.mission,
+                            "Known missing syslog for mission %s",
+                            self.args.mission,
                         )
                         return bottles
                     error_message = f"Cannot read {syslog_url}"
@@ -143,7 +146,9 @@ class Gulper:
                 # The navigation.nc file has the best match to mission start time.
                 # Use that to match to this zero elapsed mission time.
                 self.logger.debug(
-                    "Mission %s started at %s", self.args.mission, mission_start_esecs,
+                    "Mission %s started at %s",
+                    self.args.mission,
+                    mission_start_esecs,
                 )
             if match := fire_the_gulper_re.search(line):
                 # .+t =\s+([\d\.]+)\).+Behavior FireTheGulper
@@ -169,7 +174,9 @@ class Gulper:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        "Saving time %s for bottle number %s", etime + mission_start_esecs, number,
+                        "Saving time %s for bottle number %s",
+                        etime + mission_start_esecs,
+                        number,
                     )
                     etime = None
                 bottles[number] = esecs
@@ -180,7 +187,9 @@ class Gulper:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        "Saving time %s for bottle number %s", etime + mission_start_esecs, number,
+                        "Saving time %s for bottle number %s",
+                        etime + mission_start_esecs,
+                        number,
                     )
                     etime = None
             elif match := fire_gulper_cmd_re.search(line):
@@ -190,14 +199,15 @@ class Gulper:
                     # After first instance of bottle number undef $etime so we don't re-set it
                     bottles[number] = etime + mission_start_esecs
                     self.logger.debug(
-                        "Saving time %s for bottle number %s", etime + mission_start_esecs, number,
+                        "Saving time %s for bottle number %s",
+                        etime + mission_start_esecs,
+                        number,
                     )
                     etime = None
         self.logger.debug("Subtracting %s second(s) from bottle times", sec_delay)
         for number, esecs in bottles.items():
             self.logger.debug(
-                "number = %s, esecs = %s, new esecs = %s",
-                number, esecs, esecs - sec_delay
+                "number = %s, esecs = %s, new esecs = %s", number, esecs, esecs - sec_delay
             )
             bottles[number] = esecs - sec_delay
         if not bottles:

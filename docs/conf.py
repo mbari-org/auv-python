@@ -1,4 +1,4 @@
-#
+# noqa: INP001
 # auv-python documentation build configuration file, created by
 # sphinx-quickstart.
 #

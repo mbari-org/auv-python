@@ -223,7 +223,10 @@ class MepData:
 
         lcCount = 0
         logger.debug(
-            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f", aiCrit, esdLowCrit, esdHiCrit,
+            "aiCrit = %f,  esdLowCrit %f, esdHiCrit = %f",
+            aiCrit,
+            esdLowCrit,
+            esdHiCrit,
         )
         for mep in self.mepList:
             logger.debug("mep.ai = %f, mep.esd = %f", mep.ai, mep.esd)
@@ -359,7 +362,11 @@ if __name__ == "__main__":
     # Loop trough the MEPs built and print some attributes
     for i, mep in enumerate(mepDataFake.mepList):
         logger.info(
-            "%d. mep: ai = %f, od = %f, esd = %f", i, mep.ai, mep.od, mep.esd,
+            "%d. mep: ai = %f, od = %f, esd = %f",
+            i,
+            mep.ai,
+            mep.od,
+            mep.esd,
         )
 
     #
@@ -393,6 +400,4 @@ if __name__ == "__main__":
     i = 0
     for mep in mepData.mepList:
         i += 1
-        logger.info(
-            "%d. mep: ai = %f, od = %f, esd = %f", i, mep.ai, mep.od, mep.esd
-        )
+        logger.info("%d. mep: ai = %f, od = %f, esd = %f", i, mep.ai, mep.od, mep.esd)

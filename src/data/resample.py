@@ -700,12 +700,15 @@ class Resampler:
             # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
             self.logger.info(
                 "Resampling %s with frequency %s following %d point median filter",
-                variable, freq, mf_width,
+                variable,
+                freq,
+                mf_width,
             )
             if instr in instrs_to_pad:
                 self.logger.info(
                     "Padding %s with %s of NaNs to the end of mission",
-                    variable, instrs_to_pad[instr],
+                    variable,
+                    instrs_to_pad[instr],
                 )
                 dt_index = pd.date_range(mission_start, mission_end, freq=freq)
                 self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
@@ -927,7 +930,8 @@ class Resampler:
             self.logger.exception(
                 "Missing global attribute %s in %s. Cannot add global metadata to "
                 "resampled mission.",
-                e, nc_file,  # noqa: TRY401
+                e,  # noqa: TRY401
+                nc_file,
             )
         if self.args.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()

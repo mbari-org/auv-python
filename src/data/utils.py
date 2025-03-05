@@ -1,4 +1,4 @@
-import math
+# noqa: INP001
 
 # pure-Python Douglas-Peucker line simplification/generalization
 #
@@ -22,6 +22,8 @@ import math
 [(0, 0), (0.5, 0.5), (1.25, -0.25), (1.5, 0.5)]
 
 """
+
+import math
 
 
 def simplify_points(pts, tolerance):
@@ -65,7 +67,7 @@ def simplify_points(pts, tolerance):
                 seg_len = math.sqrt(vecX**2 + vecY**2)
                 # dot product:
                 proj = vecX * (-anchorX) + vecY * (-anchorY)
-                if proj < 0.0:
+                if proj < 0.0:  # noqa: SIM108
                     dist_to_seg = seg_len
                 else:  # calculate perpendicular distance to line (pythagorean theorem):
                     dist_to_seg = math.sqrt(abs(seg_len**2 - proj**2))

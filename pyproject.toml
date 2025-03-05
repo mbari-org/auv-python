@@ -134,4 +134,3 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "src/data/dorado_info.py" = ["E501"]
-
