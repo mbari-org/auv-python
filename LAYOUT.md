@@ -1,7 +1,7 @@
 auv-python
 ==========
 
-Python code for processing MBARI Dorado-class AUV instrument data
+Python code for processing MBARI AUV instrument data
 
 Project Organization
 --------------------

@@ -1,10 +1,11 @@
-# Python code for processing MBARI Dorado-class AUV instrument data
+# Python code for processing MBARI AUV instrument data
 
 ![auv-python tests](https://github.com/mbari-org/auv-python/actions/workflows/ci.yml/badge.svg)
 
-The code here is used to process Dorado-class AUV data from the original
-log files recorded by the vehicle's main vehicle computer into more
-interoperable netCDF files.
+The code here is used to process the Monterey Bay Aquarium Research
+Institute's Autonomous Underwater Vehicle instrument AUV data from
+the original log files recorded by the vehicle's main vehicle
+computer into more interoperable netCDF files.
 
 There is a rich collection of Matlab code (the [Science Data Processing
 toolbox](https://docs.mbari.org/internal/se-ie-doc/systems/auvctd/auv-science-data-processing/))
