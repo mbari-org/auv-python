@@ -133,7 +133,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2004.236.00", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "-v", "2", "--plot", "--plot_seconds", "82000"],
-            "args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1", "--flash_threshold", "1.5e10"],
+            //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1", "--flash_threshold", "1.5e10"],
+            "args": ["--auv_name", "dorado", "--mission", "2024.317.01", "-v", "1"],
         },
         {
             "name": "5.0 - archive.py",
