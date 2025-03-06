@@ -822,14 +822,16 @@ class Resampler:
                     mission_end - pd.to_datetime(self.ds[time_coord].max().values),
                 )
         # Convert to datetime with no fractional seconds
-        mission_start = datetime.strptime(
+        # Naive datetime objects are used for compatibility
+        # with Pandas Series in resample_coordinates()
+        mission_start = datetime.strptime(  # noqa: DTZ007
             mission_start.strftime("%Y-%m-%dT%H:%M:%S"),
             "%Y-%m-%dT%H:%M:%S",
-        ).astimezone(timezone.utc)
-        mission_end = datetime.strptime(
+        )
+        mission_end = datetime.strptime(  # noqa: DTZ007
             mission_end.strftime("%Y-%m-%dT%H:%M:%S"),
             "%Y-%m-%dT%H:%M:%S",
-        ).astimezone(timezone.utc)
+        )
         return mission_start, mission_end, instrs_to_pad
 
     def resample_mission(  # noqa: C901, PLR0912, PLR0915
