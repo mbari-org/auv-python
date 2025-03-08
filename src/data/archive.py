@@ -93,7 +93,7 @@ class Archiver:
                 )
                 Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
                 src_dir = Path(nc_file_base).parent
-                # The original lopc.bin file is logged out of band from the MVC, still want to archive it
+                # The original lopc.bin file is logged out of band from the MVC, add it to LOG_FILES
                 for log in [*LOG_FILES, "lopc.log"]:
                     src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
                     if src_file.exists():
