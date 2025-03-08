@@ -23,7 +23,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2020.245.00", "--noinput", "-v", "1", "--clobber", "--local"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "--noinput",  "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--noinput", "-v"]
+            //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--noinput", "-v"]
+            "args": ["--auv_name", "dorado", "--mission", "2023.324.00", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs"]
         },
         {
             "name": "1.1 - lopcToNetCDF",
@@ -79,8 +80,9 @@
             //"args": ["--auv_name", "i2map", "--mission", "2017.257.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2022.061.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "-v", "1"]
-            "args": ["--auv_name", "dorado", "--mission", "2018.079.00", "-v", "1"]
+            //"args": ["--auv_name", "dorado", "--mission", "2018.079.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.348.01", "-v", "2"]
+            "args": ["--auv_name", "dorado", "--mission", "2023.324.00", "-v", "1", "--plot", "first10000"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -252,10 +254,11 @@
             //"args": ["-v", "1", "--noinput",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "1", "--mission", "2023.285.01"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2018.079.00"]
-            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2024.317.01"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2024.317.01"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2016.090.01", "--resample", "--archive", "--flash_threshold", "3E10"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "8"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2011.256.02", "--clobber"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2010.341.00", "--download_process", "--local"]
         },
     ]
 }
