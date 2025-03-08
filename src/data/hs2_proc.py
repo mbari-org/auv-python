@@ -159,13 +159,13 @@ def hs2_calc_bb(orig_nc, cals):
 
         b_b_corr = sigma * b_b_uncorr
         # Need to test subtracting b_bw here instead of after multiplying by sigma
-        # b_bp_corr = sigma * (b_b_uncorr - b_bw)
+        b_bp_corr = sigma * (b_b_uncorr - b_bw)
 
         setattr(hs2, f"bb{wavelength}", b_b_corr)
         # Legacy code that subtracts b_bw after multiplying by sigma
         setattr(hs2, f"bbp{wavelength}", b_b_corr - b_bw)
         # This is likely the correct way to do it, with b_bw subtracted before multiplying by sigma
-        # setattr(hs2, f"bbp{wavelength}", b_bp_corr)
+        setattr(hs2, f"bbp{wavelength}_fixed", b_bp_corr)
 
     # -% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'  # noqa: E501
     denom = (
