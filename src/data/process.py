@@ -196,7 +196,7 @@ class Processor:
         lopc_processor = LOPC_Processor()
         lopc_processor.args = argparse.Namespace()
         lopc_processor.args.bin_fileName = lopc_bin
-        lopc_processor.args.netCDF_fileName = Path(
+        lopc_processor.args.netCDF_fileName = os.path.join(  # noqa: PTH118 This is an arg, keep it a string
             self.args.base_path,
             self.vehicle,
             MISSIONNETCDFS,
@@ -499,8 +499,11 @@ class Processor:
         except (TestMission, FailedMission) as e:
             self.logger.info(str(e))
         finally:
-            # Still need to archive the mission, especially the processing.log file
-            self.archive(mission)
+            if self.args.download_process:
+                self.logger.info("Not archiving %s as --download_process is set", mission)
+            else:
+                # Still need to archive the mission, especially the processing.log file
+                self.archive(mission)
             if not self.args.no_cleanup:
                 self.cleanup(mission)
             self.logger.info(
@@ -541,6 +544,8 @@ class Processor:
                         self.vehicle,
                         mission,
                     )
+                if self.args.download_process:
+                    self.logger.info("Not archiving %s as --download_process is set", mission)
                 else:
                     self.archive(mission)
                 if not self.args.no_cleanup:
