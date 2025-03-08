@@ -693,6 +693,38 @@ class AUV_NetCDF(AUV):
             self.nc_file.comment += "Non-monotonic increasing times detected."
         self.nc_file.close()
 
+    def get_mission_dir(self, mission: str) -> str:
+        """Return the mission directory. This method is nearly identical to the
+        one in the Processor class, but it is used here to be explicit and to
+        avoid the need to import the Processor class."""
+        if not Path(self.args.vehicle_dir).exists():
+            self.logger.error("%s does not exist.", self.args.vehicle_dir)
+            self.logger.info("Is %s mounted?", self.mount_dir)
+            sys.exit(1)
+        if self.args.auv_name.lower() == "dorado":
+            year = mission.split(".")[0]
+            yearyd = "".join(mission.split(".")[:2])
+            path = Path(self.args.vehicle_dir, year, yearyd, mission)
+        elif self.args.auv_name.lower() == "i2map":
+            year = int(mission.split(".")[0])
+            # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
+            # but use the mission_list() method to find the mission dir instead
+            missions = self.mission_list(start_year=year, end_year=year)
+            if mission in missions:
+                path = missions[mission]
+            else:
+                self.logger.error("Cannot find %s in %s", mission, self.args.vehicle_dir)
+                error_message = f"Cannot find {mission} in {self.args.vehicle_dir}"
+                raise FileNotFoundError(error_message)
+        elif self.args.auv_name == "Dorado389":
+            # The Dorado389 vehicle is a special case used for testing locally and in CI
+            path = self.args.vehicle_dir
+        if not Path(path).exists():
+            self.logger.error("%s does not exist.", path)
+            error_message = f"{path} does not exist."
+            raise FileNotFoundError(error_message)
+        return path
+
     def download_process_logs(  # noqa: C901, PLR0912, PLR0915
         self,
         vehicle: str = "",
@@ -894,6 +926,11 @@ class AUV_NetCDF(AUV):
             ),
         )
         parser.add_argument(
+            "--vehicle_dir",
+            action="store",
+            help="Directory for the vehicle's mission logs, e.g.: /Volumes/AUVCTD/missionlogs",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             type=int,
@@ -922,7 +959,16 @@ if __name__ == "__main__":
     if auv_netcdf.args.update:
         auv_netcdf.update()
     elif auv_netcdf.args.auv_name and auv_netcdf.args.mission:
-        auv_netcdf.download_process_logs()
+        if auv_netcdf.args.vehicle_dir:
+            path = auv_netcdf.get_mission_dir(auv_netcdf.args.mission)
+            auv_netcdf.download_process_logs(src_dir=path)
+        else:
+            raise argparse.ArgumentError(
+                None,
+                "Must provide --src_dir with --auv_name & --mission",
+            )
+
+        auv_netcdf.download_process_logs(src_dir=Path())
     elif auv_netcdf.args.start and auv_netcdf.args.end:
         auv_netcdf._deployments_between()
     else:
