@@ -148,6 +148,7 @@ def complete_i2map_processing():
     proc.process_missions(TEST_START_YEAR)
     return proc
 
+
 @pytest.fixture(scope="session", autouse=False)
 def lopc_dorado_processing():
     """Load a short mission with LOPC data for testing of lopc processing"""
