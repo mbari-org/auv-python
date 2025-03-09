@@ -3530,13 +3530,13 @@ class Calibrate_NetCDF:
                     # For supporting pytest & conftest.py fixture
                     short_name = "dorado"
                 if sensor in EXPECTED_SENSORS[short_name]:
-                    self.logger.exception("Error processing %s: %s", sensor, e)  # noqa: TRY401
+                    self.logger.error("Error processing %s: %s", sensor, e)  # noqa: TRY400
                 else:
                     self.logger.debug("Error processing %s: %s", sensor, e)
             # except ValueError as e:
             #     self.logger.error(f"Error processing {sensor}: {e}")
             except KeyError as e:
-                self.logger.exception("Error processing %s: missing variable %s", sensor, e)  # noqa: TRY401
+                self.logger.error("Error processing %s: missing variable %s", sensor, e)  # noqa: TRY400
 
         return netcdfs_dir
 
