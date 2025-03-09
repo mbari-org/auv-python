@@ -1736,7 +1736,7 @@ class LOPC_Processor:
         overflow_indx += 1  # Start slices one index more
         self.logger.info("Found overflows at indices: %s", overflow_indx)
         self.logger.debug("len(sampleCountList) = %d", len(sampleCountList))
-        for i, indx in enumerate(overflow_indx):
+        for i, indx in enumerate(overflow_indx, start=1):
             self.logger.info("Assigning values from slice starting at index %d, i = %d", indx, i)
             sampleCountList[indx:] = numpy.array(orig_sc[indx:]).copy() + (i * 65537)
 
