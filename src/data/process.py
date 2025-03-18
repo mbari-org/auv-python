@@ -529,8 +529,8 @@ class Processor:
             FileNotFoundError,
             EOFError,
             MissingDoradoInfo,
-        ) as e:
-            self.logger.error(repr(e))  # noqa: TRY400
+        ):
+            self.logger.exception("An exception occurred")
             self.logger.error("Failed to process to completion: %s", mission)  # noqa: TRY400
         except (TestMission, FailedMission) as e:
             self.logger.info(str(e))
