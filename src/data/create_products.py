@@ -10,6 +10,7 @@ __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 import argparse
 import contextlib
 import logging
+import os
 import re
 import sys
 import time
@@ -99,7 +100,7 @@ class CreateProducts:
         else:
             # Requires mission to have been processed and archived to AUVCTD
             self.ds = xr.open_dataset(
-                Path(
+                os.path.join(  # noqa: PTH118
                     AUVCTD_OPENDAP_BASE,
                     "surveys",
                     self.args.mission.split(".")[0],
