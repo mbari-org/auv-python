@@ -2297,19 +2297,6 @@ class Calibrate_NetCDF:
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
             }
-        if hasattr(hs2, "bbp420_fixed"):
-            blue_bs_fixed = xr.DataArray(
-                hs2.bbp420_fixed.to_numpy(),
-                coords=[hs2.bbp420_fixed.get_index("time")],
-                dims={"hs2_time"},
-                name="hs2_bbp420_fixed",
-            )
-            blue_bs_fixed.attrs = {
-                "long_name": "Particulate backscattering coefficient at 420 nm",
-                "coordinates": coord_str,
-                "units": "m-1",
-                "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
-            }
         if hasattr(hs2, "bbp470"):
             blue_bs = xr.DataArray(
                 hs2.bbp470.to_numpy(),
@@ -2346,19 +2333,6 @@ class Calibrate_NetCDF:
                 name="hs2_bbp700",
             )
             red_bs.attrs = {
-                "long_name": "Particulate backscattering coefficient at 700 nm",
-                "coordinates": coord_str,
-                "units": "m-1",
-                "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
-            }
-        if hasattr(hs2, "bbp700_fixed"):
-            red_bs_fixed = xr.DataArray(
-                hs2.bbp700_fixed.to_numpy(),
-                coords=[hs2.bbp700_fixed.get_index("time")],
-                dims={"hs2_time"},
-                name="hs2_bbp700_fixed",
-            )
-            red_bs_fixed.attrs = {
                 "long_name": "Particulate backscattering coefficient at 700 nm",
                 "coordinates": coord_str,
                 "units": "m-1",
@@ -2436,9 +2410,7 @@ class Calibrate_NetCDF:
                 pend = int(self.args.plot.split("first")[1])
             df_plot = pd.DataFrame(index=blue_bs.get_index("hs2_time")[pbeg:pend])
             df_plot["blue_bs"] = blue_bs[pbeg:pend]
-            df_plot["blue_bs_fixed"] = blue_bs_fixed[pbeg:pend]
             df_plot["red_bs"] = red_bs[pbeg:pend]
-            df_plot["red_bs_fixed"] = red_bs_fixed[pbeg:pend]
             ## df_plot["fl"] = fl[pbeg:pend]
             title = (
                 f"First {pend} points from"
@@ -2452,16 +2424,12 @@ class Calibrate_NetCDF:
         # Save blue, red, & fl to combined_nc, also
         if hasattr(hs2, "bbp420"):
             self.combined_nc["hs2_bbp420"] = blue_bs
-        if hasattr(hs2, "bbp420_fixed"):
-            self.combined_nc["hs2_bbp420_fixed"] = blue_bs_fixed
         if hasattr(hs2, "bbp470"):
             self.combined_nc["hs2_bbp470"] = blue_bs
         if hasattr(hs2, "bbp676"):
             self.combined_nc["hs2_bbp676"] = red_bs
         if hasattr(hs2, "bbp700"):
             self.combined_nc["hs2_bbp700"] = red_bs
-        if hasattr(hs2, "bbp700_fixed"):
-            self.combined_nc["hs2_bbp700_fixed"] = red_bs_fixed
         if hasattr(hs2, "fl676"):
             self.combined_nc["hs2_fl676"] = fl
         if hasattr(hs2, "fl700"):
