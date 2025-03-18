@@ -594,6 +594,32 @@ def _beam_transmittance_from_volts(combined_nc, nc) -> tuple[float, float]:
     return Tr, c
 
 
+def _compute_backscatter(wavelength_nm: float, salinity: float, volScat: float):  # noqa: N803
+    # Cribbed from https://mbari.slack.com/archives/C04ETLY6T7V/p1710457297254969?thread_ts=1710348431.316509&cid=C04ETLY6T7V
+    # This is  the same computation used for LRAUV ecopucks. Used here for Dorado ecopuck
+    # following the conversion to "scaled" output using scale_factor and dark counts.
+    theta = 117.0 / 57.29578  # radians
+    d = 0.09
+
+    # These calculations are from the Triplet Puck User's Guide, Revision H
+    Bw = (
+        1.38
+        * (wavelength_nm / 500.0) ** (-4.32)
+        * (1.0 + 0.3 * salinity / 37.0)
+        * 1e-4
+        * (1.0 + np.cos(theta) ** 2.0 * (1.0 - d) / (1.0 + d))
+    )
+    Bp = volScat - Bw
+    if salinity < 35.0:  # noqa: PLR2004
+        bw = 0.0022533 * (wavelength_nm / 500.0) ** (-4.23) * 1e-4
+    else:
+        bw = 0.0029308 * (wavelength_nm / 500.0) ** (-4.24) * 1e-4
+    bbw = bw / 2.0
+    bbp = 2.0 * np.pi * 1.1 * Bp
+
+    return bbw, bbp
+
+
 class SensorInfo:
     pass
 
@@ -2423,7 +2449,7 @@ class Calibrate_NetCDF:
             self.logger.debug("Pausing with plot entitled: %s. Close window to continue.", title)
             plt.show()
 
-        # Save blue, red, & fl to combined_nc, alsoe
+        # Save blue, red, & fl to combined_nc, also
         if hasattr(hs2, "bbp420"):
             self.combined_nc["hs2_bbp420"] = blue_bs
         if hasattr(hs2, "bbp420_fixed"):
@@ -3007,19 +3033,23 @@ class Calibrate_NetCDF:
 
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
+        beta_700 = cf.bbp700_scale_factor * (orig_nc["BB_Sig"].to_numpy() - cf.bbp700_dark_counts)
+        _, bbp = _compute_backscatter(700, 35.2, beta_700)  # Use an average salinity of 35.2
+
         self.combined_nc["ecopuck_bbp700"] = xr.DataArray(
-            cf.bbp700_scale_factor * (orig_nc["BB_Sig"].to_numpy() - cf.bbp700_dark_counts),
+            bbp,
             coords=[orig_nc.get_index("time")],
             dims={f"{sensor}_time"},
             name=f"{sensor}_bbp700",
         )
         self.combined_nc["ecopuck_bbp700"].attrs = {
             "long_name": "Particulate backscattering coefficient at 700 nm",
-            "units": "m^-1 sr^-1",
+            "units": "m-1",
             "coordinates": coord_str,
             "comment": (
-                f"BB_Sig from {source} converted to bbp700 using scale factor "
-                f"{cf.bbp700_scale_factor} and dark counts {cf.bbp700_dark_counts}"
+                f"BB_Sig from {source} converted to beta_700 using scale factor "
+                f"{cf.bbp700_scale_factor} and dark counts {cf.bbp700_dark_counts}, "
+                "then converted to bbp700 by the _compute_backscatter() function."
             ),
         }
 

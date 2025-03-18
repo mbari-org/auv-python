@@ -82,7 +82,8 @@
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2018.079.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.348.01", "-v", "2"]
-            "args": ["--auv_name", "dorado", "--mission", "2023.324.00", "-v", "1", "--plot", "first10000"]
+            //"args": ["--auv_name", "dorado", "--mission", "2023.324.00", "-v", "1", "--plot", "first10000"]
+            "args": ["--auv_name", "dorado", "--mission", "2022.201.00", "-v", "1", "--plot", "first10000"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -136,7 +137,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2023.192.01", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "-v", "2", "--plot", "--plot_seconds", "82000"],
             //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1", "--flash_threshold", "1.5e10"],
-            "args": ["--auv_name", "dorado", "--mission", "2024.317.01", "-v", "1"],
+            //"args": ["--auv_name", "dorado", "--mission", "2024.317.01", "-v", "1"],
+            "args": ["--auv_name", "dorado", "--mission", "2010.341.00", "-v", "1", "--plot", "--plot_seconds", "82000"],
         },
         {
             "name": "5.0 - archive.py",
@@ -148,7 +150,8 @@
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2017.044.00", "--AUVCTD"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--AUVCTD"],
             //"args": ["-v", "1", "--auv_name", "i2map", "--mission", "2022.061.01", "--M3", "--AUVCTD"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2024.317.01", "--AUVCTD"],
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2024.317.01", "--AUVCTD"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.201.00", "--AUVCTD"],
         },
         {
             "name": "6.0 - create_products.py",
@@ -157,7 +160,8 @@
             "program": "${workspaceFolder}/src/data/create_products.py",
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--local"],
-            "args": ["-v", "2", "--auv_name", "dorado", "--mission", "2016.270.00"],
+            //"args": ["-v", "2", "--auv_name", "dorado", "--mission", "2016.270.00"],
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.201.00"],
         },
         {
             "name": "7.0 - email.py",
@@ -220,7 +224,7 @@
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--resample", "--noinput"]
             //"args": ["-v", "1", "--last_n_days", "30", "--start_year", "2022", "--end_year", "2022", "--archive", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2021", "--end_year", "2022",  "--noinput"]
-            //"args": ["-v", "1", "--mission", "2022.201.00", "--use_portal",  "--clobber", "--noinput"]
+            "args": ["-v", "1", "--mission", "2022.201.00", "--clobber", "--noinput", "--no_cleanup"]
             //"args": ["-v", "1", "--mission", "2009.084.00",  "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.243.00",  "--calibrate", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "168", "--use_portal", "--clobber", "--noinput"]
@@ -258,7 +262,7 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2016.090.01", "--resample", "--archive", "--flash_threshold", "3E10"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "8"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2011.256.02", "--clobber"]
-            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2010.341.00", "--download_process", "--local"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2010.341.00", "--download_process", "--local"]
         },
     ]
 }
