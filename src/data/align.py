@@ -69,10 +69,7 @@ class Align_NetCDF:
         metadata["time_coverage_start"] = str(self.min_time)
         metadata["time_coverage_end"] = str(self.max_time)
         try:
-            metadata["time_coverage_duration"] = str(
-                pd.to_datetime(self.max_time.astype("float64") / 1.0e9, unit="s")
-                - pd.to_datetime(self.min_time.astype("float64") / 1.0e9, unit="s"),
-            )
+            metadata["time_coverage_duration"] = str(self.max_time - self.min_time)
         except AttributeError:
             # Likely AttributeError: 'datetime.datetime' object has no attribute 'astype'
             self.logger.warning(
