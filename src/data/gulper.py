@@ -43,7 +43,7 @@ class Gulper:
             )
         else:
             # Relies on auv-python having processed the mission
-            url = Path(
+            url = os.path.join(  # noqa: PTH118
                 "http://dods.mbari.org/opendap/data/auvctd/",
                 "missionnetcdfs",
                 self.args.mission.split(".")[0],
