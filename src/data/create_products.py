@@ -99,15 +99,17 @@ class CreateProducts:
             self.ds = xr.open_dataset(local_nc)
         else:
             # Requires mission to have been processed and archived to AUVCTD
-            self.ds = xr.open_dataset(
-                os.path.join(  # noqa: PTH118
-                    AUVCTD_OPENDAP_BASE,
-                    "surveys",
-                    self.args.mission.split(".")[0],
-                    "netcdf",
-                    f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
-                ),
+            dap_url = os.path.join(  # noqa: PTH118
+                AUVCTD_OPENDAP_BASE,
+                "surveys",
+                self.args.mission.split(".")[0],
+                "netcdf",
+                f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
             )
+            try:
+                self.ds = xr.open_dataset(dap_url)
+            except OSError as err:
+                self.logger.error("Error opening %s: %s", dap_url, err)  # noqa: TRY400
 
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
