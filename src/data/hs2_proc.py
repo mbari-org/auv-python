@@ -138,7 +138,8 @@ def hs2_calc_bb(orig_nc, cals):
             (_int_signer(orig_nc[f"Snorm{chan}"]) * float(cals[f"Ch{chan}"]["Mu"])),
             denom,
         )
-        beta_uncorr.name = f"beta_uncorr_Ch{chan}"  # Replaces "RawTempValue" as the name
+        # Replaces "RawTempValue" as the name, helpful when looking at things in the debugger
+        beta_uncorr.name = f"beta_uncorr_Ch{chan}"
         wavelength = int(cals[f"Ch{chan}"]["Name"][2:])
         beta_w, b_bw = purewater_scatter(wavelength)
 
