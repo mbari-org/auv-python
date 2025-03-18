@@ -66,20 +66,21 @@ class Archiver:
             for ftype in ftypes:
                 src_file = Path(f"{nc_file_base}_{ftype}")
                 dst_file = Path(surveynetcdfs_dir, src_file.name)
-                if self.args.clobber and dst_file.exists():
-                    self.logger.info("Removing %s", dst_file)
-                    dst_file.unlink()
-                    subprocess.run(  # noqa: S603
-                        ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
-                        check=True,
-                    )
-                    subprocess.run(  # noqa: S603
-                        ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
-                        check=True,
-                    )
-                    self.logger.info("rsync %s %s done.", src_file, surveynetcdfs_dir)
+                if self.args.clobber:
+                    if dst_file.exists():
+                        self.logger.info("Removing %s", dst_file)
+                        dst_file.unlink()
+                    if src_file.exists():
+                        subprocess.run(  # noqa: S603
+                            ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
+                            check=True,
+                        )
+                        self.logger.info("rsync %s %s done.", src_file, surveynetcdfs_dir)
                 else:
-                    self.logger.debug("%s not found", src_file)
+                    self.logger.info(
+                        "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
+                        src_file.name,
+                    )
 
             if not hasattr(self.args, "resample") or not self.args.resample:
                 # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
@@ -94,16 +95,21 @@ class Archiver:
                 Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
                 src_dir = Path(nc_file_base).parent
                 # The original lopc.bin file is logged out of band from the MVC, add it to LOG_FILES
+                # so that lopc.nc is archived along with the other netcdf versions of the log files.
                 for log in [*LOG_FILES, "lopc.log"]:
                     src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
-                    if src_file.exists():
-                        subprocess.run(  # noqa: S603
-                            ["/usr/bin/rsync", str(src_file), str(missionnetcdfs_dir)],
-                            check=True,
-                        )
-                        self.logger.info("rsync %s %s done.", src_file, missionnetcdfs_dir)
+                    if self.args.clobber:
+                        if src_file.exists():
+                            subprocess.run(  # noqa: S603
+                                ["/usr/bin/rsync", str(src_file), str(missionnetcdfs_dir)],
+                                check=True,
+                            )
+                            self.logger.info("rsync %s %s done.", src_file, missionnetcdfs_dir)
                     else:
-                        self.logger.debug("%s not found", src_file)
+                        self.logger.info(
+                            "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
+                            src_file.name,
+                        )
 
         # Rsync files created by create_products.py
         self.logger.info("Archiving product files")
@@ -117,8 +123,16 @@ class Archiver:
             if Path(src_dir).exists():
                 dst_dir = Path(surveys_dir, year, dst_dir)  # noqa: PLW2901
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
-                subprocess.run(["/usr/bin/rsync", "-r", f"{src_dir}/", f"{dst_dir}/"], check=True)  # noqa: S603
-                self.logger.info("rsync %s/* %s done.", src_dir, dst_dir)
+                if self.args.clobber:
+                    subprocess.run(  # noqa: S603
+                        ["/usr/bin/rsync", "-r", f"{src_dir}/", f"{dst_dir}/"], check=True
+                    )
+                    self.logger.info("rsync %s/* %s done.", src_dir, dst_dir)
+                else:
+                    self.logger.info(
+                        "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
+                        src_dir.name,
+                    )
             else:
                 self.logger.debug("%s not found", src_dir)
         if self.args.create_products or (hasattr(self.args, "resample") and self.args.resample):
@@ -132,11 +146,18 @@ class Archiver:
             src_file = Path(f"{nc_file_base}_{LOG_NAME}")
             dst_file = Path(surveynetcdfs_dir, src_file.name)
             if src_file.exists():
-                self.logger.info("rsync %s %s", src_file, surveynetcdfs_dir)
-                subprocess.run(  # noqa: S603
-                    ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
-                    check=True,
-                )
+                if self.args.clobber:
+                    self.logger.info("rsync %s %s", src_file, surveynetcdfs_dir)
+                    subprocess.run(  # noqa: S603
+                        ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
+                        check=True,
+                    )
+                    self.logger.info("rsync %s %s done.", src_file, surveynetcdfs_dir)
+                else:
+                    self.logger.info(
+                        "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
+                        src_file.name,
+                    )
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass

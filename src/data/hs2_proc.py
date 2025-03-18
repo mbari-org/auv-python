@@ -25,7 +25,7 @@ def hs2_read_cal_file(cal_filename: Path):
             if "[General]" in line:
                 category = "General"
             elif "[Channel" in line:
-                # Before 2005103/2005.103.01/hs2Calibration.dat there ws no space
+                # Before 2005103/2005.103.01/hs2Calibration.dat there was no space
                 ch_num = line.split("[Channel")[1].split("]")[0].strip()
                 category = f"Ch{int(ch_num)}"
                 channels.append(category)
@@ -138,6 +138,8 @@ def hs2_calc_bb(orig_nc, cals):
             (_int_signer(orig_nc[f"Snorm{chan}"]) * float(cals[f"Ch{chan}"]["Mu"])),
             denom,
         )
+        # Replaces "RawTempValue" as the name, helpful when looking at things in the debugger
+        beta_uncorr.name = f"beta_uncorr_Ch{chan}"
         wavelength = int(cals[f"Ch{chan}"]["Name"][2:])
         beta_w, b_bw = purewater_scatter(wavelength)
 

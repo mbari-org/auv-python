@@ -739,7 +739,7 @@ class AUV_NetCDF(AUV):
             self.logger.info("src_dir = %s", src_dir)
 
         if not self.args.local:
-            # As of 20 July 2023 this returns 404, which is dstracting
+            # As of 20 July 2023 this returns 404, which is distracting
             # self.logger.debug(
             #   f"Unique vehicle names: {self._unique_vehicle_names()} seconds"
             # )
