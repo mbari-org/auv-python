@@ -872,6 +872,7 @@ class Resampler:
                 self.save_coordinates(instr, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
+                self.add_profile()
             if instr != last_instr:
                 # Start with new dataframes for each instrument
                 self.df_o = pd.DataFrame()
@@ -925,7 +926,6 @@ class Resampler:
                     )
                     if self.args.plot:
                         self.plot_variable(instr, variable, freq, plot_seconds)
-        self.add_profile()
         try:
             self._build_global_metadata()
         except KeyError as e:
