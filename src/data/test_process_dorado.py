@@ -26,4 +26,18 @@ def test_process_dorado(complete_dorado_processing):
     assert nc_file.exists()  # noqa: S101
     assert time() - nc_file.stat().st_mtime < MAX_SECS  # noqa: S101
     assert nc_file.stat().st_size > 0  # noqa: S101
-    assert nc_file.stat().st_size == 621235  # noqa: PLR2004, S101
+    # Testing that the file size matches a specific value is crude,
+    # but it will alert us if a code change unexpectedly changes the file size.
+    # If code changes are expected to change the file size then we should
+    # update the expected size here.
+    EXPECTED_SIZE = 621298
+    EXPECTED_SIZE_LOCAL = 621298
+    if str(proc.args.base_path).startswith("/home/runner"):
+        # The size is different in GitHub Actions, maybe due to different metadata
+        assert nc_file.stat().st_size == EXPECTED_SIZE  # noqa: S101
+    else:
+        # The size is different locally, maybe due to different metadata
+        # It's likely that the size will be different on different machines
+        # as these kind of metadata items are added to nc_file:
+        # NC_GLOBAL.history: Created by /Users/mccann/GitHub/auv-python/src/data/process_dorado.py ... # noqa: E501
+        assert nc_file.stat().st_size == EXPECTED_SIZE_LOCAL  # noqa: S101
