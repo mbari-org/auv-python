@@ -1,7 +1,7 @@
 # noqa: INP001
 
 from collections import defaultdict
-from math import exp, pi
+from math import exp
 from pathlib import Path
 
 import numpy as np
@@ -98,6 +98,32 @@ def _int_signer(ints_in):
     return np.array(signed_ints)
 
 
+def compute_backscatter(wavelength_nm: float, salinity: float, volScat: float):  # noqa: N803
+    # Cribbed from https://mbari.slack.com/archives/C04ETLY6T7V/p1710457297254969?thread_ts=1710348431.316509&cid=C04ETLY6T7V
+    # This is  the same computation used for LRAUV ecopucks. Used here for Dorado ecopuck
+    # following the conversion to "scaled" output using scale_factor and dark counts.
+    theta = 117.0 / 57.29578  # radians
+    d = 0.09
+
+    # These calculations are from the Triplet Puck User's Guide, Revision H
+    Bw = (
+        1.38
+        * (wavelength_nm / 500.0) ** (-4.32)
+        * (1.0 + 0.3 * salinity / 37.0)
+        * 1e-4
+        * (1.0 + np.cos(theta) ** 2.0 * (1.0 - d) / (1.0 + d))
+    )
+    Bp = volScat - Bw
+    if salinity < 35.0:  # noqa: PLR2004
+        bw = 0.0022533 * (wavelength_nm / 500.0) ** (-4.23) * 1e-4
+    else:
+        bw = 0.0029308 * (wavelength_nm / 500.0) ** (-4.24) * 1e-4
+    bbw = bw / 2.0
+    bbp = 2.0 * np.pi * 1.1 * Bp
+
+    return bbw, bbp
+
+
 def hs2_calc_bb(orig_nc, cals):
     # Some original comments from hs2_calc_bb.m
     # % Date Created:  June 21, 2007
@@ -141,34 +167,12 @@ def hs2_calc_bb(orig_nc, cals):
         # Replaces "RawTempValue" as the name, helpful when looking at things in the debugger
         beta_uncorr.name = f"beta_uncorr_Ch{chan}"
         wavelength = int(cals[f"Ch{chan}"]["Name"][2:])
-        beta_w, b_bw = purewater_scatter(wavelength)
 
-        chi = 1.08
-        b_b_uncorr = ((2 * pi * chi) * (beta_uncorr - beta_w)) + b_bw
+        # Use compute_backscatter - same as used for ecopucks - to calculate bbp
+        _, bbp = compute_backscatter(wavelength, 35.2, beta_uncorr)
+        setattr(hs2, f"bbp{wavelength}", bbp)
 
-        globals()[f"bb{wavelength}_uncorr"] = b_b_uncorr
-        globals()[f"bbp{wavelength}_uncorr"] = b_b_uncorr - b_bw
-
-        # ESTIMATION OF KBB AND SIGMA FUNCTION
-        a = typ_absorption(wavelength)
-        b_b_tilde = 0.015
-        b = (b_b_uncorr - b_bw) / b_b_tilde
-
-        K_bb = a + 0.4 * b
-        k_1 = 1.0
-        k_exp = float(cals[f"Ch{chan}"]["SigmaExp"])
-        sigma = k_1 * np.exp(k_exp * K_bb)
-
-        b_b_corr = sigma * b_b_uncorr
-        # Need to test subtracting b_bw here instead of after multiplying by sigma
-        b_bp_corr = sigma * (b_b_uncorr - b_bw)
-
-        setattr(hs2, f"bb{wavelength}", b_b_corr)
-        # Legacy code that subtracts b_bw after multiplying by sigma
-        setattr(hs2, f"bbp{wavelength}", b_b_corr - b_bw)
-        # This is likely the correct way to do it, with b_bw subtracted before multiplying by sigma
-        setattr(hs2, f"bbp{wavelength}_fixed", b_bp_corr)
-
+    # Fluorescence
     # -% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'  # noqa: E501
     denom = (
         (
