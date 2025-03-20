@@ -58,9 +58,9 @@ jobs:
       - name: Download and unzip required data files
         run: |
           mkdir -p "$HOME/auv_data"
-          # Dorado389.tar.gz contains original log files of short dorado mission for testing: 2003.339.04
+          # Dorado389.tar.gz contains original log files of short dorado mission for testing: 2011.256.02
           wget -q --no-check-certificate -O "$HOME/auv_data/Dorado389.tar.gz" https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
-          tar -xf "$HOME/auv_data/Dorado389.tar.gz" -C "$HOME/auv_data" 2> /dev/null
+          tar -xvf "$HOME/auv_data/Dorado389.tar.gz" -C "$HOME/auv_data" 2> /dev/null
           # i2MAP.tar.gz contains original log files of i2MAP mission for testing: 2018.34.01
           wget -q --no-check-certificate -O "$HOME/auv_data/i2map.tar.gz" https://stoqs.mbari.org/auv_data/i2map.tar.gz
           tar -xf "$HOME/auv_data/i2map.tar.gz" -C "$HOME/auv_data" 2> /dev/null
