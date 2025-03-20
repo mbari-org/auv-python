@@ -355,6 +355,7 @@ class Processor:
     def create_products(self, mission: str) -> None:
         cp = CreateProducts()
         cp.args = argparse.Namespace()
+        cp.args.base_path = self.args.base_path
         cp.args.auv_name = self.vehicle
         cp.args.mission = mission
         cp.args.local = self.args.local

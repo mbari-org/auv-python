@@ -19,7 +19,7 @@ from pathlib import Path
 
 import requests
 import xarray as xr
-from logs2netcdfs import TIMEOUT
+from logs2netcdfs import MISSIONLOGS, MISSIONNETCDFS, TIMEOUT
 
 
 class Gulper:
@@ -33,11 +33,10 @@ class Gulper:
 
         # Get the first time record from mission's navigation.nc file
         if self.args.local:
-            base_path = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
             url = Path(
-                base_path,
-                "dorado",
-                "missionnetcdfs",
+                self.args.base_path,
+                self.args.auv_name,
+                MISSIONNETCDFS,
                 self.args.mission,
                 "navigation.nc",
             )
@@ -45,7 +44,7 @@ class Gulper:
             # Relies on auv-python having processed the mission
             url = os.path.join(  # noqa: PTH118
                 "http://dods.mbari.org/opendap/data/auvctd/",
-                "missionnetcdfs",
+                MISSIONNETCDFS,
                 self.args.mission.split(".")[0],
                 self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
                 self.args.mission,
@@ -64,11 +63,10 @@ class Gulper:
         bottles = {}
         if self.args.local:
             # Read from local file - useful for testing in auv-python
-            base_path = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
             mission_dir = Path(
-                base_path,
-                "dorado",
-                "missionlogs",
+                self.args.base_path,
+                self.args.auv_name,
+                MISSIONLOGS,
                 self.args.mission,
             )
             syslog_file = Path(mission_dir, "syslog")
@@ -81,7 +79,7 @@ class Gulper:
         else:
             syslog_url = os.path.join(  # noqa: PTH118
                 "http://dods.mbari.org/data/auvctd/",
-                "missionlogs",
+                MISSIONLOGS,
                 self.args.mission.split(".")[0],
                 self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
                 self.args.mission,
