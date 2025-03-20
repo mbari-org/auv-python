@@ -33,9 +33,8 @@ class Gulper:
 
         # Get the first time record from mission's navigation.nc file
         if self.args.local:
-            base_path = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
             url = Path(
-                base_path,
+                self.args.base_path,
                 self.args.auv_name,
                 MISSIONNETCDFS,
                 self.args.mission,
@@ -64,9 +63,8 @@ class Gulper:
         bottles = {}
         if self.args.local:
             # Read from local file - useful for testing in auv-python
-            base_path = Path(__file__).parent.joinpath("../../data/auv_data").resolve()
             mission_dir = Path(
-                base_path,
+                self.args.base_path,
                 self.args.auv_name,
                 MISSIONLOGS,
                 self.args.mission,
