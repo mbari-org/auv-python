@@ -385,7 +385,7 @@ class CreateProducts:
 
         gulper = Gulper()
         gulper.args = argparse.Namespace()
-        gulper.args.auv_name = "dorado"
+        gulper.args.auv_name = self.args.auv_name
         gulper.args.mission = self.args.mission
         gulper.args.local = self.args.local
         gulper.args.verbose = self.args.verbose
