@@ -353,17 +353,22 @@ class Resampler:
     def select_nighttime_bl_raw(
         self,
         stride: int = 3000,
-    ) -> tuple[pd.Series, datetime, datetime]:
-        # Select only the nighttime biolume_raw data,
-        # one hour past sunset to one before sunrise
-        # Default stride of 3000 give 10 minute resolution
-        # from 5 hz navigation data
+    ) -> tuple[pd.Series, list[datetime], list[datetime]]:
+        """
+        Select nighttime biolume_raw data for multiple nights in a mission.
+        Default stride of 3000 gives 10-minute resolution from 5 Hz navigation data.
+
+        Returns:
+            nighttime_bl_raw: A pandas Series containing nighttime biolume_raw data.
+            sunsets: A list of sunset times for each night.
+            sunrises: A list of sunrise times for each night.
+        """
         lat = float(self.ds["navigation_latitude"].median())
         lon = float(self.ds["navigation_longitude"].median())
         self.logger.debug("Getting sun altitudes for nighttime selection")
         sun_alts = []
         for ts in self.ds["navigation_time"].to_numpy()[::stride]:
-            # About 10 minute resolution from 5 hz navigation data
+            # About 10-minute resolution from 5 Hz navigation data
             sun_alts.append(  # noqa: PERF401
                 get_altitude(
                     lat,
@@ -371,63 +376,44 @@ class Resampler:
                     datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=timezone.utc),
                 ),
             )
+
         # Find sunset and sunrise - where sun altitude changes sign
         sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
         ss_sr_times = (
             self.ds["navigation_time"].isel({"navigation_time": sign_changes * stride}).to_numpy()
         )
-        self.logger.debug("Sunset sunrise times %s", ss_sr_times)
-        sunset = None
-        sunrise = None
-        if np.sign(sun_alts[0]) == 1:
-            # Sun is up at start of mission
-            if len(ss_sr_times) == 2:  # noqa: PLR2004
-                sunset, sunrise = ss_sr_times
-                sunset += pd.to_timedelta(1, "h")
-                sunrise -= pd.to_timedelta(1, "h")
-            elif len(ss_sr_times) == 1:
-                sunset = ss_sr_times[0]
-                sunset += pd.to_timedelta(1, "h")
-                sunrise = self.ds["biolume_time60hz"].to_numpy()[-1]
-                self.logger.warning(
-                    "Could not find sunrise time, using last time in dataset: %s", sunrise
-                )
-            else:
-                self.logger.info("Sun is up at start, but no sunset in this mission")
-        if np.sign(sun_alts[0]) == -1:
-            try:
-                self.logger.warning(
-                    "Sun is not up at start of mission: %s: alt = %s",
-                    ss_sr_times[0],
-                    sun_alts[0],
-                )
-            except IndexError:
-                # Likely no values in ss_sr_times[]
-                self.logger.warning("Sun is not up at start of mission")
+        self.logger.debug("Sunset and sunrise times: %s", ss_sr_times)
 
-        if sunset is None and sunrise is None:
-            self.logger.info(
-                "No sunset during this mission. No biolume_raw data will be extracted.",
-            )
-            nighttime_bl_raw = pd.Series(dtype="float64")
-        else:
+        sunsets = []
+        sunrises = []
+        nighttime_bl_raw = pd.Series(dtype="float64")
+
+        # Iterate over sunset and sunrise pairs
+        for i in range(0, len(ss_sr_times) - 1, 2):
+            sunset = ss_sr_times[i] + pd.to_timedelta(1, "h")  # 1 hour past sunset
+            sunrise = ss_sr_times[i + 1] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
+            sunsets.append(sunset)
+            sunrises.append(sunrise)
+
             self.logger.info(
                 "Extracting biolume_raw data between sunset %s and sunrise %s",
                 sunset,
                 sunrise,
             )
-            nighttime_bl_raw = (
-                (
-                    self.ds["biolume_raw"].where(
-                        (self.ds["biolume_time60hz"] > sunset)
-                        & (self.ds["biolume_time60hz"] < sunrise),
-                    )
+            nighttime_data = (
+                self.ds["biolume_raw"]
+                .where(
+                    (self.ds["biolume_time60hz"] > sunset)
+                    & (self.ds["biolume_time60hz"] < sunrise),
                 )
                 .to_pandas()
                 .dropna()
             )
+            nighttime_bl_raw = pd.concat([nighttime_bl_raw, nighttime_data])
 
-        return nighttime_bl_raw, sunset, sunrise
+        if not sunsets or not sunrises:
+            self.logger.info("No sunset or sunrise found during this mission.")
+        return nighttime_bl_raw, sunsets, sunrises
 
     def add_profile(self, depth_threshold: float = 15) -> None:
         # Find depth vertices value using scipy's find_peaks algorithm
@@ -624,7 +610,7 @@ class Resampler:
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
         self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
 
-        nighttime_bl_raw, sunset, sunrise = self.select_nighttime_bl_raw()
+        nighttime_bl_raw, sunsets, sunrises = self.select_nighttime_bl_raw()
         if nighttime_bl_raw.empty:
             self.logger.info(
                 "No nighttime_bl_raw data to compute adinos, diatoms, hdinos proxies",
@@ -639,7 +625,8 @@ class Resampler:
             fluo = (
                 self.resampled_nc["hs2_fl700"]
                 .where(
-                    (self.resampled_nc["time"] > sunset) & (self.resampled_nc["time"] < sunrise),
+                    (self.resampled_nc["time"] > min(sunsets))
+                    & (self.resampled_nc["time"] < max(sunrises)),
                 )
                 .to_pandas()
                 .resample(freq)
