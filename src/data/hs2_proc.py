@@ -1,7 +1,7 @@
 # noqa: INP001
 
 from collections import defaultdict
-from math import exp
+from math import exp, pi
 from pathlib import Path
 
 import numpy as np
@@ -164,15 +164,30 @@ def hs2_calc_bb(orig_nc, cals):
             (_int_signer(orig_nc[f"Snorm{chan}"]) * float(cals[f"Ch{chan}"]["Mu"])),
             denom,
         )
-        # Replaces "RawTempValue" as the name, helpful when looking at things in the debugger
-        beta_uncorr.name = f"beta_uncorr_Ch{chan}"
         wavelength = int(cals[f"Ch{chan}"]["Name"][2:])
+        beta_w, b_bw = purewater_scatter(wavelength)
 
-        # Use compute_backscatter - same as used for ecopucks - to calculate bbp
-        _, bbp = compute_backscatter(wavelength, 35.2, beta_uncorr)
-        setattr(hs2, f"bbp{wavelength}", bbp)
+        chi = 1.08
+        b_b_uncorr = ((2 * pi * chi) * (beta_uncorr - beta_w)) + b_bw
 
-    # Fluorescence
+        globals()[f"bb{wavelength}_uncorr"] = b_b_uncorr
+        globals()[f"bbp{wavelength}_uncorr"] = b_b_uncorr - b_bw
+
+        # ESTIMATION OF KBB AND SIGMA FUNCTION
+        a = typ_absorption(wavelength)
+        b_b_tilde = 0.015
+        b = (b_b_uncorr - b_bw) / b_b_tilde
+
+        K_bb = a + 0.4 * b
+        k_1 = 1.0
+        k_exp = float(cals[f"Ch{chan}"]["SigmaExp"])
+        sigma = k_1 * np.exp(k_exp * K_bb)
+
+        b_b_corr = sigma * b_b_uncorr
+
+        setattr(hs2, f"bb{wavelength}", b_b_corr)
+        setattr(hs2, f"bbp{wavelength}", b_b_corr - b_bw)
+
     # -% 'hs2.fl700_uncorr = (hs2.Snorm3.*50)./((1 + str2num(CAL.Ch(3).TempCoeff).*(hs2.Temp-str2num(CAL.General.CalTemp))).*hs2.Gain3.*str2num(CAL.Ch(3).RNominal));'  # noqa: E501
     denom = (
         (
@@ -186,8 +201,11 @@ def hs2_calc_bb(orig_nc, cals):
     snorm3 = _int_signer(orig_nc["Snorm3"])
     setattr(hs2, f"fl{wavelength}", np.divide(snorm3 * 50, denom))
 
-    hs2.caldepth = float(cals["General"]["DepthCal"]) * orig_nc["RawDepthValue"] - float(
-        cals["General"]["DepthOff"]
+    setattr(  # noqa: B010
+        hs2,
+        "caldepth",
+        float(cals["General"]["DepthCal"]) * orig_nc["RawDepthValue"]
+        - float(cals["General"]["DepthOff"]),
     )
 
     return hs2
