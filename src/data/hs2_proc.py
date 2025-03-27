@@ -139,6 +139,10 @@ def hs2_calc_bb(orig_nc, cals):
     # % Fax: (831) 775-1620
     # % Email: sackmann@mbari.org
     #
+    # This function calculates the backscattering coefficients from the raw
+    # HydroScat2 data.  The raw data are converted to backscattering
+    # coefficients and chlorophyll fluorescence using the method described in
+    # the HydroScat2 manual: HS2ManualRevI-2011-12.pdf (Section 9 pp. 45-55).
 
     hs2 = HS2()
 
@@ -183,7 +187,8 @@ def hs2_calc_bb(orig_nc, cals):
         k_exp = float(cals[f"Ch{chan}"]["SigmaExp"])
         sigma = k_1 * np.exp(k_exp * K_bb)
 
-        b_b_corr = sigma * b_b_uncorr
+        # -% b_b_corr  = ((2*pi*chi).*(sigma.*beta_uncorr - beta_w)) + b_bw; (See Page 52 of HS2ManualRevI-2011-12.pdf)  # noqa: E501
+        b_b_corr = ((2 * pi * chi) * (np.multiply(sigma, beta_uncorr) - beta_w)) + b_bw
 
         setattr(hs2, f"bb{wavelength}", b_b_corr)
         setattr(hs2, f"bbp{wavelength}", b_b_corr - b_bw)
