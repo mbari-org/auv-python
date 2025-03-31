@@ -2284,6 +2284,21 @@ class Calibrate_NetCDF:
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
             }
+        if hasattr(hs2, "bbp_cb470"):
+            blue_bs_cb = xr.DataArray(
+                hs2.bbp_cb470.to_numpy(),
+                coords=[hs2.bbp_cb470.get_index("time")],
+                dims={"hs2_time"},
+                name="hs2_bbp_cb470",
+            )
+            blue_bs_cb.attrs = {
+                "long_name": "Particulate backscattering coefficient at 470 nm",
+                "coordinates": coord_str,
+                "units": "m-1",
+                "comment": (
+                    f"Computed by hs2_calc_bb() and compute_backscatter() from data in {source}"
+                ),
+            }
 
         # Red backscatter
         if hasattr(hs2, "bbp676"):
@@ -2311,6 +2326,21 @@ class Calibrate_NetCDF:
                 "coordinates": coord_str,
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
+            }
+        if hasattr(hs2, "bbp_cb700"):
+            red_bs_cb = xr.DataArray(
+                hs2.bbp700.to_numpy(),
+                coords=[hs2.bbp700.get_index("time")],
+                dims={"hs2_time"},
+                name="hs2_bbp700",
+            )
+            red_bs_cb.attrs = {
+                "long_name": "Particulate backscattering coefficient at 700 nm",
+                "coordinates": coord_str,
+                "units": "m-1",
+                "comment": (
+                    f"Computed by hs2_calc_bb() and compute_backscatter() from data in {source}"
+                ),
             }
 
         # Fluorescence
@@ -2400,10 +2430,14 @@ class Calibrate_NetCDF:
             self.combined_nc["hs2_bbp420"] = blue_bs
         if hasattr(hs2, "bbp470"):
             self.combined_nc["hs2_bbp470"] = blue_bs
+        if hasattr(hs2, "bbp_cb470"):
+            self.combined_nc["hs2_bbp_cb470"] = blue_bs_cb
         if hasattr(hs2, "bbp676"):
             self.combined_nc["hs2_bbp676"] = red_bs
         if hasattr(hs2, "bbp700"):
             self.combined_nc["hs2_bbp700"] = red_bs
+        if hasattr(hs2, "bbp_cb700"):
+            self.combined_nc["hs2_bbp_cb700"] = red_bs_cb
         if hasattr(hs2, "fl676"):
             self.combined_nc["hs2_fl676"] = fl
         if hasattr(hs2, "fl700"):
@@ -3583,4 +3617,7 @@ if __name__ == "__main__":
     # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
     netcdf_dir = cal_netcdf.process_logs()
     cal_netcdf.write_netcdf(netcdf_dir)
+    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
+    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
+    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
     cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
