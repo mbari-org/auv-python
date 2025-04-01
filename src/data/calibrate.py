@@ -2428,6 +2428,8 @@ class Calibrate_NetCDF:
         # Save blue, red, & fl to combined_nc, also
         if hasattr(hs2, "bbp420"):
             self.combined_nc["hs2_bbp420"] = blue_bs
+        if hasattr(hs2, "bbp_cb420"):
+            self.combined_nc["hs2_bbp_cb420"] = blue_bs_cb
         if hasattr(hs2, "bbp470"):
             self.combined_nc["hs2_bbp470"] = blue_bs
         if hasattr(hs2, "bbp_cb470"):
@@ -3617,6 +3619,7 @@ if __name__ == "__main__":
     # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
     netcdf_dir = cal_netcdf.process_logs()
     cal_netcdf.write_netcdf(netcdf_dir)
+    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
     cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
     cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
     cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
