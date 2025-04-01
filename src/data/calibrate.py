@@ -59,10 +59,12 @@ except ModuleNotFoundError:
 import pandas as pd
 import pyproj
 from AUV import monotonic_increasing_time_indices
-from hs2_proc import AVG_SALINITY, compute_backscatter, hs2_calc_bb, hs2_read_cal_file
+from hs2_proc import compute_backscatter, hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ, AUV_NetCDF
 from matplotlib import patches
 from scipy import signal
+
+AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
 
 
 class Range(NamedTuple):
@@ -2271,21 +2273,6 @@ class Calibrate_NetCDF:
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
             }
-        if hasattr(hs2, "bbp_cb420"):
-            blue_bs_cb = xr.DataArray(
-                hs2.bbp_cb420.to_numpy(),
-                coords=[hs2.bbp_cb420.get_index("time")],
-                dims={"hs2_time"},
-                name="hs2_bbp_cb420",
-            )
-            blue_bs_cb.attrs = {
-                "long_name": "Particulate backscattering coefficient at 470 nm",
-                "coordinates": coord_str,
-                "units": "m-1",
-                "comment": (
-                    f"Computed by hs2_calc_bb() and compute_backscatter() from data in {source}"
-                ),
-            }
         if hasattr(hs2, "bbp470"):
             blue_bs = xr.DataArray(
                 hs2.bbp470.to_numpy(),
@@ -2326,21 +2313,6 @@ class Calibrate_NetCDF:
                 "coordinates": coord_str,
                 "units": "m-1",
                 "comment": (f"Computed by hs2_calc_bb() from data in {source}"),
-            }
-        if hasattr(hs2, "bbp_cb700"):
-            red_bs_cb = xr.DataArray(
-                hs2.bbp_cb700.to_numpy(),
-                coords=[hs2.bbp_cb700.get_index("time")],
-                dims={"hs2_time"},
-                name="hs2_bbp_cb700",
-            )
-            red_bs_cb.attrs = {
-                "long_name": "Particulate backscattering coefficient at 700 nm",
-                "coordinates": coord_str,
-                "units": "m-1",
-                "comment": (
-                    f"Computed by hs2_calc_bb() and compute_backscatter() from data in {source}"
-                ),
             }
 
         # Fluorescence
@@ -2428,18 +2400,12 @@ class Calibrate_NetCDF:
         # Save blue, red, & fl to combined_nc, also
         if hasattr(hs2, "bbp420"):
             self.combined_nc["hs2_bbp420"] = blue_bs
-        if hasattr(hs2, "bbp_cb420"):
-            self.combined_nc["hs2_bbp_cb420"] = blue_bs_cb
         if hasattr(hs2, "bbp470"):
             self.combined_nc["hs2_bbp470"] = blue_bs
-        if hasattr(hs2, "bbp_cb470"):
-            self.combined_nc["hs2_bbp_cb470"] = blue_bs_cb
         if hasattr(hs2, "bbp676"):
             self.combined_nc["hs2_bbp676"] = red_bs
         if hasattr(hs2, "bbp700"):
             self.combined_nc["hs2_bbp700"] = red_bs
-        if hasattr(hs2, "bbp_cb700"):
-            self.combined_nc["hs2_bbp_cb700"] = red_bs_cb
         if hasattr(hs2, "fl676"):
             self.combined_nc["hs2_fl676"] = fl
         if hasattr(hs2, "fl700"):
