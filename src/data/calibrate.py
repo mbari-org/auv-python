@@ -64,6 +64,8 @@ from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ,
 from matplotlib import patches
 from scipy import signal
 
+AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
+
 
 class Range(NamedTuple):
     min: float
@@ -2976,7 +2978,7 @@ class Calibrate_NetCDF:
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         beta_700 = cf.bbp700_scale_factor * (orig_nc["BB_Sig"].to_numpy() - cf.bbp700_dark_counts)
-        _, bbp = compute_backscatter(700, 35.2, beta_700)  # Use an average salinity of 35.2
+        _, bbp = compute_backscatter(700, AVG_SALINITY, beta_700)  # 33.6
 
         self.combined_nc["ecopuck_bbp700"] = xr.DataArray(
             bbp,
