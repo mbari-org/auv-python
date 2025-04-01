@@ -59,7 +59,7 @@ except ModuleNotFoundError:
 import pandas as pd
 import pyproj
 from AUV import monotonic_increasing_time_indices
-from hs2_proc import compute_backscatter, hs2_calc_bb, hs2_read_cal_file
+from hs2_proc import AVG_SALINITY, compute_backscatter, hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ, AUV_NetCDF
 from matplotlib import patches
 from scipy import signal
@@ -3012,7 +3012,7 @@ class Calibrate_NetCDF:
         source = self.sinfo[sensor]["data_filename"]
         coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
         beta_700 = cf.bbp700_scale_factor * (orig_nc["BB_Sig"].to_numpy() - cf.bbp700_dark_counts)
-        _, bbp = compute_backscatter(700, 35.2, beta_700)  # Use an average salinity of 35.2
+        _, bbp = compute_backscatter(700, AVG_SALINITY, beta_700)  # 33.6
 
         self.combined_nc["ecopuck_bbp700"] = xr.DataArray(
             bbp,
@@ -3619,9 +3619,4 @@ if __name__ == "__main__":
     # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
     netcdf_dir = cal_netcdf.process_logs()
     cal_netcdf.write_netcdf(netcdf_dir)
-    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
-    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
-    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
-    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
-    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
     cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))

@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
 
+AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
+
 
 class SensorInfo:
     pass
@@ -189,7 +191,7 @@ def hs2_calc_bb(orig_nc, cals):
 
         # -% b_b_corr  = ((2*pi*chi).*(sigma.*beta_uncorr - beta_w)) + b_bw; (See Page 52 of HS2ManualRevI-2011-12.pdf)  # noqa: E501
         b_b_corr = ((2 * pi * chi) * (np.multiply(sigma, beta_uncorr) - beta_w)) + b_bw
-        _, bbp = compute_backscatter(wavelength, 35.2, np.multiply(sigma, beta_uncorr))
+        _, bbp = compute_backscatter(wavelength, AVG_SALINITY, np.multiply(sigma, beta_uncorr))
 
         setattr(hs2, f"bb{wavelength}", b_b_corr)
         setattr(hs2, f"bbp{wavelength}", b_b_corr - b_bw)
