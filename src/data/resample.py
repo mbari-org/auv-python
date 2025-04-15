@@ -669,43 +669,47 @@ class Resampler:
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
         fluo_bl_threshold: float = 0.25,  # use 0.45 for pearson corr
-        corr_type: str = 'spearman',  # or pearson
+        corr_type: str = "spearman",  # or pearson
         depth_threshold: float = 2.0,
-        minutes_from_surface_threshold: int = 5
+        minutes_from_surface_threshold: int = 5,
     ) -> None:
         df_p = self.df_r[
-                   [
-                    'depth',
-                    'biolum_proxy_diatoms', 'biolum_proxy_adinos', 'biolum_proxy_hdinos',
-                    'fluo', 'bg_biolum'
-                   ]
-               ].copy(deep=True)
-        df_p['fluoBL_corr'] = \
-            ('time', np.full_like(self.resampled_nc["profile_number"], np.nan))
+            [
+                "depth",
+                "biolum_proxy_diatoms",
+                "biolum_proxy_adinos",
+                "biolum_proxy_hdinos",
+                "fluo",
+                "bg_biolum",
+            ]
+        ].copy(deep=True)
+        df_p["fluoBL_corr"] = ("time", np.full_like(self.resampled_nc["profile_number"], np.nan))
 
-        profile_series = self.resampled_nc['profile_number'].to_series()
-        df_p['profile_number'] = profile_series.reindex(df_p.index, method='ffill')
+        profile_series = self.resampled_nc["profile_number"].to_series()
+        df_p["profile_number"] = profile_series.reindex(df_p.index, method="ffill")
         # make unique profiles across all surveys
-        profil = np.cumsum(np.abs(np.diff(df_p['profile_number'], prepend=0)))
+        profil = np.cumsum(np.abs(np.diff(df_p["profile_number"], prepend=0)))
 
         # new proxies are the "N" fields
         for new, old in zip(
-            ['diatomsN','adinosN','hdinosN'],
-            ['biolum_proxy_diatoms','biolum_proxy_adinos','biolum_proxy_hdinos']
+            ["diatomsN", "adinosN", "hdinosN"],
+            ["biolum_proxy_diatoms", "biolum_proxy_adinos", "biolum_proxy_hdinos"],
+            strict=False,
         ):
-            df_p[new] = ('time', np.full_like(df_p[old], np.nan))
+            df_p[new] = ("time", np.full_like(df_p[old], np.nan))
 
         # compute correlation per profil and then correct proxies
         dt_5mins = np.timedelta64(timedelta(minutes=minutes_from_surface_threshold))
         for iprofil_ in range(1, int(np.max(profil))):
-            iprofil = (profil == iprofil_)
+            iprofil = profil == iprofil_
             # excludes surface, must be within 5 min of it
             ideep = iprofil & (df_p.depth > depth_threshold)
-            itime = (df_p.index > (df_p.index[ideep].min() - dt_5mins)) & \
-                    (df_p.index < (df_p.index[ideep].max() + dt_5mins))
+            itime = (df_p.index > (df_p.index[ideep].min() - dt_5mins)) & (
+                df_p.index < (df_p.index[ideep].max() + dt_5mins)
+            )
             iprofil = iprofil & itime
             if not np.any(iprofil):
-                #print(f'no corrections possible for {iprofil_=}')
+                # print(f'no corrections possible for {iprofil_=}')
                 continue
             auv_profil = df_p.loc[iprofil]
             if auv_profil.shape[0] > correction_threshold:
@@ -715,13 +719,15 @@ class Resampler:
                 else:
                     # correlation between fluo and bg_biolum computed on high
                     # adino values for each profile
-                    idepth = auv_profil.depth < auv_profil.depth[
-                                                    auv_profil.adinos > adinos_threshold
-                                                ].max()
+                    idepth = (
+                        auv_profil.depth
+                        < auv_profil.depth[auv_profil.adinos > adinos_threshold].max()
+                    )
                     # pandas' corr ignores NaN
-                    auv_profil_idepth = auv_profil[['fluo', 'bg_biolum']].loc[idepth]
-                    fluoBL_corr = auv_profil_idepth.fluo.corr(auv_profil_idepth.bg_biolum,
-                                                              method=corr_type)
+                    auv_profil_idepth = auv_profil[["fluo", "bg_biolum"]].loc[idepth]
+                    fluoBL_corr = auv_profil_idepth.fluo.corr(
+                        auv_profil_idepth.bg_biolum, method=corr_type
+                    )
 
                 # save correlation
                 df_p.fluoBL_corr[iprofil] = fluoBL_corr
@@ -730,8 +736,9 @@ class Resampler:
                 fluoBL_correctionfactor = (fluoBL_corr + 1.0) / 2.0
 
                 # then scale between fluo_bl_threshold and 1
-                fluoBL_correctionfactor = \
+                fluoBL_correctionfactor = (
                     fluoBL_correctionfactor * (1.0 - fluo_bl_threshold) + fluo_bl_threshold
+                )
 
                 # can happen if fluo_bl_threshold is negative
                 fluoBL_correctionfactor = max(fluoBL_correctionfactor, 0.0)
@@ -739,12 +746,14 @@ class Resampler:
                 df_p.adinosN[iprofil] = df_p.adinos[iprofil] * fluoBL_correctionfactor
 
                 # preserving adinos+diatoms
-                df_p.diatomsN[iprofil] = \
+                df_p.diatomsN[iprofil] = (
                     df_p.adinos[iprofil] + df_p.diatoms[iprofil] - df_p.adinosN[iprofil]
+                )
 
                 # preserving adinos+hdinos
-                df_p.hdinosN[iprofil] = \
+                df_p.hdinosN[iprofil] = (
                     df_p.adinos[iprofil] + df_p.hdinos[iprofil] - df_p.adinosN[iprofil]
+                )
 
                 self.df_r.biolum_proxy_adinos[iprofil] = df_p.adinosN[iprofil]
                 self.df_r.biolum_proxy_diatoms[iprofil] = df_p.diatomsN[iprofil]
