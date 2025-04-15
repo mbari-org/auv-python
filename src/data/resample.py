@@ -610,6 +610,7 @@ class Resampler:
         self.df_r["biolume_bg_biolume"].attrs["units"] = "photons/liter"
         self.df_r["biolume_bg_biolume"].attrs["comment"] = zero_note
 
+        fluo = None
         nighttime_bl_raw, sunsets, sunrises = self.select_nighttime_bl_raw()
         if nighttime_bl_raw.empty:
             self.logger.info(
@@ -621,7 +622,7 @@ class Resampler:
                 self.logger.info(
                     "No hs2_fl700 data. Not computing adinos, diatoms, and hdinos",
                 )
-                return
+                return None
             fluo = (
                 self.resampled_nc["hs2_fl700"]
                 .where(
@@ -664,8 +665,11 @@ class Resampler:
                 f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
             )
 
+        return fluo
+
     def correct_biolume_proxies(  # noqa: PLR0913
         self,
+        biolume_fluo: float,  # from add_biolume_proxies
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
         fluo_bl_threshold: float = 0.25,  # use 0.45 for pearson corr
@@ -673,17 +677,23 @@ class Resampler:
         depth_threshold: float = 2.0,
         minutes_from_surface_threshold: int = 5,
     ) -> None:
-        df_p = self.df_r[
-            [
-                "depth",
-                "biolum_proxy_diatoms",
-                "biolum_proxy_adinos",
-                "biolum_proxy_hdinos",
-                "fluo",
-                "bg_biolum",
-            ]
-        ].copy(deep=True)
-        df_p["fluoBL_corr"] = ("time", np.full_like(self.resampled_nc["profile_number"], np.nan))
+        variables = [
+            "biolume_proxy_diatoms",
+            "biolume_proxy_adinos",
+            "biolume_proxy_hdinos",
+            "biolume_bg_biolume",
+        ]
+        try:
+            df_p = self.df_r[variables].copy(deep=True)
+        except KeyError:
+            # We didn't add biolum proxies this round...
+            return
+
+        df_p["biolume_fluo"] = biolume_fluo
+        df_p["fluoBL_corr"] = ("time", np.full_like(df_p.biolume_fluo, np.nan))
+
+        depth_series = self.resampled_nc["depth"].to_series()
+        df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
 
         profile_series = self.resampled_nc["profile_number"].to_series()
         df_p["profile_number"] = profile_series.reindex(df_p.index, method="ffill")
@@ -713,7 +723,10 @@ class Resampler:
                 continue
             auv_profil = df_p.loc[iprofil]
             if auv_profil.shape[0] > correction_threshold:
-                if np.sum(auv_profil.adinos > adinos_threshold) < correction_threshold:
+                if (
+                    np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold)
+                    < correction_threshold
+                ):
                     # no correction for low fluo & biolum values
                     fluoBL_corr = 1.0
                 else:
@@ -721,16 +734,23 @@ class Resampler:
                     # adino values for each profile
                     idepth = (
                         auv_profil.depth
-                        < auv_profil.depth[auv_profil.adinos > adinos_threshold].max()
+                        < auv_profil.depth[auv_profil.biolume_proxy_adinos > adinos_threshold].max()
                     )
+                    auv_profil_idepth = auv_profil[["biolume_fluo", "biolume_bg_biolume"]].loc[
+                        idepth
+                    ]
                     # pandas' corr ignores NaN
-                    auv_profil_idepth = auv_profil[["fluo", "bg_biolum"]].loc[idepth]
-                    fluoBL_corr = auv_profil_idepth.fluo.corr(
-                        auv_profil_idepth.bg_biolum, method=corr_type
+                    fluoBL_corr = auv_profil_idepth.biolume_fluo.corr(
+                        auv_profil_idepth.biolume_bg_biolume, method=corr_type
                     )
 
                 # save correlation
                 df_p.fluoBL_corr[iprofil] = fluoBL_corr
+                self.logger.info(
+                    "Correcting proxies for profile=%d using fluoBL_corr=%.4f",
+                    iprofil_,
+                    fluoBL_corr,
+                )
 
                 # scale between 0 and 1 first
                 fluoBL_correctionfactor = (fluoBL_corr + 1.0) / 2.0
@@ -743,16 +763,20 @@ class Resampler:
                 # can happen if fluo_bl_threshold is negative
                 fluoBL_correctionfactor = max(fluoBL_correctionfactor, 0.0)
 
-                df_p.adinosN[iprofil] = df_p.adinos[iprofil] * fluoBL_correctionfactor
+                df_p.adinosN[iprofil] = df_p.biolume_proxy_adinos[iprofil] * fluoBL_correctionfactor
 
                 # preserving adinos+diatoms
                 df_p.diatomsN[iprofil] = (
-                    df_p.adinos[iprofil] + df_p.diatoms[iprofil] - df_p.adinosN[iprofil]
+                    df_p.biolume_proxy_adinos[iprofil]
+                    + df_p.biolume_proxy_diatoms[iprofil]
+                    - df_p.adinosN[iprofil]
                 )
 
                 # preserving adinos+hdinos
                 df_p.hdinosN[iprofil] = (
-                    df_p.adinos[iprofil] + df_p.hdinos[iprofil] - df_p.adinosN[iprofil]
+                    df_p.biolume_proxy_adinos[iprofil]
+                    + df_p.biolume_proxy_hdinos[iprofil]
+                    - df_p.adinosN[iprofil]
                 )
 
                 self.df_r.biolum_proxy_adinos[iprofil] = df_p.adinosN[iprofil]
@@ -773,7 +797,8 @@ class Resampler:
         if instr == "biolume" and variable == "biolume_raw":
             # Only biolume_avg_biolume and biolume_flow treated like other data
             # All other biolume variables in self.df_r[] are computed from biolume_raw
-            self.add_biolume_proxies(freq)
+            biolume_fluo = self.add_biolume_proxies(freq)
+            self.correct_biolume_proxies(biolume_fluo)
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
             self.df_o[f"{variable}_mf"] = (
