@@ -664,6 +664,92 @@ class Resampler:
                 f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
             )
 
+    def correct_biolume_proxies(
+        self,
+        adinos_threshold: float = 0.1,
+        correction_threshold: int = 3,
+        fluoBL_threshold: float = 0.25,  # use 0.45 for pearson corr
+        corr_type: str = 'spearman',  # or pearson
+        depth_threshold: float = 2.0,
+        minutes_from_surface_threshold: int = 5
+    ) -> None:
+        df = self.df_r[
+                 [
+                  'depth',
+                  'biolum_proxy_diatoms', 'biolum_proxy_adinos', 'biolum_proxy_hdinos',
+                  'fluo', 'bg_biolum'
+                 ]
+             ].copy(deep=True)
+        df['fluoBL_corr'] = \
+            ('time', np.full_like(self.resampled_nc["profile_number"], np.nan))
+
+        profile_series = self.resampled_nc['profile_number'].to_series()
+        df['profile_number'] = profile_series.reindex(self.df_r.index, method='ffill')
+        # make unique profiles across all surveys
+        profil = np.cumsum(np.abs(np.diff(df['profile_number'], prepend=0)))
+
+        # new proxies are the "N" fields
+        for new, old in zip(
+            ['diatomsN','adinosN','hdinosN'],
+            ['biolum_proxy_diatoms','biolum_proxy_adinos','biolum_proxy_hdinos']
+        ):
+            df[new] = ('time', np.full_like(df[old], np.nan))
+
+        # compute correlation per profil and then correct proxies
+        dt_5mins = np.timedelta64(timedelta(minutes=minutes_from_surface_threshold))
+        for iprofil_ in tqdm(range(1, int(np.max(profil)))):
+            iprofil = (profil == iprofil_)
+            # excludes surface, must be within 5 min of it
+            ideep = iprofil & (df.depth > depth_threshold)
+            itime = (df.index > (df.index[ideep].min() - dt_5mins)) & \
+                    (df.index < (df.index[ideep].max() + dt_5mins))
+            iprofil = iprofil & itime
+            if not np.any(iprofil):
+                #print(f'no corrections possible for {iprofil_=}')
+                continue
+            auv_profil = df.loc[iprofil]
+            if auv_profil.shape[0] > correction_threshold:
+                if np.sum(auv_profil.adinos > adinos_threshold) < correction_threshold:
+                    # no correction for low fluo & biolum values
+                    fluoBL_corr = 1.0
+                else:
+                    # correlation between fluo and bg_biolum computed on high
+                    # adino values for each profile
+                    idepth = auv_profil.depth < auv_profil.depth[
+                                                    auv_profil.adinos > adinos_threshold
+                                                ].max()
+                    # pandas' corr ignores NaN
+                    auv_profil_idepth = auv_profil[['fluo', 'bg_biolum']].loc[idepth]
+                    fluoBL_corr = auv_profil_idepth.fluo.corr(auv_profil_idepth.bg_biolum,
+                                                              method=corr_type)
+
+                # save correlation
+                df.fluoBL_corr[iprofil] = fluoBL_corr
+
+                # scale between 0 and 1 first
+                fluoBL_correctionfactor = (fluoBL_corr + 1.0) / 2.0
+
+                # then scale between fluoBL_threshold and 1
+                fluoBL_correctionfactor = \
+                    fluoBL_correctionfactor * (1.0 - fluoBL_threshold) + fluoBL_threshold
+
+                # can happen if fluoBL_threshold is negative
+                fluoBL_correctionfactor = max(fluoBL_correctionfactor, 0.0)
+
+                df.adinosN[iprofil] = df.adinos[iprofil] * fluoBL_correctionfactor
+
+                # preserving adinos+diatoms
+                df.diatomsN[iprofil] = \
+                    df.adinos[iprofil] + df.diatoms[iprofil] - df.adinosN[iprofil]
+
+                # preserving adinos+hdinos
+                df.hdinosN[iprofil] = \
+                    df.adinos[iprofil] + df.hdinos[iprofil] - df.adinosN[iprofil]
+
+                self.df_r.biolum_proxy_adinos[iprofil] = df.adinosN[iprofil]
+                self.df_r.biolum_proxy_diatoms[iprofil] = df.diatomsN[iprofil]
+                self.df_r.biolum_proxy_hdinos[iprofil] = df.hdinosN[iprofil]
+
     def resample_variable(  # noqa: PLR0913
         self,
         instr: str,
