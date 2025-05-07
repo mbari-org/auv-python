@@ -672,7 +672,7 @@ class Resampler:
         biolume_fluo: float,  # from add_biolume_proxies
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
-        fluo_bl_threshold: float = 0.25,  # use 0.45 for pearson corr
+        fluo_bl_threshold: float = 0.35,  # use 0.45 for pearson corr
         corr_type: str = "spearman",  # or pearson
         depth_threshold: float = 2.0,
         minutes_from_surface_threshold: int = 5,
@@ -690,23 +690,32 @@ class Resampler:
             return
 
         df_p["biolume_fluo"] = biolume_fluo
-        df_p["fluoBL_corr"] = ("time", np.full_like(df_p.biolume_fluo, np.nan))
+        df_p["fluoBL_corr"] = np.full_like(df_p.biolume_fluo, np.nan)
 
         depth_series = self.resampled_nc["depth"].to_series()
         df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
 
         profile_series = self.resampled_nc["profile_number"].to_series()
         df_p["profile_number"] = profile_series.reindex(df_p.index, method="ffill")
+        df_p.biolume_bg_biolume.dropna(inplace=True)
         # make unique profiles across all surveys
-        profil = np.cumsum(np.abs(np.diff(df_p["profile_number"], prepend=0)))
+        df_p.dropna(inplace=True, subset=[
+            "depth",
+            "profile_number",
+            "biolume_proxy_diatoms",
+            "biolume_proxy_adinos",
+            "biolume_proxy_hdinos",
+            "biolume_fluo"
+        ])
+        profil = np.cumsum(np.abs(np.diff(df_p.profile_number, prepend=0)))
 
         # new proxies are the "N" fields
         for new, old in zip(
             ["diatomsN", "adinosN", "hdinosN"],
-            ["biolum_proxy_diatoms", "biolum_proxy_adinos", "biolum_proxy_hdinos"],
+            ["biolume_proxy_diatoms", "biolume_proxy_adinos", "biolume_proxy_hdinos"],
             strict=False,
         ):
-            df_p[new] = ("time", np.full_like(df_p[old], np.nan))
+            df_p[new] = np.full_like(df_p[old], np.nan)
 
         # compute correlation per profil and then correct proxies
         dt_5mins = np.timedelta64(timedelta(minutes=minutes_from_surface_threshold))
@@ -779,9 +788,10 @@ class Resampler:
                     - df_p.adinosN[iprofil]
                 )
 
-                self.df_r.biolum_proxy_adinos[iprofil] = df_p.adinosN[iprofil]
-                self.df_r.biolum_proxy_diatoms[iprofil] = df_p.diatomsN[iprofil]
-                self.df_r.biolum_proxy_hdinos[iprofil] = df_p.hdinosN[iprofil]
+                target_indices = df_p.index[iprofil]
+                self.df_r.loc[target_indices, 'biolume_proxy_adinos'] = df_p.adinosN.loc[iprofil]
+                self.df_r.loc[target_indices, 'biolume_proxy_diatoms'] = df_p.diatomsN.loc[iprofil]
+                self.df_r.loc[target_indices, 'biolume_proxy_hdinos'] = df_p.hdinosN.loc[iprofil]
 
     def resample_variable(  # noqa: PLR0913
         self,
