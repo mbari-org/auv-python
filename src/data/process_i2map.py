@@ -2,7 +2,7 @@
 """
 Scan master/i2MAP directory and process all missions found there
 
-Find all the i2MAP missions in smb://titan.shore.mbari.org/M3/master/i2MAP
+Find all the i2MAP missions in smb://thalassa.shore.mbari.org/M3/master/i2MAP
 and run the data through standard science data processing to calibrated,
 aligned, and resampled netCDF files.  Use a standard set of processing options;
 more flexibility is available via the inndividual processing modules.
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     VEHICLE = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
-    MOUNT_DIR = "smb://titan.shore.mbari.org/M3"
+    MOUNT_DIR = "smb://thalassa.shore.mbari.org/M3"
     START_YEAR = 2017
 
     proc = I2mapProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
