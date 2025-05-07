@@ -200,7 +200,7 @@
             // Zero-sized seabird .log file in 2021.307.02
             //"args": ["-v", "1", "--mission", "2022.094.01", "--noinput", "--local"],
             //"args": ["-v", "1", "--local", "--noinput"],
-            //"args": ["-v", "1", "--last_n_days", "80", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--last_n_days", "30", "--num_cores", "1", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.061.01", "--calibrate", "--noinput"],
             //"args": ["-v", "1", "--mission", "2022.061.01", "--align", "--noinput"],
             //"args": ["-v", "1", "--mission", "2022.061.01", "--resample", "--noinput"],
@@ -213,7 +213,8 @@
             //"args": ["-v", "1", "--mission", "2019.190.00", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2018.065.02", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2018.348.01", "--noinput", "--no_cleanup", "--clobber"],
-            "args": ["-v", "1", "--mission", "2024.324.00", "--noinput"],
+            //"args": ["-v", "1", "--mission", "2024.324.00", "--noinput"],
+            "args": ["-v", "1", "--mission", "2025.030.00", "--noinput"],
         },
         {
             "name": "process_dorado",
