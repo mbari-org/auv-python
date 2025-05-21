@@ -15,7 +15,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from socket import gethostname
 
@@ -51,7 +51,7 @@ class Resampler:
     def __init__(self) -> None:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
-        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
         # Common static attributes for all auv platforms
         self.metadata = {}
         self.metadata["netcdf_version"] = "4"
@@ -75,7 +75,7 @@ class Resampler:
                 e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
         # Common dynamic attributes for all auv platforms
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
         self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
@@ -373,7 +373,7 @@ class Resampler:
                 get_altitude(
                     lat,
                     lon,
-                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=UTC),
+                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=timezone.utc),
                 ),
             )
 
