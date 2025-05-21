@@ -15,7 +15,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from socket import gethostname
 
@@ -51,7 +51,7 @@ class Resampler:
     def __init__(self) -> None:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
-        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
         # Common static attributes for all auv platforms
         self.metadata = {}
         self.metadata["netcdf_version"] = "4"
@@ -75,7 +75,7 @@ class Resampler:
                 e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
         # Common dynamic attributes for all auv platforms
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
         self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
@@ -373,7 +373,7 @@ class Resampler:
                 get_altitude(
                     lat,
                     lon,
-                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=timezone.utc),
+                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=UTC),
                 ),
             )
 
@@ -461,7 +461,7 @@ class Resampler:
         flash_threshold: float = FLASH_THRESHOLD,
         proxy_ratio_adinos: float = 3.9811e13,  # 4-Oct-2010 to 2-Dec-2020 value
         proxy_cal_factor=0.00470,  # Same as used in 5.2-mpm-bg_biolume-PiO-paper.ipynb
-    ) -> None:
+    ) -> tuple[pd.Series, list[datetime], list[datetime]]:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
         # auto- and heterotrophic plankton communities" by Messie et al."
@@ -622,7 +622,7 @@ class Resampler:
                 self.logger.info(
                     "No hs2_fl700 data. Not computing adinos, diatoms, and hdinos",
                 )
-                return None
+                return fluo, sunsets, sunrises
             fluo = (
                 self.resampled_nc["hs2_fl700"]
                 .where(
@@ -665,15 +665,17 @@ class Resampler:
                 f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
             )
 
-        return fluo
+        return fluo, sunsets, sunrises
 
-    def correct_biolume_proxies(  # noqa: PLR0913
+    def correct_biolume_proxies(  # noqa: PLR0913, PLR0915
         self,
-        biolume_fluo: float,  # from add_biolume_proxies
+        biolume_fluo: pd.Series,  # from add_biolume_proxies
+        biolume_sunsets: list[datetime],  # from add_biolume_proxies
+        biolume_sunrises: list[datetime],  # from add_biolume_proxies
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
         fluo_bl_threshold: float = 0.35,  # use 0.45 for pearson corr
-        corr_type: str = "spearman",  # or pearson
+        corr_type: str = "pearson",  # "spearman" or "pearson"
         depth_threshold: float = 2.0,
         minutes_from_surface_threshold: int = 5,
     ) -> None:
@@ -693,21 +695,32 @@ class Resampler:
         df_p["fluoBL_corr"] = np.full_like(df_p.biolume_fluo, np.nan)
 
         depth_series = self.resampled_nc["depth"].to_series()
-        df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
+        # df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
+        df_p = pd.merge_asof(
+            df_p, depth_series.to_frame(), left_index=True, right_index=True, direction="nearest"
+        )
+
+        self.logger.info(
+            "correct proxies: df_p depth count=%d nans=%d, resampled_nc depth count=%d nans=%d",
+            df_p.depth.count(),
+            df_p.depth.isna().sum(),
+            self.resampled_nc.depth.count(),
+            self.resampled_nc.depth.isnull().sum(),  # noqa: PD003
+        )
 
         profile_series = self.resampled_nc["profile_number"].to_series()
-        df_p["profile_number"] = profile_series.reindex(df_p.index, method="ffill")
-        df_p.biolume_bg_biolume.dropna(inplace=True)
-        # make unique profiles across all surveys
-        df_p.dropna(inplace=True, subset=[
-            "depth",
-            "profile_number",
-            "biolume_proxy_diatoms",
-            "biolume_proxy_adinos",
-            "biolume_proxy_hdinos",
-            "biolume_fluo"
-        ])
-        profil = np.cumsum(np.abs(np.diff(df_p.profile_number, prepend=0)))
+        # df_p["profile_number"] = profile_series.reindex(df_p.index, method="ffill")
+        df_p = pd.merge_asof(
+            df_p, profile_series.to_frame(), left_index=True, right_index=True, direction="nearest"
+        )
+
+        self.logger.info(
+            "correct proxies: df_p max profile=%d (nans=%d), resampled_nc max profile=%d (nans=%d)",
+            df_p.profile_number.max(),
+            df_p.profile_number.isna().sum(),
+            self.resampled_nc.profile_number.max(),
+            self.resampled_nc.profile_number.isnull().sum(),  # noqa: PD003
+        )
 
         # new proxies are the "N" fields
         for new, old in zip(
@@ -717,10 +730,52 @@ class Resampler:
         ):
             df_p[new] = np.full_like(df_p[old], np.nan)
 
+        def _interval_contains_sunevent(
+            start: pd.Timestamp, end: pd.Timestamp, events: pd.DatetimeIndex
+        ) -> bool:
+            mask = (events >= start) & (events <= end)
+            return mask.any()
+
+        biolume_sunsets = pd.DatetimeIndex(biolume_sunsets).sort_values()
+        biolume_sunrises = pd.DatetimeIndex(biolume_sunrises).sort_values()
+        profile_intervals = (
+            df_p.groupby("profile_number")
+            .apply(lambda g: (g.index.min(), g.index.max()), include_groups=False)
+            .rename("interval")
+            .apply(pd.Series)
+            .rename(columns={0: "start", 1: "end"})
+        )
+        profile_intervals["has_sunset"] = profile_intervals.apply(
+            lambda row: _interval_contains_sunevent(row["start"], row["end"], biolume_sunsets),
+            axis=1,
+        )
+        profile_intervals["has_sunrise"] = profile_intervals.apply(
+            lambda row: _interval_contains_sunevent(row["start"], row["end"], biolume_sunrises),
+            axis=1,
+        )
+        profile_intervals["has_sunevent"] = (
+            profile_intervals["has_sunrise"] | profile_intervals["has_sunset"]
+        )
+        df_p["has_sunset"] = df_p["profile_number"].map(profile_intervals["has_sunset"])
+        df_p["has_sunrise"] = df_p["profile_number"].map(profile_intervals["has_sunrise"])
+        df_p["has_sunevent"] = df_p["profile_number"].map(profile_intervals["has_sunevent"])
+
         # compute correlation per profil and then correct proxies
+        profil = df_p.profile_number
         dt_5mins = np.timedelta64(timedelta(minutes=minutes_from_surface_threshold))
-        for iprofil_ in range(1, int(np.max(profil))):
+        for iprofil_ in range(1, int(np.max(profil)) + 1):
             iprofil = profil == iprofil_
+            has_sunevent = df_p.loc[iprofil, "has_sunevent"].any()
+            if has_sunevent:  # set proxies for this profile to NaN
+                self.logger.info(
+                    "Processing profile=%d for proxy correction: found sun event -- set NaN",
+                    iprofil_,
+                )
+                target_indices = df_p.index[iprofil]
+                self.df_r.loc[target_indices, "biolume_proxy_adinos"] = np.nan
+                self.df_r.loc[target_indices, "biolume_proxy_diatoms"] = np.nan
+                self.df_r.loc[target_indices, "biolume_proxy_hdinos"] = np.nan
+                continue
             # excludes surface, must be within 5 min of it
             ideep = iprofil & (df_p.depth > depth_threshold)
             itime = (df_p.index > (df_p.index[ideep].min() - dt_5mins)) & (
@@ -731,13 +786,35 @@ class Resampler:
                 # print(f'no corrections possible for {iprofil_=}')
                 continue
             auv_profil = df_p.loc[iprofil]
+            self.logger.info(
+                "Processing profile=%d for proxy correction: total_points=%d > thresh=%d ?",
+                iprofil_,
+                auv_profil.shape[0],
+                correction_threshold,
+            )
             if auv_profil.shape[0] > correction_threshold:
                 if (
                     np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold)
                     < correction_threshold
                 ):
+                    if auv_profil.biolume_proxy_adinos.count() == 0:  # all proxies are NaN so skip
+                        self.logger.info(
+                            "Correcting proxies: valid adinos=%d < thresh=%d -- all NaN so skip",
+                            np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
+                            correction_threshold,
+                        )
+                        continue
                     # no correction for low fluo & biolum values
                     fluoBL_corr = 1.0
+                    self.logger.info(
+                        "Correcting proxies: valid adinos=%d < thresh=%d"
+                        " -- using fluoBL_corr=%.4f, total_size_adinos=%d, nans=%d",
+                        np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
+                        correction_threshold,
+                        fluoBL_corr,
+                        auv_profil.biolume_proxy_adinos.shape[0],
+                        auv_profil.biolume_proxy_adinos.isna().sum(),
+                    )
                 else:
                     # correlation between fluo and bg_biolum computed on high
                     # adino values for each profile
@@ -745,21 +822,33 @@ class Resampler:
                         auv_profil.depth
                         < auv_profil.depth[auv_profil.biolume_proxy_adinos > adinos_threshold].max()
                     )
-                    auv_profil_idepth = auv_profil[["biolume_fluo", "biolume_bg_biolume"]].loc[
-                        idepth
-                    ]
+                    auv_profil_idepth = auv_profil[
+                        ["biolume_fluo", "biolume_bg_biolume", "depth"]
+                    ].loc[idepth]
                     # pandas' corr ignores NaN
                     fluoBL_corr = auv_profil_idepth.biolume_fluo.corr(
                         auv_profil_idepth.biolume_bg_biolume, method=corr_type
                     )
+                    self.logger.info(
+                        "Correcting proxies: valid adinos=%d > thresh=%d"
+                        " -- using fluoBL_corr=%.4f, total_size_idepth=%d, nans=%d,"
+                        " min_depth=%.4f, max_depth=%.4f",
+                        np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
+                        correction_threshold,
+                        fluoBL_corr,
+                        auv_profil_idepth.shape[0],
+                        auv_profil.biolume_proxy_adinos.isna().sum(),
+                        auv_profil_idepth.depth.min(),
+                        auv_profil_idepth.depth.max(),
+                    )
 
                 # save correlation
-                df_p.fluoBL_corr[iprofil] = fluoBL_corr
-                self.logger.info(
-                    "Correcting proxies for profile=%d using fluoBL_corr=%.4f",
-                    iprofil_,
-                    fluoBL_corr,
-                )
+                df_p.loc[iprofil, "fluoBL_corr"] = fluoBL_corr
+                # self.logger.info(
+                #    "Correcting proxies for profile=%d using fluoBL_corr=%.4f",
+                #    iprofil_,
+                #    fluoBL_corr,
+                # )
 
                 # scale between 0 and 1 first
                 fluoBL_correctionfactor = (fluoBL_corr + 1.0) / 2.0
@@ -772,26 +861,33 @@ class Resampler:
                 # can happen if fluo_bl_threshold is negative
                 fluoBL_correctionfactor = max(fluoBL_correctionfactor, 0.0)
 
-                df_p.adinosN[iprofil] = df_p.biolume_proxy_adinos[iprofil] * fluoBL_correctionfactor
+                df_p.loc[iprofil, "adinosN"] = (
+                    df_p.biolume_proxy_adinos[iprofil] * fluoBL_correctionfactor
+                )
 
                 # preserving adinos+diatoms
-                df_p.diatomsN[iprofil] = (
+                df_p.loc[iprofil, "diatomsN"] = (
                     df_p.biolume_proxy_adinos[iprofil]
                     + df_p.biolume_proxy_diatoms[iprofil]
                     - df_p.adinosN[iprofil]
                 )
 
                 # preserving adinos+hdinos
-                df_p.hdinosN[iprofil] = (
+                df_p.loc[iprofil, "hdinosN"] = (
                     df_p.biolume_proxy_adinos[iprofil]
                     + df_p.biolume_proxy_hdinos[iprofil]
                     - df_p.adinosN[iprofil]
                 )
 
                 target_indices = df_p.index[iprofil]
-                self.df_r.loc[target_indices, 'biolume_proxy_adinos'] = df_p.adinosN.loc[iprofil]
-                self.df_r.loc[target_indices, 'biolume_proxy_diatoms'] = df_p.diatomsN.loc[iprofil]
-                self.df_r.loc[target_indices, 'biolume_proxy_hdinos'] = df_p.hdinosN.loc[iprofil]
+                self.df_r.loc[target_indices, "biolume_proxy_adinos"] = df_p.adinosN.loc[iprofil]
+                self.df_r.loc[target_indices, "biolume_proxy_diatoms"] = df_p.diatomsN.loc[iprofil]
+                self.df_r.loc[target_indices, "biolume_proxy_hdinos"] = df_p.hdinosN.loc[iprofil]
+            else:
+                self.logger.info(
+                    "profile=%d skipped for proxy correction",
+                    iprofil_,
+                )
 
     def resample_variable(  # noqa: PLR0913
         self,
@@ -807,8 +903,8 @@ class Resampler:
         if instr == "biolume" and variable == "biolume_raw":
             # Only biolume_avg_biolume and biolume_flow treated like other data
             # All other biolume variables in self.df_r[] are computed from biolume_raw
-            biolume_fluo = self.add_biolume_proxies(freq)
-            self.correct_biolume_proxies(biolume_fluo)
+            biolume_fluo, biolume_sunsets, biolume_sunrises = self.add_biolume_proxies(freq)
+            self.correct_biolume_proxies(biolume_fluo, biolume_sunsets, biolume_sunrises)
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
             self.df_o[f"{variable}_mf"] = (
