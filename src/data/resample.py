@@ -740,7 +740,7 @@ class Resampler:
         biolume_sunrises = pd.DatetimeIndex(biolume_sunrises).sort_values()
         profile_intervals = (
             df_p.groupby("profile_number")
-            .apply(lambda g: (g.index.min(), g.index.max()), include_groups=False)
+            .apply(lambda g: (g.index.min(), g.index.max()))  # pandas2.2.3: include_groups=False
             .rename("interval")
             .apply(pd.Series)
             .rename(columns={0: "start", 1: "end"})
