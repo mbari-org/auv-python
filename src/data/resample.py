@@ -820,7 +820,7 @@ class Resampler:
                     # adino values for each profile
                     idepth = (
                         auv_profil.depth
-                        < auv_profil.depth[auv_profil.biolume_proxy_adinos > adinos_threshold].max()
+                        <= auv_profil.depth[auv_profil.biolume_proxy_adinos > adinos_threshold].max()
                     )
                     auv_profil_idepth = auv_profil[
                         ["biolume_fluo", "biolume_bg_biolume", "depth"]
