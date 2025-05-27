@@ -3,7 +3,7 @@
 Archive processed data to relevant repositories.
 
 Use smb://atlas.shore.mbari.org/AUVCTD for STOQS loading.
-Use smb://titan.shore.mbari.org/M3 for paring with original data.
+Use smb://thalassa.shore.mbari.org/M3 for paring with original data.
 """
 
 __author__ = "Mike McCann"

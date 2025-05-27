@@ -1118,6 +1118,7 @@ class Calibrate_NetCDF:
                         root.find("CalibrationDate").text[:-1],
                         "%d-%b-%y",
                     ).replace(tzinfo=timezone.utc)
+                else:
                     error_message = (
                         f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}"
                     )

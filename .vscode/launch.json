@@ -139,7 +139,8 @@
             //"args": ["--auv_name", "dorado", "--mission", "2021.102.02", "-v", "1", "--flash_threshold", "1.5e10"],
             //"args": ["--auv_name", "dorado", "--mission", "2024.317.01", "-v", "1"],
             //"args": ["--auv_name", "dorado", "--mission", "2010.341.00", "-v", "1", "--plot", "--plot_seconds", "82000"],
-            "args": ["--auv_name", "dorado", "--mission", "2020.337.00", "-v", "1"],
+            //"args": ["--auv_name", "dorado", "--mission", "2020.337.00", "-v", "1"],
+            "args": ["--auv_name", "dorado", "--mission", "2023.123.00",],
         },
         {
             "name": "5.0 - archive.py",
@@ -199,7 +200,7 @@
             // Zero-sized seabird .log file in 2021.307.02
             //"args": ["-v", "1", "--mission", "2022.094.01", "--noinput", "--local"],
             //"args": ["-v", "1", "--local", "--noinput"],
-            //"args": ["-v", "1", "--last_n_days", "80", "--clobber", "--noinput"]
+            //"args": ["-v", "1", "--last_n_days", "30", "--num_cores", "1", "--noinput"]
             //"args": ["-v", "1", "--mission", "2022.061.01", "--calibrate", "--noinput"],
             //"args": ["-v", "1", "--mission", "2022.061.01", "--align", "--noinput"],
             //"args": ["-v", "1", "--mission", "2022.061.01", "--resample", "--noinput"],
@@ -212,7 +213,8 @@
             //"args": ["-v", "1", "--mission", "2019.190.00", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2018.065.02", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2018.348.01", "--noinput", "--no_cleanup", "--clobber"],
-            "args": ["-v", "1", "--mission", "2024.324.00", "--noinput"],
+            //"args": ["-v", "1", "--mission", "2024.324.00", "--noinput"],
+            "args": ["-v", "1", "--mission", "2025.030.00", "--noinput"],
         },
         {
             "name": "process_dorado",
@@ -266,6 +268,7 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2011.256.02", "--clobber"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2010.341.00", "--download_process", "--local"]
             "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2020.337.00", "--clobber"]
+
         },
     ]
 }

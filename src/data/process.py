@@ -83,7 +83,7 @@ class Processor:
         # Variables to be set by subclasses, e.g.:
         # vehicle = "i2map"
         # vehicle_dir = "/Volumes/M3/master/i2MAP"
-        # mount_dir = "smb://titan.shore.mbari.org/M3"
+        # mount_dir = "smb://thalassa.shore.mbari.org/M3"
         self.vehicle = vehicle
         self.vehicle_dir = vehicle_dir
         self.mount_dir = mount_dir
@@ -826,7 +826,7 @@ if __name__ == "__main__":
     VEHICLE = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
-    MOUNT_DIR = "smb://titan.shore.mbari.org/M3"
+    MOUNT_DIR = "smb://thalassa.shore.mbari.org/M3"
 
     # Initialize for i2MAP processing, meant to be subclassed for other vehicles
     proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
