@@ -639,7 +639,7 @@ class Processor:
             action="store_true",
             help="Use with --noinput to overwrite existing downloaded"
             " log files and to remove existing netCDF files before"
-            " rsyncing to the AUVCTD directory",
+            " copying to the AUVCTD directory",
         )
         parser.add_argument(
             "--noinput",
