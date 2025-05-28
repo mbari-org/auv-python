@@ -3,7 +3,7 @@
 Archive processed data to relevant repositories.
 
 Use smb://atlas.shore.mbari.org/AUVCTD for STOQS loading.
-Use smb://thalassa.shore.mbari.org/M3 for paring with original data.
+Use smb://titan.shore.mbari.org/M3 for paring with original data.
 """
 
 __author__ = "Mike McCann"
@@ -11,6 +11,7 @@ __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
+import os
 import shutil
 import sys
 import time
@@ -37,6 +38,13 @@ class Archiver:
     def copy_to_AUVTCD(self, nc_file_base: Path, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
         surveys_dir = Path(AUVCTD_VOL) / "surveys"
+        if os.getenv("BASE_PATH", "").startswith(("/home/runner/", "/root")):
+            # Bail out if running in GitHub Actions or act
+            self.logger.warning(
+                "Not copying to AUVCTD in GitHub Actions or act, BASE_PATH: %s",
+                os.getenv("BASE_PATH"),
+            )
+            return
         try:
             Path(surveys_dir).stat()
         except FileNotFoundError:
