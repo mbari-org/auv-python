@@ -3,7 +3,7 @@
 Archive processed data to relevant repositories.
 
 Use smb://atlas.shore.mbari.org/AUVCTD for STOQS loading.
-Use smb://thalassa.shore.mbari.org/M3 for paring with original data.
+Use smb://titan.shore.mbari.org/M3 for paring with original data.
 """
 
 __author__ = "Mike McCann"
@@ -11,7 +11,8 @@ __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
-import subprocess
+import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -37,6 +38,13 @@ class Archiver:
     def copy_to_AUVTCD(self, nc_file_base: Path, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
         "Copy the resampled netCDF file(s) to appropriate AUVCTD directory"
         surveys_dir = Path(AUVCTD_VOL) / "surveys"
+        if os.getenv("BASE_PATH", "").startswith(("/home/runner/", "/root")):
+            # Bail out if running in GitHub Actions or act
+            self.logger.warning(
+                "Not copying to AUVCTD in GitHub Actions or act, BASE_PATH: %s",
+                os.getenv("BASE_PATH"),
+            )
+            return
         try:
             Path(surveys_dir).stat()
         except FileNotFoundError:
@@ -46,12 +54,11 @@ class Archiver:
         year = self.args.mission.split(".")[0]
         surveynetcdfs_dir = Path(surveys_dir, year, "netcdf")
 
-        # To avoid "fchmod failed: Permission denied" message use rsync instead
-        # of cp: https://apple.stackexchange.com/a/206251
+        # To avoid "fchmod failed: Permission denied" message use shutil.copyfile
 
         if not self.args.archive_only_products:
             self.logger.info("Archiving %s files to %s", nc_file_base, surveynetcdfs_dir)
-            # Rsync netCDF files to AUVCTD/surveys/YYYY/netcdf
+            # Copy netCDF files to AUVCTD/surveys/YYYY/netcdf
             if hasattr(self.args, "flash_threshold"):
                 if self.args.flash_threshold and self.args.resample:
                     ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
@@ -71,11 +78,8 @@ class Archiver:
                         self.logger.info("Removing %s", dst_file)
                         dst_file.unlink()
                     if src_file.exists():
-                        subprocess.run(  # noqa: S603
-                            ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
-                            check=True,
-                        )
-                        self.logger.info("rsync %s %s done.", src_file, surveynetcdfs_dir)
+                        shutil.copyfile(src_file, dst_file)
+                        self.logger.info("copyfile %s %s done.", src_file, surveynetcdfs_dir)
                 else:
                     self.logger.info(
                         "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
@@ -83,7 +87,7 @@ class Archiver:
                     )
 
             if not hasattr(self.args, "resample") or not self.args.resample:
-                # Rsync intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
+                # Copy intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
                 YYYYJJJ = "".join(self.args.mission.split(".")[:2])
                 missionnetcdfs_dir = Path(
                     AUVCTD_VOL,
@@ -100,18 +104,15 @@ class Archiver:
                     src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
                     if self.args.clobber:
                         if src_file.exists():
-                            subprocess.run(  # noqa: S603
-                                ["/usr/bin/rsync", str(src_file), str(missionnetcdfs_dir)],
-                                check=True,
-                            )
-                            self.logger.info("rsync %s %s done.", src_file, missionnetcdfs_dir)
+                            shutil.copyfile(src_file, missionnetcdfs_dir / src_file.name)
+                            self.logger.info("copyfile %s %s done.", src_file, missionnetcdfs_dir)
                     else:
                         self.logger.info(
                             "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
                             src_file.name,
                         )
 
-        # Rsync files created by create_products.py
+        # Copy files created by create_products.py
         self.logger.info("Archiving product files")
         for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
             src_dir = Path(  # noqa: PLW2901
@@ -124,10 +125,20 @@ class Archiver:
                 dst_dir = Path(surveys_dir, year, dst_dir)  # noqa: PLW2901
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
                 if self.args.clobber:
-                    subprocess.run(  # noqa: S603
-                        ["/usr/bin/rsync", "-r", f"{src_dir}/", f"{dst_dir}/"], check=True
-                    )
-                    self.logger.info("rsync %s/* %s done.", src_dir, dst_dir)
+                    # Copy files individually to avoid permission issues with copytree.
+                    # This will not copy subdirectories, but we don't expect any.
+                    for src_file in src_dir.glob("*"):
+                        dst_file = Path(dst_dir, src_file.name)
+                        if dst_file.exists():
+                            self.logger.info("Removing %s", dst_file)
+                            dst_file.unlink()
+                        shutil.copyfile(src_file, dst_file)
+                        self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+
+                    # shutil.copytree(
+                    #     src_dir, dst_dir, dirs_exist_ok=True, copy_function=shutil.copy
+                    # )
+                    # self.logger.info("copytree %s/* %s done.", src_dir, dst_dir)
                 else:
                     self.logger.info(
                         "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
@@ -136,23 +147,20 @@ class Archiver:
             else:
                 self.logger.debug("%s not found", src_dir)
         if self.args.create_products or (hasattr(self.args, "resample") and self.args.resample):
-            # Do not rsync processing.log file if only partial processing was done
+            # Do not copy processing.log file if only partial processing was done
             self.logger.info(
                 "Partial processing, not archiving %s",
                 f"{nc_file_base}_{LOG_NAME}",
             )
         else:
-            # Rsync the processing.log file last so that we get everything
+            # Copy the processing.log file last so that we get everything
             src_file = Path(f"{nc_file_base}_{LOG_NAME}")
             dst_file = Path(surveynetcdfs_dir, src_file.name)
             if src_file.exists():
                 if self.args.clobber:
-                    self.logger.info("rsync %s %s", src_file, surveynetcdfs_dir)
-                    subprocess.run(  # noqa: S603
-                        ["/usr/bin/rsync", str(src_file), str(surveynetcdfs_dir)],
-                        check=True,
-                    )
-                    self.logger.info("rsync %s %s done.", src_file, surveynetcdfs_dir)
+                    self.logger.info("copyfile %s %s", src_file, surveynetcdfs_dir)
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, surveynetcdfs_dir)
                 else:
                     self.logger.info(
                         "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
@@ -203,12 +211,12 @@ class Archiver:
         parser.add_argument(
             "--clobber",
             action="store_true",
-            help="Remove existing netCDF files before rsyncing to the AUVCTD directory",
+            help="Remove existing netCDF files before copying to the AUVCTD directory",
         )
         parser.add_argument(
             "--archive_only_products",
             action="store_true",
-            help="Rsync to AUVCTD directory only the products, not the netCDF files",
+            help="Copy to AUVCTD directory only the products, not the netCDF files",
         )
         parser.add_argument(
             "--create_products",
