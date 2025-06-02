@@ -140,7 +140,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2024.317.01", "-v", "1"],
             //"args": ["--auv_name", "dorado", "--mission", "2010.341.00", "-v", "1", "--plot", "--plot_seconds", "82000"],
             //"args": ["--auv_name", "dorado", "--mission", "2020.337.00", "-v", "1"],
-            "args": ["--auv_name", "dorado", "--mission", "2023.123.00",],
+            "args": ["--auv_name", "dorado", "--mission", "2023.123.00", "-v", "1"],
         },
         {
             "name": "5.0 - archive.py",
