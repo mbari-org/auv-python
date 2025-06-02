@@ -409,7 +409,14 @@ class Resampler:
                 .to_pandas()
                 .dropna()
             )
-            nighttime_bl_raw = pd.concat([nighttime_bl_raw, nighttime_data])
+            # This complication is needed because concat will not like an empty DataFrame
+            nighttime_bl_raw = (
+                nighttime_bl_raw.copy()
+                if nighttime_data.empty
+                else nighttime_data.copy()
+                if nighttime_bl_raw.empty
+                else pd.concat([nighttime_bl_raw, nighttime_data])  # if both DataFrames non empty
+            )
 
         if not sunsets or not sunrises:
             self.logger.info("No sunset or sunrise found during this mission.")
@@ -453,6 +460,67 @@ class Resampler:
             "long_name": "Profile number",
         }
 
+    def set_proxy_parameters(self, mission_start: datetime) -> tuple[float, float]:
+        # The parameters used to calculate bioluminescence proxies should be changed depending
+        # on the time period considered, as described below.
+
+        # Changes in HS2/biolum configurations:
+
+        # beginning of UBAT surveys
+        # [period1]
+        # 2007.344.00 first survey with bathyphotometer mounted in the nose instead of side-mounted
+        # [period2]
+        # Jan 1st 2009 changing HS2 sensor (new bbp channels), first mission is 2009.055.05 I believe  # noqa: E501
+        # [period3]
+        # new UBAT installed in 2010 (first mission 2010.277.01)
+        # [period4]
+        # UBAT serviced early 2025, may require a new parameterization in the future but we can keep
+        # period4 for now until present.
+
+        # Parameters should be:
+
+        # period1: calibration=0.0016691, ratioAdinos=5.0119E13
+        # period2: calibration=0.0016691, ratioAdinos=2.5119E13
+        # period3: calibration=0.0047101, ratioAdinos=1.0000E14
+        # period4: calibration=0.0049859, ratioAdinos=3.8019E13 to test (previously based on
+        # 2010-2020: calibration=0.0047118, ratioAdinos=3.9811E13)
+
+        # Set start datetime from year and year-day
+        period1_start = datetime(2003, 1, 1) + timedelta(days=225)  # noqa: DTZ001
+        period2_start = datetime(2007, 1, 1) + timedelta(days=343)  # noqa: DTZ001
+        period3_start = datetime(2009, 1, 1) + timedelta(days=54)  # noqa: DTZ001
+        period4_start = datetime(2010, 1, 1) + timedelta(days=276)  # noqa: DTZ001
+        if mission_start >= period1_start and mission_start < period2_start:
+            # period1: 2003.225 to 2007.343
+            self.logger.info("Setting biolume proxy parameters for period1")
+            proxy_cal_factor = 0.0016691
+            proxy_ratio_adinos = 5.0119e13
+        elif mission_start >= period2_start and mission_start < period3_start:
+            # period2: 2007.343 to 2009.054
+            self.logger.info("Setting biolume proxy parameters for period2")
+            proxy_cal_factor = 0.0016691
+            proxy_ratio_adinos = 2.5119e13
+        elif mission_start >= period3_start and mission_start < period4_start:
+            # period3: 2009.054 to 2010.275
+            self.logger.info("Setting biolume proxy parameters for period3")
+            proxy_cal_factor = 0.0047101
+            proxy_ratio_adinos = 1.0000e14
+        elif mission_start >= period4_start:
+            # period4: 2010.275 to present
+            self.logger.info("Setting biolume proxy parameters for period4")
+            proxy_cal_factor = 0.0049859
+            proxy_ratio_adinos = 3.8019e13
+        else:
+            # Should not happen, but if it does, use the values used in Notebook 5.2
+            self.logger.warning(
+                "Mission start %s is before period1_start %s - Setting original parameters",
+                mission_start,
+                period1_start,
+            )
+            proxy_cal_factor = 0.0047118
+            proxy_ratio_adinos = 3.9811e13
+        return proxy_cal_factor, proxy_ratio_adinos
+
     def add_biolume_proxies(  # noqa: PLR0913, PLR0915
         self,
         freq,
@@ -460,7 +528,7 @@ class Resampler:
         envelope_mini: float = 1.5e10,
         flash_threshold: float = FLASH_THRESHOLD,
         proxy_ratio_adinos: float = 3.9811e13,  # 4-Oct-2010 to 2-Dec-2020 value
-        proxy_cal_factor=0.00470,  # Same as used in 5.2-mpm-bg_biolume-PiO-paper.ipynb
+        proxy_cal_factor: float = 0.00470,  # Same as used in 5.2-mpm-bg_biolume-PiO-paper.ipynb
     ) -> tuple[pd.Series, list[datetime], list[datetime]]:
         # Add variables via the calculations according to Appendix B in
         # "Using fluorescence and bioluminescence sensors to characterize
@@ -905,7 +973,10 @@ class Resampler:
         if instr == "biolume" and variable == "biolume_raw":
             # Only biolume_avg_biolume and biolume_flow treated like other data
             # All other biolume variables in self.df_r[] are computed from biolume_raw
-            biolume_fluo, biolume_sunsets, biolume_sunrises = self.add_biolume_proxies(freq)
+            proxy_cal_factor, proxy_ratio_adinos = self.set_proxy_parameters(mission_start)
+            biolume_fluo, biolume_sunsets, biolume_sunrises = self.add_biolume_proxies(
+                freq=freq, proxy_cal_factor=proxy_cal_factor, proxy_ratio_adinos=proxy_ratio_adinos
+            )
             self.correct_biolume_proxies(biolume_fluo, biolume_sunsets, biolume_sunrises)
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
