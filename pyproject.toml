@@ -17,6 +17,7 @@ dependencies = [
     "netcdf4>=1.7.2",
     "numpy>=2.2.6",
     "pyproj>=3.7.1",
+    "pysolar>=0.13",
     "seawater>=3.3.5",
 ]
 
