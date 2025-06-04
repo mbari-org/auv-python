@@ -247,30 +247,14 @@ class Align_NetCDF:
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
             # Use attributes from the calibrated data.
-            try:
-                sample_rate = np.round(
-                    1.0
-                    / (
-                        np.mean(np.diff(self.calibrated_nc[timevar]))
-                        / np.timedelta64(1, "s")
-                    ),
-                    decimals=2,
-                )
-            except TypeError as e:
-                # Code to catch UFuncTypeError, which used to be imported from numpy.core._exceptions
-                # Seen in dorado 2008.010.10 - caused by time variable missing from lopc.nc
-                self.logger.warning("UFuncTypeError: %s", e)
-                self.logger.debug(
-                    f"type(type(self.calibrated_nc[variable].get_index(f'{instr}_time'))"  # noqa: G004
-                    f" = {type(self.calibrated_nc[variable].get_index(f'{instr}_time'))}",
-                )
-                self.logger.warning(
-                    f"{variable}: Failed to calculate sample_rate -"  # noqa: G004
-                    f" xarray wrote {instr}_time as RangeIndex rather than actual time values -"
-                    f" skipping it",
-                )
-                del self.aligned_nc[variable]
-                continue
+            sample_rate = np.round(
+                1.0
+                / (
+                    np.mean(np.diff(self.calibrated_nc[timevar]))
+                    / np.timedelta64(1, "s")
+                ),
+                decimals=2,
+            )
             self.aligned_nc[variable] = xr.DataArray(
                 self.calibrated_nc[variable].values,
                 dims={timevar},
