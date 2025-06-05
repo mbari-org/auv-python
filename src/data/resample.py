@@ -15,7 +15,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from socket import gethostname
 
@@ -51,7 +51,7 @@ class Resampler:
     def __init__(self) -> None:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
-        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
         # Common static attributes for all auv platforms
         self.metadata = {}
         self.metadata["netcdf_version"] = "4"
@@ -75,7 +75,7 @@ class Resampler:
                 e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
         # Common dynamic attributes for all auv platforms
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
         self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
@@ -307,13 +307,22 @@ class Resampler:
         # (at least in November 2020)
         # and we want to use the same pitch corrected depth for all of them.
         self.df_r["depth"] = (
-            self.df_o[f"{instr}_depth_mf"].shift(0.5, freq=freq).resample(freq).mean()
+            self.df_o[f"{instr}_depth_mf"]
+            .shift(0.5, freq=freq.lower())
+            .resample(freq.lower())
+            .mean()
         )
         self.df_r["latitude"] = (
-            self.df_o[f"{instr}_latitude_mf"].shift(0.5, freq=freq).resample(freq).mean()
+            self.df_o[f"{instr}_latitude_mf"]
+            .shift(0.5, freq=freq.lower())
+            .resample(freq.lower())
+            .mean()
         )
         self.df_r["longitude"] = (
-            self.df_o[f"{instr}_longitude_mf"].shift(0.5, freq=freq).resample(freq).mean()
+            self.df_o[f"{instr}_longitude_mf"]
+            .shift(0.5, freq=freq.lower())
+            .resample(freq.lower())
+            .mean()
         )
         return aggregator
 
@@ -373,7 +382,7 @@ class Resampler:
                 get_altitude(
                     lat,
                     lon,
-                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=timezone.utc),
+                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=UTC),
                 ),
             )
 
@@ -599,14 +608,14 @@ class Resampler:
         nbflash_high_counts = (
             s_nbflash_high.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
-            .resample(freq)
+            .resample(freq.lower())
             .mean()
             / flash_count_seconds
         )
         nbflash_low_counts = (
             s_nbflash_low.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
-            .resample(freq)
+            .resample(freq.lower())
             .mean()
             / flash_count_seconds
         )
@@ -698,7 +707,7 @@ class Resampler:
                     & (self.resampled_nc["time"] < max(sunrises)),
                 )
                 .to_pandas()
-                .resample(freq)
+                .resample(freq.lower())
                 .mean()
             )
             # Set negative values from hs2_fl700 to NaN
@@ -765,7 +774,11 @@ class Resampler:
         depth_series = self.resampled_nc["depth"].to_series()
         # df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
         df_p = pd.merge_asof(
-            df_p, depth_series.to_frame(), left_index=True, right_index=True, direction="nearest"
+            df_p,
+            depth_series.to_frame(),
+            left_index=True,
+            right_index=True,
+            direction="nearest",
         )
 
         self.logger.info(
@@ -779,7 +792,11 @@ class Resampler:
         profile_series = self.resampled_nc["profile_number"].to_series()
         # df_p["profile_number"] = profile_series.reindex(df_p.index, method="ffill")
         df_p = pd.merge_asof(
-            df_p, profile_series.to_frame(), left_index=True, right_index=True, direction="nearest"
+            df_p,
+            profile_series.to_frame(),
+            left_index=True,
+            right_index=True,
+            direction="nearest",
         )
 
         self.logger.info(
@@ -975,7 +992,9 @@ class Resampler:
             # All other biolume variables in self.df_r[] are computed from biolume_raw
             proxy_cal_factor, proxy_ratio_adinos = self.set_proxy_parameters(mission_start)
             biolume_fluo, biolume_sunsets, biolume_sunrises = self.add_biolume_proxies(
-                freq=freq, proxy_cal_factor=proxy_cal_factor, proxy_ratio_adinos=proxy_ratio_adinos
+                freq=freq,
+                proxy_cal_factor=proxy_cal_factor,
+                proxy_ratio_adinos=proxy_ratio_adinos,
             )
             self.correct_biolume_proxies(biolume_fluo, biolume_sunsets, biolume_sunrises)
         else:
@@ -996,13 +1015,21 @@ class Resampler:
                     variable,
                     instrs_to_pad[instr],
                 )
-                dt_index = pd.date_range(mission_start, mission_end, freq=freq)
+                dt_index = pd.date_range(mission_start, mission_end, freq=freq.lower())
                 self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
-                instr_data = self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
+                instr_data = (
+                    self.df_o[f"{variable}_mf"]
+                    .shift(0.5, freq=freq.lower())
+                    .resample(freq.lower())
+                    .mean()
+                )
                 self.df_r[variable].loc[instr_data.index] = instr_data
             else:
                 self.df_r[variable] = (
-                    self.df_o[f"{variable}_mf"].shift(0.5, freq=freq).resample(freq).mean()
+                    self.df_o[f"{variable}_mf"]
+                    .shift(0.5, freq=freq.lower())
+                    .resample(freq.lower())
+                    .mean()
                 )
         return ".mean() aggregator"
 
