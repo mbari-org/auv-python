@@ -18,7 +18,7 @@ import re
 import sys
 import time
 from argparse import RawTextHelpFormatter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from socket import gethostname
 
@@ -62,7 +62,7 @@ class Align_NetCDF:
                 e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.now(timezone.utc).isoformat() + "Z"
+        iso_now = datetime.now(UTC).isoformat() + "Z"
 
         metadata = {}
         metadata["netcdf_version"] = "4"
@@ -88,13 +88,9 @@ class Align_NetCDF:
         metadata["geospatial_lat_max"] = self.max_lat
         metadata["geospatial_lon_min"] = self.min_lon
         metadata["geospatial_lon_max"] = self.max_lon
-        metadata["distribution_statement"] = (
-            "Any use requires prior approval from MBARI"
-        )
+        metadata["distribution_statement"] = "Any use requires prior approval from MBARI"
         metadata["license"] = metadata["distribution_statement"]
-        metadata["useconst"] = (
-            "Not intended for legal use. Data may contain inaccuracies."
-        )
+        metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
         metadata["title"] = (
@@ -142,8 +138,8 @@ class Align_NetCDF:
             raise InvalidCalFile(e) from e
         self.logger.info("Processing %s from %s", in_fn, netcdfs_dir)
         self.aligned_nc = xr.Dataset()
-        self.min_time = datetime.now(timezone.utc)
-        self.max_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        self.min_time = datetime.now(UTC)
+        self.max_time = datetime(1970, 1, 1, tzinfo=UTC)
         self.min_depth = np.inf
         self.max_depth = -np.inf
         self.min_lat = np.inf
@@ -173,10 +169,7 @@ class Align_NetCDF:
             # values outside the range of the pitch values.
             try:
                 lat_interp = interp1d(
-                    self.calibrated_nc["nudged_latitude"]
-                    .get_index("time")
-                    .view(np.int64)
-                    .tolist(),
+                    self.calibrated_nc["nudged_latitude"].get_index("time").view(np.int64).tolist(),
                     self.calibrated_nc["nudged_latitude"].values,
                     fill_value=(
                         self.calibrated_nc["nudged_latitude"][0],
@@ -188,10 +181,7 @@ class Align_NetCDF:
                 error_message = f"No nudged_latitude data in {in_fn}"
                 raise InvalidCalFile(error_message) from None
             lon_interp = interp1d(
-                self.calibrated_nc["nudged_longitude"]
-                .get_index("time")
-                .view(np.int64)
-                .tolist(),
+                self.calibrated_nc["nudged_longitude"].get_index("time").view(np.int64).tolist(),
                 self.calibrated_nc["nudged_longitude"].values,
                 fill_value=(
                     self.calibrated_nc["nudged_longitude"][0],
@@ -205,10 +195,7 @@ class Align_NetCDF:
                 timevar = f"{instr}_{TIME60HZ}"
             try:
                 depth_interp = interp1d(
-                    self.calibrated_nc[f"{instr}_depth"]
-                    .get_index(timevar)
-                    .view(np.int64)
-                    .tolist(),
+                    self.calibrated_nc[f"{instr}_depth"].get_index(timevar).view(np.int64).tolist(),
                     self.calibrated_nc[f"{instr}_depth"].values,
                     fill_value=(
                         self.calibrated_nc[f"{instr}_depth"][0],
@@ -240,19 +227,13 @@ class Align_NetCDF:
                 error_message = "Cannot interpolate depth"
                 raise InvalidCalFile(error_message) from e
 
-            var_time = (
-                self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
-            )
+            var_time = self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
 
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
             # Use attributes from the calibrated data.
             sample_rate = np.round(
-                1.0
-                / (
-                    np.mean(np.diff(self.calibrated_nc[timevar]))
-                    / np.timedelta64(1, "s")
-                ),
+                1.0 / (np.mean(np.diff(self.calibrated_nc[timevar])) / np.timedelta64(1, "s")),
                 decimals=2,
             )
             self.aligned_nc[variable] = xr.DataArray(
@@ -278,9 +259,7 @@ class Align_NetCDF:
                 name=f"{instr}_depth",
             )
             try:
-                self.aligned_nc[f"{instr}_depth"].attrs = self.calibrated_nc[
-                    f"{instr}_depth"
-                ].attrs
+                self.aligned_nc[f"{instr}_depth"].attrs = self.calibrated_nc[f"{instr}_depth"].attrs
             except KeyError:
                 self.logger.debug(
                     "%s: %s_depth not found in %s",
@@ -289,9 +268,7 @@ class Align_NetCDF:
                     self.calibrated_nc,
                 )
             self.aligned_nc[f"{instr}_depth"].attrs["long_name"] = "Depth"
-            self.aligned_nc[f"{instr}_depth"].attrs["instrument_sample_rate_hz"] = (
-                sample_rate
-            )
+            self.aligned_nc[f"{instr}_depth"].attrs["instrument_sample_rate_hz"] = sample_rate
 
             self.aligned_nc[f"{instr}_latitude"] = xr.DataArray(
                 lat_interp(var_time).astype(np.float64).tolist(),
@@ -299,17 +276,13 @@ class Align_NetCDF:
                 coords=[self.calibrated_nc[variable].get_index(timevar)],
                 name=f"{instr}_latitude",
             )
-            self.aligned_nc[f"{instr}_latitude"].attrs = self.calibrated_nc[
-                "nudged_latitude"
-            ].attrs
+            self.aligned_nc[f"{instr}_latitude"].attrs = self.calibrated_nc["nudged_latitude"].attrs
             self.aligned_nc[f"{instr}_latitude"].attrs["comment"] += (
                 f". Variable nudged_latitude from {in_fn} file linearly"
                 f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_latitude"].attrs["long_name"] = "Latitude"
-            self.aligned_nc[f"{instr}_latitude"].attrs["instrument_sample_rate_hz"] = (
-                sample_rate
-            )
+            self.aligned_nc[f"{instr}_latitude"].attrs["instrument_sample_rate_hz"] = sample_rate
 
             self.aligned_nc[f"{instr}_longitude"] = xr.DataArray(
                 lon_interp(var_time).astype(np.float64).tolist(),
@@ -325,27 +298,21 @@ class Align_NetCDF:
                 f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_longitude"].attrs["long_name"] = "Longitude"
-            self.aligned_nc[f"{instr}_longitude"].attrs["instrument_sample_rate_hz"] = (
-                sample_rate
-            )
+            self.aligned_nc[f"{instr}_longitude"].attrs["instrument_sample_rate_hz"] = sample_rate
 
             # Update spatial temporal bounds for the global metadata
             # https://github.com/pydata/xarray/issues/4917#issue-809708107
             if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
-                timezone.utc,
+                UTC,
             ) < pd.to_datetime(self.min_time):
-                self.min_time = pd.to_datetime(
-                    self.aligned_nc[timevar][0].values
-                ).tz_localize(
-                    timezone.utc,
+                self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
+                    UTC,
                 )
             if pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
-                timezone.utc,
+                UTC,
             ) > pd.to_datetime(self.max_time):
-                self.max_time = pd.to_datetime(
-                    self.aligned_nc[timevar][-1].values
-                ).tz_localize(
-                    timezone.utc,
+                self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
+                    UTC,
                 )
             if self.aligned_nc[f"{instr}_depth"].min() < self.min_depth:
                 self.min_depth = self.aligned_nc[f"{instr}_depth"].min().to_numpy()

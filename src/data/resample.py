@@ -15,7 +15,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from socket import gethostname
 
@@ -51,7 +51,7 @@ class Resampler:
     def __init__(self) -> None:
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
-        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
         # Common static attributes for all auv platforms
         self.metadata = {}
         self.metadata["netcdf_version"] = "4"
@@ -75,7 +75,7 @@ class Resampler:
                 e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.now(tz=timezone.utc).isoformat().split(".")[0] + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
         # Common dynamic attributes for all auv platforms
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
         self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
@@ -307,22 +307,13 @@ class Resampler:
         # (at least in November 2020)
         # and we want to use the same pitch corrected depth for all of them.
         self.df_r["depth"] = (
-            self.df_o[f"{instr}_depth_mf"]
-            .shift(0.5, freq=freq.lower())
-            .resample(freq)
-            .mean()
+            self.df_o[f"{instr}_depth_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
         )
         self.df_r["latitude"] = (
-            self.df_o[f"{instr}_latitude_mf"]
-            .shift(0.5, freq=freq.lower())
-            .resample(freq)
-            .mean()
+            self.df_o[f"{instr}_latitude_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
         )
         self.df_r["longitude"] = (
-            self.df_o[f"{instr}_longitude_mf"]
-            .shift(0.5, freq=freq.lower())
-            .resample(freq)
-            .mean()
+            self.df_o[f"{instr}_longitude_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
         )
         return aggregator
 
@@ -382,16 +373,14 @@ class Resampler:
                 get_altitude(
                     lat,
                     lon,
-                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=timezone.utc),
+                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=UTC),
                 ),
             )
 
         # Find sunset and sunrise - where sun altitude changes sign
         sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
         ss_sr_times = (
-            self.ds["navigation_time"]
-            .isel({"navigation_time": sign_changes * stride})
-            .to_numpy()
+            self.ds["navigation_time"].isel({"navigation_time": sign_changes * stride}).to_numpy()
         )
         self.logger.debug("Sunset and sunrise times: %s", ss_sr_times)
 
@@ -402,9 +391,7 @@ class Resampler:
         # Iterate over sunset and sunrise pairs
         for i in range(0, len(ss_sr_times) - 1, 2):
             sunset = ss_sr_times[i] + pd.to_timedelta(1, "h")  # 1 hour past sunset
-            sunrise = ss_sr_times[i + 1] - pd.to_timedelta(
-                1, "h"
-            )  # 1 hour before sunrise
+            sunrise = ss_sr_times[i + 1] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
             sunsets.append(sunset)
             sunrises.append(sunrise)
 
@@ -428,9 +415,7 @@ class Resampler:
                 if nighttime_data.empty
                 else nighttime_data.copy()
                 if nighttime_bl_raw.empty
-                else pd.concat(
-                    [nighttime_bl_raw, nighttime_data]
-                )  # if both DataFrames non empty
+                else pd.concat([nighttime_bl_raw, nighttime_data])  # if both DataFrames non empty
             )
 
         if not sunsets or not sunrises:
@@ -470,9 +455,7 @@ class Resampler:
             coords=[self.resampled_nc["time"].to_numpy()],
             name="profile_number",
         )
-        self.resampled_nc["profile_number"].attrs["coordinates"] = (
-            "time depth latitude longitude"
-        )
+        self.resampled_nc["profile_number"].attrs["coordinates"] = "time depth latitude longitude"
         self.resampled_nc["profile_number"].attrs = {
             "long_name": "Profile number",
         }
@@ -568,9 +551,7 @@ class Resampler:
             center=True,
         ).min()
         min_bg = (
-            min_bg_unsmoothed.rolling(window_size, min_periods=0, center=True)
-            .mean()
-            .to_numpy()
+            min_bg_unsmoothed.rolling(window_size, min_periods=0, center=True).mean().to_numpy()
         )
 
         self.logger.debug("Applying rolling median filter")
@@ -597,9 +578,7 @@ class Resampler:
         self.logger.debug("Finding peaks")
         peaks, _ = signal.find_peaks(s_biolume_raw, height=max_bg)
         s_peaks = pd.Series(s_biolume_raw.iloc[peaks], index=s_biolume_raw.index[peaks])
-        s_med_bg_peaks = pd.Series(
-            s_med_bg.iloc[peaks], index=s_biolume_raw.index[peaks]
-        )
+        s_med_bg_peaks = pd.Series(s_med_bg.iloc[peaks], index=s_biolume_raw.index[peaks])
         if self.args.flash_threshold:
             flash_threshold = self.args.flash_threshold
         flash_threshold_note = f"Computed with flash_threshold = {flash_threshold:.0e}"
@@ -616,9 +595,7 @@ class Resampler:
         # Count the number of flashes per second - use 15 second window stepping every second
         flash_count_seconds = 15
         flash_window = flash_count_seconds * sample_rate
-        self.logger.debug(
-            "Counting flashes using %d second window", flash_count_seconds
-        )
+        self.logger.debug("Counting flashes using %d second window", flash_count_seconds)
         nbflash_high_counts = (
             s_nbflash_high.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
@@ -634,19 +611,15 @@ class Resampler:
             / flash_count_seconds
         )
 
-        flow = (
-            self.ds[["biolume_flow"]]["biolume_flow"]
-            .to_pandas()
-            .resample("1S")
-            .mean()
-            .ffill()
-        )
+        flow = self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1S").mean().ffill()
 
         # Flow sensor is not always on, so fill in 0.0 values with 350 ml/s
         zero_note = ""
         num_zero_flow = len(np.where(flow == 0)[0])
         if num_zero_flow > 0:
-            zero_note = f"Zero flow values found: {num_zero_flow} of {len(flow)} - replaced with 350 ml/s"
+            zero_note = (
+                f"Zero flow values found: {num_zero_flow} of {len(flow)} - replaced with 350 ml/s"
+            )
             self.logger.info(zero_note)
             flow = flow.replace(0.0, 350.0)
 
@@ -658,18 +631,14 @@ class Resampler:
             "High intensity flashes (copepods proxy)"
         )
         self.df_r["biolume_nbflash_high"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_high"].attrs["comment"] = (
-            f"{zero_note} - {flash_threshold_note}"
-        )
+        self.df_r["biolume_nbflash_high"].attrs["comment"] = f"{zero_note} - {flash_threshold_note}"
 
         self.df_r["biolume_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
         self.df_r["biolume_nbflash_low"].attrs["long_name"] = (
             "Low intensity flashes (Larvacean proxy)"
         )
         self.df_r["biolume_nbflash_low"].attrs["units"] = "flashes/liter"
-        self.df_r["biolume_nbflash_low"].attrs["comment"] = (
-            f"{zero_note} - {flash_threshold_note}"
-        )
+        self.df_r["biolume_nbflash_low"].attrs["comment"] = f"{zero_note} - {flash_threshold_note}"
 
         # Flash intensity in ph/s - proxy for small jellies - for entire mission, not just nightime
         all_raw = self.ds[["biolume_raw"]]["biolume_raw"].to_pandas()
@@ -688,9 +657,7 @@ class Resampler:
             "Saving flash intensity: biolume_intflash - the upper bound of the background envelope",
         )
         self.df_r["biolume_intflash"] = intflash
-        self.df_r["biolume_intflash"].attrs["long_name"] = (
-            "Flashes intensity (small jellies proxy)"
-        )
+        self.df_r["biolume_intflash"].attrs["long_name"] = "Flashes intensity (small jellies proxy)"
         self.df_r["biolume_intflash"].attrs["units"] = "photons/s"
         self.df_r["biolume_intflash"].attrs["comment"] = (
             f" intensity of flashes from {sample_rate} Hz biolume_raw variable in {freq} intervals."
@@ -702,9 +669,7 @@ class Resampler:
             min_periods=0,
             center=True,
         ).mean()
-        bg_biolume = (
-            pd.Series(s_min_bg, index=s_biolume_raw.index).resample("1S").mean()
-        )
+        bg_biolume = pd.Series(s_min_bg, index=s_biolume_raw.index).resample("1S").mean()
         self.logger.info("Saving Background bioluminescence (dinoflagellates proxy)")
         self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
         self.df_r["biolume_bg_biolume"].attrs["long_name"] = (
@@ -851,35 +816,25 @@ class Resampler:
         biolume_sunrises = pd.DatetimeIndex(biolume_sunrises).sort_values()
         profile_intervals = (
             df_p.groupby("profile_number")
-            .apply(
-                lambda g: (g.index.min(), g.index.max())
-            )  # pandas2.2.3: include_groups=False
+            .apply(lambda g: (g.index.min(), g.index.max()))  # pandas2.2.3: include_groups=False
             .rename("interval")
             .apply(pd.Series)
             .rename(columns={0: "start", 1: "end"})
         )
         profile_intervals["has_sunset"] = profile_intervals.apply(
-            lambda row: _interval_contains_sunevent(
-                row["start"], row["end"], biolume_sunsets
-            ),
+            lambda row: _interval_contains_sunevent(row["start"], row["end"], biolume_sunsets),
             axis=1,
         )
         profile_intervals["has_sunrise"] = profile_intervals.apply(
-            lambda row: _interval_contains_sunevent(
-                row["start"], row["end"], biolume_sunrises
-            ),
+            lambda row: _interval_contains_sunevent(row["start"], row["end"], biolume_sunrises),
             axis=1,
         )
         profile_intervals["has_sunevent"] = (
             profile_intervals["has_sunrise"] | profile_intervals["has_sunset"]
         )
         df_p["has_sunset"] = df_p["profile_number"].map(profile_intervals["has_sunset"])
-        df_p["has_sunrise"] = df_p["profile_number"].map(
-            profile_intervals["has_sunrise"]
-        )
-        df_p["has_sunevent"] = df_p["profile_number"].map(
-            profile_intervals["has_sunevent"]
-        )
+        df_p["has_sunrise"] = df_p["profile_number"].map(profile_intervals["has_sunrise"])
+        df_p["has_sunevent"] = df_p["profile_number"].map(profile_intervals["has_sunevent"])
 
         # compute correlation per profil and then correct proxies
         profil = df_p.profile_number
@@ -918,9 +873,7 @@ class Resampler:
                     np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold)
                     < correction_threshold
                 ):
-                    if (
-                        auv_profil.biolume_proxy_adinos.count() == 0
-                    ):  # all proxies are NaN so skip
+                    if auv_profil.biolume_proxy_adinos.count() == 0:  # all proxies are NaN so skip
                         self.logger.info(
                             "Correcting proxies: valid adinos=%d < thresh=%d -- all NaN so skip",
                             np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
@@ -980,8 +933,7 @@ class Resampler:
 
                 # then scale between fluo_bl_threshold and 1
                 fluoBL_correctionfactor = (
-                    fluoBL_correctionfactor * (1.0 - fluo_bl_threshold)
-                    + fluo_bl_threshold
+                    fluoBL_correctionfactor * (1.0 - fluo_bl_threshold) + fluo_bl_threshold
                 )
 
                 # can happen if fluo_bl_threshold is negative
@@ -1006,15 +958,9 @@ class Resampler:
                 )
 
                 target_indices = df_p.index[iprofil]
-                self.df_r.loc[target_indices, "biolume_proxy_adinos"] = (
-                    df_p.adinosN.loc[iprofil]
-                )
-                self.df_r.loc[target_indices, "biolume_proxy_diatoms"] = (
-                    df_p.diatomsN.loc[iprofil]
-                )
-                self.df_r.loc[target_indices, "biolume_proxy_hdinos"] = (
-                    df_p.hdinosN.loc[iprofil]
-                )
+                self.df_r.loc[target_indices, "biolume_proxy_adinos"] = df_p.adinosN.loc[iprofil]
+                self.df_r.loc[target_indices, "biolume_proxy_diatoms"] = df_p.diatomsN.loc[iprofil]
+                self.df_r.loc[target_indices, "biolume_proxy_hdinos"] = df_p.hdinosN.loc[iprofil]
             else:
                 self.logger.info(
                     "profile=%d skipped for proxy correction",
@@ -1035,24 +981,17 @@ class Resampler:
         if instr == "biolume" and variable == "biolume_raw":
             # Only biolume_avg_biolume and biolume_flow treated like other data
             # All other biolume variables in self.df_r[] are computed from biolume_raw
-            proxy_cal_factor, proxy_ratio_adinos = self.set_proxy_parameters(
-                mission_start
-            )
+            proxy_cal_factor, proxy_ratio_adinos = self.set_proxy_parameters(mission_start)
             biolume_fluo, biolume_sunsets, biolume_sunrises = self.add_biolume_proxies(
                 freq=freq,
                 proxy_cal_factor=proxy_cal_factor,
                 proxy_ratio_adinos=proxy_ratio_adinos,
             )
-            self.correct_biolume_proxies(
-                biolume_fluo, biolume_sunsets, biolume_sunrises
-            )
+            self.correct_biolume_proxies(biolume_fluo, biolume_sunsets, biolume_sunrises)
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
             self.df_o[f"{variable}_mf"] = (
-                self.ds[variable]
-                .rolling(**{timevar: mf_width}, center=True)
-                .median()
-                .to_pandas()
+                self.ds[variable].rolling(**{timevar: mf_width}, center=True).median().to_pandas()
             )
             # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
             self.logger.info(
@@ -1070,18 +1009,12 @@ class Resampler:
                 dt_index = pd.date_range(mission_start, mission_end, freq=freq)
                 self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
                 instr_data = (
-                    self.df_o[f"{variable}_mf"]
-                    .shift(0.5, freq=freq.lower())
-                    .resample(freq)
-                    .mean()
+                    self.df_o[f"{variable}_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
                 )
                 self.df_r[variable].loc[instr_data.index] = instr_data
             else:
                 self.df_r[variable] = (
-                    self.df_o[f"{variable}_mf"]
-                    .shift(0.5, freq=freq.lower())
-                    .resample(freq)
-                    .mean()
+                    self.df_o[f"{variable}_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
                 )
         return ".mean() aggregator"
 
@@ -1164,12 +1097,8 @@ class Resampler:
         instrs_to_pad = {}
         for instr in self.instruments_variables(nc_file):
             time_coord = f"{instr}_{TIME}"
-            mission_start = min(
-                pd.to_datetime(self.ds[time_coord].min().values), mission_start
-            )
-            mission_end = max(
-                pd.to_datetime(self.ds[time_coord].max().values), mission_end
-            )
+            mission_start = min(pd.to_datetime(self.ds[time_coord].min().values), mission_start)
+            mission_end = max(pd.to_datetime(self.ds[time_coord].max().values), mission_end)
         for instr in self.instruments_variables(nc_file):
             time_coord = f"{instr}_{TIME}"
             duration = mission_end - pd.to_datetime(self.ds[time_coord].max().values)
