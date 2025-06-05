@@ -307,13 +307,22 @@ class Resampler:
         # (at least in November 2020)
         # and we want to use the same pitch corrected depth for all of them.
         self.df_r["depth"] = (
-            self.df_o[f"{instr}_depth_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
+            self.df_o[f"{instr}_depth_mf"]
+            .shift(0.5, freq=freq.lower())
+            .resample(freq.lower())
+            .mean()
         )
         self.df_r["latitude"] = (
-            self.df_o[f"{instr}_latitude_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
+            self.df_o[f"{instr}_latitude_mf"]
+            .shift(0.5, freq=freq.lower())
+            .resample(freq.lower())
+            .mean()
         )
         self.df_r["longitude"] = (
-            self.df_o[f"{instr}_longitude_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
+            self.df_o[f"{instr}_longitude_mf"]
+            .shift(0.5, freq=freq.lower())
+            .resample(freq.lower())
+            .mean()
         )
         return aggregator
 
@@ -599,14 +608,14 @@ class Resampler:
         nbflash_high_counts = (
             s_nbflash_high.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
-            .resample(freq)
+            .resample(freq.lower())
             .mean()
             / flash_count_seconds
         )
         nbflash_low_counts = (
             s_nbflash_low.rolling(flash_window, step=1, min_periods=0, center=True)
             .count()
-            .resample(freq)
+            .resample(freq.lower())
             .mean()
             / flash_count_seconds
         )
@@ -698,7 +707,7 @@ class Resampler:
                     & (self.resampled_nc["time"] < max(sunrises)),
                 )
                 .to_pandas()
-                .resample(freq)
+                .resample(freq.lower())
                 .mean()
             )
             # Set negative values from hs2_fl700 to NaN
@@ -1006,15 +1015,21 @@ class Resampler:
                     variable,
                     instrs_to_pad[instr],
                 )
-                dt_index = pd.date_range(mission_start, mission_end, freq=freq)
+                dt_index = pd.date_range(mission_start, mission_end, freq=freq.lower())
                 self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
                 instr_data = (
-                    self.df_o[f"{variable}_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
+                    self.df_o[f"{variable}_mf"]
+                    .shift(0.5, freq=freq.lower())
+                    .resample(freq.lower())
+                    .mean()
                 )
                 self.df_r[variable].loc[instr_data.index] = instr_data
             else:
                 self.df_r[variable] = (
-                    self.df_o[f"{variable}_mf"].shift(0.5, freq=freq.lower()).resample(freq).mean()
+                    self.df_o[f"{variable}_mf"]
+                    .shift(0.5, freq=freq.lower())
+                    .resample(freq.lower())
+                    .mean()
                 )
         return ".mean() aggregator"
 
