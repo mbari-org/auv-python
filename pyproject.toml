@@ -21,7 +21,7 @@ dependencies = [
     "seawater>=3.3.5",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "pytest>=8.4.0",
     "pre-commit>=3.7.0",
