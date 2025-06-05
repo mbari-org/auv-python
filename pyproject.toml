@@ -25,3 +25,80 @@ dependencies = [
 dev = [
     "pytest>=8.4.0",
 ]
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+# Exclude a variety of commonly ignored directories and things in expd we don't want checked
+extend-exclude = [
+    "notebooks/*.ipynb",
+]
+
+[tool.ruff.lint]
+select = [
+  "F",
+  "E",
+  "W",
+  "C90",
+  "I",
+  "N",
+  "UP",
+  "YTT",
+  # "ANN", # flake8-annotations: we should support this in the future but 100+ errors atm
+  "ASYNC",
+  "S",
+  "BLE",
+  "FBT",
+  "B",
+  "A",
+  "COM",
+  "C4",
+  "DTZ",
+  "T10",
+  "DJ",
+  "EM",
+  "EXE",
+  "FA",
+  'ISC',
+  "ICN",
+  "G",
+  'INP',
+  'PIE',
+  "T20",
+  'PYI',
+  'PT',
+  "Q",
+  "RSE",
+  "RET",
+  "SLF",
+  "SLOT",
+  "SIM",
+  "TID",
+  "TC",
+  "INT",
+  # "ARG", # Unused function argument
+    "PTH",
+  "ERA",
+  "PD",
+  "PGH",
+  "PL",
+  "TRY",
+  "FLY",
+  # "NPY",
+  # "AIR",
+  "PERF",
+  # "FURB",
+  # "LOG",
+  "RUF",
+]
+ignore = [
+    "COM812", # Missing-trailing-comma
+    "ERA001", # Commented-out code
+    "N801", # Class name should use CapWords convention
+    "N802", # Function name should be lowercase
+    "N806", # Variable in function should be lowercase
+    "N818", # Exception name should be named with an Error suffix
+    "SLF001", # Private member accessed
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/data/dorado_info.py" = ["E501"]
