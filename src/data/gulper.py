@@ -52,7 +52,7 @@ class Gulper:
             )
         self.logger.info("Reading mission start time from %s", url)
         ds = xr.open_dataset(url)
-        return ds.time[0].values.astype("float64") / 1e9
+        return ds.time[0].to_numpy().astype("float64") / 1e9
 
     def parse_gulpers(self, sec_delay: int = 1) -> dict:  # noqa: C901, PLR0912, PLR0915
         """Parse the Gulper times and bottle numbers from the auvctd syslog file.

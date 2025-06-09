@@ -1107,8 +1107,8 @@ class Resampler:
         that end more than `min_crit` minutes earlier than the overall
         mission_end time.
         """
-        mission_start = datetime.max
-        mission_end = datetime.min
+        mission_start = datetime.max  # noqa: DTZ901
+        mission_end = datetime.min  # noqa: DTZ901
         instrs_to_pad = {}
         for instr in self.instruments_variables(nc_file):
             time_coord = f"{instr}_{TIME}"

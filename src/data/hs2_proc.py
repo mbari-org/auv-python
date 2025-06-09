@@ -30,7 +30,7 @@ def hs2_read_cal_file(cal_filename: Path):
                 category = f"Ch{int(ch_num)}"
                 channels.append(category)
             elif "=" in line:
-                name, value = [s.strip() for s in line.split("=")]
+                name, value = (s.strip() for s in line.split("="))
                 cals[category][name] = value
             elif line in ("\n", "[End]\n"):
                 pass
@@ -90,7 +90,7 @@ def _get_gains(orig_nc, cals, hs2):
 def _int_signer(ints_in):
     # -% signed_int = int_in - 65536*(int_in > 32767);
     signed_ints = []
-    for int_in in ints_in.values:
+    for int_in in ints_in.to_numpy():
         if int_in > 32767:  # noqa: PLR2004
             signed_ints.append(int_in - 65536)
         else:
