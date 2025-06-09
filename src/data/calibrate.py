@@ -591,8 +591,8 @@ def _beam_transmittance_from_volts(combined_nc, nc) -> tuple[float, float]:
     #
     # Return beam transmittance (Tr) and beam attenuation coefficient (c)
     Tr = (nc["transmissometer"] - Vd) / (Vref - Vd)
-    Tr = np.clip(Tr, 0.0, 1.0)  # Ensure Tr is between 0 and 1
-    c = -1 / 0.25 * np.log(Tr)
+    with np.errstate(invalid="ignore"):
+        c = -1 / 0.25 * np.log(Tr)
 
     return Tr, c
 
