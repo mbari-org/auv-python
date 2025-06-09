@@ -620,7 +620,7 @@ class Resampler:
             / flash_count_seconds
         )
 
-        flow = self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1S").mean().ffill()
+        flow = self.ds[["biolume_flow"]]["biolume_flow"].to_pandas().resample("1s").mean().ffill()
 
         # Flow sensor is not always on, so fill in 0.0 values with 350 ml/s
         zero_note = ""
@@ -659,7 +659,7 @@ class Resampler:
             (all_raw - med_bg_60)
             .rolling(flash_window, min_periods=0, center=True)
             .max()
-            .resample("1S")
+            .resample("1s")
             .mean()
         )
         self.logger.info(
@@ -678,7 +678,7 @@ class Resampler:
             min_periods=0,
             center=True,
         ).mean()
-        bg_biolume = pd.Series(s_min_bg, index=s_biolume_raw.index).resample("1S").mean()
+        bg_biolume = pd.Series(s_min_bg, index=s_biolume_raw.index).resample("1s").mean()
         self.logger.info("Saving Background bioluminescence (dinoflagellates proxy)")
         self.df_r["biolume_bg_biolume"] = bg_biolume.divide(flow) * 1000
         self.df_r["biolume_bg_biolume"].attrs["long_name"] = (
@@ -716,7 +716,7 @@ class Resampler:
             self.logger.info("Using proxy_cal_factor = %.6f", proxy_cal_factor)
 
             nighttime_bg_biolume = (
-                pd.Series(s_min_bg, index=nighttime_bl_raw.index).resample("1S").mean()
+                pd.Series(s_min_bg, index=nighttime_bl_raw.index).resample("1s").mean()
             )
             nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow) * 1000
             pseudo_fluorescence = nighttime_bg_biolume_perliter / proxy_ratio_adinos
