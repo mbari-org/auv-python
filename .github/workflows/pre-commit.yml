@@ -15,5 +15,5 @@ jobs:
         python-version: '3.12'
     - uses: pre-commit/action@v3.0.1
       with:
-        extra_args: ruff check --fix --exit-zero --config .pre-commit-config.yaml
+        extra_args: ruff --config pyproject.toml check .
     
