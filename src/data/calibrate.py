@@ -591,6 +591,7 @@ def _beam_transmittance_from_volts(combined_nc, nc) -> tuple[float, float]:
     #
     # Return beam transmittance (Tr) and beam attenuation coefficient (c)
     Tr = (nc["transmissometer"] - Vd) / (Vref - Vd)
+    Tr = np.clip(Tr, 0.0, 1.0)  # Ensure Tr is between 0 and 1
     c = -1 / 0.25 * np.log(Tr)
 
     return Tr, c
@@ -950,7 +951,9 @@ class Calibrate_NetCDF:
                 sensor,
             )
             try:
-                sensor_info.orig_data = xr.open_dataset(orig_netcdf_filename)
+                sensor_info.orig_data = xr.open_dataset(
+                    orig_netcdf_filename, decode_timedelta=False
+                )
             except (FileNotFoundError, ValueError) as e:
                 self.logger.debug(
                     "%-10s: Cannot open file %s: %s",
@@ -1245,7 +1248,7 @@ class Calibrate_NetCDF:
                 cal_dates[cal_date],
                 cal_date,
             )
-            if np.datetime64(cal_date) > mission_start:
+            if np.datetime64(cal_date.replace(tzinfo=None)) > mission_start:
                 self.logger.info(
                     "Breaking from loop as %s is after %s with mission_start=%s",
                     cal_dates[cal_date],
@@ -1255,7 +1258,7 @@ class Calibrate_NetCDF:
                 break
             cal_date_to_use = cal_date
 
-        if np.datetime64(cal_date_to_use) < mission_start:
+        if np.datetime64(cal_date_to_use.replace(tzinfo=None)) < mission_start:
             self.logger.info(
                 "File %s is just before %s with mission_start=%s",
                 cal_dates[cal_date_to_use],
@@ -1580,13 +1583,20 @@ class Calibrate_NetCDF:
             self.logger.info("Bypassing Nav QC depth check")
             maxGoodDepth = 1250
         else:
-            maxGoodDepth = 7 * np.median(pos_depths)
+            if pos_depths[0].size == 0:
+                self.logger.warning(
+                    "No positive depths found in %s/navigation.nc",
+                    self.args.mission,
+                )
+                maxGoodDepth = 1250
+            else:
+                maxGoodDepth = 7 * np.median(pos_depths)
+                self.logger.debug("median of positive valued depths = %s", np.median(pos_depths))
             if maxGoodDepth < 0:
                 maxGoodDepth = 100  # Fudge for the 2009.272.00 mission where median was -0.1347!
             if self.args.mission == "2010.153.01":
                 maxGoodDepth = 1250  # Fudge for 2010.153.01 where the depth was bogus, about 1.3
 
-        self.logger.debug("median of positive valued depths = %s", np.median(pos_depths))
         self.logger.debug("Finding depths less than '%s' and times > 0'", maxGoodDepth)
 
         if self.args.mission == "2010.172.01":
