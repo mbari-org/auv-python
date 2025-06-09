@@ -3,10 +3,11 @@ name = "auv-python"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+# VS Code's debugpy Cython extension handling in Python 3.13 is broken - mpm 9 June 2025
+requires-python = "==3.12.*" 
 dependencies = [
     "aiofiles>=24.1.0",
-    "aiohttp>=3.12.9",
+    "aiohttp>=3.12.11",
     "cf-xarray>=0.10.5",
     "cmocean>=4.0.3",
     "coards>=1.0.5",
@@ -21,7 +22,7 @@ dependencies = [
     "seawater>=3.3.5",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.4.0",
     "pre-commit>=3.7.0",
