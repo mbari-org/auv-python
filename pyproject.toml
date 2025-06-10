@@ -15,6 +15,7 @@ dependencies = [
     "defusedxml>=0.7.1",
     "gitpython>=3.1.44",
     "hvplot>=0.11.3",
+    "jupyter>=1.1.1",
     "netcdf4>=1.7.2",
     "numpy>=2.2.6",
     "pyproj>=3.7.1",
