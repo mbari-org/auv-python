@@ -2,6 +2,7 @@
 
 ![auv-python tests](https://github.com/mbari-org/auv-python/actions/workflows/ci.yml/badge.svg)
 
+## Background ###
 The code here is used to process the Monterey Bay Aquarium Research
 Institute's Autonomous Underwater Vehicle instrument AUV data from
 the original log files recorded by the vehicle's main vehicle
@@ -18,7 +19,7 @@ The goals of this are:
 * Able to use for any Dorado class vehicle: Gulper, i2map, mapping
 * Both ship-based local file and production MBARI network execution
 * Decouple quick-look plot generation -- this code does mainly data processing
-* Anciallary plot generation may be done in order to validate the processing
+* Ancillary plot generation may be done in order to validate the processing
 * All available metadata written to netCDF attributes, including new XML cals
 * Decouple plumbing lag settings from the code
 * Enable easy reprocessing of segments of the archive
@@ -29,61 +30,95 @@ The goals of this are:
 This [slide deck](https://docs.google.com/presentation/d/1pYqrfa3pJw4KtgGbZMKW7zjr9cESR3GjoSUNJWJh2UY/edit?usp=sharing)
 gives some background on the motivation for these goals.
 
-### How do I use this  ###
+## Use on a development workstation ###
 
-To install on a workstation:
+For installation on a development workstation several system level binary
+libraries must be installed before the Python packages can be installed. 
+On MacOS an easy way to do this is with [Mac Ports](https://www.macports.org/).
+Follow the installation instructions there and make sure that at least these packages
+are installed: uv, netcdf4, geos, proj and Python 3.12.
 
-* Install Python 3.10 on your system (Brew, Anaconda, etc)
-* On a Mac install necessary brew packages: netcdf4, geos, proj, ...
-* Install Poetry (https://python-poetry.org/docs/#installation)
-* mkdir ~/dev   # create a directory for your repositories
+### Installation ###
+Then clone this repo, install the software, and test it:   
+* mkdir ~/dev   # Create a directory for your repositories
 * cd ~/dev
-* git clone git@github.com:mbari-org/auv-python.git
+* git clone git&#xFEFF;@github.com:mbari-org/auv-python.git
 * cd auv-python
-* poetry install
+* uv sync
+* uv run pytest  # Note: local testing requires internal MBARI volume mounts
 
-The above steps need to be done just once on a system. Afterwards and whenever
-opening a new terminal execute these commands before executing the programs or
-running the Jupyter Notebooks:
+The above steps need to be done just once on a system. To execute any
+of the Python scripts in `auv-pyhton/src/data` preceed it with `uv run`, e.g. to 
+print out the usage information for each of the processing scripts:   
 
-* cd ~/dev/auv-python
-* poetry shell
+    `uv run src/data/logs2netcdfs.py --help`  
+    `uv run src/data/calibrate.py --help`  
+    `uv run src/data/align.py --help`  
+    `uv run src/data/resample.py --help`  
+    `uv run src/data/archive.py --help`  
+    `uv run src/data/process_i2map.py --help`  
+    `uv run src/data/process_dorado.py --help`  
 
-First time use with Docker on a server:
+See [WORKFLOW.md](WORKFLOW.md) for more details on the data processing workflow.
 
-    sudo -u stoqsadm -i
-    cd /opt/auv-python    # After cloning to this directory
+### Jupyter Notebooks ###
+To run the Jupyter Notebooks, start Jupyter Lab at the command line with:
 
-Create a .env file with the following contents:
+`uv run jupyter lab`  
 
-    M3_VOL=<mount_location>
-    AUVCTD_VOL=<mount_location>
-    CALIBRATION_VOL=<mount_location>
-    WORK_VOL=<auv-python_home>/data
+A browser window will open from which you can open and execute the files in
+the notebooks folder. Before commiting notebooks the outputs should be removed
+first. There are tools for doing this, but I like to manually do a "Kernel → 
+Restart Kernel and Clear Outputs of All Cells..." then "File → Save Notebook" 
+before checking the diffs (use command line `git diff`, not VS Code's diff) and
+committing to the repository. The output cells
+can contain large amount of data and it's best to not have that in the repo.
 
-Then run:
+### VS Code ###
+Develop using VS code:
+* cd auv-python
+* code .
+* Make sure that the ./.venv/bin/python interpreter is being used
+* See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more details
 
-    export DOCKER_USER_ID=$(id -u)
-    docker compose build
-    docker compose run --rm auvpython python src/data/process_i2map.py --help
+### Contributing ###
+This git workflow is recommended:
+* Fork the git﻿@github.com:mbari-org/auv-python.git repo to your GitHub account
+* Add your remote to your working directory after renaming the forked repo to `upstream`:   
+    `git remote rename origin upstream`  
+    `git remote add -f git﻿@github.com:<your_github_handle>/auv-python.git origin`   
 
-The following commands are available:
+Then use VS Code or your choice of editor to edit, test, and commit code. 
+Push changes to your remote repo on GitHub and make a Pull Request to have
+it merged into the main upstream branch.
 
-* src/data/logs2netcdfs.py --help       # 1.0 - help for first processing step
-* src/data/calibrate.py --help          # 2.0 - help for second processing step
-* src/data/align.py --help              # 3.0 - help for third processing step
-* src/data/resample.py --help           # 4.0 - help for fourth processing step
-* src/data/archive.py --help            # 5.0 - help for fifth processing step
-* src/data/process_i2map.py --help      # Process i2MAP data
-* src/data/process_dorado.py --help     # Process Dorado/Gulper data
 
-See the Jupyter Notebooks in the notebooks directory for data visualization and analysis tools that are available.
+## Use with Docker - as on a production server ###
 
-To use in VS Code, make sure that the proper poetry shell is selected with the
-Command palette command: "Python: select interpreter".
+First time use with Docker on a server using a service account:
+* sudo -u docker_user -i
+* cd /opt   # There should be an `auv-python` directory here that is writable by docker_user 
+* git clone git&#xFEFF;@github.com:mbari-org/auv-python.git
+* cd auv-python
+* Create a .env file in `/opt/auv-python` with the following contents:   
+    `M3_VOL=<mount_location>`   
+    `AUVCTD_VOL=<mount_location>`   
+    `CALIBRATION_VOL=<mount_location>`   
+    `WORK_VOL=<auv-python_home>/data`   
+
+After installation and when logging into the server again mission data can be processed thusly:
+* Setting up environment and printing help message:   
+    `sudo -u docker_user -i`  
+    `cd /opt/auv-python`     
+    `git pull`      # To get new changes, e.g. mission added to src/data/dorado_info.py   
+    `export DOCKER_USER_ID=$(id -u)`  
+    `docker compose build`   
+    `docker compose run --rm auvpython python src/data/process_i2map.py --help`   
+* To actually process a mission and have the processed data copied to the archive use the `-v` and `--clobber` options, e.g.:   
+    `docker compose run --rm auvpython python src/data/process_dorado.py --mission 2025.139.04 -v --clobber`   
+
 
 --
 
-Mike McCann
-
-18 January 2024
+Mike McCann  
+10 June 2025
