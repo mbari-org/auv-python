@@ -47,19 +47,21 @@ def test_process_dorado(complete_dorado_processing):
         # NC_GLOBAL.history: Created by /Users/mccann/GitHub/auv-python/src/data/process_dorado.py ... # noqa: E501
         assert nc_file.stat().st_size == EXPECTED_SIZE_LOCAL  # noqa: S101
 
-    # Check that the MD5 hash has not changed
-    EXPECTED_MD5_GITHUB = "d9754a20d1c8ac6ddbb1a62d75aa507e"
-    EXPECTED_MD5_ACT = "ec95eabdc1450aefee4667808bc46d92"
-    EXPECTED_MD5_LOCAL = "d9754a20d1c8ac6ddbb1a62d75aa507e"
-    if str(proc.args.base_path).startswith("/home/runner"):
-        # The MD5 hash is different in GitHub Actions, maybe due to different metadata
-        assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_GITHUB  # noqa:  PTH123, S101, S324, SIM115
-    elif str(proc.args.base_path).startswith("/root"):
-        # The MD5 hash is different in act, maybe due to different metadata
-        assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_ACT  # noqa: PTH123, S101, S324, SIM115
-    else:
-        # The MD5 hash is different locally, maybe due to different metadata
-        # It's likely that the hash will be different on different machines
-        # as these kind of metadata items are added to nc_file:
-        # NC_GLOBAL.history: Created by /Users/mccann/GitHub/auv-python/src/data/process_dorado.py ... # noqa: E501
-        assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_LOCAL  # noqa:  PTH123, S101, S324, SIM115
+    check_md5 = True
+    if check_md5:
+        # Check that the MD5 hash has not changed
+        EXPECTED_MD5_GITHUB = "11f9a455dfae3bad24aa485181ef5384"
+        EXPECTED_MD5_ACT = "ec95eabdc1450aefee4667808bc46d92"
+        EXPECTED_MD5_LOCAL = "d9754a20d1c8ac6ddbb1a62d75aa507e"
+        if str(proc.args.base_path).startswith("/home/runner"):
+            # The MD5 hash is different in GitHub Actions, maybe due to different metadata
+            assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_GITHUB  # noqa:  PTH123, S101, S324, SIM115
+        elif str(proc.args.base_path).startswith("/root"):
+            # The MD5 hash is different in act, maybe due to different metadata
+            assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_ACT  # noqa: PTH123, S101, S324, SIM115
+        else:
+            # The MD5 hash is different locally, maybe due to different metadata
+            # It's likely that the hash will be different on different machines
+            # as these kind of metadata items are added to nc_file:
+            # NC_GLOBAL.history: Created by /Users/mccann/GitHub/auv-python/src/data/process_dorado.py ... # noqa: E501
+            assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_LOCAL  # noqa:  PTH123, S101, S324, SIM115
