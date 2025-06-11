@@ -25,6 +25,7 @@ dependencies = [
     "pysolar>=0.13",
     "rolling>=0.5.0",
     "seawater>=3.3.5",
+    "statsmodels>=0.14.4",
 ]
 
 [dependency-groups]
