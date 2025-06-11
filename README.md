@@ -51,13 +51,13 @@ The above steps need to be done just once on a system. To execute any
 of the Python scripts in `auv-pyhton/src/data` preceed it with `uv run`, e.g. to 
 print out the usage information for each of the processing scripts:   
 
-    `uv run src/data/logs2netcdfs.py --help`  
-    `uv run src/data/calibrate.py --help`  
-    `uv run src/data/align.py --help`  
-    `uv run src/data/resample.py --help`  
-    `uv run src/data/archive.py --help`  
-    `uv run src/data/process_i2map.py --help`  
-    `uv run src/data/process_dorado.py --help`  
+    uv run src/data/logs2netcdfs.py --help  
+    uv run src/data/calibrate.py --help  
+    uv run src/data/align.py --help  
+    uv run src/data/resample.py --help  
+    uv run src/data/archive.py --help  
+    uv run src/data/process_i2map.py --help  
+    uv run src/data/process_dorado.py --help  
 
 See [WORKFLOW.md](WORKFLOW.md) for more details on the data processing workflow.
 
@@ -90,7 +90,8 @@ This git workflow is recommended:
 
 Then use VS Code or your choice of editor to edit, test, and commit code. 
 Push changes to your remote repo on GitHub and make a Pull Request to have
-it merged into the main upstream branch.
+it merged into the main upstream branch. It's also nice to have a GitHub Issue
+to reference in the PR, this helps provide context for the proposed changes.
 
 
 ## Use with Docker - as on a production server ###
