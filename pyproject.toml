@@ -23,6 +23,7 @@ dependencies = [
     "pyarrow>=20.0.0",
     "pyproj>=3.7.1",
     "pysolar>=0.13",
+    "rolling>=0.5.0",
     "seawater>=3.3.5",
 ]
 
