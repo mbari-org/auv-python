@@ -32,7 +32,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from getpass import getuser
 from pathlib import Path
 from socket import gethostname
@@ -661,7 +661,7 @@ class Processor:
             "--end_year",
             action="store",
             type=int,
-            default=datetime.now().astimezone(timezone.utc).year,
+            default=datetime.now().astimezone(UTC).year,
             help="End processing at this year",
         )
         parser.add_argument(

@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  pytest:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -16,37 +16,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run: poetry install
-
-      - name: Run pre-commit
-        run: poetry run pre-commit run --all-files
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.10'
-
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          version: "0.7.11"
 
       - name: Install dependencies
-        run: poetry install
+        run: uv pip install --system .
 
       - name: Set environment variables
         run: |
@@ -56,16 +34,15 @@ jobs:
       - name: Download and unzip required data files
         run: |
           mkdir -p "$HOME/auv_data"
-          # Dorado389.tar.gz contains original log files of short dorado mission for testing: 2011.256.02
           wget -q --no-check-certificate -O "$HOME/auv_data/Dorado389.tar.gz" https://stoqs.mbari.org/auv_data/Dorado389.tar.gz
           tar -xvf "$HOME/auv_data/Dorado389.tar.gz" -C "$HOME/auv_data" 2> /dev/null
-          # i2MAP.tar.gz contains original log files of i2MAP mission for testing: 2018.34.01
           wget -q --no-check-certificate -O "$HOME/auv_data/i2map.tar.gz" https://stoqs.mbari.org/auv_data/i2map.tar.gz
           tar -xf "$HOME/auv_data/i2map.tar.gz" -C "$HOME/auv_data" 2> /dev/null
-          # i2map processing needs access to calibration files on an on-premisis server, unpack a subset of it here
           wget -q --no-check-certificate -O "$HOME/auv_data/SBE-43.tar.gz" https://stoqs.mbari.org/auv_data/SBE-43.tar.gz
           tar -xf "$HOME/auv_data/SBE-43.tar.gz" -C "$HOME/auv_data" 2> /dev/null
 
+      - name: Install pytest
+        run: uv pip install --system pytest
 
       - name: Run tests
-        run: poetry run pytest
+        run: pytest

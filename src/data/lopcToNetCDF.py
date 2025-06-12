@@ -1268,7 +1268,7 @@ class LOPC_Processor:
             # function ends.  This is why assignments are made to the self.dataStructure
             # dictionary - that's how we pass information back.
 
-    def constructTimestampList(  # noqa: C901, PLR0915
+    def constructTimestampList(  # noqa: C901, PLR0915, PLR0912
         self,
         binFile,  # noqa: N803
         recCount=None,  # noqa: N803
@@ -1525,7 +1525,7 @@ class LOPC_Processor:
 
         return (float(lower + upper)) / 2
 
-    def interpolate(self, darray, i, npts, goodValueFcn, spikeValue):  # noqa: N803
+    def interpolate(self, darray, i, npts, goodValueFcn, spikeValue):  # noqa: N803, PLR0913
         """Replace `darray[i]` with linearly interpolated value found within `npts`
         of `i` that is not `spikeValue` based on function in `goodValueFcn`
 

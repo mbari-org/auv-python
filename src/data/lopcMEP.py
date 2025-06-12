@@ -129,7 +129,7 @@ class MepData:
 
         self.mepList = []
 
-    def extend(self, nL, pL, eL, lL, sL):  # noqa: N803
+    def extend(self, nL, pL, eL, lL, sL):  # noqa: N803, PLR0913
         """Extend the member list items with passed in lists"""
         self.n.extend(nL)
         self.p.extend(pL)
@@ -266,7 +266,7 @@ class MepData:
 
         return cstr
 
-    def frameToASCII(self, nL, pL, eL, lL, sL):  # noqa: N803
+    def frameToASCII(self, nL, pL, eL, lL, sL):  # noqa: N803,PLR0913
         """Convert just the passed in lists to ASCII string"""
 
         # Format used in Alex Herman papers

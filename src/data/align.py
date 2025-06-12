@@ -18,7 +18,7 @@ import re
 import sys
 import time
 from argparse import RawTextHelpFormatter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from socket import gethostname
 
@@ -26,8 +26,14 @@ import git
 import numpy as np
 import pandas as pd
 import xarray as xr
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ, AUV_NetCDF
-from numpy.core._exceptions import UFuncTypeError
+from logs2netcdfs import (
+    BASE_PATH,
+    MISSIONNETCDFS,
+    SUMMARY_SOURCE,
+    TIME,
+    TIME60HZ,
+    AUV_NetCDF,
+)
 from scipy.interpolate import interp1d
 
 
@@ -56,7 +62,7 @@ class Align_NetCDF:
                 e,
             )
             gitcommit = "<failed to get git commit>"
-        iso_now = datetime.now(timezone.utc).isoformat() + "Z"
+        iso_now = datetime.now(UTC).isoformat() + "Z"
 
         metadata = {}
         metadata["netcdf_version"] = "4"
@@ -132,8 +138,8 @@ class Align_NetCDF:
             raise InvalidCalFile(e) from e
         self.logger.info("Processing %s from %s", in_fn, netcdfs_dir)
         self.aligned_nc = xr.Dataset()
-        self.min_time = datetime.now(timezone.utc)
-        self.max_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        self.min_time = datetime.now(UTC)
+        self.max_time = datetime(1970, 1, 1, tzinfo=UTC)
         self.min_depth = np.inf
         self.max_depth = -np.inf
         self.min_lat = np.inf
@@ -226,25 +232,10 @@ class Align_NetCDF:
             # Create new DataArrays of all the variables, including "aligned"
             # (interpolated) depth, latitude, and longitude coordinates.
             # Use attributes from the calibrated data.
-            try:
-                sample_rate = np.round(
-                    1.0 / (np.mean(np.diff(self.calibrated_nc[timevar])) / np.timedelta64(1, "s")),
-                    decimals=2,
-                )
-            except UFuncTypeError as e:
-                # Seen in dorado 2008.010.10 - caused by time variable missing from lopc.nc
-                self.logger.warning("UFuncTypeError: %s", e)
-                self.logger.debug(
-                    f"type(type(self.calibrated_nc[variable].get_index(f'{instr}_time'))"  # noqa: G004
-                    f" = {type(self.calibrated_nc[variable].get_index(f'{instr}_time'))}",
-                )
-                self.logger.warning(
-                    f"{variable}: Failed to calculate sample_rate -"  # noqa: G004
-                    f" xarray wrote {instr}_time as RangeIndex rather than actual time values -"
-                    f" skipping it",
-                )
-                del self.aligned_nc[variable]
-                continue
+            sample_rate = np.round(
+                1.0 / (np.mean(np.diff(self.calibrated_nc[timevar])) / np.timedelta64(1, "s")),
+                decimals=2,
+            )
             self.aligned_nc[variable] = xr.DataArray(
                 self.calibrated_nc[variable].values,
                 dims={timevar},
@@ -312,16 +303,16 @@ class Align_NetCDF:
             # Update spatial temporal bounds for the global metadata
             # https://github.com/pydata/xarray/issues/4917#issue-809708107
             if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
-                timezone.utc,
+                UTC,
             ) < pd.to_datetime(self.min_time):
                 self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(
-                    timezone.utc,
+                    UTC,
                 )
             if pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
-                timezone.utc,
+                UTC,
             ) > pd.to_datetime(self.max_time):
                 self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
-                    timezone.utc,
+                    UTC,
                 )
             if self.aligned_nc[f"{instr}_depth"].min() < self.min_depth:
                 self.min_depth = self.aligned_nc[f"{instr}_depth"].min().to_numpy()

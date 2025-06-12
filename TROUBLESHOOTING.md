@@ -1,6 +1,8 @@
 # Troubleshooting auv-python
 
-These instructions describe how to work with this project in VS Code.
+These instructions describe how to work with this project in VS Code. Installing the dependencies with `uv sync`
+results in a `.venv` directory being added to the auv-python project directory. Make sure that your VS Code
+is using it by doing  Cmd+Shift+P → Python: Select Interpreter → choose ./.venv/bin/python.
 
 ## Process a mission and have intermediate files available for local debugging
 

@@ -767,7 +767,7 @@ class AUV_NetCDF(AUV):
 
                     self.logger.info("Rsyncing %s to %s", src_dir, logs_dir)
                     subprocess.run(  # noqa: S603
-                        ["/usr/bin/rsync", "-av", str(safe_src_dir), str(logs_dir.parent)],
+                        ["/usr/bin/rsync", "-av", str(safe_src_dir), str(logs_dir.parent)],  # noqa: S603
                         check=True,
                     )
                 else:

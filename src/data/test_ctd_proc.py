@@ -43,7 +43,7 @@ def test_oxsat(mission_data):
     #    5.710956592071382
 
     assert np.allclose(  # noqa: S101
-        oxsat.values[:5],
+        oxsat.to_numpy()[:5],
         np.array([5.74781474, 5.73779594, 5.72991797, 5.72753987, 5.72684232]),
         atol=1e-3,
     )

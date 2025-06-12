@@ -9,7 +9,7 @@ MBARI 30 March 2020
 """
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import coards
 import numpy as np
@@ -17,7 +17,7 @@ import numpy as np
 
 def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
     monotonic = []
-    last_t = 0.0 if isinstance(time_array[0], np.float64) else datetime.min
+    last_t = 0.0 if isinstance(time_array[0], np.float64) else datetime.min  # noqa: DTZ901
     for t in time_array:
         if t > last_t:
             monotonic.append(True)
@@ -29,7 +29,7 @@ def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
 
 class AUV:
     def add_global_metadata(self):
-        iso_now = datetime.now(timezone.utc).isoformat() + "Z"
+        iso_now = datetime.now(UTC).isoformat() + "Z"
 
         self.nc_file.netcdf_version = "4"
         self.nc_file.Conventions = "CF-1.6"

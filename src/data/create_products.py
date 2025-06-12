@@ -133,18 +133,18 @@ class CreateProducts:
         # distnav = cumsum(sqrt(dxFix.^2 + dyFix.^2));	% in m
         # dists = distnav / 1000; 	% in km
 
-        utm_zone = int(31 + (self.ds.cf["longitude"].values.mean() // 6))
+        utm_zone = int(31 + (self.ds.cf["longitude"].to_numpy().mean() // 6))
         MAX_LONGITUDE_VALUES = 400
-        n_subsample = 200 if len(self.ds.cf["longitude"].values) > MAX_LONGITUDE_VALUES else 1
+        n_subsample = 200 if len(self.ds.cf["longitude"].to_numpy()) > MAX_LONGITUDE_VALUES else 1
         lon_sub_intrp = np.interp(
-            self.ds.cf["time"].values.astype(np.int64),
-            self.ds.cf["time"].values[::n_subsample].astype(np.int64),
-            self.ds.cf["longitude"].values[::n_subsample],
+            self.ds.cf["time"].to_numpy().astype(np.int64),
+            self.ds.cf["time"].to_numpy()[::n_subsample].astype(np.int64),
+            self.ds.cf["longitude"].to_numpy()[::n_subsample],
         )
         lat_sub_intrp = np.interp(
-            self.ds.cf["time"].values.astype(np.int64),
-            self.ds.cf["time"].values[::n_subsample].astype(np.int64),
-            self.ds.cf["latitude"].values[::n_subsample],
+            self.ds.cf["time"].to_numpy().astype(np.int64),
+            self.ds.cf["time"].to_numpy()[::n_subsample].astype(np.int64),
+            self.ds.cf["latitude"].to_numpy()[::n_subsample],
         )
         x, y = pyproj.Proj(proj="utm", zone=utm_zone, ellps="WGS84")(
             lon_sub_intrp,
@@ -155,7 +155,7 @@ class CreateProducts:
         distnav = xr.DataArray(
             np.cumsum(np.sqrt(dx**2 + dy**2)),
             dims=("time",),
-            coords={"time": self.ds.cf["time"].values},
+            coords={"time": self.ds.cf["time"].to_numpy()},
             attrs={
                 "long_name": "distance along track",
                 "units": "m",
@@ -164,9 +164,9 @@ class CreateProducts:
 
         # Horizontal gridded to 3x the number of profiles
         idist = np.linspace(
-            distnav.values.min(),
-            distnav.values.max(),
-            3 * self.ds["profile_number"].values[-1],
+            distnav.to_numpy().min(),
+            distnav.to_numpy().max(),
+            3 * self.ds["profile_number"].to_numpy()[-1],
         )
         # Vertical gridded to .5 m
         iz = np.arange(2.0, self.ds.cf["depth"].max(), 0.5)
@@ -188,9 +188,9 @@ class CreateProducts:
 
         # Create a DataArray of depths indexed by distance
         depth_dist = xr.DataArray(
-            self.ds.cf["depth"].values,
+            self.ds.cf["depth"].to_numpy(),
             dims=("dist",),
-            coords={"dist": distnav.values / 1000.0},
+            coords={"dist": distnav.to_numpy() / 1000.0},
         )
         # Set rolling window to fraction of the total distance of the mission
         window = int(len(distnav) * window_frac)
@@ -210,10 +210,12 @@ class CreateProducts:
         scale: str = "linear",
         num_colors: int = 256,
     ):
-        var_to_plot = np.log10(self.ds[var].values) if scale == "log" else self.ds[var].values
+        var_to_plot = (
+            np.log10(self.ds[var].to_numpy()) if scale == "log" else self.ds[var].to_numpy()
+        )
         scafac = max(idist) / max(iz)
         gridded_var = griddata(
-            (distnav.values / 1000.0 / scafac, self.ds.cf["depth"].values),
+            (distnav.to_numpy() / 1000.0 / scafac, self.ds.cf["depth"].to_numpy()),
             var_to_plot,
             ((idist / scafac / 1000.0)[None, :], iz[:, None]),
             method="linear",
@@ -257,7 +259,7 @@ class CreateProducts:
         )
         # Blank out the countoured data below the bottom of the profiles
         xb = np.append(
-            profile_bottoms.get_index("dist").values,
+            profile_bottoms.get_index("dist").to_numpy(),
             [
                 ax[row, col].get_xlim()[1],
                 ax[row, col].get_xlim()[1],
@@ -266,12 +268,12 @@ class CreateProducts:
             ],
         )
         yb = np.append(
-            profile_bottoms.values,
+            profile_bottoms.to_numpy(),
             [
-                profile_bottoms.values[-1],
+                profile_bottoms.to_numpy()[-1],
                 ax[row][col].get_ylim()[0],
                 ax[row, col].get_ylim()[0],
-                profile_bottoms.values[0],
+                profile_bottoms.to_numpy()[0],
             ],
         )
         ax[row][col].fill(list(reversed(xb)), list(reversed(yb)), "w")
@@ -433,26 +435,26 @@ class CreateProducts:
                     if name == "Cruise":
                         f.write(f"{self.args.auv_name}_{self.args.mission}_{FREQ}")
                     elif name == "Station":
-                        f.write(f"{int(gulper_data['profile_number'].values.mean()):d}")
+                        f.write(f"{int(gulper_data['profile_number'].to_numpy().mean()):d}")
                     elif name == "Type":
                         f.write("B")
                     elif name == "mon/day/yr":
                         f.write(
-                            f"{gulper_data.cf['T'][0].dt.month.values:02d}/"
-                            f"{gulper_data.cf['T'][0].dt.day.values:02d}/"
-                            f"{gulper_data.cf['T'][0].dt.year.values}",
+                            f"{gulper_data.cf['T'][0].dt.month.to_numpy():02d}/"
+                            f"{gulper_data.cf['T'][0].dt.day.to_numpy():02d}/"
+                            f"{gulper_data.cf['T'][0].dt.year.to_numpy()}",
                         )
                     elif name == "hh:mm":
                         f.write(
-                            f"{gulper_data.cf['T'][0].dt.hour.values:02d}:"
-                            f"{gulper_data.cf['T'][0].dt.minute.values:02d}",
+                            f"{gulper_data.cf['T'][0].dt.hour.to_numpy():02d}:"
+                            f"{gulper_data.cf['T'][0].dt.minute.to_numpy():02d}",
                         )
                     elif name == "Lon (degrees_east)":
                         f.write(
-                            f"{gulper_data.cf['longitude'].values.mean() + 360.0:9.5f}",
+                            f"{gulper_data.cf['longitude'].to_numpy().mean() + 360.0:9.5f}",
                         )
                     elif name == "Lat (degrees_north)":
-                        f.write(f"{gulper_data.cf['latitude'].values.mean():8.5f}")
+                        f.write(f"{gulper_data.cf['latitude'].to_numpy().mean():8.5f}")
                     elif name == "Bot. Depth [m]":
                         f.write(
                             f"{float(1000):8.1f}",
@@ -462,18 +464,18 @@ class CreateProducts:
                     elif name == "QF":
                         f.write("0")  # TODO: add proper quality flag values
                     elif name == "DEPTH [m]":
-                        f.write(f"{gulper_data.cf['depth'].values.mean():6.2f}")
+                        f.write(f"{gulper_data.cf['depth'].to_numpy().mean():6.2f}")
                     elif name == "TEMPERATURE [°C]":
-                        temp = gulper_data[f"{best_ctd}_temperature"].values.mean()
+                        temp = gulper_data[f"{best_ctd}_temperature"].to_numpy().mean()
                         f.write(f"{temp:5.2f}")
                     elif name == "SALINITY [PSS78]":
-                        sal = gulper_data[f"{best_ctd}_salinity"].values.mean()
+                        sal = gulper_data[f"{best_ctd}_salinity"].to_numpy().mean()
                         f.write(f"{sal:6.3f}")
                     elif name == "Oxygen [ml/l]":
-                        f.write(f"{gulper_data['ctd1_oxygen_mll'].values.mean():5.3f}")
+                        f.write(f"{gulper_data['ctd1_oxygen_mll'].to_numpy().mean():5.3f}")
                     elif name == "NITRATE [µmol/kg]":
                         if "isus_nitrate" in gulper_data:
-                            no3 = gulper_data["isus_nitrate"].dropna(dim="time").values
+                            no3 = gulper_data["isus_nitrate"].dropna(dim="time").to_numpy()
                             if no3.any():
                                 f.write(f"{no3.mean():6.3f}")
                             else:
@@ -482,28 +484,28 @@ class CreateProducts:
                             f.write("NaN")
                     elif name == "ChlFluor [raw]":
                         if "hs2_fl700" in gulper_data:
-                            f.write(f"{gulper_data['hs2_fl700'].values.mean():11.8f}")
+                            f.write(f"{gulper_data['hs2_fl700'].to_numpy().mean():11.8f}")
                         elif "hs2_fl676" in gulper_data:
-                            f.write(f"{gulper_data['hs2_fl676'].values.mean():.8f}")
+                            f.write(f"{gulper_data['hs2_fl676'].to_numpy().mean():.8f}")
                         else:
                             f.write("NaN")
                     elif name == "bbp420 [m^{-1}]":
                         if "hs2_bb420" in gulper_data:
-                            f.write(f"{gulper_data['hs2_bb420'].values.mean():8.7f}")
+                            f.write(f"{gulper_data['hs2_bb420'].to_numpy().mean():8.7f}")
                         else:
                             f.write("NaN")
                     elif name == "bbp470 [m^{-1}]":
-                        f.write(f"{gulper_data['hs2_bb470'].values.mean():8.7f}")
+                        f.write(f"{gulper_data['hs2_bb470'].to_numpy().mean():8.7f}")
                     elif name == "bbp700 [m^{-1}]":
                         if "hs2_bb700" in gulper_data:
-                            f.write(f"{gulper_data['hs2_bb700'].values.mean():8.7f}")
+                            f.write(f"{gulper_data['hs2_bb700'].to_numpy().mean():8.7f}")
                         else:
                             f.write("NaN")
                     elif name == "bbp676 [m^{-1}]":
-                        f.write(f"{gulper_data['hs2_bb676'].values.mean():8.7f}")
+                        f.write(f"{gulper_data['hs2_bb676'].to_numpy().mean():8.7f}")
                     elif name == "PAR [V]":
                         if "ctd2_par" in gulper_data:
-                            f.write(f"{gulper_data['ctd2_par'].values.mean():6.3f}")
+                            f.write(f"{gulper_data['ctd2_par'].to_numpy().mean():6.3f}")
                         else:
                             f.write("NaN")
                     elif name == "YearDay [day]":
@@ -512,7 +514,7 @@ class CreateProducts:
                         )
                         fractional_day = float(fractional_ns) / 86400000000000.0
                         f.write(
-                            f"{gulper_data.cf['T'][0].dt.dayofyear.values + fractional_day:9.5f}",
+                            f"{gulper_data.cf['T'][0].dt.dayofyear.to_numpy() + fractional_day:9.5f}",  # noqa: E501
                         )
                     if count < len(odv_column_names) - 1:
                         f.write("\t")

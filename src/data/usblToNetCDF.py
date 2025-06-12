@@ -67,7 +67,7 @@ def processRecords(aFile, ncFile):  # noqa: N803
         se = int(items[1].split(" ")[1].split(":")[2].split(".")[0])
         us = int(items[1].split(" ")[1].split(":")[2].split(".")[1]) / 10 * 1000000  # microseconds
 
-        t = datetime.datetime(yr, mo, da, hr, mn, se, us, tzinfo=datetime.timezone.utc)
+        t = datetime.datetime(yr, mo, da, hr, mn, se, us, tzinfo=datetime.UTC)
         t = t - datetime.timedelta(hours=5)  # Try subtracking 5 hours to make local time GMT
         esec = time.mktime(t.timetuple())
         logger.debug("processRecords(): esec = %s", esec)

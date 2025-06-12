@@ -36,7 +36,7 @@ import sys
 import time
 from argparse import RawTextHelpFormatter
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from socket import gethostname
 from typing import NamedTuple
@@ -591,7 +591,8 @@ def _beam_transmittance_from_volts(combined_nc, nc) -> tuple[float, float]:
     #
     # Return beam transmittance (Tr) and beam attenuation coefficient (c)
     Tr = (nc["transmissometer"] - Vd) / (Vref - Vd)
-    c = -1 / 0.25 * np.log(Tr)
+    with np.errstate(invalid="ignore"):
+        c = -1 / 0.25 * np.log(Tr)
 
     return Tr, c
 
@@ -613,7 +614,7 @@ class Calibrate_NetCDF:
         """
         from datetime import datetime
 
-        iso_now = datetime.now(tz=timezone.utc).isoformat() + "Z"
+        iso_now = datetime.now(tz=UTC).isoformat() + "Z"
 
         metadata = {}
         metadata["netcdf_version"] = "4"
@@ -839,16 +840,16 @@ class Calibrate_NetCDF:
         # Changes over time
         if self.args.auv_name.lower().startswith("dorado"):
             self.sinfo["depth"]["sensor_offset"] = None
-            if start_datetime >= datetime(2007, 4, 30, tzinfo=timezone.utc):
+            if start_datetime >= datetime(2007, 4, 30, tzinfo=UTC):
                 # First missions with 10 Gulpers: 2007.120.00 & 2007.120.01
                 for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
                     # TODO: Verify the length of the 10-Gulper midsection
                     self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
-            if start_datetime >= datetime(2014, 9, 21, tzinfo=timezone.utc):
+            if start_datetime >= datetime(2014, 9, 21, tzinfo=UTC):
                 # First mission with 20 Gulpers: 2014.265.03
                 for instr in ("ctd1", "ctd2", "hs2", "lopc", "ecopuck", "isus"):
                     self.sinfo[instr]["sensor_offset"] = SensorOffset(4.5, 0.0)
-            if start_datetime >= datetime(2010, 6, 29, tzinfo=timezone.utc):
+            if start_datetime >= datetime(2010, 6, 29, tzinfo=UTC):
                 self.sinfo["biolume"]["flow_conversion"] = 4.49e-4 * 1e3
 
     def _range_qc_combined_nc(
@@ -933,7 +934,7 @@ class Calibrate_NetCDF:
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
         self.logger.info("Done range checking %s", instrument)
 
-    def _read_data(self, logs_dir, netcdfs_dir):  # noqa: C901
+    def _read_data(self, logs_dir, netcdfs_dir):  # noqa: C901, PLR0912
         """Read in all the instrument data into member variables named by "sensor"
         Access xarray.Dataset like: self.ctd.data, self.navigation.data, ...
         Access calibration coefficients like: self.ctd.cals.t_f0, or as a
@@ -950,7 +951,9 @@ class Calibrate_NetCDF:
                 sensor,
             )
             try:
-                sensor_info.orig_data = xr.open_dataset(orig_netcdf_filename)
+                sensor_info.orig_data = xr.open_dataset(
+                    orig_netcdf_filename, decode_timedelta=False
+                )
             except (FileNotFoundError, ValueError) as e:
                 self.logger.debug(
                     "%-10s: Cannot open file %s: %s",
@@ -1023,7 +1026,7 @@ class Calibrate_NetCDF:
                     "Sc",
                     "Da",
                 ):
-                    coeff, value = [s.strip() for s in line.split("=")]
+                    coeff, value = (s.strip() for s in line.split("="))
                     try:
                         self.logger.debug("Saving %s", line)
                         # Like in Seabird25p.cc use ?_coefs to determine which
@@ -1059,7 +1062,10 @@ class Calibrate_NetCDF:
                 error_message = "Invalid directory paths provided."
                 raise ValueError(error_message)
             result = subprocess.run(  # noqa: S603
-                shlex.split(find_cmd), capture_output=True, text=True, check=True
+                shlex.split(find_cmd),  # noqa: S603
+                capture_output=True,
+                text=True,
+                check=True,
             )
             xml_files = [x for x in result.stdout.split("\n") if x]
             if len(xml_files) == 0:
@@ -1104,7 +1110,7 @@ class Calibrate_NetCDF:
                 cal_date = datetime.strptime(
                     root.find("CalibrationDate").text,
                     "%d-%b-%y",
-                ).replace(tzinfo=timezone.utc)
+                ).replace(tzinfo=UTC)
             except ValueError as e:
                 self.logger.warning(
                     "Cannot parse CalibrationDate, %s",
@@ -1117,7 +1123,7 @@ class Calibrate_NetCDF:
                     cal_date = datetime.strptime(
                         root.find("CalibrationDate").text[:-1],
                         "%d-%b-%y",
-                    ).replace(tzinfo=timezone.utc)
+                    ).replace(tzinfo=UTC)
                 else:
                     error_message = (
                         f"Cannot parse CalibrationDate {root.find('CalibrationDate').text}"
@@ -1212,7 +1218,10 @@ class Calibrate_NetCDF:
         self.logger.info("Executing: %s ", find_cmd)
         safe_find_cmd = shlex.split(find_cmd)
         sensor_dir = subprocess.run(  # noqa: S603
-            safe_find_cmd, capture_output=True, text=True, check=True
+            safe_find_cmd,  # noqa: S603
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         self.logger.debug("%s", sensor_dir)
 
@@ -1239,7 +1248,7 @@ class Calibrate_NetCDF:
                 cal_dates[cal_date],
                 cal_date,
             )
-            if np.datetime64(cal_date) > mission_start:
+            if np.datetime64(cal_date.replace(tzinfo=None)) > mission_start:
                 self.logger.info(
                     "Breaking from loop as %s is after %s with mission_start=%s",
                     cal_dates[cal_date],
@@ -1249,7 +1258,7 @@ class Calibrate_NetCDF:
                 break
             cal_date_to_use = cal_date
 
-        if np.datetime64(cal_date_to_use) < mission_start:
+        if np.datetime64(cal_date_to_use.replace(tzinfo=None)) < mission_start:
             self.logger.info(
                 "File %s is just before %s with mission_start=%s",
                 cal_dates[cal_date_to_use],
@@ -1308,7 +1317,7 @@ class Calibrate_NetCDF:
         for child in eq1:
             try:
                 setattr(coeffs, child.tag, float(child.text))
-            except ValueError:  # noqa: PERF203
+            except ValueError:
                 setattr(coeffs, child.tag, child.text)
 
         return coeffs, cal_dates[cal_date_to_use]
@@ -1574,13 +1583,20 @@ class Calibrate_NetCDF:
             self.logger.info("Bypassing Nav QC depth check")
             maxGoodDepth = 1250
         else:
-            maxGoodDepth = 7 * np.median(pos_depths)
+            if pos_depths[0].size == 0:
+                self.logger.warning(
+                    "No positive depths found in %s/navigation.nc",
+                    self.args.mission,
+                )
+                maxGoodDepth = 1250
+            else:
+                maxGoodDepth = 7 * np.median(pos_depths)
+                self.logger.debug("median of positive valued depths = %s", np.median(pos_depths))
             if maxGoodDepth < 0:
                 maxGoodDepth = 100  # Fudge for the 2009.272.00 mission where median was -0.1347!
             if self.args.mission == "2010.153.01":
                 maxGoodDepth = 1250  # Fudge for 2010.153.01 where the depth was bogus, about 1.3
 
-        self.logger.debug("median of positive valued depths = %s", np.median(pos_depths))
         self.logger.debug("Finding depths less than '%s' and times > 0'", maxGoodDepth)
 
         if self.args.mission == "2010.172.01":
@@ -3486,7 +3502,7 @@ class Calibrate_NetCDF:
         logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
         netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
         start_datetime = datetime.strptime(".".join(name.split(".")[:2]), "%Y.%j").astimezone(
-            timezone.utc,
+            UTC,
         )
         self._define_sensor_info(start_datetime)
         self._read_data(logs_dir, netcdfs_dir)
