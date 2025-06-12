@@ -13,7 +13,7 @@ def test_process_dorado(complete_dorado_processing):
     """Test that Dorado processing runs without error"""
     # complete_processing ia a fixture from the conftest.py module;
     # it is automatically loaded by pytest.  We need this complete_processing
-    # to run withut error to trust that tthe production processing is working.
+    # to run without error to trust that the production processing is working.
     proc = complete_dorado_processing
 
     # Check that the _1S.nc file was created and is the correct size
