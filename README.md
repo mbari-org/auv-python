@@ -114,9 +114,9 @@ After installation and when logging into the server again mission data can be pr
     `git pull`      # To get new changes, e.g. mission added to src/data/dorado_info.py   
     `export DOCKER_USER_ID=$(id -u)`  
     `docker compose build`   
-    `docker compose run --rm auvpython python src/data/process_i2map.py --help`   
+    `docker compose run --rm auvpython src/data/process_i2map.py --help`   
 * To actually process a mission and have the processed data copied to the archive use the `-v` and `--clobber` options, e.g.:   
-    `docker compose run --rm auvpython python src/data/process_dorado.py --mission 2025.139.04 -v --clobber --noinput`   
+    `docker compose run --rm auvpython src/data/process_dorado.py --mission 2025.139.04 -v --clobber --noinput`   
 
 
 --
