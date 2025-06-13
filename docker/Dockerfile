@@ -1,5 +1,5 @@
 # Adapted from from https://github.com/MBARIMike/ur_l/python_docker/Dockerfile
-FROM python:3.13-slim AS python-base
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS python-base
 
 # Set DOCKER_USER_ID in shell, e.g. export DOCKER_USER_ID=$(id -u)
 ARG DOCKER_USER_ID
@@ -19,14 +19,10 @@ RUN apt-get update \
         git \
         rsync
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
 WORKDIR $PYSETUP_PATH
 
 # Copy dependency files first for better cache
-COPY ./pyproject.toml ./
-COPY ./src/pyproject.toml ./src/pyproject.toml
+COPY ./pyproject.toml ./uv.lock ./
 
 # Install Python dependencies using uv (from pyproject.toml)
 RUN uv pip install --system .
