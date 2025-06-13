@@ -11,6 +11,14 @@ from logs2netcdfs import BASE_PATH, MISSIONLOGS
 from process import Processor
 from resample import FLASH_THRESHOLD, FREQ, MF_WIDTH
 
+bootstrap_mission = """The working directory on a development machine must be bootstrapped
+with some mission data. Process the mission used for testing with:
+
+uv run src/data/process_Dorado389.py --no_cleanup --download --mission 2011.256.02 -v
+
+This uses the legacy name "Dorado389" for the vehicle - the new name is "dorado".
+"""
+
 TEST_VEHICLE = "Dorado389"
 TEST_MISSION = "2011.256.02"  # http://stoqs.mbari.org/p/DmHOaxI
 # Set TEST_VEHICLE_DIR to local path for testing
@@ -32,6 +40,8 @@ TEST_I2MAP_START_YEAR = 2018
 
 @pytest.fixture(scope="session", autouse=False)
 def mission_data():
+    if not Path(TEST_VEHICLE_DIR).exists():
+        pytest.fail(f"\n\n{bootstrap_mission}\n")
     """Load a short recent mission to have some real data to work with"""
     cal_netcdf = Calibrate_NetCDF()
     ns = Namespace()
