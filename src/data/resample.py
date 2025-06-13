@@ -1016,7 +1016,7 @@ class Resampler:
                     instrs_to_pad[instr],
                 )
                 dt_index = pd.date_range(mission_start, mission_end, freq=freq.lower())
-                self.df_r[variable] = pd.Series(np.NaN, index=dt_index)
+                self.df_r[variable] = pd.Series(np.nan, index=dt_index)
                 instr_data = (
                     self.df_o[f"{variable}_mf"]
                     .shift(0.5, freq=freq.lower())
