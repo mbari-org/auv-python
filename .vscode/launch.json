@@ -235,7 +235,7 @@
             //"args": ["-v", "1", "--mission", "2007.344.00", "--use_portal", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2009.055.05", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--mission", "2010.172.01", "--local", "--clobber", "--noinput"]
-            //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "81", "--end_yd", "84", "--clobber", "--noinput"]
+            "args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "81", "--end_yd", "84", "--no_cleanup", "--num_cores", "1", "--noinput"]
             //"args": ["-v", "1", "--mission", "2010.286.02", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2010",  "--end_year", "2010", "--start_yd", "286", "--local", "--clobber", "--noinput"]
             //"args": ["-v", "1", "--start_year", "2004",  "--end_year", "2004", "--start_yd", "167", "--clobber", "--noinput"]
@@ -262,7 +262,7 @@
             //"args": ["-v", "1", "--noinput",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "1", "--mission", "2023.285.01"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2018.079.00"]
-            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2024.317.01", "--clobber"]
+            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2024.317.01", "--clobber"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2016.090.01", "--resample", "--archive", "--flash_threshold", "3E10"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "8"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2011.256.02", "--clobber"]
@@ -270,6 +270,14 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2020.337.00", "--clobber"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.010.10"]
 
+        },
+        {
+            "name": "process_Dorado389",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/process_Dorado389.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "1", "--noinput", "--no_cleanup", "--download", "--mission", "2011.256.02"]
         },
     ]
 }

@@ -134,10 +134,13 @@ class Processor:
             self.logger.error("%s does not exist.", self.vehicle_dir)
             self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
-        if self.vehicle.lower() == "dorado":
-            year = mission.split(".")[0]
-            yearyd = "".join(mission.split(".")[:2])
-            path = Path(self.vehicle_dir, year, yearyd, mission)
+        if self.vehicle.lower() == "dorado" or self.vehicle == "Dorado389":
+            if self.args.local:
+                path = Path(self.vehicle_dir, mission)
+            else:
+                year = mission.split(".")[0]
+                yearyd = "".join(mission.split(".")[:2])
+                path = Path(self.vehicle_dir, year, yearyd, mission)
         elif self.vehicle.lower() == "i2map":
             year = int(mission.split(".")[0])
             # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
