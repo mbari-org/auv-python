@@ -39,13 +39,14 @@ Follow the installation instructions there and make sure that at least these pac
 are installed: uv, netcdf4, geos, proj and Python 3.12.
 
 ### Installation ###
-Then clone this repo, install the software, and test it:   
+Clone this repo, install the software, download sample mission, and test it:   
 * mkdir ~/dev   # Create a directory for your repositories
 * cd ~/dev
 * git clone git&#xFEFF;@github.com:mbari-org/auv-python.git
 * cd auv-python
 * uv sync
-* uv run pytest  # Note: local testing requires internal MBARI volume mounts
+* uv run src/data/process_Dorado389.py --no_cleanup --download --mission 2011.256.02 -v
+* uv run pytest  # Note: _local testing requires internal MBARI volume mounts_
 
 The above steps need to be done just once on a system. To execute any
 of the Python scripts in `auv-pyhton/src/data` preceed it with `uv run`, e.g. to 
