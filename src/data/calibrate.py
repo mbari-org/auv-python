@@ -2268,7 +2268,7 @@ class Calibrate_NetCDF:
             cal_fn = Path(logs_dir, self.sinfo["hs2"]["cal_filename"])
             cals = hs2_read_cal_file(cal_fn)
         except FileNotFoundError as e:
-            self.logger.exception("Cannot process HS2 data: %s", e)  # noqa: TRY401
+            self.logger.warning("Cannot process HS2 data: %s", e)
             return
 
         hs2 = hs2_calc_bb(orig_nc, cals)
