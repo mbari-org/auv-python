@@ -751,7 +751,7 @@ class Resampler:
         biolume_sunrises: list[datetime],  # from add_biolume_proxies
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
-        fluo_bl_threshold: float = 0.35,
+        fluo_bl_threshold: float = 0.4,
         corr_type: str = "pearson",  # "spearman" or "pearson"
         depth_threshold: float = 2.0,
         minutes_from_surface_threshold: int = 5,
