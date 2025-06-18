@@ -3524,8 +3524,8 @@ class Calibrate_NetCDF:
                     self.logger.error("Error processing %s: %s", sensor, e)  # noqa: TRY400
                 else:
                     self.logger.debug("Error processing %s: %s", sensor, e)
-            # except ValueError as e:
-            #     self.logger.error(f"Error processing {sensor}: {e}")
+            except ValueError:
+                self.logger.exception("Error processing %s", sensor)
             except KeyError as e:
                 self.logger.error("Error processing %s: missing variable %s", sensor, e)  # noqa: TRY400
 
