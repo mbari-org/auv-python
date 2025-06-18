@@ -744,14 +744,14 @@ class Resampler:
 
         return fluo, sunsets, sunrises
 
-    def correct_biolume_proxies(  # noqa: PLR0913, PLR0915
+    def correct_biolume_proxies(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         biolume_fluo: pd.Series,  # from add_biolume_proxies
         biolume_sunsets: list[datetime],  # from add_biolume_proxies
         biolume_sunrises: list[datetime],  # from add_biolume_proxies
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
-        fluo_bl_threshold: float = 0.35,  # use 0.45 for pearson corr
+        fluo_bl_threshold: float = 0.35,
         corr_type: str = "pearson",  # "spearman" or "pearson"
         depth_threshold: float = 2.0,
         minutes_from_surface_threshold: int = 5,
@@ -767,6 +767,11 @@ class Resampler:
         except KeyError:
             # We didn't add biolum proxies this round...
             return
+
+        # Save the attrs for later as the correction process will drop them
+        saved_attrs = defaultdict(list)
+        for var in variables:
+            saved_attrs[var] = self.df_r[var].attrs
 
         df_p["biolume_fluo"] = biolume_fluo
         df_p["fluoBL_corr"] = np.full_like(df_p.biolume_fluo, np.nan)
@@ -975,6 +980,13 @@ class Resampler:
                     "profile=%d skipped for proxy correction",
                     iprofil_,
                 )
+        # Copy the attrs back to self.df_r[] as they were lost in the processing
+        # Also add the fluo_bl_threshold value to the comment attribute
+        for var in saved_attrs:
+            self.df_r[var].attrs = saved_attrs[var]
+            self.df_r[var].attrs["comment"] += (
+                f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
+            )
 
     def resample_variable(  # noqa: PLR0913
         self,
