@@ -51,8 +51,8 @@ def test_process_dorado(complete_dorado_processing):
     if check_md5:
         # Check that the MD5 hash has not changed
         EXPECTED_MD5_GITHUB = "11f9a455dfae3bad24aa485181ef5384"
-        EXPECTED_MD5_ACT = "ec95eabdc1450aefee4667808bc46d92"
-        EXPECTED_MD5_LOCAL = "d9754a20d1c8ac6ddbb1a62d75aa507e"
+        EXPECTED_MD5_ACT = "bdb9473e5dedb694618f518b8cf0ca1e"
+        EXPECTED_MD5_LOCAL = "6ecb2229b00835055619e982fe9d5023"
         if str(proc.args.base_path).startswith("/home/runner"):
             # The MD5 hash is different in GitHub Actions, maybe due to different metadata
             assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_GITHUB  # noqa:  PTH123, S101, S324, SIM115

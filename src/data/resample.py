@@ -35,6 +35,7 @@ FREQ = "1S"
 PLOT_SECONDS = 300
 AUVCTD_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/auvctd"
 FLASH_THRESHOLD = 1.0e11
+DEPTH_THRESHOLD = 10.0  # meters
 
 
 class InvalidAlignFile(Exception):
@@ -431,7 +432,7 @@ class Resampler:
             self.logger.info("No sunset or sunrise found during this mission.")
         return nighttime_bl_raw, sunsets, sunrises
 
-    def add_profile(self, depth_threshold: float = 15) -> None:
+    def add_profile(self, depth_threshold: float) -> None:
         # Find depth vertices value using scipy's find_peaks algorithm
         options = {"prominence": 10, "width": 30}
         peaks_pos, _ = signal.find_peaks(self.resampled_nc["depth"], **options)
@@ -749,11 +750,11 @@ class Resampler:
         biolume_fluo: pd.Series,  # from add_biolume_proxies
         biolume_sunsets: list[datetime],  # from add_biolume_proxies
         biolume_sunrises: list[datetime],  # from add_biolume_proxies
+        depth_threshold: float,
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
         fluo_bl_threshold: float = 0.4,
         corr_type: str = "pearson",  # "spearman" or "pearson"
-        depth_threshold: float = 15.0,
         minutes_from_surface_threshold: int = 5,
     ) -> None:
         variables = [
@@ -1002,6 +1003,7 @@ class Resampler:
         mission_start: pd.Timestamp,
         mission_end: pd.Timestamp,
         instrs_to_pad: dict[str, timedelta],
+        depth_threshold: float,
     ) -> None:
         timevar = f"{instr}_{TIME}"
         if instr == "biolume" and variable == "biolume_raw":
@@ -1013,7 +1015,12 @@ class Resampler:
                 proxy_cal_factor=proxy_cal_factor,
                 proxy_ratio_adinos=proxy_ratio_adinos,
             )
-            self.correct_biolume_proxies(biolume_fluo, biolume_sunsets, biolume_sunrises)
+            self.correct_biolume_proxies(
+                biolume_fluo,
+                biolume_sunsets,
+                biolume_sunrises,
+                depth_threshold,
+            )
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
             self.df_o[f"{variable}_mf"] = (
@@ -1164,13 +1171,18 @@ class Resampler:
         )
         return mission_start, mission_end, instrs_to_pad
 
-    def resample_mission(  # noqa: C901, PLR0912, PLR0915
+    def resample_mission(  # noqa: C901, PLR0912, PLR0915, PLR0913
         self,
         nc_file: str,  # align.nc file
         mf_width: int = MF_WIDTH,
         freq: str = FREQ,
         plot_seconds: float = PLOT_SECONDS,
+        depth_threshold: float = DEPTH_THRESHOLD,
     ) -> None:
+        # Change depth_threshold here should a particular mission require it, e.g.:
+        # if "2023.192.01" in nc_file: ...
+        self.logger.info("Using depth_threshold = %.2f m", depth_threshold)
+
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
         mission_start, mission_end, instrs_to_pad = self.get_mission_start_end(nc_file)
@@ -1202,7 +1214,7 @@ class Resampler:
                 self.save_coordinates(instr, mf_width, freq, aggregator)
                 if self.args.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
-                self.add_profile()
+                self.add_profile(depth_threshold=depth_threshold)
             if instr != last_instr:
                 # Start with new dataframes for each instrument
                 self.df_o = pd.DataFrame()
@@ -1219,6 +1231,7 @@ class Resampler:
                         mission_start,
                         mission_end,
                         instrs_to_pad,
+                        depth_threshold,
                     )
                     for var in self.df_r:
                         if var not in variables:
@@ -1243,6 +1256,7 @@ class Resampler:
                         mission_start,
                         mission_end,
                         instrs_to_pad,
+                        depth_threshold,
                     )
                     self.df_r[variable].index.rename("time", inplace=True)  # noqa: PD002
                     self.resampled_nc[variable] = self.df_r[variable].to_xarray()
