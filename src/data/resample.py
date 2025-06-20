@@ -753,7 +753,7 @@ class Resampler:
         correction_threshold: int = 3,
         fluo_bl_threshold: float = 0.4,
         corr_type: str = "pearson",  # "spearman" or "pearson"
-        depth_threshold: float = 2.0,
+        depth_threshold: float = 15.0,
         minutes_from_surface_threshold: int = 5,
     ) -> None:
         variables = [
@@ -830,7 +830,7 @@ class Resampler:
         biolume_sunrises = pd.DatetimeIndex(biolume_sunrises).sort_values()
         profile_intervals = (
             df_p.groupby("profile_number")
-            .apply(lambda g: (g.index.min(), g.index.max()))  # pandas2.2.3: include_groups=False
+            .apply(lambda g: (g.index.min(), g.index.max()), include_groups=False)
             .rename("interval")
             .apply(pd.Series)
             .rename(columns={0: "start", 1: "end"})
@@ -849,6 +849,11 @@ class Resampler:
         df_p["has_sunset"] = df_p["profile_number"].map(profile_intervals["has_sunset"])
         df_p["has_sunrise"] = df_p["profile_number"].map(profile_intervals["has_sunrise"])
         df_p["has_sunevent"] = df_p["profile_number"].map(profile_intervals["has_sunevent"])
+
+        # Set all the proxies to nan and then add in the valid values in the loop below
+        self.df_r["biolume_proxy_adinos"] = np.nan
+        self.df_r["biolume_proxy_diatoms"] = np.nan
+        self.df_r["biolume_proxy_hdinos"] = np.nan
 
         # compute correlation per profil and then correct proxies
         profil = df_p.profile_number
