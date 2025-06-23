@@ -31,6 +31,7 @@ import argparse
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -1968,6 +1969,23 @@ class Calibrate_NetCDF:
                     self.args.mission,
                     "usbl.nc",
                 )
+                if not usbl_file.exists():
+                    # Copy from archive AUVCTD/missionnetcdfs/YYYY/YYYYJJJ the usbl.nc file
+                    from archive import AUVCTD_VOL
+
+                    year = self.args.mission.split(".")[0]
+                    YYYYJJJ = "".join(self.args.mission.split(".")[:2])
+                    missionnetcdfs_dir = Path(
+                        AUVCTD_VOL,
+                        MISSIONNETCDFS,
+                        year,
+                        YYYYJJJ,
+                        self.args.mission,
+                    )
+                    shutil.copyfile(
+                        Path(missionnetcdfs_dir, "usbl.nc"),
+                        usbl_file,
+                    )
                 self.logger.info(
                     "Just for the GoMx mission 2010.151.04 use data from %s "
                     "that came from the missionlogs/usbl.dat file",
