@@ -990,9 +990,10 @@ class Resampler:
         # Also add the fluo_bl_threshold value to the comment attribute
         for var in saved_attrs:
             self.df_r[var].attrs = saved_attrs[var]
-            self.df_r[var].attrs["comment"] += (
-                f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
-            )
+            if var in ["biolume_proxy_diatoms", "biolume_proxy_adinos", "biolume_proxy_hdinos"]:
+                self.df_r[var].attrs["comment"] += (
+                    f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
+                )
 
     def resample_variable(  # noqa: PLR0913
         self,
