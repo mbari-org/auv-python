@@ -87,7 +87,7 @@ This git workflow is recommended:
 * Fork the git﻿@github.com:mbari-org/auv-python.git repo to your GitHub account
 * Add your remote to your working directory after renaming the forked repo to `upstream`:   
     `git remote rename origin upstream`  
-    `git remote add -f git﻿@github.com:<your_github_handle>/auv-python.git origin`   
+    `git remote add -f origin git﻿@github.com:<your_github_handle>/auv-python.git`   
 
 Then use VS Code or your choice of editor to edit, test, and commit code. 
 Push changes to your remote repo on GitHub and make a Pull Request to have
