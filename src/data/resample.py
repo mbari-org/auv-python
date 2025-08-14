@@ -753,7 +753,7 @@ class Resampler:
         depth_threshold: float,
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
-        fluo_bl_threshold: float = 0.2,
+        fluo_bl_threshold: float = 0.4,
         corr_type: str = "pearson",  # "spearman" or "pearson"
         minutes_from_surface_threshold: int = 5,
     ) -> None:
