@@ -1,6 +1,6 @@
-## Data Workflow
+## Dorado Data Workflow
 
-The sequence of steps to process data is as follows:
+The sequence of steps to process Dorado data is as follows:
 
   logs2netcdfs.py → calibrate.py → align.py → resample.py → archive.py → plot.py
 

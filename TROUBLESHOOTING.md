@@ -14,7 +14,7 @@ and make sure that it's the only entry in "process_dorado" that is uncommented.
 
 2. From VS Code's Run and Debug panel select "process_dorado" and click the green Start Debugging play button. For data to be copied from the archive the smb://atlas.shore.mbari.org/AUVCTD share must be mounted on your computer. Primary development is done in MacOS where the local mount point is /Volumes. Archive volumes are hard-coded as literals in [src/data/process_dorado.py](https://github.com/mbari-org/auv-python/blob/fc3b58613761b295ab47907993c4d0eb0bceb197/src/data/process_dorado.py) and [src/data/process_i2map.py](https://github.com/mbari-org/auv-python/blob/fc3b58613761b295ab47907993c4d0eb0bceb197/src/data/process_i2map.py). These should be changed if you mount these volumes at a different location.
 
-3. Mission log data will copied to your `auv-python/data/auv_data/` directory into subdirectories organized by vehicle name, mission, and processing step. Data will be processed as described in [WORKFLOW.md](WORKFLOW.md). A typical mission takes about 10 minutes to process.
+3. Mission log data will copied to your `auv-python/data/auv_data/` directory into subdirectories organized by vehicle name, mission, and processing step. Data will be processed as described in [DORADO_WORKFLOW.md](DORADO_WORKFLOW.md). A typical mission takes about 10 minutes to process.
 
 4. After all of the intermediate files are created any step of the workflow may be executed and debugged in VS Code. The `.vscode\launch.json` file has several example entries that can be modified for specific debugging purposes via the menu in the Run and Debug panel.
 
