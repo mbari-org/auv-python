@@ -2,10 +2,10 @@
 
 The sequence of steps to process LRAUV data is as follows:
 
-TODO: Update this to reflect actual LRAUV Data Workflow.  It should
-      mirror the Dorado Workflow, especially the last few steps.
+TODO: Update this to reflect actual LRAUV Data Workflow. It should
+      mimimic the Dorado Workflow, especially the last few steps.
 
-  ??? → calibrate.py → align.py → resample.py → archive.py → plot.py
+  extract.py → calibrate.py → align.py → resample.py → archive.py → plot.py
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure
