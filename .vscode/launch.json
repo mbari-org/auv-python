@@ -282,5 +282,16 @@
             "console": "integratedTerminal",
             "args": ["-v", "1", "--noinput", "--no_cleanup", "--download", "--mission", "2011.256.02"]
         },
+                {
+            "name": "nc42netcdfs",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/nc42netcdfs.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "1", "--log_file", 
+            "ahi/missionlogs/2025/20250908_20250912/20250911T201546/202509112015_202509112115.nc4",
+            "--known_hash",
+            "d1235ead55023bea05e9841465d54a45dfab007a283320322e28b84438fb8a85"]
+        },
     ]
 }
