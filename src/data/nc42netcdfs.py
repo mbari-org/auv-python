@@ -29,7 +29,11 @@ SCI_PARMS = {
         {
             "name": "concentration_of_colored_dissolved_organic_matter_in_sea_water",
             "rename": "colored_dissolved_organic_matter",
-        }
+        },
+        {"name": "longitude", "rename": "longitude"},
+        {"name": "latitude", "rename": "latitude"},
+        {"name": "depth", "rename": "depth"},
+        {"name": "time", "rename": "time"},
     ],
     "Aanderaa_O2": [{"name": "mass_concentration_of_oxygen_in_sea_water", "rename": "oxygen"}],
     "CTD_NeilBrown": [
@@ -150,6 +154,16 @@ class Extract:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    def show_variable_mapping(self):
+        """Show the variable mapping."""
+        for group, parms in sorted(SCIENG_PARMS.items()):
+            print(f"Group: {group}")  # noqa: T201
+            for parm in parms:
+                name = parm.get("name", "N/A")
+                rename = parm.get("rename", "N/A")
+                print(f"  {name} -> {rename}")  # noqa: T201
+            print()  # noqa: T201
+
     def download_with_pooch(self, url, local_dir, known_hash=None):
         """Download using pooch with caching and verification."""
         downloader = pooch.HTTPDownloader(timeout=(60, 300), progressbar=True)
@@ -166,6 +180,111 @@ class Extract:
         with netCDF4.Dataset(file_path, "r") as dataset:
             return list(dataset.groups.keys())
 
+    def extract_groups_to_files_netcdf4(self, input_file, output_dir):  # noqa: C901, PLR0912
+        """Extract each group to a separate NetCDF file using netCDF4 library.
+        The xarray library fails reading the WetLabsBB2FL group from this file:
+        brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
+        with garbled data for the serial variable (using ncdump):
+            serial = "<C0>$F<C4>!{<8D>\031@<AE>7\024[<FB><BF>P<C0><D4>]\001\030" ;
+        but netCDF4 can skip over it and read the rest of the variables."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(exist_ok=True, parents=True)
+
+        with netCDF4.Dataset(input_file, "r") as src_dataset:
+            all_groups = list(src_dataset.groups.keys())
+
+            self.logger.info("Extracting data from %s", input_file)
+
+            # TODO: Read variables from the "/" (root) group.
+            # We'll save them to a file named "Universals.nc"
+
+            for group_name, group_parms in SCIENG_PARMS.items():
+                if group_name not in all_groups:
+                    self.logger.warning("Group %s not found in %s", group_name, input_file)
+                    continue
+
+                try:
+                    self.logger.info(" Group %s", group_name)
+                    src_group = src_dataset.groups[group_name]
+
+                    # Get variables to extract
+                    parms = [p["name"] for p in group_parms if "name" in p]
+                    self.logger.debug("  Variables to extract: %s", parms)
+
+                    # Check which variables actually exist in the group
+                    available_vars = list(src_group.variables.keys())
+                    vars_to_extract = [var for var in parms if var in available_vars]
+
+                    if not vars_to_extract:
+                        self.logger.warning("No requested variables found in group %s", group_name)
+                        continue
+
+                    # Create output file
+                    output_file = output_dir / f"{group_name}.nc"
+
+                    with netCDF4.Dataset(output_file, "w", format="NETCDF4") as dst_dataset:
+                        # Copy global attributes from source group
+                        for attr_name in src_group.ncattrs():
+                            dst_dataset.setncattr(attr_name, src_group.getncattr(attr_name))
+
+                        # Copy dimensions that are used by the variables we want
+                        dims_needed = set()
+                        for var_name in vars_to_extract:
+                            var = src_group.variables[var_name]
+                            dims_needed.update(var.dimensions)
+
+                        for dim_name in dims_needed:
+                            if dim_name in src_group.dimensions:
+                                src_dim = src_group.dimensions[dim_name]
+                                size = len(src_dim) if not src_dim.isunlimited() else None
+                                dst_dataset.createDimension(dim_name, size)
+
+                        # Copy coordinate variables first (if they exist)
+                        coord_vars = []
+                        for dim_name in dims_needed:
+                            if dim_name in src_group.variables:
+                                coord_vars.append(dim_name)  # noqa: PERF401
+
+                        # Copy coordinate variables
+                        for var_name in coord_vars:
+                            if var_name not in vars_to_extract:
+                                self._copy_variable(src_group, dst_dataset, var_name)
+
+                        # Copy requested variables
+                        for var_name in vars_to_extract:
+                            self._copy_variable(src_group, dst_dataset, var_name)
+
+                    self.logger.info("Extracted %s to %s", group_name, output_file)
+
+                except (FileNotFoundError, OSError, ValueError) as e:
+                    self.logger.warning("Could not extract %s: %s", group_name, e)
+                except KeyError as e:
+                    self.logger.warning("Variable %s not found in group %s", e, group_name)
+
+    def _copy_variable(self, src_group, dst_dataset, var_name):
+        """Helper method to copy a variable from source to destination."""
+        src_var = src_group.variables[var_name]
+
+        # Create variable in destination
+        dst_var = dst_dataset.createVariable(
+            var_name,
+            src_var.dtype,
+            src_var.dimensions,
+            zlib=True,  # Enable compression
+            complevel=6,
+            shuffle=True,
+            fletcher32=True,
+        )
+
+        # Copy data
+        dst_var[:] = src_var[:]
+
+        # Copy variable attributes
+        for attr_name in src_var.ncattrs():
+            dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
+
+        self.logger.debug("    Copied variable: %s", var_name)
+
     def extract_groups_to_files(self, input_file, output_dir):
         """Extract each group to a separate NetCDF file."""
         output_dir = Path(output_dir)
@@ -173,15 +292,18 @@ class Extract:
 
         all_groups = self.get_groups_netcdf4(input_file)
 
+        self.logger.info("Extracting data from %s", input_file)
         for group_name, group_parms in SCIENG_PARMS.items():
             if group_name not in all_groups:
                 self.logger.warning("Group %s not found in %s", group_name, input_file)
                 continue
             try:
+                self.logger.info(" Group %s", group_name)
                 ds = xr.open_dataset(input_file, group=group_name)
                 output_file = output_dir / f"{group_name}.nc"
                 # Output only the variables of interest
                 parms = [p["name"] for p in group_parms if "name" in p]
+                self.logger.debug("  Variables to extract: %s", parms)
                 ds = ds[parms]
                 ds.to_netcdf(path=str(output_file), format="NETCDF4")
                 ds.close()
@@ -190,6 +312,10 @@ class Extract:
                 self.logger.warning("Could not extract %s", group_name)
             except KeyError:
                 self.logger.warning("Variable %s not found in group %s", parms, group_name)
+            except TypeError:
+                self.logger.warning(
+                    "Type error processing group %s: %s", group_name, sys.exc_info()
+                )
 
     def process_command_line(self):
         examples = "Examples:" + "\n\n"
@@ -267,6 +393,13 @@ class Extract:
                 "d1235ead55023bea05e9841465d54a45dfab007a283320322e28b84438fb8a85"
             ),
         )
+        (
+            parser.add_argument(
+                "--show_variable_mapping",
+                action="store_true",
+                help="Show the variable mapping: Group/variable_names -> their_renames",
+            ),
+        )
         parser.add_argument(
             "-v",
             "--verbose",
@@ -290,8 +423,13 @@ class Extract:
 if __name__ == "__main__":
     extract = Extract()
     extract.process_command_line()
-    url = os.path.join(BASE_LRAUV_WEB, extract.args.log_file)  # noqa: PTH118
-    output_dir = Path(BASE_PATH, Path(extract.args.log_file).parent)
-    extract.logger.info("Downloading %s", url)
-    input_file = extract.download_with_pooch(url, output_dir, extract.args.known_hash)
-    extract.extract_groups_to_files(input_file, output_dir)
+    if extract.args.show_variable_mapping:
+        extract.show_variable_mapping()
+        sys.exit(0)
+    else:
+        url = os.path.join(BASE_LRAUV_WEB, extract.args.log_file)  # noqa: PTH118
+        output_dir = Path(BASE_PATH, Path(extract.args.log_file).parent)
+        extract.logger.info("Downloading %s", url)
+        input_file = extract.download_with_pooch(url, output_dir, extract.args.known_hash)
+        # extract.extract_groups_to_files(input_file, output_dir)
+        extract.extract_groups_to_files_netcdf4(input_file, output_dir)
