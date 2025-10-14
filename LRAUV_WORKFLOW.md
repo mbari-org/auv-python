@@ -2,35 +2,38 @@
 
 The sequence of steps to process LRAUV data is as follows:
 
-TODO: Update this to reflect actual LRAUV Data Workflow. It should
-      mimimic the Dorado Workflow, especially the last few steps.
-
-  extract.py → calibrate.py → align.py → resample.py → archive.py → plot.py
+  nc42netcdfs.py → combine.py → align.py → resample.py → archive.py → plot.py
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure
 on the local file system's work directory is as follows:
 
     ├── data
-    │   ├── auv_data
-    │   │   ├── <auv_name>          <- e.g.: ahi, brizo, pontus, tethys, ...
-    │   │   │   ├── missionnetcdfs  <- netCDF files
-    │   │   │   │   ├── <mission>   <- e.g.: 2025/20250107_20250123/20250107T213313/202501072133_202501080049.nc4
-    │   │   │   │   │   ├── <nc>    <- .nc files for each instrument created
-    |   |   |   |   |   |               by ...
-    │   │   │   │   │   ├── <cal>   <- .nc file with calibrated data created
-    |   |   |   |   |   |               by calibrate.py
-    │   │   │   │   │   ├── <align> <- .nc file with all measurement variables
+    │   ├── lrauv_data
+    │   │   ├── <auv_name>           <- e.g.: ahi, brizo, pontus, tethys, ...
+    │   │   │   ├── missionlogs/year/dlist_dir
+    │   │   │   │   ├── <log_dir>    <- e.g.: ahi/missionlogs/2025/20250908_20250912/20250911T201546/202509112015_202509112115.nc4
+    │   │   │   │   │   ├── <nc4>    <- .nc4 file containing original data
+    │   │   │   │   │   ├── <nc>     <- .nc files, one for each group from the .nc4 file
+    |   |   |   |   |   |                data identical to original in NETCDF4 format
+    │   │   │   │   │   ├── <_cal>   <- A single NETCDF3 .nc file containing all the
+    |   |   |   |   |   |               varibles from the .nc files along with nudged
+    |   |   |   |   |   |               latitudes and longitudes - created by combine.py
+    │   │   │   │   │   ├── <_align> <- .nc file with all measurement variables
     |   |   |   |   |   |               having associated coordinate variables
     |   |   |   |   |   |               at original instrument sampling rate -
     |   |   |   |   |   |               created by align.py
-    │   │   │   │   │   ├── <nS>    <- .nc file with all measurement variables
-                                       resampled to a common time grid at n
-                                       Second intervals - created by resample.py
+    │   │   │   │   │   ├── <_nS>    <- .nc file with all measurement variables
+                                        resampled to a common time grid at n
+                                        Second intervals - created by resample.py
 
-    ??? 
+    nc42netcdfs.py
+        Extract the groups and the variables we want from the groups into 
+        individual .nc files. These data are saved using NETCDF4 format as
+        there are many unlimited dimensions that are not allowed in NETCDF3.
+        The data in the .nc files are identical to what is in the .nc4 groups.
     
-    calibrate.py
+    combine.py
         Apply calibration coefficients to the original data. The calibrated data
         are written to a new netCDF file in the missionnetcdfs/<mission>
         directory ending with _cal.nc. This step also includes nudging the
@@ -60,6 +63,6 @@ on the local file system's work directory is as follows:
 
     archive.py
         Copy the netCDF files to the archive directory. The archive directory
-        is initally in the AUVCTD share on atlas which is shared with the
+        is initially in the AUVCTD share on atlas which is shared with the
         data from the Dorado Gulper vehicle, but can also be on the M3 share
         on thalassa near the original log data.

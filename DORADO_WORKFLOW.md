@@ -70,6 +70,6 @@ on the local file system's work directory is as follows:
 
     archive.py
         Copy the netCDF files to the archive directory. The archive directory
-        is initally in the AUVCTD share on atlas which is shared with the
+        is initially in the AUVCTD share on atlas which is shared with the
         data from the Dorado Gulper vehicle, but can also be on the M3 share
         on thalassa near the original log data.
