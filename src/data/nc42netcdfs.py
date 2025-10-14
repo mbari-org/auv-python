@@ -180,7 +180,7 @@ class Extract:
         with netCDF4.Dataset(file_path, "r") as dataset:
             return list(dataset.groups.keys())
 
-    def extract_groups_to_files_netcdf4(self, input_file, output_dir):  # noqa: C901, PLR0912
+    def extract_groups_to_files_netcdf4(self, input_file, output_dir):  # noqa: C901, PLR0912, PLR0915
         """Extract each group to a separate NetCDF file using netCDF4 library.
         The xarray library fails reading the WetLabsBB2FL group from this file:
         brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
@@ -190,13 +190,68 @@ class Extract:
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
 
+        # Read variables from the "/" (root) group and save them to a file named "Universals.nc"
+        with netCDF4.Dataset(input_file, "r") as src_dataset:
+            root_group = src_dataset
+            root_parms = SCIENG_PARMS.get("/", [])
+            if root_parms:
+                try:
+                    self.logger.info("Extracting root group '/'")
+                    # Get variables to extract
+                    parms = [p["name"] for p in root_parms if "name" in p]
+                    self.logger.debug("  Variables to extract: %s", parms)
+
+                    # Check which variables actually exist in the group
+                    available_vars = list(root_group.variables.keys())
+                    vars_to_extract = [var for var in parms if var in available_vars]
+
+                    if vars_to_extract:
+                        output_file = output_dir / "Universals.nc"
+                        # Need to use NETCDF4 as we have multiple unlimited dimensions
+                        with netCDF4.Dataset(output_file, "w", format="NETCDF4") as dst_dataset:
+                            # Copy global attributes from source group
+                            for attr_name in root_group.ncattrs():
+                                dst_dataset.setncattr(attr_name, root_group.getncattr(attr_name))
+
+                            # Copy dimensions that are used by the variables we want
+                            dims_needed = set()
+                            for var_name in vars_to_extract:
+                                var = root_group.variables[var_name]
+                                dims_needed.update(var.dimensions)
+
+                            for dim_name in dims_needed:
+                                if dim_name in root_group.dimensions:
+                                    src_dim = root_group.dimensions[dim_name]
+                                    size = len(src_dim) if not src_dim.isunlimited() else None
+                                    dst_dataset.createDimension(dim_name, size)
+
+                            # Copy coordinate variables first (if they exist)
+                            coord_vars = []
+                            for dim_name in dims_needed:
+                                if dim_name in root_group.variables:
+                                    coord_vars.append(dim_name)  # noqa: PERF401
+
+                            # Copy coordinate variables
+                            for var_name in coord_vars:
+                                if var_name not in vars_to_extract:
+                                    self._copy_variable(root_group, dst_dataset, var_name)
+
+                            # Copy requested variables
+                            for var_name in vars_to_extract:
+                                self._copy_variable(root_group, dst_dataset, var_name)
+
+                        self.logger.info("Extracted root group '/' to %s", output_file)
+                    else:
+                        self.logger.warning("No requested variables found in root group '/'")
+                except (FileNotFoundError, OSError, ValueError) as e:
+                    self.logger.warning("Could not extract root group '/': %s", e)
+                except KeyError as e:
+                    self.logger.warning("Variable %s not found in root group '/'", e)
+
         with netCDF4.Dataset(input_file, "r") as src_dataset:
             all_groups = list(src_dataset.groups.keys())
 
             self.logger.info("Extracting data from %s", input_file)
-
-            # TODO: Read variables from the "/" (root) group.
-            # We'll save them to a file named "Universals.nc"
 
             for group_name, group_parms in SCIENG_PARMS.items():
                 if group_name not in all_groups:
