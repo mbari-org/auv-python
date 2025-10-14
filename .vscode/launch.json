@@ -39,12 +39,23 @@
             "args": ["-v", "1", "-d", "0", "-i", "data/auv_data/dorado/missionlogs/2009.055.05/lopc.bin", "-n", "data/auv_data/dorado/missionnetcdfs/2009.055.05/lopc.nc", "-f", "--LargeCopepod_AIcrit", "0.3"]
         },
         {
-            "name": "1.1 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
+            "name": "1.2 - correct_log_times.py --mission 2017.284.00 --auv_name Dorado389",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/correct_log_times.py",
             "console": "integratedTerminal",
             "args": ["--auv_name", "Dorado389", "--mission", "2017.284.00", "-v", "2"]
+        },
+        {
+            "name": "1.3 - nc42netcdfs",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/nc42netcdfs.py",
+            "console": "integratedTerminal",
+            // A small log_file that has a reasonable amount of data, and known_hash to verify download
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250908_20250912/20250911T201546/202509112015_202509112115.nc4", "--known_hash", "d1235ead55023bea05e9841465d54a45dfab007a283320322e28b84438fb8a85"]
+            // Has bad latitude and longitude values
+            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
         },
         {
             "name": "2.0 - calibrate.py",
@@ -282,16 +293,6 @@
             "console": "integratedTerminal",
             "args": ["-v", "1", "--noinput", "--no_cleanup", "--download", "--mission", "2011.256.02"]
         },
-                {
-            "name": "nc42netcdfs",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/data/nc42netcdfs.py",
-            "console": "integratedTerminal",
-            "args": ["-v", "1", "--log_file", 
-            "ahi/missionlogs/2025/20250908_20250912/20250911T201546/202509112015_202509112115.nc4",
-            "--known_hash",
-            "d1235ead55023bea05e9841465d54a45dfab007a283320322e28b84438fb8a85"]
-        },
+
     ]
 }
