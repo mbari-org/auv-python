@@ -1,31 +1,29 @@
 #!/usr/bin/env python
 """
-Calibrate original data and produce NetCDF file for mission
+Combine original LRAUV data from separate .nc files and produce a single NetCDF
+file that also contains corrected (nudged) latitudes and longitudes.
 
-Read original data from netCDF files created by logs2netcdfs.py, apply
-calibration information in .cfg and .xml files associated with the
-original .log files and write out a single netCDF file with the important
-variables at original sampling intervals. Geometric alignment and plumbing lag
-corrections are also done during this step. The file will contain combined
-variables (the combined_nc member variable) and be analogous to the original
-netCDF4 files produced by MBARI's LRAUVs. Rather than using groups in netCDF-4
-the data will be written in classic netCDF-CF with a naming syntax that mimics
-the LRAUV group naming convention with the coordinates for each sensor:
+Read original data from netCDF files created by nc42netcdfs.py and write out a
+single netCDF file with the important variables at original sampling intervals.
+Geometric alignment and any plumbing lag corrections are also done during this
+step. The file will contain combined variables (the combined_nc member variable)
+and be analogous to the original netCDF4. Rather than using groups in netCDF-4
+the data will be written in classic netCDF-CF with a naming convention that is
+similar to Dorado data, with group names (without underscores) preceeding the
+variable name with an underscore:
 ```
-    <sensor>_<variable_1>
-    <sensor>_<..........>
-    <sensor>_<variable_n>
-    <sensor>_time
-    <sensor>_depth
-    <sensor>_latitude
-    <sensor>_longitude
+    <group>_<variable_1>
+    <group>_<..........>
+    <group>_<variable_n>
+    <group>_time
+    <group>_depth
+    <group>_latitude
+    <group>_longitude
 ```
-Note: The name "sensor" is used here, but it's really more aligned
-with the concept of "instrument" in SSDS parlance.
 """
 
 __author__ = "Mike McCann"
-__copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
+__copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
@@ -73,9 +71,19 @@ class Range(NamedTuple):
     max: float
 
 
-# Using lower case vehicle names, modify in _define_sensor_info() for changes over time
-# Used to reduce ERROR & WARNING log messages for expected missing sensor data
-EXPECTED_SENSORS = {
+# Using lower case vehicle names, modify in _define_sensor_info() for changes
+# over time Used to reduce ERROR & WARNING log messages for expected missing
+# sensor data. There are core data common to most all vehicles, whose groups
+# are listed in BASE_GROUPS. EXPECTED_GROUPS contains additional groups for
+# specific vehicles.
+BASE_GROUPS = {
+    "lrauv": [
+        "CTDSeabird",
+        "WetLabsBB2FL",
+    ],
+}
+
+EXPECTED_GROUPS = {
     "dorado": [
         "navigation",
         "gps",
@@ -99,7 +107,7 @@ EXPECTED_SENSORS = {
     ],
 }
 # Used in test fixture in conftetst.py
-EXPECTED_SENSORS["Dorado389"] = EXPECTED_SENSORS["dorado"]
+EXPECTED_GROUPS["Dorado389"] = EXPECTED_GROUPS["dorado"]
 
 
 def align_geom(sensor_offset, pitches):
@@ -3538,7 +3546,7 @@ class Calibrate_NetCDF:
                 if vehicle == "Dorado389":
                     # For supporting pytest & conftest.py fixture
                     short_name = "dorado"
-                if sensor in EXPECTED_SENSORS[short_name]:
+                if sensor in EXPECTED_GROUPS[short_name]:
                     self.logger.error("Error processing %s: %s", sensor, e)  # noqa: TRY400
                 else:
                     self.logger.debug("Error processing %s: %s", sensor, e)
