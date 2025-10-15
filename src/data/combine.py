@@ -25,7 +25,7 @@ variable name with an underscore:
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 
-import argparse
+import argparse  # noqa: I001
 import logging
 import os
 import shlex
@@ -39,7 +39,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from socket import gethostname
 from typing import NamedTuple
-
 import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import defusedxml.ElementTree as ET  # noqa: N817
 import matplotlib.pyplot as plt
@@ -48,19 +47,11 @@ import xarray as xr
 from scipy.interpolate import interp1d
 from seawater import eos80
 
-try:
-    import cartopy.crs as ccrs  # type: ignore  # noqa: PGH003
-    from shapely.geometry import LineString  # type: ignore  # noqa: PGH003
-except ModuleNotFoundError:
-    # cartopy is not installed, will not be able to plot maps
-    pass
-
 import pandas as pd
 import pyproj
-from AUV import monotonic_increasing_time_indices
+from AUV import monotonic_increasing_time_indices, nudge_positions
 from hs2_proc import compute_backscatter, hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ, AUV_NetCDF
-from matplotlib import patches
 from scipy import signal
 
 AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
@@ -1669,13 +1660,10 @@ class Calibrate_NetCDF:
                 },
             )
 
-    def _nudge_pos(self, max_sec_diff_at_end=10):  # noqa: C901, PLR0912, PLR0915
+    def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
         they match the surface gps positions.
         """
-        self.segment_count = None
-        self.segment_minsum = None
-
         try:
             lon = self.combined_nc["navigation_longitude"]
         except KeyError:
@@ -1685,279 +1673,22 @@ class Calibrate_NetCDF:
         lon_fix = self.combined_nc["gps_longitude"]
         lat_fix = self.combined_nc["gps_latitude"]
 
-        self.logger.info(
-            f"{'seg#':5s}  {'end_sec_diff':12s} {'end_lon_diff':12s} {'end_lat_diff':12s}"  # noqa: G004
-            f" {'len(segi)':9s} {'seg_min':>9s} {'u_drift (cm/s)':14s} {'v_drift (cm/s)':14s}"
-            f" {'start datetime of segment':>29}",
+        # Use the shared function from AUV module
+        lon_nudged, lat_nudged, segment_count, segment_minsum = nudge_positions(
+            nav_longitude=lon,
+            nav_latitude=lat,
+            gps_longitude=lon_fix,
+            gps_latitude=lat_fix,
+            logger=self.logger,
+            auv_name=self.args.auv_name,
+            mission=self.args.mission,
+            max_sec_diff_at_end=max_sec_diff_at_end,
+            create_plots=True,
         )
 
-        # Any dead reckoned points before first GPS fix - usually empty
-        # as GPS fix happens before dive
-        segi = np.where(lat.cf["T"].data < lat_fix.cf["T"].data[0])[0]
-        if lon[:][segi].any():
-            lon_nudged_array = lon[segi]
-            lat_nudged_array = lat[segi]
-            dt_nudged = lon.get_index("navigation_time")[segi]
-            self.logger.debug(
-                "Filled _nudged arrays with %d values starting at %s "
-                "which were before the first GPS fix at %s",
-                len(segi),
-                lat.get_index("navigation_time")[0],
-                lat_fix.get_index("gps_time")[0],
-            )
-        else:
-            lon_nudged_array = np.array([])
-            lat_nudged_array = np.array([])
-            dt_nudged = np.array([], dtype="datetime64[ns]")
-        if segi.any():
-            seg_min = (
-                lat.get_index("navigation_time")[segi][-1]
-                - lat.get_index("navigation_time")[segi][0]
-            ).total_seconds() / 60
-        else:
-            seg_min = 0
-        self.logger.info(
-            f"{' ':5}  {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14} {'-':>29}",  # noqa: E501, G004
-        )
-
-        seg_count = 0
-        seg_minsum = 0
-        for i in range(len(lat_fix) - 1):
-            # Segment of dead reckoned (under water) positions, each surrounded by GPS fixes
-            segi = np.where(
-                np.logical_and(
-                    lat.cf["T"].data > lat_fix.cf["T"].data[i],
-                    lat.cf["T"].data < lat_fix.cf["T"].data[i + 1],
-                ),
-            )[0]
-            if not segi.any():
-                self.logger.debug(
-                    f"No dead reckoned values found between GPS times of "  # noqa: G004
-                    f"{lat_fix.cf['T'].data[i]} and {lat_fix.cf['T'].data[i + 1]}",
-                )
-                continue
-
-            end_sec_diff = float(lat_fix.cf["T"].data[i + 1] - lat.cf["T"].data[segi[-1]]) / 1.0e9
-
-            end_lon_diff = float(lon_fix[i + 1]) - float(lon[segi[-1]])
-            end_lat_diff = float(lat_fix[i + 1]) - float(lat[segi[-1]])
-
-            # Compute approximate horizontal drift rate as a sanity check
-            try:
-                u_drift = (
-                    end_lon_diff
-                    * float(np.cos(lat_fix[i + 1] * np.pi / 180))
-                    * 60
-                    * 185300
-                    / (float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]) / 1.0e9)
-                )
-            except ZeroDivisionError:
-                u_drift = 0
-            try:
-                v_drift = (
-                    end_lat_diff
-                    * 60
-                    * 185300
-                    / (float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]) / 1.0e9)
-                )
-            except ZeroDivisionError:
-                v_drift = 0
-
-            if abs(end_lon_diff) > 1 or abs(end_lat_diff) > 1:
-                # It's a problem if we have more than 1 degree difference at the end of the segment.
-                # This is usually because the GPS fix is bad, but sometimes it's because the
-                # dead reckoned position is bad.  Or sometimes it's both as in dorado 2016.384.00.
-                # Early QC by calling _range_qc_combined_nc() can remove the bad points.
-                # Monterey Bay missions that have bad points can be added to the lists in
-                # _navigation_process() and/or _gps_process().
-                self.logger.info(
-                    f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"  # noqa: G004
-                    f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
-                    f" {u_drift:14.3f} {v_drift:14.3f} {lat.cf['T'].data[segi][-1]}",
-                )
-                self.logger.error(
-                    "End of underwater segment dead reckoned position is too different "
-                    "from GPS fix: abs(end_lon_diff) (%s) > 1 or abs(end_lat_diff) (%s) > 1",
-                    end_lon_diff,
-                    end_lat_diff,
-                )
-                self.logger.info(
-                    "Fix this error by calling _range_qc_combined_nc() in "
-                    "_navigation_process() and/or _gps_process() for %s %s",
-                    self.args.auv_name,
-                    self.args.mission,
-                )
-                error_message = (
-                    f"abs(end_lon_diff) ({end_lon_diff}) > 1 or "
-                    f"abs(end_lat_diff) ({end_lat_diff}) > 1"
-                )
-                raise ValueError(error_message)
-            if abs(end_sec_diff) > max_sec_diff_at_end:
-                # Happens in dorado 2016.348.00 because of a bad GPS fixes being removed
-                self.logger.warning(
-                    "abs(end_sec_diff) (%s) > max_sec_diff_at_end (%s)",
-                    end_sec_diff,
-                    max_sec_diff_at_end,
-                )
-                self.logger.info(
-                    "Overriding end_lon_diff (%s) and end_lat_diff (%s) by setting them to 0",
-                    end_lon_diff,
-                    end_lat_diff,
-                )
-                end_lon_diff = 0
-                end_lat_diff = 0
-
-            seg_min = float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]) / 1.0e9 / 60
-            seg_minsum += seg_min
-
-            if len(segi) > 10:  # noqa: PLR2004
-                self.logger.info(
-                    f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"  # noqa: G004
-                    f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
-                    f" {u_drift:14.3f} {v_drift:14.3f} {lat.cf['T'].data[segi][-1]}",
-                )
-
-            # Start with zero adjustment at begining and linearly ramp up to the diff at the end
-            lon_nudge = np.interp(
-                lon.cf["T"].data[segi].astype(np.int64),
-                [
-                    lon.cf["T"].data[segi].astype(np.int64)[0],
-                    lon.cf["T"].data[segi].astype(np.int64)[-1],
-                ],
-                [0, end_lon_diff],
-            )
-            lat_nudge = np.interp(
-                lat.cf["T"].data[segi].astype(np.int64),
-                [
-                    lat.cf["T"].data[segi].astype(np.int64)[0],
-                    lat.cf["T"].data[segi].astype(np.int64)[-1],
-                ],
-                [0, end_lat_diff],
-            )
-
-            # Sanity checks
-            if (
-                np.max(np.abs(lon[segi] + lon_nudge)) > 180  # noqa: PLR2004
-                or np.max(np.abs(lat[segi] + lon_nudge)) > 90  # noqa: PLR2004
-            ):
-                self.logger.warning(
-                    "Nudged coordinate is way out of reasonable range - segment %d",
-                    seg_count,
-                )
-                self.logger.warning(
-                    " max(abs(lon)) = %s",
-                    np.max(np.abs(lon[segi] + lon_nudge)),
-                )
-                self.logger.warning(
-                    " max(abs(lat)) = %s",
-                    np.max(np.abs(lat[segi] + lat_nudge)),
-                )
-
-            lon_nudged_array = np.append(lon_nudged_array, lon[segi] + lon_nudge)
-            lat_nudged_array = np.append(lat_nudged_array, lat[segi] + lat_nudge)
-            dt_nudged = np.append(dt_nudged, lon.cf["T"].data[segi])
-            seg_count += 1
-
-        # Any dead reckoned points after first GPS fix - not possible to nudge, just copy in
-        segi = np.where(lat.cf["T"].data > lat_fix.cf["T"].data[-1])[0]
-        seg_min = 0
-        if segi.any():
-            lon_nudged_array = np.append(lon_nudged_array, lon[segi])
-            lat_nudged_array = np.append(lat_nudged_array, lat[segi])
-            dt_nudged = np.append(dt_nudged, lon.cf["T"].data[segi])
-            seg_min = float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]) / 1.0e9 / 60
-
-        self.logger.info(
-            f"{seg_count + 1:4d}: {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14}",  # noqa: E501, G004
-        )
-        self.segment_count = seg_count
-        self.segment_minsum = seg_minsum
-
-        self.logger.info("Points in final series = %d", len(dt_nudged))
-
-        lon_nudged = xr.DataArray(
-            data=lon_nudged_array,
-            dims=["time"],
-            coords={"time": dt_nudged},
-            name="longitude",
-        )
-        lat_nudged = xr.DataArray(
-            data=lat_nudged_array,
-            dims=["time"],
-            coords={"time": dt_nudged},
-            name="latitude",
-        )
-        if self.args.plot:
-            fig, axes = plt.subplots(nrows=2, figsize=(18, 6))
-            axes[0].plot(lat_nudged.coords["time"].data, lat_nudged, "-")
-            axes[0].plot(lat.cf["T"].data, lat, "--")
-            axes[0].plot(lat_fix.cf["T"].data, lat_fix, "*")
-            axes[0].set_ylabel("Latitude")
-            axes[0].legend(["Nudged", "Original", "GPS Fixes"])
-            axes[1].plot(lon_nudged.coords["time"].data, lon_nudged, "-")
-            axes[1].plot(lon.cf["T"].data, lon, "--")
-            axes[1].plot(lon_fix.cf["T"].data, lon_fix, "*")
-            axes[1].set_ylabel("Longitude")
-            axes[1].legend(["Nudged", "Original", "GPS Fixes"])
-            title = "Corrected nav from _nudge_pos()"
-            fig.suptitle(title)
-            axes[0].grid()
-            axes[1].grid()
-            self.logger.debug("Pausing with plot entitled: %s. Close window to continue.", title)
-            plt.show()
-
-            gps_plot = True
-            if gps_plot:
-                try:
-                    ax = plt.axes(projection=ccrs.PlateCarree())
-                except NameError:
-                    self.logger.warning("No gps_plot, could not import cartopy")
-                    return lon_nudged, lat_nudged
-                nudged = LineString(zip(lon_nudged.to_numpy(), lat_nudged.to_numpy(), strict=False))
-                original = LineString(zip(lon.to_numpy(), lat.to_numpy(), strict=False))
-                ax.add_geometries(
-                    [nudged],
-                    crs=ccrs.PlateCarree(),
-                    edgecolor="red",
-                    facecolor="none",
-                    label="Nudged",
-                )
-                ax.add_geometries(
-                    [original],
-                    crs=ccrs.PlateCarree(),
-                    edgecolor="grey",
-                    facecolor="none",
-                    label="Original",
-                )
-                handle_gps = ax.scatter(
-                    lon_fix.to_numpy(),
-                    lat_fix.to_numpy(),
-                    color="green",
-                    label="GPS Fixes",
-                )
-                bounds = nudged.buffer(0.02).bounds
-                extent = bounds[0], bounds[2], bounds[1], bounds[3]
-                ax.set_extent(extent, crs=ccrs.PlateCarree())
-                ax.coastlines()
-                handle_nudged = patches.Rectangle((0, 0), 1, 0.1, facecolor="red")
-                handle_original = patches.Rectangle((0, 0), 1, 0.1, facecolor="gray")
-                ax.legend(
-                    [handle_nudged, handle_original, handle_gps],
-                    ["Nudged", "Original", "GPS Fixes"],
-                )
-                ax.gridlines(
-                    crs=ccrs.PlateCarree(),
-                    draw_labels=True,
-                    linewidth=1,
-                    color="gray",
-                    alpha=0.5,
-                )
-                ax.set_title(f"{self.args.auv_name} {self.args.mission}")
-                self.logger.debug(
-                    "Pausing map plot (doesn't work well in VS Code debugger)."
-                    " Close window to continue.",
-                )
-                plt.show()
+        # Store results in instance variables for compatibility
+        self.segment_count = segment_count
+        self.segment_minsum = segment_minsum
 
         return lon_nudged, lat_nudged
 
