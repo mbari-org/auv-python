@@ -60,7 +60,7 @@ print out the usage information for each of the processing scripts:
     uv run src/data/process_i2map.py --help  
     uv run src/data/process_dorado.py --help  
 
-See [WORKFLOW.md](WORKFLOW.md) for more details on the data processing workflow.
+See [DORADO_WORKFLOW.md](DORADO_WORKFLOW.md) for more details on the data processing workflow.
 
 ### Jupyter Notebooks ###
 To run the Jupyter Notebooks, start Jupyter Lab at the command line with:
