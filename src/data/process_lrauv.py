@@ -40,4 +40,4 @@ if __name__ == "__main__":
 
     proc = LRAUVProcessor(VEHICLE, LRAUV_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
-    proc.process_missions(START_YEAR)
+    proc.process_log_files()
