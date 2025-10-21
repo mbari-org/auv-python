@@ -19,10 +19,12 @@ from pathlib import Path
 
 from create_products import MISSIONIMAGES, MISSIONODVS
 from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
+from nc42netcdfs import BASE_LRAUV_PATH
 from resample import FREQ
 
 LOG_NAME = "processing.log"
 AUVCTD_VOL = "/Volumes/AUVCTD"
+LRAUV_VOL = "/Volumes/LRAUV"
 
 
 class Archiver:
@@ -169,6 +171,46 @@ class Archiver:
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
+
+    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:
+        "Copy the intermediate and resampled netCDF file(s) to the archive LRAUV location"
+        src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        dst_dir = Path(LRAUV_VOL, Path(log_file).parent)
+        try:
+            Path(dst_dir).stat()
+        except FileNotFoundError:
+            self.logger.exception("%s not found", dst_dir)
+            self.logger.info("Is %s mounted?", self.mount_dir)
+            sys.exit(1)
+        for src_file in sorted(src_dir.glob(f"{Path(log_file).stem}_Group_*.nc")):
+            dst_file = Path(dst_dir, src_file.name)
+            if self.args.clobber:
+                if dst_file.exists():
+                    self.logger.info("Removing %s", dst_file)
+                    dst_file.unlink()
+                if src_file.exists():
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+            else:
+                self.logger.info(
+                    "%-75s exists, but is not being archived because --clobber is not specified.",
+                    src_file.name,
+                )
+        for ftype in (f"{freq}.nc", "cal.nc", "align.nc"):
+            src_file = Path(src_dir, f"{Path(log_file).stem}_{ftype}")
+            dst_file = Path(dst_dir, src_file.name)
+            if self.args.clobber:
+                if dst_file.exists():
+                    self.logger.info("Removing %s", dst_file)
+                    dst_file.unlink()
+                if src_file.exists():
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+            else:
+                self.logger.info(
+                    "%-36s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
+                    src_file.name,
+                )
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(

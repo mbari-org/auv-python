@@ -299,7 +299,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/process_lrauv.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
+            //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--clobber"]
+            "args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--clobber", "--no_cleanup"]
             //"args": ["-v", "1", "--auv_name", "tethys", "--start", "20120901", "--end", "20121101", "--noinput"]
         },
 

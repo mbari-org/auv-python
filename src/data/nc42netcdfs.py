@@ -202,8 +202,8 @@ class Extract:
         netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         netcdfs_dir.mkdir(exist_ok=True, parents=True)
 
-        extract.logger.info("Downloading %s", url)
-        input_file = extract.download_with_pooch(url, netcdfs_dir, self.args.known_hash)
+        self.logger.info("Downloading %s", url)
+        input_file = self.download_with_pooch(url, netcdfs_dir)
 
         self.logger.info("Extracting data from %s", input_file)
         with netCDF4.Dataset(input_file, "r") as src_dataset:
@@ -248,7 +248,7 @@ class Extract:
         group_parms = SCIENG_PARMS[group_name]
 
         try:
-            self.logger.info(" Group %s", group_name)
+            self.logger.debug(" Group %s", group_name)
             src_group = src_dataset.groups[group_name]
 
             vars_to_extract = self._get_available_variables(src_group, group_parms)
