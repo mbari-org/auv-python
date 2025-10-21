@@ -2951,6 +2951,6 @@ dorado_info["2025.281.01"] = {
     "comment": (
         "Monterey Bay MBTS Mission - 28125G"
         " ISUS, and LISST payloads removed, biolume payload re-installed "
-        " - ctdToUse = ctd1 "
+        " - ctdToUse = ctd2 "
     ),
 }
