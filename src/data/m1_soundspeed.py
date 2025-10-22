@@ -84,6 +84,7 @@ implementation. There are two dependencies that need to be installed via pip or
 some other package manager:
     gsw
     xarray
+    netcdf4
 
 Installation:
 -------------
@@ -95,7 +96,7 @@ Installation:
 3. Activate the virtual environment:
     source venv/bin/activate
 4. Install the required packages:
-    pip install gsw xarray
+    pip install gsw xarray netcdf4
 5. Save this script as m1_soundspeed.py
 6. Run the script:
     python m1_soundspeed.py
