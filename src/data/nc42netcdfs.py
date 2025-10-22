@@ -21,7 +21,7 @@ import xarray as xr
 
 # Local directory that serves as the work area for log_files and netcdf files
 BASE_LRAUV_WEB = "https://dods.mbari.org/data/lrauv/"
-BASE_PATH = Path(__file__).parent.joinpath("../../data/lrauv_data").resolve()
+BASE_LRAUV_PATH = Path(__file__).parent.joinpath("../../data/lrauv_data").resolve()
 SUMMARY_SOURCE = "Original LRAUV data extracted from {}, group {}"
 GROUPS = ["navigation", "ctd", "ecopuck"]  # Your actual group names
 
@@ -181,23 +181,34 @@ class Extract:
         with netCDF4.Dataset(file_path, "r") as dataset:
             return list(dataset.groups.keys())
 
-    def extract_groups_to_files_netcdf4(self, input_file, output_dir):
-        """Extract each group to a separate NetCDF file using netCDF4 library.
+    def extract_groups_to_files_netcdf4(self, log_file: str) -> Path:
+        """Extract each group from .nc4 file to a separate .nc file using netCDF4 library.
 
+        Args:
+            log_file: Relative path from BASE_LRAUV_WEB to .nc4 log_file
+
+        Returns:
+            netcdfs_dir: Local directory where NetCDF files were saved
+
+        Note:
         The xarray library fails reading the WetLabsBB2FL group from this file:
         brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
         with garbled data for the serial variable (using ncdump):
             serial = "<C0>$F<C4>!{<8D>\031@<AE>7\024[<FB><BF>P<C0><D4>]\001\030" ;
         but netCDF4 can skip over it and read the rest of the variables.
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(exist_ok=True, parents=True)
+        # Download over http so that we don't need to mount smb shares
+        url = os.path.join(BASE_LRAUV_WEB, log_file)  # noqa: PTH118
+        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        netcdfs_dir.mkdir(exist_ok=True, parents=True)
+
+        self.logger.info("Downloading %s", url)
+        input_file = self.download_with_pooch(url, netcdfs_dir)
 
         self.logger.info("Extracting data from %s", input_file)
-
         with netCDF4.Dataset(input_file, "r") as src_dataset:
             # Extract root group first
-            self._extract_root_group(src_dataset, output_dir)
+            self._extract_root_group(src_dataset, log_file, netcdfs_dir)
 
             # Extract all other groups
             all_groups = list(src_dataset.groups.keys())
@@ -206,10 +217,12 @@ class Extract:
                     if group_name != "/" and group_name not in all_groups:
                         self.logger.warning("Group %s not found in %s", group_name, input_file)
                     continue
-                self._extract_single_group(src_dataset, group_name, output_dir)
+                self._extract_single_group(src_dataset, group_name, log_file, netcdfs_dir)
 
-    def _extract_root_group(self, src_dataset: netCDF4.Dataset, output_dir: Path):
-        """Extract variables from the root group to Universals.nc."""
+        return netcdfs_dir
+
+    def _extract_root_group(self, src_dataset: netCDF4.Dataset, log_file: str, output_dir: Path):
+        """Extract variables from the root group to <stem>_Group_Universals.nc."""
         root_parms = SCIENG_PARMS.get("/", [])
         if not root_parms:
             return
@@ -219,7 +232,7 @@ class Extract:
             vars_to_extract = self._get_available_variables(src_dataset, root_parms)
 
             if vars_to_extract:
-                output_file = output_dir / "Universals.nc"
+                output_file = output_dir / f"{Path(log_file).stem}_Group_Universals.nc"
                 self._create_netcdf_file(src_dataset, vars_to_extract, output_file)
                 self.logger.info("Extracted root group '/' to %s", output_file)
             else:
@@ -229,19 +242,19 @@ class Extract:
             self.logger.warning("Could not extract root group '/': %s", e)
 
     def _extract_single_group(
-        self, src_dataset: netCDF4.Dataset, group_name: str, output_dir: Path
+        self, src_dataset: netCDF4.Dataset, group_name: str, log_file: str, output_dir: Path
     ):
-        """Extract a single group to its own NetCDF file."""
+        """Extract a single group to its own NetCDF file named like <stem>_Group_<group_name>.nc."""
         group_parms = SCIENG_PARMS[group_name]
 
         try:
-            self.logger.info(" Group %s", group_name)
+            self.logger.debug(" Group %s", group_name)
             src_group = src_dataset.groups[group_name]
 
             vars_to_extract = self._get_available_variables(src_group, group_parms)
 
             if vars_to_extract:
-                output_file = output_dir / f"{group_name}.nc"
+                output_file = output_dir / f"{Path(log_file).stem}_Group_{group_name}.nc"
                 self._create_netcdf_file(src_group, vars_to_extract, output_file)
                 self.logger.info("Extracted %s to %s", group_name, output_file)
             else:
@@ -393,8 +406,11 @@ class Extract:
         parser.add_argument(
             "--base_path",
             action="store",
-            default=BASE_PATH,
-            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
+            default=BASE_LRAUV_PATH,
+            help=(
+                "Base directory for missionlogs and missionnetcdfs, "
+                "default: auv_data in repo data directory"
+            ),
         )
         parser.add_argument(
             "--title",
@@ -488,9 +504,4 @@ if __name__ == "__main__":
         extract.show_variable_mapping()
         sys.exit(0)
     else:
-        url = os.path.join(BASE_LRAUV_WEB, extract.args.log_file)  # noqa: PTH118
-        output_dir = Path(BASE_PATH, Path(extract.args.log_file).parent)
-        extract.logger.info("Downloading %s", url)
-        input_file = extract.download_with_pooch(url, output_dir, extract.args.known_hash)
-        # extract.extract_groups_to_files(input_file, output_dir)
-        extract.extract_groups_to_files_netcdf4(input_file, output_dir)
+        extract.extract_groups_to_files_netcdf4(extract.args.log_file)
