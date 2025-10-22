@@ -85,8 +85,45 @@ some other package manager:
     gsw
     xarray
 
-e.g. pip install gsw xarray
+Installation:
+-------------
+1. Create a directory to hold this script and a virtual environment:
+    mkdir m1_soundspeed
+    cd m1_soundspeed
+2. Create a virtual environment (optional but recommended):
+    python3 -m venv venv
+3. Activate the virtual environment:
+    source venv/bin/activate
+4. Install the required packages:
+    pip install gsw xarray
+5. Save this script as m1_soundspeed.py
+6. Run the script:
+    python m1_soundspeed.py
 
+Sample Output:
+==============
+python m1_soundspeed.py
+
+Most recent sound speed profile from M1 mooring
+-----------------------------------------------
+Data source: http://dods.mbari.org/opendap/data/ssdsdata/deployments/m1/202507/OS_MBARI-M1_20250724_R_TS.nc
+Title:       Hourly Gridded MBARI Mooring M1 Sea Water Temperature and Salinity Observations
+Latitude:    36.75
+Longitude:   -122.03
+Time:        2025-10-22T14:30:00 UTC
+
+ Depth (m)    Sound Speed (m/s)
+      1.00              1508.89
+     10.00              1508.96
+     20.00              1505.97
+     40.00              1501.15
+     60.00              1496.70
+     80.00              1494.31
+    100.00              1493.70
+    150.00              1490.97
+    200.00              1490.73
+    250.00              1489.76
+    300.00              1486.44
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 """  # noqa: E501
@@ -102,21 +139,22 @@ ds = xr.open_dataset(url)
 
 # Select the most recent profile by indexing the TIME dimension
 latest = ds.isel(TIME=-1)
-temp = latest["TEMP"].to_numpy.flatten()
-psal = latest["PSAL"].to_numpy.flatten()
-depth = latest["DEPTH"].to_numpy.flatten()
+temp = latest["TEMP"].to_numpy().flatten()
+psal = latest["PSAL"].to_numpy().flatten()
+depth = latest["DEPTH"].to_numpy().flatten()
 
 # Convert practical salinity to absolute salinity using lat and lon of M1
 # mooring from the index data in the dataset
-lon = ds["LONGITUDE"].to_numpy.item()
-lat = ds["LATITUDE"].to_numpy.item()
+lon = ds["LONGITUDE"].to_numpy().item()
+lat = ds["LATITUDE"].to_numpy().item()
 abs_sal = gsw.SA_from_SP(psal, depth, lon, lat)
 
 # Print out a header showing time, lat, lon and data source similar to Ferret output
-time_str = str(latest["TIME"].to_numpy)
+time_str = str(latest["TIME"].to_numpy())
 time_str = time_str.split(".")[0] + " UTC"  # Remove fractional seconds
+print()  # noqa: T201
 print("Most recent sound speed profile from M1 mooring")  # noqa: T201
-print("===============================================")  # noqa: T201
+print("-----------------------------------------------")  # noqa: T201
 print(f"Data source: {url}")  # noqa: T201
 print(f"Title:       {ds.title}")  # noqa: T201
 print(f"Latitude:    {lat:.2f}")  # noqa: T201
