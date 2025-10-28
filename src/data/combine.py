@@ -35,11 +35,10 @@ __copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 
 import argparse  # noqa: I001
 import logging
-import shutil
 import sys
 import time
 from argparse import RawTextHelpFormatter
-from datetime import UTC, datetime
+from datetime import UTC
 from pathlib import Path
 from socket import gethostname
 from typing import NamedTuple
@@ -50,9 +49,9 @@ import xarray as xr
 from scipy.interpolate import interp1d
 
 import pandas as pd
-import pyproj
 from AUV import monotonic_increasing_time_indices, nudge_positions
-from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ, AUV_NetCDF
+from logs2netcdfs import AUV_NetCDF, TIME, TIME60HZ
+from nc42netcdfs import BASE_LRAUV_PATH, GROUP
 
 AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
 
@@ -189,14 +188,14 @@ class Combine_NetCDF:
         metadata["summary"] = (
             "Observational oceanographic data obtained from an Autonomous"
             " Underwater Vehicle mission with measurements at"
-            " original sampling intervals. The data have been calibrated"
+            " original sampling intervals. The data have been processed"
             " by MBARI's auv-python software."
         )
         if self.summary_fields:
             # Should be just one item in set, but just in case join them
             metadata["summary"] += " " + ". ".join(self.summary_fields)
         metadata["comment"] = (
-            f"MBARI Dorado-class AUV data produced from original data"
+            f"MBARI Long Range AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"
             f" host {gethostname()}. Software available at"
             f" 'https://github.com/mbari-org/auv-python'"
@@ -286,304 +285,6 @@ class Combine_NetCDF:
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
         self.logger.info("Done range checking %s", instrument)
 
-    def _navigation_process(self, sensor):  # noqa: C901, PLR0912, PLR0915
-        # AUV navigation data, which comes from a process on the vehicle that
-        # integrates data from several instruments.  We use it to grab the DVL
-        # data to help determine vehicle position when it is below the surface.
-        #
-        #  Nav.depth is used to compute pressure for salinity and oxygen computations
-        #  Nav.latitude and Nav.longitude converted to degrees were added to
-        #                                 the log file at end of 2004
-        #  Nav.roll, Nav.pitch, Nav.yaw, Nav.Xpos and Nav.Ypos are extracted for
-        #                                 3-D mission visualization
-        try:
-            orig_nc = getattr(self, sensor).orig_data
-        except FileNotFoundError as e:
-            self.logger.error("%s", e)  # noqa: TRY400
-            return
-        except AttributeError:
-            error_message = (
-                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
-            )
-            raise EOFError(error_message) from None
-
-        # Remove non-monotonic times
-        self.logger.debug("Checking for non-monotonic increasing times")
-        monotonic = monotonic_increasing_time_indices(orig_nc.get_index("time"))
-        if (~monotonic).any():
-            self.logger.debug(
-                "Removing non-monotonic increasing times at indices: %s",
-                np.argwhere(~monotonic).flatten(),
-            )
-        orig_nc = orig_nc.sel(time=monotonic)
-
-        source = self.sinfo[sensor]["data_filename"]
-        coord_str = f"{sensor}_time {sensor}_depth {sensor}_latitude {sensor}_longitude"
-        vars_to_qc = []
-        # Units of these angles are radians in the original files, we want degrees
-        vars_to_qc.append("navigation_roll")
-        self.combined_nc["navigation_roll"] = xr.DataArray(
-            orig_nc["mPhi"].to_numpy() * 180 / np.pi,
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name=f"{sensor}_roll",
-        )
-        self.combined_nc["navigation_roll"].attrs = {
-            "long_name": "Vehicle roll",
-            "standard_name": "platform_roll_angle",
-            "units": "degree",
-            "coordinates": coord_str,
-            "comment": f"mPhi from {source}",
-        }
-
-        vars_to_qc.append("navigation_pitch")
-        self.combined_nc["navigation_pitch"] = xr.DataArray(
-            orig_nc["mTheta"].to_numpy() * 180 / np.pi,
-            coords=[orig_nc.get_index("time")],
-            dims={"navigation_time"},
-            name="pitch",
-        )
-        self.combined_nc["navigation_pitch"].attrs = {
-            "long_name": "Vehicle pitch",
-            "standard_name": "platform_pitch_angle",
-            "units": "degree",
-            "coordinates": coord_str,
-            "comment": f"mTheta from {source}",
-        }
-
-        vars_to_qc.append("navigation_yaw")
-        self.combined_nc["navigation_yaw"] = xr.DataArray(
-            orig_nc["mPsi"].to_numpy() * 180 / np.pi,
-            coords=[orig_nc.get_index("time")],
-            dims={"navigation_time"},
-            name="yaw",
-        )
-        self.combined_nc["navigation_yaw"].attrs = {
-            "long_name": "Vehicle yaw",
-            "standard_name": "platform_yaw_angle",
-            "units": "degree",
-            "coordinates": coord_str,
-            "comment": f"mPsi from {source}",
-        }
-
-        self.combined_nc["navigation_posx"] = xr.DataArray(
-            orig_nc["mPos_x"].to_numpy() - orig_nc["mPos_x"].to_numpy()[0],
-            coords=[orig_nc.get_index("time")],
-            dims={"navigation_time"},
-            name="posx",
-        )
-        self.combined_nc["navigation_posx"].attrs = {
-            "long_name": "Relative lateral easting",
-            "units": "m",
-            "coordinates": coord_str,
-            "comment": f"mPos_x (minus first position) from {source}",
-        }
-
-        self.combined_nc["navigation_posy"] = xr.DataArray(
-            orig_nc["mPos_y"].to_numpy() - orig_nc["mPos_y"].to_numpy()[0],
-            coords=[orig_nc.get_index("time")],
-            dims={"navigation_time"},
-            name="posy",
-        )
-        self.combined_nc["navigation_posy"].attrs = {
-            "long_name": "Relative lateral northing",
-            "units": "m",
-            "coordinates": coord_str,
-            "comment": f"mPos_y (minus first position) from {source}",
-        }
-
-        vars_to_qc.append("navigation_depth")
-        self.combined_nc["navigation_depth"] = xr.DataArray(
-            orig_nc["mDepth"].to_numpy(),
-            coords=[orig_nc.get_index("time")],
-            dims={"navigation_time"},
-            name="navigation_depth",
-        )
-        self.combined_nc["navigation_depth"].attrs = {
-            "long_name": "Depth from Nav",
-            "standard_name": "depth",
-            "units": "m",
-            "comment": f"mDepth from {source}",
-        }
-
-        self.combined_nc["navigation_mWaterSpeed"] = xr.DataArray(
-            orig_nc["mWaterSpeed"].to_numpy(),
-            coords=[orig_nc.get_index("time")],
-            dims={"navigation_time"},
-            name="navigation_mWaterSpeed",
-        )
-        self.combined_nc["navigation_mWaterSpeed"].attrs = {
-            "long_name": "Current speed based upon DVL data",
-            "standard_name": "platform_speed_wrt_sea_water",
-            "units": "m/s",
-            "comment": f"mWaterSpeed from {source}",
-        }
-
-        if "latitude" in orig_nc:
-            navlat_var = "latitude"
-        elif "latitudeNav" in orig_nc:
-            # Starting with 2022.243.00 the latitude variable name was changed
-            navlat_var = "latitudeNav"
-        else:
-            navlat_var = None  # noqa: F841
-            self.logger.debug(
-                "Likely before 2004.167.04 when latitude was added to navigation.log",
-            )
-
-        navlons = None
-        navlats = None
-        if "longitude" in orig_nc:
-            # starting with 2004.167.04 latitude & longitude were added to navigation.log
-            navlons = orig_nc["longitude"].to_numpy()
-            navlats = orig_nc["latitude"].to_numpy()
-        elif "longitudeNav" in orig_nc:
-            # Starting with 2022.243.00 the longitude variable name was changed
-            navlons = orig_nc["longitudeNav"].to_numpy()
-            navlats = orig_nc["latitudeNav"].to_numpy()
-        else:
-            # Up through 2004.112.02 we converted from Easting/Northing to lat/lon
-            # - all missions in Monterey Bay (Zone 10)
-            self.logger.info(
-                "Converting from Easting/Northing to lat/lon for mission %s",
-                self.args.mission,
-            )
-            proj = pyproj.Proj(proj="utm", zone=10, ellps="WGS84", radians=False)
-            navlons, navlats = proj(
-                orig_nc["mPos_y"].to_numpy(),
-                orig_nc["mPos_x"].to_numpy(),
-                inverse=True,
-            )
-            navlons = navlons * np.pi / 180.0
-            navlats = navlats * np.pi / 180.0
-
-        if navlons.any() and navlats.any():
-            vars_to_qc.append("navigation_latitude")
-            self.combined_nc["navigation_latitude"] = xr.DataArray(
-                navlats * 180 / np.pi,
-                coords=[orig_nc.get_index("time")],
-                dims={"navigation_time"},
-                name="latitude",
-            )
-            self.combined_nc["navigation_latitude"].attrs = {
-                "long_name": "latitude",
-                "standard_name": "latitude",
-                "units": "degrees_north",
-                "comment": f"latitude (converted from radians) from {source}",
-            }
-            vars_to_qc.append("navigation_longitude")
-            self.combined_nc["navigation_longitude"] = xr.DataArray(
-                navlons * 180 / np.pi,
-                coords=[orig_nc.get_index("time")],
-                dims={"navigation_time"},
-                name="longitude",
-            )
-            # Setting standard_name attribute here once sets it for all variables
-            self.combined_nc["navigation_longitude"].coords[f"{sensor}_time"].attrs = {
-                "standard_name": "time",
-            }
-            self.combined_nc["navigation_longitude"].attrs = {
-                "long_name": "longitude",
-                "standard_name": "longitude",
-                "units": "degrees_east",
-                "comment": f"longitude (converted from radians) from {source}",
-            }
-        else:
-            # Setting standard_name attribute here once sets it for all variables
-            self.combined_nc["navigation_depth"].coords[f"{sensor}_time"].attrs = {
-                "standard_name": "time",
-            }
-
-        # % Remove obvious outliers that later disrupt the section plots.
-        # % (First seen on mission 2008.281.03)
-        # % In case we ever use this software for the D Allan B mapping vehicle determine
-        # % the good depth range from the median of the depths
-        # % From mission 2011.250.11 we need to first eliminate the near surface values
-        # % before taking the median.
-        # pdIndx = find(Nav.depth > 1);
-        # posDepths = Nav.depth(pdIndx);
-        pos_depths = np.where(self.combined_nc["navigation_depth"].to_numpy() > 1)
-        if self.args.mission in {"2013.301.02", "2009.111.00"}:
-            self.logger.info("Bypassing Nav QC depth check")
-            maxGoodDepth = 1250
-        else:
-            if pos_depths[0].size == 0:
-                self.logger.warning(
-                    "No positive depths found in %s/navigation.nc",
-                    self.args.mission,
-                )
-                maxGoodDepth = 1250
-            else:
-                maxGoodDepth = 7 * np.median(pos_depths)
-                self.logger.debug("median of positive valued depths = %s", np.median(pos_depths))
-            if maxGoodDepth < 0:
-                maxGoodDepth = 100  # Fudge for the 2009.272.00 mission where median was -0.1347!
-            if self.args.mission == "2010.153.01":
-                maxGoodDepth = 1250  # Fudge for 2010.153.01 where the depth was bogus, about 1.3
-
-        self.logger.debug("Finding depths less than '%s' and times > 0'", maxGoodDepth)
-
-        if self.args.mission == "2010.172.01":
-            self.logger.info(
-                "Performing special QC for %s/navigation.nc",
-                self.args.mission,
-            )
-            self._range_qc_combined_nc(
-                instrument="navigation",
-                variables=vars_to_qc,
-                ranges={
-                    "navigation_depth": Range(0, 1000),
-                    "navigation_roll": Range(-180, 180),
-                    "navigation_pitch": Range(-180, 180),
-                    "navigation_yaw": Range(-360, 360),
-                    "navigation_longitude": Range(-360, 360),
-                    "navigation_latitude": Range(-90, 90),
-                },
-            )
-
-        missions_to_check = {
-            "2004.345.00",
-            "2005.240.00",
-            "2007.134.09",
-            "2010.293.00",
-            "2011.116.00",
-            "2013.227.00",
-            "2016.348.00",
-            "2017.121.00",
-            "2017.269.01",
-            "2017.297.00",
-            "2017.347.00",
-            "2017.304.00",
-            "2011.166.00",
-        }
-        if self.args.mission in missions_to_check:
-            self.logger.info(
-                "Removing points outside of Monterey Bay for %s/navigation.nc", self.args.mission
-            )
-            self._range_qc_combined_nc(
-                instrument="navigation",
-                variables=vars_to_qc,
-                ranges={
-                    "navigation_longitude": Range(-122.1, -121.7),
-                    "navigation_latitude": Range(36, 37),
-                },
-            )
-        if self.args.mission == "2010.284.00":
-            self.logger.info(
-                "Removing points outside of time range for %s/navigation.nc",
-                self.args.mission,
-            )
-            self._range_qc_combined_nc(
-                instrument="navigation",
-                variables=[v for v in self.combined_nc.variables if v.startswith(sensor)],
-                ranges={
-                    f"{sensor}_time": Range(
-                        pd.Timestamp(2010, 10, 11, 20, 0, 0),
-                        pd.Timestamp(2010, 10, 12, 3, 28, 0),
-                    ),
-                },
-            )
-
     def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
         they match the surface gps positions.
@@ -615,151 +316,6 @@ class Combine_NetCDF:
         self.segment_minsum = segment_minsum
 
         return lon_nudged, lat_nudged
-
-    def _gps_process(self, sensor):
-        try:
-            orig_nc = getattr(self, sensor).orig_data
-        except FileNotFoundError as e:
-            self.logger.exception("%s", e)  # noqa: TRY401
-            return
-        except AttributeError:
-            if self.args.mission == "2010.151.04":
-                # Gulf of Mexico mission - use data from usbl.dat file(s)
-                usbl_file = Path(
-                    self.args.base_path,
-                    self.args.auv_name,
-                    MISSIONNETCDFS,
-                    self.args.mission,
-                    "usbl.nc",
-                )
-                if not usbl_file.exists():
-                    # Copy from archive AUVCTD/missionnetcdfs/YYYY/YYYYJJJ the usbl.nc file
-                    from archive import AUVCTD_VOL
-
-                    year = self.args.mission.split(".")[0]
-                    YYYYJJJ = "".join(self.args.mission.split(".")[:2])
-                    missionnetcdfs_dir = Path(
-                        AUVCTD_VOL,
-                        MISSIONNETCDFS,
-                        year,
-                        YYYYJJJ,
-                        self.args.mission,
-                    )
-                    shutil.copyfile(
-                        Path(missionnetcdfs_dir, "usbl.nc"),
-                        usbl_file,
-                    )
-                self.logger.info(
-                    "Just for the GoMx mission 2010.151.04 use data from %s "
-                    "that came from the missionlogs/usbl.dat file",
-                    usbl_file,
-                )
-                orig_nc = xr.open_dataset(usbl_file)
-
-                # Subsample usbl so that it has similar frequency to gps data
-                # and convert to radians so that it matches the gps data
-                orig_nc = orig_nc.isel(time=slice(None, None, 10))
-                orig_nc["latitude"] = orig_nc["latitude"] * np.pi / 180.0
-                orig_nc["longitude"] = orig_nc["longitude"] * np.pi / 180.0
-            else:
-                error_message = (
-                    f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                    f" in {Path(MISSIONLOGS, self.args.mission)}"
-                )
-                raise EOFError(error_message) from None
-
-        lat = orig_nc["latitude"] * 180.0 / np.pi
-        if not lat.any():
-            error_message = f"No latitude data found in {sensor}.log"
-            raise ValueError(error_message)
-        if orig_nc["longitude"][0] > 0:
-            lon = -1 * orig_nc["longitude"] * 180.0 / np.pi
-        else:
-            lon = orig_nc["longitude"] * 180.0 / np.pi
-
-        gps_time_to_save = orig_nc.get_index("time")
-        lat_to_save = lat
-        lon_to_save = lon
-
-        source = self.sinfo[sensor]["data_filename"]
-        vars_to_qc = []
-        vars_to_qc.append("gps_latitude")
-        self.combined_nc["gps_latitude"] = xr.DataArray(
-            lat_to_save.to_numpy(),
-            coords=[gps_time_to_save],
-            dims={"gps_time"},
-            name="gps_latitude",
-        )
-        self.combined_nc["gps_latitude"].attrs = {
-            "long_name": "GPS Latitude",
-            "standard_name": "latitude",
-            "units": "degrees_north",
-            "comment": f"latitude from {source}",
-        }
-
-        vars_to_qc.append("gps_longitude")
-        self.combined_nc["gps_longitude"] = xr.DataArray(
-            lon_to_save.to_numpy(),
-            coords=[gps_time_to_save],
-            dims={"gps_time"},
-            name="gps_longitude",
-        )
-        # Setting standard_name attribute here once sets it for all variables
-        self.combined_nc["gps_longitude"].coords[f"{sensor}_time"].attrs = {
-            "standard_name": "time",
-        }
-        self.combined_nc["gps_longitude"].attrs = {
-            "long_name": "GPS Longitude",
-            "standard_name": "longitude",
-            "units": "degrees_east",
-            "comment": f"longitude from {source}",
-        }
-        if self.args.mission in {
-            "2004.345.00",
-            "2005.240.00",
-            "2007.134.09",
-            "2010.293.00",
-            "2011.116.00",
-            "2013.227.00",
-            "2016.348.00",
-            "2017.121.00",
-            "2017.269.01",
-            "2017.297.00",
-            "2017.347.00",
-            "2017.304.00",
-            "2011.166.00",
-        }:
-            self.logger.info(
-                "Removing points outside of Monterey Bay for %s/gps.nc", self.args.mission
-            )
-            self._range_qc_combined_nc(
-                instrument="gps",
-                variables=vars_to_qc,
-                ranges={
-                    "gps_latitude": Range(36, 37),
-                    "gps_longitude": Range(-122.1, -121.7),
-                },
-            )
-
-        # TODO: Put this in a separate module like match_to_gps.py or something
-        # With navigation dead reckoned positions available in self.combined_nc
-        # and the gps positions added we can now match the underwater inertial
-        # (dead reckoned) positions to the surface gps positions.
-        nudged_longitude, nudged_latitude = self._nudge_pos()
-        self.combined_nc["nudged_latitude"] = nudged_latitude
-        self.combined_nc["nudged_latitude"].attrs = {
-            "long_name": "Nudged Latitude",
-            "standard_name": "latitude",
-            "units": "degrees_north",
-            "comment": "Dead reckoned latitude nudged to GPS positions",
-        }
-        self.combined_nc["nudged_longitude"] = nudged_longitude
-        self.combined_nc["nudged_longitude"].attrs = {
-            "long_name": "Nudged Longitude",
-            "standard_name": "longitude",
-            "units": "degrees_east",
-            "comment": "Dead reckoned longitude nudged to GPS positions",
-        }
 
     def _apply_plumbing_lag(
         self,
@@ -793,10 +349,7 @@ class Combine_NetCDF:
             self.logger.error("%s", e)  # noqa: TRY400
             return
         except AttributeError:
-            error_message = (
-                f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
-            )
+            error_message = f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
             raise EOFError(error_message) from None
 
         # Remove non-monotonic times
@@ -998,12 +551,22 @@ class Combine_NetCDF:
 
         return corrected_depth
 
-    def write_netcdf(self, netcdfs_dir, vehicle: str = "", name: str = "") -> None:
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
+    def combine_groups(self):
+        log_file = self.args.log_file
+        src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        group_files = sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc"))
+        self.combined_nc = xr.Dataset()
+        for group_file in group_files:
+            self.logger.info("Found group file: %s", group_file)
+            # Make nudged_longitude, nudged_latitude = self._nudge_pos() call on when appropriate
+
+    def write_netcdf(self) -> None:
+        log_file = self.args.log_file
+        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        out_fn = Path(netcdfs_dir, f"{self.args.log_file.stem}_cal.nc")
+
         self.combined_nc.attrs = self.global_metadata()
-        out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
-        self.logger.info("Writing calibrated instrument data to %s", out_fn)
+        self.logger.info("Writing combined group data to %s", out_fn)
         if Path(out_fn).exists():
             Path(out_fn).unlink()
         self.combined_nc.to_netcdf(out_fn)
@@ -1012,43 +575,18 @@ class Combine_NetCDF:
             ", ".join(sorted(self.combined_nc.variables)),
         )
 
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
-        logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
-        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
-        start_datetime = datetime.strptime(".".join(name.split(".")[:2]), "%Y.%j").astimezone(
-            UTC,
-        )
-        self._define_sensor_info(start_datetime)
-        self._read_data(logs_dir, netcdfs_dir)
-        self.combined_nc = xr.Dataset()
-
-        for sensor in self.sinfo:
-            getattr(self, sensor).cal_align_data = xr.Dataset()
-            self.logger.debug("Processing %s %s %s", vehicle, name, sensor)
-            try:
-                self._process(sensor, logs_dir, netcdfs_dir)
-            except EOFError as e:
-                short_name = vehicle.lower()
-                if vehicle == "Dorado389":
-                    # For supporting pytest & conftest.py fixture
-                    short_name = "dorado"
-                if sensor in EXPECTED_GROUPS[short_name]:
-                    self.logger.error("Error processing %s: %s", sensor, e)  # noqa: TRY400
-                else:
-                    self.logger.debug("Error processing %s: %s", sensor, e)
-            except ValueError:
-                self.logger.exception("Error processing %s", sensor)
-            except KeyError as e:
-                self.logger.error("Error processing %s: missing variable %s", sensor, e)  # noqa: TRY400
-
         return netcdfs_dir
 
     def process_command_line(self):
         examples = "Examples:" + "\n\n"
-        examples += "  Calibrate original data for some missions:\n"
-        examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
-        examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
+        examples += "  Combine original data from Group files for an LRAUV log file:\n"
+        examples += (
+            "    "
+            + sys.argv[0]
+            + " -v --log_file brizo/missionlogs/2025/"
+            + "20250909_20250915/20250914T080941/"
+            + "202509140809_202509150109.nc4\n"
+        )
 
         parser = argparse.ArgumentParser(
             formatter_class=RawTextHelpFormatter,
@@ -1057,26 +595,18 @@ class Combine_NetCDF:
         )
 
         parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help=f"Base directory for missionlogs and missionnetcdfs, default: {BASE_PATH}",
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="Dorado389",
-            help="Dorado389 (default), i2MAP, or Multibeam",
-        )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        )
-        parser.add_argument(
             "--noinput",
             action="store_true",
             help="Execute without asking for a response, e.g. to not ask to re-download file",
+        )
+        parser.add_argument(
+            "--log_file",
+            action="store",
+            help=(
+                "Path to the log file for the mission, e.g.: "
+                "brizo/missionlogs/2025/20250903_20250909/"
+                "20250905T072042/202509050720_202509051653.nc4"
+            ),
         )
         parser.add_argument(
             "--plot",
@@ -1107,12 +637,9 @@ class Combine_NetCDF:
 
 
 if __name__ == "__main__":
-    cal_netcdf = Combine_NetCDF()
-    cal_netcdf.process_command_line()
-    cal_netcdf.calibration_dir = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
-    p_start = time.time()
-    # Set process_gps=False to skip time consuming _nudge_pos() processing
-    # netcdf_dir = cal_netcdf.process_logs(process_gps=False)
-    netcdf_dir = cal_netcdf.process_logs()
-    cal_netcdf.write_netcdf(netcdf_dir)
-    cal_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
+    combine = Combine_NetCDF()
+    combine.process_command_line()
+    start = time.time()
+    combine.combine_groups()
+    ##combine.write_netcdf()
+    combine.logger.info("Time to process: %.2f seconds", (time.time() - start))
