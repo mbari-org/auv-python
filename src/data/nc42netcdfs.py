@@ -24,6 +24,7 @@ BASE_LRAUV_WEB = "https://dods.mbari.org/data/lrauv/"
 BASE_LRAUV_PATH = Path(__file__).parent.joinpath("../../data/lrauv_data").resolve()
 SUMMARY_SOURCE = "Original LRAUV data extracted from {}, group {}"
 GROUPS = ["navigation", "ctd", "ecopuck"]  # Your actual group names
+GROUP = "Group"  # A literal in the filename to use for identifying group .nc files
 
 SCI_PARMS = {
     "/": [
@@ -222,7 +223,7 @@ class Extract:
         return netcdfs_dir
 
     def _extract_root_group(self, src_dataset: netCDF4.Dataset, log_file: str, output_dir: Path):
-        """Extract variables from the root group to <stem>_Group_Universals.nc."""
+        """Extract variables from the root group to <stem>_{GROUP}_Universals.nc."""
         root_parms = SCIENG_PARMS.get("/", [])
         if not root_parms:
             return
@@ -232,7 +233,7 @@ class Extract:
             vars_to_extract = self._get_available_variables(src_dataset, root_parms)
 
             if vars_to_extract:
-                output_file = output_dir / f"{Path(log_file).stem}_Group_Universals.nc"
+                output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Universals.nc"
                 self._create_netcdf_file(src_dataset, vars_to_extract, output_file)
                 self.logger.info("Extracted root group '/' to %s", output_file)
             else:
@@ -244,7 +245,7 @@ class Extract:
     def _extract_single_group(
         self, src_dataset: netCDF4.Dataset, group_name: str, log_file: str, output_dir: Path
     ):
-        """Extract a single group to its own NetCDF file named like <stem>_Group_<group_name>.nc."""
+        "Extract a single group to its own NetCDF file named like <stem>_{GROUP}_<group_name>.nc."
         group_parms = SCIENG_PARMS[group_name]
 
         try:
@@ -254,7 +255,7 @@ class Extract:
             vars_to_extract = self._get_available_variables(src_group, group_parms)
 
             if vars_to_extract:
-                output_file = output_dir / f"{Path(log_file).stem}_Group_{group_name}.nc"
+                output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_{group_name}.nc"
                 self._create_netcdf_file(src_group, vars_to_extract, output_file)
                 self.logger.info("Extracted %s to %s", group_name, output_file)
             else:
@@ -347,11 +348,12 @@ class Extract:
             filtered = len(mono_indices) < len(time_data)
             if filtered:
                 self.logger.info(
-                    "Time coordinate %s: filtered %d non-monotonic points (%d -> %d)",
+                    "Time coordinate %s: filtered %d non-monotonic points (%d -> %d), %.2f%%",
                     time_coord_name,
                     len(time_data) - len(mono_indices),
                     len(time_data),
                     len(mono_indices),
+                    100 * (len(time_data) - len(mono_indices)) / len(time_data),
                 )
 
             time_filters[time_coord_name] = {"indices": mono_indices, "filtered": filtered}

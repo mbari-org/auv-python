@@ -19,7 +19,7 @@ from pathlib import Path
 
 from create_products import MISSIONIMAGES, MISSIONODVS
 from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
-from nc42netcdfs import BASE_LRAUV_PATH
+from nc42netcdfs import BASE_LRAUV_PATH, GROUP
 from resample import FREQ
 
 LOG_NAME = "processing.log"
@@ -182,7 +182,7 @@ class Archiver:
             self.logger.exception("%s not found", dst_dir)
             self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
-        for src_file in sorted(src_dir.glob(f"{Path(log_file).stem}_Group_*.nc")):
+        for src_file in sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc")):
             dst_file = Path(dst_dir, src_file.name)
             if self.args.clobber:
                 if dst_file.exists():
