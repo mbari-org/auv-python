@@ -17,15 +17,17 @@ import struct
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 
 import aiofiles
+import coards
 import numpy as np
 import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
-from AUV import AUV, monotonic_increasing_time_indices
+from AUV import monotonic_increasing_time_indices
 from netCDF4 import Dataset
 from readauvlog import log_record
 
@@ -57,7 +59,7 @@ class CustomException(Exception):
     pass
 
 
-class AUV_NetCDF(AUV):
+class AUV_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _formatter = logging.Formatter(
@@ -661,6 +663,27 @@ class AUV_NetCDF(AUV):
 
         self.nc_file.close()
         self.logger.info("Wrote (without bad values) %s", netcdf_filename)
+
+    def add_global_metadata(self):
+        iso_now = datetime.now(UTC).isoformat() + "Z"
+
+        self.nc_file.netcdf_version = "4"
+        self.nc_file.Conventions = "CF-1.6"
+        self.nc_file.date_created = iso_now
+        self.nc_file.date_update = iso_now
+        self.nc_file.date_modified = iso_now
+        self.nc_file.featureType = "trajectory"
+
+        self.nc_file.comment = ""
+
+        self.nc_file.time_coverage_start = (
+            coards.from_udunits(self.time[0], self.time.units).isoformat() + "Z"
+        )
+        self.nc_file.time_coverage_end = (
+            coards.from_udunits(self.time[-1], self.time.units).isoformat() + "Z"
+        )
+
+        self.nc_file.distribution_statement = "Any use requires prior approval from MBARI"
 
     def _process_log_file(self, log_filename, netcdf_filename, src_dir=None):
         log_data = self.read(log_filename)

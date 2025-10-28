@@ -9,9 +9,8 @@ MBARI 30 March 2020
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
-import coards
 import numpy as np
 import xarray as xr
 
@@ -26,29 +25,6 @@ def monotonic_increasing_time_indices(time_array: np.array) -> np.ndarray:
         else:
             monotonic.append(False)
     return np.array(monotonic)
-
-
-class AUV:
-    def add_global_metadata(self):
-        iso_now = datetime.now(UTC).isoformat() + "Z"
-
-        self.nc_file.netcdf_version = "4"
-        self.nc_file.Conventions = "CF-1.6"
-        self.nc_file.date_created = iso_now
-        self.nc_file.date_update = iso_now
-        self.nc_file.date_modified = iso_now
-        self.nc_file.featureType = "trajectory"
-
-        self.nc_file.comment = ""
-
-        self.nc_file.time_coverage_start = (
-            coards.from_udunits(self.time[0], self.time.units).isoformat() + "Z"
-        )
-        self.nc_file.time_coverage_end = (
-            coards.from_udunits(self.time[-1], self.time.units).isoformat() + "Z"
-        )
-
-        self.nc_file.distribution_statement = "Any use requires prior approval from MBARI"
 
 
 def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
