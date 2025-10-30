@@ -705,42 +705,6 @@ class Extract:
             description=__doc__,
             epilog=examples,
         )
-
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_LRAUV_PATH,
-            help=(
-                "Base directory for missionlogs and missionnetcdfs, "
-                "default: auv_data in repo data directory"
-            ),
-        )
-        parser.add_argument(
-            "--title",
-            action="store",
-            help="A short description of the dataset",
-        )
-        parser.add_argument(
-            "--summary",
-            action="store",
-            help="Additional information about the dataset",
-        )
-
-        parser.add_argument(
-            "--noinput",
-            action="store_true",
-            help="Execute without asking for a response, e.g.  to not ask to re-download file",
-        )
-        parser.add_argument(
-            "--clobber",
-            action="store_true",
-            help="Use with --noinput to overwrite existing downloaded log files",
-        )
-        parser.add_argument(
-            "--noreprocess",
-            action="store_true",
-            help="Use with --noinput to not re-process existing downloaded log files",
-        )
         parser.add_argument(
             "--filter_monotonic_time",
             action="store_true",
