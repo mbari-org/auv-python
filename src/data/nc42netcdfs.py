@@ -18,7 +18,16 @@ from typing import Any
 
 import git
 import netCDF4
+import numpy as np
 import pooch
+
+# Conditional imports for plotting (only when needed)
+try:
+    import matplotlib.pyplot as plt  # noqa: F401
+
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 # Local directory that serves as the work area for log_files and netcdf files
 BASE_LRAUV_WEB = "https://dods.mbari.org/data/lrauv/"
@@ -276,8 +285,8 @@ class Extract:
 
         except KeyError:
             self.logger.warning("Group %s not found", group_name)
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Could not extract %s: %s", group_name, e)
+        # except Exception as e:  # noqa: BLE001
+        #     self.logger.warning("Could not extract %s: %s", group_name, e)
 
     def _get_available_variables(
         self, src_group: netCDF4.Group, group_parms: list[dict[str, Any]]
@@ -330,13 +339,36 @@ class Extract:
         Returns:
             dict: Map of time_coord_name -> {"indices": list[int], "filtered": bool}
         """
-        time_filters = {}
-
         # Check if time filtering is enabled
         if not getattr(self.args, "filter_monotonic_time", True):
-            return time_filters
+            return {}
 
+        self.logger.info("========================= Group %s =========================", group_name)
         # Find all time coordinates used by variables in extraction list
+        time_coords_found = self._find_time_coordinates(group_name, src_group, vars_to_extract)
+
+        # Parse plot time settings once
+        plot_group_name, plot_time_coord_name = self._parse_plot_time_argument()
+
+        # Process each unique time coordinate found
+        time_filters = {}
+        for time_coord_name in sorted(time_coords_found):
+            time_filter = self._process_single_time_coordinate(
+                log_file,
+                group_name,
+                src_group,
+                time_coord_name,
+                plot_group_name,
+                plot_time_coord_name,
+            )
+            time_filters[time_coord_name] = time_filter
+
+        return time_filters
+
+    def _find_time_coordinates(
+        self, group_name: str, src_group: netCDF4.Group, vars_to_extract: list[str]
+    ) -> set[str]:
+        """Find all time coordinates used by variables in extraction list."""
         time_coords_found = set()
         self.logger.debug(
             "=================================== Group: %s =======================================",
@@ -355,31 +387,111 @@ class Extract:
                         if self._is_time_variable(dim_name, dim_var):
                             time_coords_found.add(dim_name)
 
-        # Now process each unique time coordinate found
-        for time_coord_name in time_coords_found:
-            time_var = src_group.variables[time_coord_name]
-            time_data = time_var[:]
-            self.logger.debug("Time coordinate %s: %d points", time_coord_name, len(time_data))
-            mono_indices = self._get_monotonic_indices(time_data)
+        return time_coords_found
 
-            # Check if filtering was actually needed
-            filtered = len(mono_indices) < len(time_data)
-            comment = ""
-            if filtered:
-                comment = (
-                    f"Filtered {len(time_data) - len(mono_indices)} non-monotonic points "
-                    f"({len(time_data)} -> {len(mono_indices)}), "
-                    f"{100 * (len(time_data) - len(mono_indices)) / len(time_data):.2f}%"
-                )
-                self.logger.info("Time coordinate %s: %s", time_coord_name, comment)
+    def _parse_plot_time_argument(self) -> tuple[str | None, str | None]:
+        """Parse the --plot_time argument and return (group_name, time_coord_name)."""
+        if not getattr(self.args, "plot_time", None):
+            return None, None
 
-            time_filters[time_coord_name] = {
-                "indices": mono_indices,
-                "filtered": filtered,
-                "comment": comment,
-            }
+        plot_time = self.args.plot_time
+        if not plot_time.startswith("/"):
+            msg = "Invalid plot_time format, must be /<group_name>/<time_coord_name>"
+            raise ValueError(msg)
 
-        return time_filters
+        slash_count = plot_time.count("/")
+        if slash_count == 1:
+            return "/", plot_time[1:]
+        if slash_count == 2:  # noqa: PLR2004
+            parts = plot_time.split("/")[1:]
+            return parts[0], parts[1]
+
+        msg = "Invalid plot_time format, must be /<group_name>/<time_coord_name>"
+        raise ValueError(msg)
+
+    def _create_plot_data(
+        self, log_file: str, group_name: str, time_coord_name: str, original_time_data
+    ) -> dict:
+        """Create plot data structure for time filtering visualization."""
+        return {
+            "original": original_time_data.copy(),
+            "log_file": log_file,
+            "group_name": group_name,
+            "variable_name": time_coord_name,
+        }
+
+    def _create_time_filter_result(
+        self, mono_indices: list[int], time_data_length: int, time_coord_name: str
+    ) -> dict:
+        """Create the result dictionary for a time filter."""
+        filtered = len(mono_indices) < time_data_length
+        comment = ""
+        if filtered:
+            removed_count = time_data_length - len(mono_indices)
+            removed_percent = 100 * removed_count / time_data_length
+            comment = (
+                f"Filtered {removed_count} non-monotonic points "
+                f"({time_data_length} -> {len(mono_indices)}), "
+                f"{removed_percent:.2f}%"
+            )
+            self.logger.info("Time coordinate %s: %s", time_coord_name, comment)
+
+        return {
+            "indices": mono_indices,
+            "filtered": filtered,
+            "comment": comment,
+        }
+
+    def _process_single_time_coordinate(  # noqa: PLR0913
+        self,
+        log_file: str,
+        group_name: str,
+        src_group: netCDF4.Group,
+        time_coord_name: str,
+        plot_group_name: str | None,
+        plot_time_coord_name: str | None,
+    ) -> dict:
+        """Process filtering for a single time coordinate."""
+        from scipy.signal import medfilt
+
+        time_var = src_group.variables[time_coord_name]
+        original_time_data = time_var[:]
+        self.logger.info("Time coordinate %s: %d points", time_coord_name, len(original_time_data))
+
+        # Create plot data if this coordinate should be plotted
+        plot_data = None
+        should_plot = (
+            plot_time_coord_name is not None
+            and time_coord_name == plot_time_coord_name
+            and group_name == plot_group_name
+        )
+        if should_plot:
+            plot_data = self._create_plot_data(
+                log_file, group_name, time_coord_name, original_time_data
+            )
+
+        # First filter out values that fall outside of reasonable bounds
+        valid_indices = self._filter_valid_time_indices(original_time_data)
+
+        # Despike to remove single point outliers before getting monotonic indices
+        time_data = medfilt(original_time_data[valid_indices], kernel_size=3)
+
+        # Store valid indices and despiked data for plotting
+        if plot_data is not None:
+            plot_data["valid_indices"] = valid_indices
+            plot_data["valid_data"] = original_time_data[valid_indices]
+            plot_data["despiked"] = time_data.copy()
+
+        # Now apply monotonic filtering to the valid subset
+        mono_indices = self._get_monotonic_indices(time_data)
+
+        # Generate plot if requested for this variable
+        if plot_data is not None:
+            plot_data["final_indices"] = mono_indices
+            plot_data["final_data"] = time_data[mono_indices]
+            self._plot_time_filtering(plot_data)
+
+        return self._create_time_filter_result(mono_indices, len(time_data), time_coord_name)
 
     def _is_time_variable(self, var_name: str, var) -> bool:
         """Check if a variable is a time coordinate variable."""
@@ -395,6 +507,50 @@ class Extract:
                 return True
 
         return False
+
+    def _filter_valid_time_indices(self, time_data) -> list[int]:
+        """Filter out wildly invalid time values before monotonic filtering.
+
+        Returns indices of time values that are reasonable Unix epoch timestamps.
+        Uses numpy for efficient vectorized operations.
+        """
+        # LRAUV data bounds: September 2012 to current + 5 years buffer
+        lrauv_start_date = datetime(2012, 9, 1, tzinfo=UTC)
+        current_date = datetime.now(UTC)
+        future_buffer_date = current_date.replace(year=current_date.year + 5)
+
+        MIN_UNIX_TIME = int(lrauv_start_date.timestamp())  # September 1, 2012 UTC
+        MAX_UNIX_TIME = int(future_buffer_date.timestamp())  # Current + 5 years buffer
+
+        # Convert to numpy array for efficient operations
+        time_array = np.asarray(time_data)
+
+        # Create boolean masks for valid conditions
+        is_finite = np.isfinite(time_array)
+        is_in_range = (time_array >= MIN_UNIX_TIME) & (time_array <= MAX_UNIX_TIME)
+
+        # Combine all conditions - all must be True for valid indices
+        valid_mask = is_finite & is_in_range
+
+        # Get indices where all conditions are met
+        valid_indices = np.where(valid_mask)[0].tolist()
+
+        # Log filtering statistics
+        total_count = len(time_array)
+        outliers_found = total_count - len(valid_indices)
+
+        if outliers_found > 0:
+            non_finite = np.sum(~is_finite)
+            out_of_range = np.sum(~is_in_range & is_finite)
+
+            self.logger.info(
+                "Pre-filtered %d invalid time values: %d non-finite, %d out-of-range",
+                outliers_found,
+                non_finite,
+                out_of_range,
+            )
+
+        return valid_indices
 
     def _get_monotonic_indices(self, time_data) -> list[int]:
         """Get indices for monotonic time values from time data array."""
@@ -415,6 +571,92 @@ class Extract:
                     )
 
         return mono_indices
+
+    def _plot_time_filtering(self, plot_data: dict):
+        """Plot before and after time coordinate filtering."""
+        if not MATPLOTLIB_AVAILABLE:
+            self.logger.error("Matplotlib not available. Install with: uv add matplotlib")
+            return
+
+        # Import matplotlib here to avoid import errors when not needed
+        import matplotlib.pyplot as plt  # noqa: F401
+
+        original = plot_data["original"]
+        valid_indices = plot_data["valid_indices"]
+        valid_data = plot_data["valid_data"]
+        despiked = plot_data["despiked"]
+        final_indices = plot_data["final_indices"]
+        final_data = plot_data["final_data"]
+
+        # Create figure with subplots
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 9), sharex=True)
+
+        # Plot 1: Original data
+        ax1.plot(original, "b-", label="Original", alpha=0.7)
+        ax1.set_ylabel("Time Value")
+        ax1.set_title(
+            f"Time Coordinate Filtering: {plot_data['variable_name']}\n"
+            f"File: {plot_data['log_file']}, Group: {plot_data['group_name']}"
+        )
+        ax1.legend()
+        ax1.grid(visible=True, alpha=0.3)
+
+        # Plot 2: After valid Values filtering
+        ax2.plot(valid_indices, valid_data, "m.-", label="After Valid Values Filter", alpha=0.7)
+        ax2.set_ylabel("Time Value")
+        ax2.legend()
+        ax2.grid(visible=True, alpha=0.3)
+        ax2.text(
+            0.02,
+            0.60,
+            f"Points removed: {len(original) - len(valid_data)}\n",
+            transform=ax2.transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "wheat"},
+        )
+
+        # Plot 3: After despiking
+        ax3.plot(despiked, "g-", label="After Median Filter (3-point)", alpha=0.7)
+        ax3.set_ylabel("Time Value")
+        ax3.legend()
+        ax3.grid(visible=True, alpha=0.3)
+        ax3.text(
+            0.02,
+            0.60,
+            f"Points removed: {len(valid_data) - len(despiked)}\n",
+            transform=ax3.transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "wheat"},
+        )
+
+        # Plot 4: Final After Monotonic filtered data
+        ax4.plot(final_indices, final_data, "r.-", label="After Monotonic Filter", alpha=0.7)
+        ax4.set_xlabel("Index")
+        ax4.set_ylabel("Time Value")
+        ax4.legend()
+        ax4.grid(visible=True, alpha=0.3)
+
+        # Add statistics text
+        stats_text = (
+            f"Points removed: {len(despiked) - len(final_data)}\n"
+            f"Original points: {len(original)}\n"
+            f"After final filter: {len(final_data)}\n"
+            f"Total removed: {len(original) - len(final_data)} "
+            f"({100 * (len(original) - len(final_data)) / len(original):.1f}%)"
+        )
+        ax4.text(
+            0.02,
+            0.90,
+            stats_text,
+            transform=ax4.transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "wheat"},
+        )
+
+        plt.tight_layout()
+        plt.show()
+
+        self.logger.info("Time filtering plot displayed for %s", plot_data["variable_name"])
 
     def _copy_variable_with_appropriate_time_filter(
         self,
@@ -698,7 +940,14 @@ class Extract:
         examples = "Examples:" + "\n\n"
         examples += "  Write to local missionnetcdfs direcory:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
-        examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
+        examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n\n"
+        examples += "  Plot time coordinate filtering:\n"
+        examples += (
+            "    "
+            + sys.argv[0]
+            + " --log_file brizo/missionlogs/2025/20250909_20250915/20250914T080941/"
+            + "202509140809_202509150109.nc4 --plot_time /latitude_time\n"
+        )
 
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
@@ -754,6 +1003,16 @@ class Extract:
                 "--show_variable_mapping",
                 action="store_true",
                 help="Show the variable mapping: Group/variable_names -> their_renames",
+            ),
+        )
+        parser.add_argument(
+            "--plot_time",
+            action="store",
+            metavar="VARIABLE_NAME",
+            help=(
+                "Plot before and after time coordinate filtering for the specified variable. "
+                "Shows the effect of outlier removal and monotonic filtering."
+                "Format for <VARIABLE_NAME> is /Group/variable_name."
             ),
         )
         parser.add_argument(
