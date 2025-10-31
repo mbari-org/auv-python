@@ -181,12 +181,12 @@ class Combine_NetCDF:
         metadata["license"] = metadata["distribution_statement"]
         metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
-
+        log_file = self.args.log_file
         metadata["title"] = (
-            f"Calibrated AUV sensor data from {self.args.auv_name} mission {self.args.mission}"
+            f"Combined LRAUV data from {log_file} - relevant variables extracted for STOQS"
         )
         metadata["summary"] = (
-            "Observational oceanographic data obtained from an Autonomous"
+            "Observational oceanographic data obtained from a Long Range Autonomous"
             " Underwater Vehicle mission with measurements at"
             " original sampling intervals. The data have been processed"
             " by MBARI's auv-python software."
@@ -557,13 +557,23 @@ class Combine_NetCDF:
         group_files = sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc"))
         self.combined_nc = xr.Dataset()
         for group_file in group_files:
-            self.logger.info("Found group file: %s", group_file)
+            self.logger.info("Group file: %s", group_file.name)
             # Make nudged_longitude, nudged_latitude = self._nudge_pos() call on when appropriate
+            # Loop through each variable in the group file and add it to the combined_nc member list
+            with xr.open_dataset(group_file) as ds:
+                for orig_var in ds.variables:
+                    if orig_var.lower().endswith("time"):
+                        self.logger.debug("Skipping time variable: %s", orig_var)
+                        continue
+                    new_group = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
+                    new_var = new_group + "_" + orig_var.lower()
+                    self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
+                    self.combined_nc[new_var] = ds[orig_var]
 
     def write_netcdf(self) -> None:
         log_file = self.args.log_file
         netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        out_fn = Path(netcdfs_dir, f"{self.args.log_file.stem}_cal.nc")
+        out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_cal.nc")
 
         self.combined_nc.attrs = self.global_metadata()
         self.logger.info("Writing combined group data to %s", out_fn)
@@ -641,5 +651,5 @@ if __name__ == "__main__":
     combine.process_command_line()
     start = time.time()
     combine.combine_groups()
-    ##combine.write_netcdf()
+    combine.write_netcdf()
     combine.logger.info("Time to process: %.2f seconds", (time.time() - start))
