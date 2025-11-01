@@ -483,15 +483,22 @@ class Extract:
             plot_data["despiked"] = time_data.copy()
 
         # Now apply monotonic filtering to the valid subset
-        mono_indices = self._get_monotonic_indices(time_data)
+        mono_indices_in_filtered = self._get_monotonic_indices(time_data)
+
+        # Convert monotonic indices back to original array indices
+        # mono_indices_in_filtered are indices into the valid_indices subset
+        # We need to map them back to indices in the original time array
+        final_indices = [valid_indices[i] for i in mono_indices_in_filtered]
 
         # Generate plot if requested for this variable
         if plot_data is not None:
-            plot_data["final_indices"] = mono_indices
-            plot_data["final_data"] = time_data[mono_indices]
+            plot_data["final_indices"] = mono_indices_in_filtered
+            plot_data["final_data"] = time_data[mono_indices_in_filtered]
             self._plot_time_filtering(plot_data)
 
-        return self._create_time_filter_result(mono_indices, len(time_data), time_coord_name)
+        return self._create_time_filter_result(
+            final_indices, len(original_time_data), time_coord_name
+        )
 
     def _is_time_variable(self, var_name: str, var) -> bool:
         """Check if a variable is a time coordinate variable."""
@@ -674,10 +681,6 @@ class Extract:
                 var_name,
                 src_var.dtype,
                 src_var.dimensions,
-                zlib=True,
-                complevel=6,
-                shuffle=True,
-                fletcher32=True,
             )
 
             # Check if this variable itself is a time coordinate that needs filtering
@@ -761,25 +764,86 @@ class Extract:
         time_filters: dict[str, dict],
     ):
         """Create dimensions in the destination dataset, adjusting time dimensions if filtered."""
+        # NetCDF3 allows only one unlimited dimension
+        primary_time_dim = self._find_primary_time_dimension(src_group, dims_needed, time_filters)
+        unlimited_dim_created = False
+
+        for dim_name in dims_needed:
+            if dim_name not in src_group.dimensions:
+                continue
+
+            src_dim = src_group.dimensions[dim_name]
+            should_be_unlimited = dim_name == primary_time_dim and not unlimited_dim_created
+            size = self._calculate_dimension_size(
+                dim_name, src_dim, time_filters, should_be_unlimited
+            )
+
+            # Track if we created the unlimited dimension
+            if size is None:
+                unlimited_dim_created = True
+
+            dst_dataset.createDimension(dim_name, size)
+
+    def _find_primary_time_dimension(
+        self, src_group: netCDF4.Group, dims_needed: set[str], time_filters: dict[str, dict]
+    ) -> str | None:
+        """Find the primary time dimension that should be unlimited in NetCDF3."""
         for dim_name in dims_needed:
             if dim_name in src_group.dimensions:
                 src_dim = src_group.dimensions[dim_name]
+                is_time_like = "time" in dim_name.lower() or dim_name in time_filters
+                if src_dim.isunlimited() and is_time_like:
+                    return dim_name
 
-                # Check if this dimension corresponds to a filtered time variable
-                if dim_name in time_filters and time_filters[dim_name]["filtered"]:
-                    # Use the number of filtered time points
-                    filtered_size = len(time_filters[dim_name]["indices"])
-                    size = filtered_size if not src_dim.isunlimited() else None
-                    self.logger.debug(
-                        "Created filtered time dimension %s: %s -> %s",
-                        dim_name,
-                        len(src_dim),
-                        size or filtered_size,
-                    )
-                else:
-                    size = len(src_dim) if not src_dim.isunlimited() else None
+        # Fallback: return first unlimited dimension found
+        for dim_name in dims_needed:
+            if dim_name in src_group.dimensions and src_group.dimensions[dim_name].isunlimited():
+                return dim_name
 
-                dst_dataset.createDimension(dim_name, size)
+        return None
+
+    def _calculate_dimension_size(
+        self,
+        dim_name: str,
+        src_dim,
+        time_filters: dict[str, dict],
+        should_be_unlimited: bool,  # noqa: FBT001
+    ) -> int | None:
+        """Calculate the size for a dimension, handling NetCDF3 unlimited dimension constraint."""
+        is_filtered_time = dim_name in time_filters and time_filters[dim_name]["filtered"]
+
+        if is_filtered_time:
+            filtered_size = len(time_filters[dim_name]["indices"])
+            if should_be_unlimited:
+                self.logger.debug(
+                    "Created filtered unlimited time dimension %s: %s -> unlimited (%d points)",
+                    dim_name,
+                    len(src_dim),
+                    filtered_size,
+                )
+                return None  # Unlimited
+
+            self.logger.debug(
+                "Created filtered fixed time dimension %s: %s -> %s",
+                dim_name,
+                len(src_dim),
+                filtered_size,
+            )
+            return filtered_size
+
+        # Non-filtered dimension
+        if should_be_unlimited:
+            self.logger.debug("Created unlimited dimension %s", dim_name)
+            return None
+
+        size = len(src_dim)
+        if src_dim.isunlimited():
+            self.logger.debug(
+                "Converting unlimited dimension %s to fixed size %s (NetCDF3 limitation)",
+                dim_name,
+                size,
+            )
+        return size
 
     def _create_netcdf_file(  # noqa: PLR0913
         self,
@@ -795,7 +859,7 @@ class Extract:
             log_file, group_name, src_group, vars_to_extract
         )
 
-        with netCDF4.Dataset(output_file, "w", format="NETCDF4") as dst_dataset:
+        with netCDF4.Dataset(output_file, "w", format="NETCDF3_CLASSIC") as dst_dataset:
             # Copy global attributes
             self._copy_global_attributes(src_group, dst_dataset)
 
@@ -876,10 +940,6 @@ class Extract:
                 var_name,
                 src_var.dtype,
                 src_var.dimensions,
-                zlib=True,
-                complevel=6,
-                shuffle=True,
-                fletcher32=True,
             )
 
             # Copy data and attributes
