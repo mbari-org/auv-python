@@ -189,11 +189,6 @@ class Extract:
             downloader=downloader,
         )
 
-    def get_groups_netcdf4(self, file_path):
-        """Get list of groups using netCDF4 library."""
-        with netCDF4.Dataset(file_path, "r") as dataset:
-            return list(dataset.groups.keys())
-
     def extract_groups_to_files_netcdf4(self, log_file: str) -> Path:
         """Extract each group from .nc4 file to a separate .nc file using netCDF4 library.
 
@@ -714,6 +709,8 @@ class Extract:
             # Copy attributes
             for attr_name in src_var.ncattrs():
                 dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
+            # override any coordinates attribute with just the time coordinate
+            dst_var.setncattr("coordinates", var_name + "_time")
 
             self.logger.debug("    Copied variable: %s", var_name)
 
@@ -872,7 +869,7 @@ class Extract:
             if any(tf["filtered"] for tf in time_filters.values()):
                 dst_dataset.setncattr(
                     "processing_note",
-                    "Non-monotonic time values filtered from original, see comment in variables",
+                    "Non-monotonic time values filtered from original, see variable comments",
                 )
 
             # Create dimensions - may need to adjust time dimension sizes
@@ -910,16 +907,6 @@ class Extract:
                 dims_needed.update(var.dimensions)
         return dims_needed
 
-    def _create_dimensions(
-        self, src_group: netCDF4.Group, dst_dataset: netCDF4.Dataset, dims_needed: set[str]
-    ):
-        """Create dimensions in the destination dataset."""
-        for dim_name in dims_needed:
-            if dim_name in src_group.dimensions:
-                src_dim = src_group.dimensions[dim_name]
-                size = len(src_dim) if not src_dim.isunlimited() else None
-                dst_dataset.createDimension(dim_name, size)
-
     def _get_coordinate_variables(
         self, src_group: netCDF4.Group, dims_needed: set[str], vars_to_extract: list[str]
     ) -> list[str]:
@@ -929,28 +916,6 @@ class Extract:
             if dim_name in src_group.variables and dim_name not in vars_to_extract:
                 coord_vars.append(dim_name)  # noqa: PERF401
         return coord_vars
-
-    def _copy_variable(self, src_group: netCDF4.Group, dst_dataset: netCDF4.Dataset, var_name: str):
-        """Helper method to copy a variable from source to destination."""
-        try:
-            src_var = src_group.variables[var_name]
-
-            # Create variable in destination
-            dst_var = dst_dataset.createVariable(
-                var_name,
-                src_var.dtype,
-                src_var.dimensions,
-            )
-
-            # Copy data and attributes
-            dst_var[:] = src_var[:]
-            for attr_name in src_var.ncattrs():
-                dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
-
-            self.logger.debug("    Copied variable: %s", var_name)
-
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed to copy variable %s: %s", var_name, e)
 
     def global_metadata(self, log_file: str, group_name: str):
         """Use instance variables to return a dictionary of
