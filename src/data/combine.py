@@ -285,38 +285,6 @@ class Combine_NetCDF:
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
         self.logger.info("Done range checking %s", instrument)
 
-    def _nudge_pos(self, max_sec_diff_at_end=10):
-        """Apply linear nudges to underwater latitudes and longitudes so that
-        they match the surface gps positions.
-        """
-        try:
-            lon = self.combined_nc["navigation_longitude"]
-        except KeyError:
-            error_message = "No navigation_longitude data in combined_nc"
-            raise EOFError(error_message) from None
-        lat = self.combined_nc["navigation_latitude"]
-        lon_fix = self.combined_nc["gps_longitude"]
-        lat_fix = self.combined_nc["gps_latitude"]
-
-        # Use the shared function from AUV module
-        lon_nudged, lat_nudged, segment_count, segment_minsum = nudge_positions(
-            nav_longitude=lon,
-            nav_latitude=lat,
-            gps_longitude=lon_fix,
-            gps_latitude=lat_fix,
-            logger=self.logger,
-            auv_name=self.args.auv_name,
-            mission=self.args.mission,
-            max_sec_diff_at_end=max_sec_diff_at_end,
-            create_plots=True,
-        )
-
-        # Store results in instance variables for compatibility
-        self.segment_count = segment_count
-        self.segment_minsum = segment_minsum
-
-        return lon_nudged, lat_nudged
-
     def _apply_plumbing_lag(
         self,
         sensor: str,
@@ -551,6 +519,38 @@ class Combine_NetCDF:
 
         return corrected_depth
 
+    def _nudge_pos(self, max_sec_diff_at_end=10):
+        """Apply linear nudges to underwater latitudes and longitudes so that
+        they match the surface gps positions.
+        """
+        try:
+            lon = self.combined_nc["universals_longitude"]
+        except KeyError:
+            error_message = "No universals_longitude data in combined_nc"
+            raise EOFError(error_message) from None
+        lat = self.combined_nc["universals_latitude"]
+        lon_fix = self.combined_nc["nal9602_longitude_fix"]
+        lat_fix = self.combined_nc["nal9602_latitude_fix"]
+
+        # Use the shared function from AUV module
+        lon_nudged, lat_nudged, segment_count, segment_minsum = nudge_positions(
+            nav_longitude=lon,
+            nav_latitude=lat,
+            gps_longitude=lon_fix,
+            gps_latitude=lat_fix,
+            logger=self.logger,
+            auv_name="",
+            mission="",
+            max_sec_diff_at_end=max_sec_diff_at_end,
+            create_plots=True,
+        )
+
+        # Store results in instance variables for compatibility
+        self.segment_count = segment_count
+        self.segment_minsum = segment_minsum
+
+        return lon_nudged, lat_nudged
+
     def combine_groups(self):
         log_file = self.args.log_file
         src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
@@ -558,7 +558,6 @@ class Combine_NetCDF:
         self.combined_nc = xr.Dataset()
         for group_file in group_files:
             self.logger.info("Group file: %s", group_file.name)
-            # Make nudged_longitude, nudged_latitude = self._nudge_pos() call on when appropriate
             # Loop through each variable in the group file and add it to the combined_nc member list
             with xr.open_dataset(group_file) as ds:
                 for orig_var in ds.variables:
@@ -569,6 +568,23 @@ class Combine_NetCDF:
                     new_var = new_group + "_" + orig_var.lower()
                     self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
                     self.combined_nc[new_var] = ds[orig_var]
+
+        # Add nudged longitude and latitude variables to the combined_nc dataset
+        nudged_longitude, nudged_latitude = self._nudge_pos()
+        self.combined_nc["nudged_longitude"] = nudged_longitude
+        self.combined_nc["nudged_longitude"].attrs = {
+            "long_name": "Nudged Longitude",
+            "standard_name": "longitude",
+            "units": "degrees_east",
+            "comment": "Dead reckoned longitude nudged to GPS positions",
+        }
+        self.combined_nc["nudged_latitude"] = nudged_latitude
+        self.combined_nc["nudged_latitude"].attrs = {
+            "long_name": "Nudged Latitude",
+            "standard_name": "latitude",
+            "units": "degrees_north",
+            "comment": "Dead reckoned latitude nudged to GPS positions",
+        }
 
     def write_netcdf(self) -> None:
         log_file = self.args.log_file
@@ -613,7 +629,7 @@ class Combine_NetCDF:
             "--log_file",
             action="store",
             help=(
-                "Path to the log file for the mission, e.g.: "
+                "Path to the log file of original LRAUV data, e.g.: "
                 "brizo/missionlogs/2025/20250903_20250909/"
                 "20250905T072042/202509050720_202509051653.nc4"
             ),
