@@ -237,30 +237,26 @@ class Extract:
         if not root_parms:
             return
 
-        try:
-            self.logger.info("Extracting root group '/'")
-            vars_to_extract = self._get_available_variables(src_dataset, root_parms)
+        self.logger.info("Extracting root group '/'")
+        vars_to_extract, _ = self._get_available_variables(src_dataset, root_parms)
 
-            # Add debugging output for root group processing
-            self.logger.info("=== ROOT GROUP DEBUG ===")
-            self.logger.info("Available variables: %s", sorted(vars_to_extract))
-            self.logger.info("Available dimensions: %s", sorted(src_dataset.dimensions.keys()))
-            self.logger.info(
-                "Available coordinate variables: %s",
-                [v for v in sorted(src_dataset.variables.keys()) if v in src_dataset.dimensions],
+        # Add debugging output for root group processing
+        self.logger.info("=== ROOT GROUP DEBUG ===")
+        self.logger.info("Available variables: %s", sorted(vars_to_extract))
+        self.logger.info("Available dimensions: %s", sorted(src_dataset.dimensions.keys()))
+        self.logger.info(
+            "Available coordinate variables: %s",
+            [v for v in sorted(src_dataset.variables.keys()) if v in src_dataset.dimensions],
+        )
+
+        if vars_to_extract:
+            output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Universals.nc"
+            self._create_netcdf_file(
+                log_file, group_name, src_dataset, vars_to_extract, output_file
             )
-
-            if vars_to_extract:
-                output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Universals.nc"
-                self._create_netcdf_file(
-                    log_file, group_name, src_dataset, vars_to_extract, output_file
-                )
-                self.logger.info("Extracted root group '/' to %s", output_file)
-            else:
-                self.logger.warning("No requested variables found in root group '/'")
-
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Could not extract root group '/': %s", e)
+            self.logger.info("Extracted root group '/' to %s", output_file)
+        else:
+            self.logger.warning("No requested variables found in root group '/'")
 
     def _extract_single_group(
         self,
@@ -276,7 +272,7 @@ class Extract:
             self.logger.debug(" Group %s", group_name)
             src_group = src_dataset.groups[group_name]
 
-            vars_to_extract = self._get_available_variables(src_group, group_parms)
+            vars_to_extract, requested_vars = self._get_available_variables(src_group, group_parms)
 
             if vars_to_extract:
                 output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_{group_name}.nc"
@@ -285,12 +281,12 @@ class Extract:
                 )
                 self.logger.info("Extracted %s to %s", group_name, output_file)
             else:
-                self.logger.warning("No requested variables found in group %s", group_name)
+                self.logger.warning(
+                    "No requested variables (%s) found in group %s", requested_vars, group_name
+                )
 
         except KeyError:
             self.logger.warning("Group %s not found", group_name)
-        # except Exception as e:  # noqa: BLE001
-        #     self.logger.warning("Could not extract %s: %s", group_name, e)
 
     def _get_available_variables(
         self, src_group: netCDF4.Group, group_parms: list[dict[str, Any]]
@@ -301,7 +297,7 @@ class Extract:
         vars_to_extract = [var for var in requested_vars if var in available_vars]
 
         self.logger.debug("  Variables to extract: %s", vars_to_extract)
-        return vars_to_extract
+        return vars_to_extract, requested_vars
 
     def _get_time_filters_for_variables(
         self, log_file: str, group_name: str, src_group: netCDF4.Group, vars_to_extract: list[str]
@@ -730,75 +726,79 @@ class Extract:
         time_filters: dict[str, dict],
     ):
         """Copy a variable with appropriate time filtering applied."""
+        src_var = src_group.variables[var_name]
+
+        # Skip variables that use time dimensions with 0 points
+        for dim_name in src_var.dimensions:
+            if (
+                dim_name in time_filters
+                and time_filters[dim_name]["filtered"]
+                and len(time_filters[dim_name]["indices"]) == 0
+            ):
+                self.logger.debug(
+                    "Skipping variable %s (uses dimension %s with 0 points)", var_name, dim_name
+                )
+                return
+
+        # Create variable in destination
         try:
-            src_var = src_group.variables[var_name]
-
-            # Skip variables that use time dimensions with 0 points
-            for dim_name in src_var.dimensions:
-                if (
-                    dim_name in time_filters
-                    and time_filters[dim_name]["filtered"]
-                    and len(time_filters[dim_name]["indices"]) == 0
-                ):
-                    self.logger.debug(
-                        "Skipping variable %s (uses dimension %s with 0 points)", var_name, dim_name
-                    )
-                    return
-
-            # Create variable in destination
             dst_var = dst_dataset.createVariable(
                 var_name,
                 src_var.dtype,
                 src_var.dimensions,
+                zlib=True,
+                complevel=4,
             )
+        except ValueError as e:
+            self.logger.warning(
+                "Could not create variable %s in destination dataset: %s. ",
+                var_name,
+                str(e),
+            )
+            return
 
-            # Check if this variable itself is a time coordinate that needs filtering
-            if var_name in time_filters and time_filters[var_name]["filtered"]:
-                # This is a time coordinate variable that needs filtering
-                time_indices = time_filters[var_name]["indices"]
-                dst_var[:] = src_var[:][time_indices]
-                dst_var.setncattr("comment", time_filters[var_name]["comment"])
-                self.logger.debug("Applied time filtering to time coordinate %s", var_name)
+        # Check if this variable itself is a time coordinate that needs filtering
+        if var_name in time_filters and time_filters[var_name]["filtered"]:
+            # This is a time coordinate variable that needs filtering
+            time_indices = time_filters[var_name]["indices"]
+            dst_var[:] = src_var[:][time_indices]
+            dst_var.setncattr("comment", time_filters[var_name]["comment"])
+            self.logger.debug("Applied time filtering to time coordinate %s", var_name)
 
-            # Check if this variable depends on any filtered time dimensions
-            elif src_var.dimensions:
-                # Find which (if any) of this variable's dimensions are filtered time coordinates
-                filtered_dims = {}
-                for dim_name in src_var.dimensions:
-                    if dim_name in time_filters and time_filters[dim_name]["filtered"]:
-                        filtered_dims[dim_name] = time_filters[dim_name]["indices"]
+        # Check if this variable depends on any filtered time dimensions
+        elif src_var.dimensions:
+            # Find which (if any) of this variable's dimensions are filtered time coordinates
+            filtered_dims = {}
+            for dim_name in src_var.dimensions:
+                if dim_name in time_filters and time_filters[dim_name]["filtered"]:
+                    filtered_dims[dim_name] = time_filters[dim_name]["indices"]
 
-                if filtered_dims:
-                    # Apply filtering for the appropriate dimensions
-                    self._apply_multidimensional_time_filter(
-                        src_var, dst_var, var_name, filtered_dims
-                    )
-                else:
-                    # No time filtering needed
-                    dst_var[:] = src_var[:]
+            if filtered_dims:
+                # Apply filtering for the appropriate dimensions
+                self._apply_multidimensional_time_filter(src_var, dst_var, var_name, filtered_dims)
             else:
-                # Scalar variable or no dimensions
+                # No time filtering needed
                 dst_var[:] = src_var[:]
+        else:
+            # Scalar variable or no dimensions
+            dst_var[:] = src_var[:]
 
-            # Copy attributes
-            for attr_name in src_var.ncattrs():
-                dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
-            if var_name in time_filters and time_filters[var_name]["filtered"]:
-                # Downstream process uses cf_xarray to recognize coordinates, add required attribute
-                dst_var.setncattr("standard_name", "time")
-            else:
-                # Override any coordinates attribute in src with just the time coordinate
-                dst_var.setncattr("coordinates", var_name + "_time")
-                # Downstream process uses cf_xarray to recognize coordinates, add required attribute
-                if var_name.startswith(("longitude", "latitude")):
-                    dst_var.setncattr("units", "radians")
-                elif var_name.startswith("depth"):
-                    dst_var.setncattr("units", "meters")
+        # Copy attributes
+        for attr_name in src_var.ncattrs():
+            dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
+        if var_name in time_filters and time_filters[var_name]["filtered"]:
+            # Downstream process uses cf_xarray to recognize coordinates, add required attribute
+            dst_var.setncattr("standard_name", "time")
+        else:
+            # Override any coordinates attribute in src with just the time coordinate
+            dst_var.setncattr("coordinates", var_name + "_time")
+            # Downstream process uses cf_xarray to recognize coordinates, add required attribute
+            if var_name.startswith(("longitude", "latitude")):
+                dst_var.setncattr("units", "radians")
+            elif var_name.startswith("depth"):
+                dst_var.setncattr("units", "meters")
 
-            self.logger.debug("    Copied variable: %s", var_name)
-
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed to copy variable %s: %s", var_name, e)
+        self.logger.debug("    Copied variable: %s", var_name)
 
     def _apply_multidimensional_time_filter(
         self, src_var, dst_var, var_name: str, filtered_dims: dict[str, list[int]]
