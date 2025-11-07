@@ -303,38 +303,6 @@ class Extract:
         self.logger.debug("  Variables to extract: %s", vars_to_extract)
         return vars_to_extract
 
-    def _find_time_coordinate(self, src_group: netCDF4.Group) -> str:
-        """Find the time coordinate variable in a group using introspection.
-
-        Returns:
-            str: Name of the time coordinate variable, or empty string if not found
-        """
-        # Strategy 1: Look for variables with "time" in the name (most common)
-        time_vars = [var_name for var_name in src_group.variables if "time" in var_name.lower()]
-        if time_vars:
-            # Prefer variables that start with 'time' (like time_NAL9602)
-            time_vars.sort(key=lambda x: (not x.lower().startswith("time"), x))
-            self.logger.debug("Found time coordinate %s via name pattern", time_vars[0])
-            return time_vars[0]
-
-        # Strategy 2: Look for variables with time-like units
-        for var_name, var in src_group.variables.items():
-            if hasattr(var, "units"):
-                units = getattr(var, "units", "").lower()
-                time_patterns = ["seconds since", "days since", "hours since"]
-                if any(pattern in units for pattern in time_patterns):
-                    self.logger.debug("Found time coordinate %s via units", var_name)
-                    return var_name
-
-        # Strategy 3: Look for unlimited dimension (backup)
-        for dim_name, dim in src_group.dimensions.items():
-            if dim.isunlimited() and dim_name in src_group.variables:
-                self.logger.debug("Found time coordinate %s via unlimited dimension", dim_name)
-                return dim_name
-
-        self.logger.debug("No time coordinate found in group")
-        return ""
-
     def _get_time_filters_for_variables(
         self, log_file: str, group_name: str, src_group: netCDF4.Group, vars_to_extract: list[str]
     ) -> dict[str, dict]:
@@ -350,6 +318,10 @@ class Extract:
         self.logger.info("========================= Group %s =========================", group_name)
         # Find all time coordinates used by variables in extraction list
         time_coords_found = self._find_time_coordinates(group_name, src_group, vars_to_extract)
+
+        # Add diagnostic check to compare original time coordinate values
+        if len(time_coords_found) > 1:
+            self._analyze_original_time_coordinates(src_group, time_coords_found, group_name)
 
         # Parse plot time settings once
         plot_group_name, plot_time_coord_name = self._parse_plot_time_argument()
@@ -368,6 +340,85 @@ class Extract:
             time_filters[time_coord_name] = time_filter
 
         return time_filters
+
+    def _analyze_original_time_coordinates(
+        self, src_group: netCDF4.Group, time_coords_found: set[str], group_name: str
+    ):
+        """Quick diagnostic for Dead Reckoned timing issues in root group."""
+        # Only analyze root group Dead Reckoned coordinates
+        if group_name != "/":
+            return
+
+        if (
+            "latitude_time" not in time_coords_found
+            or "longitude_time" not in time_coords_found
+            or "latitude_time" not in src_group.variables
+            or "longitude_time" not in src_group.variables
+        ):
+            return
+
+        lat_time = src_group.variables["latitude_time"][:]
+        lon_time = src_group.variables["longitude_time"][:]
+
+        # Quick check for Dead Reckoned timing synchronization
+        min_len = min(len(lat_time), len(lon_time))
+        if min_len == 0:
+            return
+
+        # Compare overlapping portion
+        overlap_equal = np.array_equal(lat_time[:min_len], lon_time[:min_len])
+
+        if overlap_equal and len(lat_time) == len(lon_time):
+            self.logger.info(
+                "Dead Reckoned timing: latitude_time and longitude_time are properly synchronized"
+            )
+            return
+
+        # Calculate timing differences for diagnosis
+        time_diff = lon_time[:min_len] - lat_time[:min_len]
+        non_zero_mask = time_diff != 0
+        num_differences = np.sum(non_zero_mask)
+        percent_different = 100.0 * num_differences / min_len
+
+        if len(lat_time) != len(lon_time):
+            self.logger.warning(
+                "Dead Reckoned timing: Different array lengths - "
+                "latitude_time: %d, longitude_time: %d",
+                len(lat_time),
+                len(lon_time),
+            )
+
+        if num_differences > 0:
+            diff_values = time_diff[non_zero_mask]
+            max_abs_diff = np.max(np.abs(diff_values))
+
+            # Define thresholds for Dead Reckoned timing issues
+            MAJOR_PERCENT_THRESHOLD = 50.0  # 50% different points
+            MAJOR_TIME_THRESHOLD = 3600.0  # 1 hour difference
+            MINOR_PERCENT_THRESHOLD = 5.0  # 5% different points
+            MINOR_TIME_THRESHOLD = 60.0  # 1 minute difference
+
+            if percent_different > MAJOR_PERCENT_THRESHOLD or max_abs_diff > MAJOR_TIME_THRESHOLD:
+                self.logger.warning(
+                    "Dead Reckoned timing: Significant synchronization issues detected - "
+                    "%.1f%% of coordinates have timing differences (max: %.1f seconds)",
+                    percent_different,
+                    max_abs_diff,
+                )
+            elif percent_different > MINOR_PERCENT_THRESHOLD or max_abs_diff > MINOR_TIME_THRESHOLD:
+                self.logger.warning(
+                    "Dead Reckoned timing: Minor synchronization issues detected - "
+                    "%.1f%% of coordinates have timing differences (max: %.1f seconds)",
+                    percent_different,
+                    max_abs_diff,
+                )
+            else:
+                self.logger.info(
+                    "Dead Reckoned timing: Small timing differences detected - "
+                    "%.1f%% of coordinates differ (max: %.1f seconds)",
+                    percent_different,
+                    max_abs_diff,
+                )
 
     def _find_time_coordinates(
         self, group_name: str, src_group: netCDF4.Group, vars_to_extract: list[str]
