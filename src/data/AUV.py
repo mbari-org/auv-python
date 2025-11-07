@@ -11,6 +11,7 @@ MBARI 30 March 2020
 import logging
 from datetime import datetime
 
+import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import numpy as np
 import xarray as xr
 
@@ -88,22 +89,21 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     if lon[:][segi].any():
         lon_nudged_array = lon[segi]
         lat_nudged_array = lat[segi]
-        dt_nudged = lon.get_index("navigation_time")[segi]
+        dt_nudged = lon.cf["T"][segi]
         logger.debug(
             "Filled _nudged arrays with %d values starting at %s "
             "which were before the first GPS fix at %s",
             len(segi),
-            lat.get_index("navigation_time")[0],
-            lat_fix.get_index("gps_time")[0],
+            lat.cf["T"].data[0],
+            lat_fix.cf["T"].data[0],
         )
     else:
         lon_nudged_array = np.array([])
         lat_nudged_array = np.array([])
         dt_nudged = np.array([], dtype="datetime64[ns]")
     if segi.any():
-        seg_min = (
-            lat.get_index("navigation_time")[segi][-1] - lat.get_index("navigation_time")[segi][0]
-        ).total_seconds() / 60
+        # Return difference of numpy timestamps in units of minutes
+        seg_min = (lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]).astype("timedelta64[m]")
     else:
         seg_min = 0
     logger.info(
