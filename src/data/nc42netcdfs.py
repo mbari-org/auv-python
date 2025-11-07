@@ -241,6 +241,15 @@ class Extract:
             self.logger.info("Extracting root group '/'")
             vars_to_extract = self._get_available_variables(src_dataset, root_parms)
 
+            # Add debugging output for root group processing
+            self.logger.info("=== ROOT GROUP DEBUG ===")
+            self.logger.info("Available variables: %s", sorted(vars_to_extract))
+            self.logger.info("Available dimensions: %s", sorted(src_dataset.dimensions.keys()))
+            self.logger.info(
+                "Available coordinate variables: %s",
+                [v for v in sorted(src_dataset.variables.keys()) if v in src_dataset.dimensions],
+            )
+
             if vars_to_extract:
                 output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Universals.nc"
                 self._create_netcdf_file(
@@ -369,12 +378,14 @@ class Extract:
             "=================================== Group: %s =======================================",
             group_name,
         )
-        for var_name in vars_to_extract:
+        # Sort variables to make processing deterministic
+        for var_name in sorted(vars_to_extract):
             if var_name in src_group.variables:
                 var = src_group.variables[var_name]
 
                 # Check each dimension to see if it's a time coordinate
-                for dim_name in var.dimensions:
+                # Sort dimensions to make processing deterministic
+                for dim_name in sorted(var.dimensions):
                     if dim_name in src_group.variables:
                         dim_var = src_group.variables[dim_name]
 
@@ -660,7 +671,7 @@ class Extract:
 
         self.logger.info("Time filtering plot displayed for %s", plot_data["variable_name"])
 
-    def _copy_variable_with_appropriate_time_filter(
+    def _copy_variable_with_appropriate_time_filter(  # noqa: C901, PLR0912
         self,
         src_group: netCDF4.Group,
         dst_dataset: netCDF4.Dataset,
@@ -670,6 +681,18 @@ class Extract:
         """Copy a variable with appropriate time filtering applied."""
         try:
             src_var = src_group.variables[var_name]
+
+            # Skip variables that use time dimensions with 0 points
+            for dim_name in src_var.dimensions:
+                if (
+                    dim_name in time_filters
+                    and time_filters[dim_name]["filtered"]
+                    and len(time_filters[dim_name]["indices"]) == 0
+                ):
+                    self.logger.debug(
+                        "Skipping variable %s (uses dimension %s with 0 points)", var_name, dim_name
+                    )
+                    return
 
             # Create variable in destination
             dst_var = dst_dataset.createVariable(
@@ -709,8 +732,17 @@ class Extract:
             # Copy attributes
             for attr_name in src_var.ncattrs():
                 dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
-            # override any coordinates attribute with just the time coordinate
-            dst_var.setncattr("coordinates", var_name + "_time")
+            if var_name in time_filters and time_filters[var_name]["filtered"]:
+                # Downstream process uses cf_xarray to recognize coordinates, add required attribute
+                dst_var.setncattr("standard_name", "time")
+            else:
+                # Override any coordinates attribute in src with just the time coordinate
+                dst_var.setncattr("coordinates", var_name + "_time")
+                # Downstream process uses cf_xarray to recognize coordinates, add required attribute
+                if var_name.startswith(("longitude", "latitude")):
+                    dst_var.setncattr("units", "radians")
+                elif var_name.startswith("depth"):
+                    dst_var.setncattr("units", "meters")
 
             self.logger.debug("    Copied variable: %s", var_name)
 
@@ -761,43 +793,22 @@ class Extract:
         time_filters: dict[str, dict],
     ):
         """Create dimensions in the destination dataset, adjusting time dimensions if filtered."""
-        # NetCDF3 allows only one unlimited dimension
-        primary_time_dim = self._find_primary_time_dimension(src_group, dims_needed, time_filters)
-        unlimited_dim_created = False
-
+        # Use fixed dimensions for all - simpler and avoids NetCDF3 unlimited dimension issues
         for dim_name in dims_needed:
             if dim_name not in src_group.dimensions:
                 continue
 
             src_dim = src_group.dimensions[dim_name]
-            should_be_unlimited = dim_name == primary_time_dim and not unlimited_dim_created
             size = self._calculate_dimension_size(
-                dim_name, src_dim, time_filters, should_be_unlimited
+                dim_name, src_dim, time_filters, should_be_unlimited=False
             )
 
-            # Track if we created the unlimited dimension
-            if size is None:
-                unlimited_dim_created = True
+            # Skip dimensions with 0 points to avoid NetCDF3 conflicts
+            if size == 0:
+                self.logger.debug("Skipping dimension %s with 0 points", dim_name)
+                continue
 
             dst_dataset.createDimension(dim_name, size)
-
-    def _find_primary_time_dimension(
-        self, src_group: netCDF4.Group, dims_needed: set[str], time_filters: dict[str, dict]
-    ) -> str | None:
-        """Find the primary time dimension that should be unlimited in NetCDF3."""
-        for dim_name in dims_needed:
-            if dim_name in src_group.dimensions:
-                src_dim = src_group.dimensions[dim_name]
-                is_time_like = "time" in dim_name.lower() or dim_name in time_filters
-                if src_dim.isunlimited() and is_time_like:
-                    return dim_name
-
-        # Fallback: return first unlimited dimension found
-        for dim_name in dims_needed:
-            if dim_name in src_group.dimensions and src_group.dimensions[dim_name].isunlimited():
-                return dim_name
-
-        return None
 
     def _calculate_dimension_size(
         self,
@@ -805,21 +816,12 @@ class Extract:
         src_dim,
         time_filters: dict[str, dict],
         should_be_unlimited: bool,  # noqa: FBT001
-    ) -> int | None:
-        """Calculate the size for a dimension, handling NetCDF3 unlimited dimension constraint."""
+    ) -> int:
+        """Calculate the size for a dimension - always returns fixed size for simplicity."""
         is_filtered_time = dim_name in time_filters and time_filters[dim_name]["filtered"]
 
         if is_filtered_time:
             filtered_size = len(time_filters[dim_name]["indices"])
-            if should_be_unlimited:
-                self.logger.debug(
-                    "Created filtered unlimited time dimension %s: %s -> unlimited (%d points)",
-                    dim_name,
-                    len(src_dim),
-                    filtered_size,
-                )
-                return None  # Unlimited
-
             self.logger.debug(
                 "Created filtered fixed time dimension %s: %s -> %s",
                 dim_name,
@@ -828,18 +830,16 @@ class Extract:
             )
             return filtered_size
 
-        # Non-filtered dimension
-        if should_be_unlimited:
-            self.logger.debug("Created unlimited dimension %s", dim_name)
-            return None
-
+        # Non-filtered dimension - always fixed size
         size = len(src_dim)
         if src_dim.isunlimited():
             self.logger.debug(
-                "Converting unlimited dimension %s to fixed size %s (NetCDF3 limitation)",
+                "Converting unlimited dimension %s to fixed size %s",
                 dim_name,
                 size,
             )
+        else:
+            self.logger.debug("Created fixed dimension %s: %s", dim_name, size)
         return size
 
     def _create_netcdf_file(  # noqa: PLR0913
