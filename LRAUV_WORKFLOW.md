@@ -13,24 +13,26 @@ on the local file system's work directory is as follows:
     │   │   ├── <auv_name>           <- e.g.: ahi, brizo, pontus, tethys, ...
     │   │   │   ├── missionlogs/year/dlist_dir
     │   │   │   │   ├── <log_dir>    <- e.g.: ahi/missionlogs/2025/20250908_20250912/20250911T201546/202509112015_202509112115.nc4
-    │   │   │   │   │   ├── <nc4>    <- .nc4 file containing original data
+    │   │   │   │   │   ├── <nc4>    <- .nc4 file containing original data - created by unserialize
     │   │   │   │   │   ├── <nc>     <- .nc files, one for each group from the .nc4 file
-    |   |   |   |   |   |                data identical to original in NETCDF4 format
-    │   │   │   │   │   ├── <_cal>   <- A single NETCDF3 .nc file containing all the
-    |   |   |   |   |   |               varibles from the .nc files along with nudged
-    |   |   |   |   |   |               latitudes and longitudes - created by combine.py
+    |   |   |   |   |   |                data identical to original in NetCDF4 format,
+    |   |   |   |   |   |                but in more interoperable NetCDF3 format 
+    |   |   |   |   |   |                - created by nc42netcdfs.py
+    │   │   │   │   │   ├── <_combined>     <- A single NetCDF3 .nc file containing all the
+    |   |   |   |   |   |                   varibles from the .nc files along with nudged
+    |   |   |   |   |   |                   latitudes and longitudes - created by combine.py
     │   │   │   │   │   ├── <_align> <- .nc file with all measurement variables
     |   |   |   |   |   |               having associated coordinate variables
-    |   |   |   |   |   |               at original instrument sampling rate -
-    |   |   |   |   |   |               created by align.py
+    |   |   |   |   |   |               at original instrument sampling rate
+    |   |   |   |   |   |                - created by align.py
     │   │   │   │   │   ├── <_nS>    <- .nc file with all measurement variables
                                         resampled to a common time grid at n
                                         Second intervals - created by resample.py
 
     nc42netcdfs.py
         Extract the groups and the variables we want from the groups into 
-        individual .nc files. These data are saved using NETCDF4 format as
-        there are many unlimited dimensions that are not allowed in NETCDF3.
+        individual .nc files. These data are saved using NetCDF4 format as
+        there are many unlimited dimensions that are not allowed in NetCDF3.
         The data in the .nc files are identical to what is in the .nc4 groups.
     
     combine.py
