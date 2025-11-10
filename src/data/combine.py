@@ -1,18 +1,21 @@
 #!/usr/bin/env python
 """
-Combine original LRAUV data from separate .nc files and produce a single NetCDF
-file that also contains corrected (nudged) latitudes and longitudes.
+Combine original LRAUV data from separate *_Group_*.nc files and produce a
+single NetCDF file that also contains corrected (nudged) latitudes and
+longitudes.
 
 Read original data from netCDF files created by nc42netcdfs.py and write out a
 single netCDF file with the important variables at original sampling intervals.
-Geometric alignment and any plumbing lag corrections are also done during this
-step. This script is similar to calibrate.py that is used for Dorado and i2map
-data, but does not apply any sensor calibrations as those are done on the LRAUV
-vehicles before the data is logged and unserialized to NetCDF-4 files. The QC
-methods implemented in calibrate.py will be reused here.
+Any geometric alignment and any plumbing lag corrections can also be done during
+this step. This script is similar to calibrate.py that is used for Dorado and
+i2map data, but does not apply any sensor calibrations as those are done on the
+LRAUV vehicles before the data is logged and unserialized to NetCDF4 files. The
+QC methods implemented in calibrate.py may also be reused here. The calbrate.py
+code is wrapped around the concept of "sensor" which has an anaolog in this code
+of "group", but is too different to easily reuse.
 
 The file will contain combined variables (the combined_nc member variable) and
-be analogous to the original NetCDF-4. Rather than using groups in NetCDF-4 the
+be analogous to the original NetCDF4. Rather than using groups in NetCDF4 the
 data will be written in classic NetCDF-CF with a naming convention that is
 similar to Dorado data, with group names (any underscores removed) preceeding
 the variable name with an underscore - all lower case characters:
@@ -25,8 +28,10 @@ the variable name with an underscore - all lower case characters:
     <group>_latitude
     <group>_longitude
 ```
-The file will be named with a "_cal.nc" suffix to be consistent with the Dorado
-and i2map files, indicating the stage of processing.
+The file will be named with a "_combined.nc" suffix. It is analogous to the
+"_cal.nc" suffix used for Dorado and i2map files and will provide a clear
+indication of the stage of processing. The data are suiable for input to the
+align.py script.
 
 """
 
@@ -43,10 +48,8 @@ from pathlib import Path
 from socket import gethostname
 from typing import NamedTuple
 import cf_xarray  # Needed for the .cf accessor  # noqa: F401
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from scipy.interpolate import interp1d
 
 import pandas as pd
 from AUV import monotonic_increasing_time_indices, nudge_positions
@@ -61,11 +64,8 @@ class Range(NamedTuple):
     max: float
 
 
-# Using lower case vehicle names, modify in _define_sensor_info() for changes
-# over time Used to reduce ERROR & WARNING log messages for expected missing
-# sensor data. There are core data common to most all vehicles, whose groups
-# are listed in BASE_GROUPS. EXPECTED_GROUPS contains additional groups for
-# specific vehicles.
+# There are core data common to most all vehicles, whose groups are listed in
+# BASE_GROUPS. EXPECTED_GROUPS contains additional groups for specific vehicles.
 BASE_GROUPS = {
     "lrauv": [
         "CTDSeabird",
@@ -74,75 +74,13 @@ BASE_GROUPS = {
 }
 
 EXPECTED_GROUPS = {
-    "dorado": [
-        "navigation",
-        "gps",
-        "depth",
-        "ecopuck",
-        "hs2",
-        "ctd1",
-        "ctd2",
-        "isus",
-        "biolume",
-        "lopc",
-        "tailcone",
-    ],
-    "i2map": [
-        "navigation",
-        "gps",
-        "depth",
-        "seabird25p",
-        "transmissometer",
-        "tailcone",
+    "pontus": [
+        "WetLabsUBAT",
     ],
 }
-# Used in test fixture in conftetst.py
-EXPECTED_GROUPS["Dorado389"] = EXPECTED_GROUPS["dorado"]
-
-
-def align_geom(sensor_offset, pitches):
-    """Use x & y sensor_offset values in meters from sensor_info and
-    pitch in degrees to compute and return actual depths of the sensor
-    based on the geometry relative to the vehicle's depth sensor.
-    """
-    # See https://en.wikipedia.org/wiki/Rotation_matrix
-    #
-    #                        * instrument location with pitch applied
-    #                      / |
-    #                     /  |
-    #                    /   |
-    #                   /    |
-    #                  /     |
-    #                 /      |
-    #                /       |
-    #               /        |
-    #              /         |
-    #             /
-    #            /
-    #           /            y
-    #          /             _
-    #         /              o
-    #        /               f
-    #       /                f
-    #      /                                 *  instrument location
-    #     /                                  |
-    #    / \                 |               |
-    #   /   \                |               y
-    #  / pitch (theta)       |               |
-    # /        \             |               |
-    # --------------------x------------------+    --> nose
-    #
-    # [ cos(pitch) -sin(pitch) ]    [x]   [x']
-    #                             X     =
-    # [ sin(pitch)  cos(pitch) ]    [y]   [y']
-    offsets = []
-    for pitch in pitches:
-        theta = pitch * np.pi / 180.0
-        R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        x_off, y_off = np.matmul(R, sensor_offset)
-        offsets.append(y_off)
-
-    return offsets
+# Combine the BASE_GROUPS into each EXPECTED_GROUPS entry
+for vehicle, groups in EXPECTED_GROUPS.items():
+    EXPECTED_GROUPS[vehicle] = groups + BASE_GROUPS["lrauv"]
 
 
 class Combine_NetCDF:
@@ -285,31 +223,6 @@ class Combine_NetCDF:
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
         self.logger.info("Done range checking %s", instrument)
 
-    def _apply_plumbing_lag(
-        self,
-        sensor: str,
-        time_index: pd.DatetimeIndex,
-        time_name: str,
-    ) -> tuple[xr.DataArray, str]:
-        """
-        Apply plumbing lag to a time index in the combined netCDF file.
-        """
-        # Convert lag_secs to milliseconds as np.timedelta64 neeeds an integer
-        lagged_time = time_index - np.timedelta64(
-            int(self.sinfo[sensor]["lag_secs"] * 1000),
-            "ms",
-        )
-        # Need to update the sensor's time coordinate in the combined netCDF file
-        # so that DataArrays created with lagged_time fit onto the coordinate
-        self.combined_nc.coords[f"{sensor}_{time_name}"] = xr.DataArray(
-            lagged_time,
-            coords=[lagged_time],
-            dims={f"{sensor}_{time_name}"},
-            name=f"{sensor}_{time_name}",
-        )
-        lag_info = f"with plumbing lag correction of {self.sinfo[sensor]['lag_secs']} seconds"
-        return lagged_time, lag_info
-
     def _biolume_process(self, sensor):
         try:
             orig_nc = getattr(self, sensor).orig_data
@@ -418,117 +331,16 @@ class Combine_NetCDF:
                     set_to_nan=True,
                 )
 
-    def _geometric_depth_correction(self, sensor, orig_nc):
-        """Performs the align_geom() function from the legacy Matlab.
-        Works for any sensor, but requires navigation being processed first
-        as its variables in combined_nc are required. Returns corrected depth
-        array.
-        """
-        # Fix pitch values to first and last points for interpolation to time
-        # values outside the range of the pitch values.
-        # See https://stackoverflow.com/a/45446546
-        # and https://github.com/scipy/scipy/issues/12707#issuecomment-672794335
-        try:
-            p_interp = interp1d(
-                self.combined_nc["navigation_time"].to_numpy().tolist(),
-                self.combined_nc["navigation_pitch"].to_numpy(),
-                fill_value=(
-                    self.combined_nc["navigation_pitch"].to_numpy()[0],
-                    self.combined_nc["navigation_pitch"].to_numpy()[-1],
-                ),
-                bounds_error=False,
-            )
-        except KeyError:
-            error_message = "No navigation_time or navigation_pitch in combined_nc."
-            raise EOFError(error_message) from None
-        pitch = p_interp(orig_nc["time"].to_numpy().tolist())
-
-        d_interp = interp1d(
-            self.combined_nc["depth_time"].to_numpy().tolist(),
-            self.combined_nc["depth_filtdepth"].to_numpy(),
-            fill_value=(
-                self.combined_nc["depth_filtdepth"].to_numpy()[0],
-                self.combined_nc["depth_filtdepth"].to_numpy()[-1],
-            ),
-            bounds_error=False,
-        )
-        orig_depth = d_interp(orig_nc["time"].to_numpy().tolist())
-        offs_depth = align_geom(self.sinfo[sensor]["sensor_offset"], pitch)
-
-        corrected_depth = xr.DataArray(
-            (orig_depth - offs_depth).astype(np.float64).tolist(),
-            coords=[orig_nc.get_index("time")],
-            dims={f"{sensor}_time"},
-            name=f"{sensor}_depth",
-        )
-        # 2008.289.03 has self.combined_nc["depth_time"][-1] (2008-10-16T15:42:32)
-        # at lot less than               orig_nc["time"][-1] (2008-10-16T16:24:43)
-        # which, with "extrapolate" causes wildly incorrect depths to -359 m
-        # There may be other cases where this happens, in which case we'd like
-        # a general solution. For now, we'll just correct this mission.
-        d_beg_time_diff = (
-            orig_nc["time"].to_numpy()[0] - self.combined_nc["depth_time"].to_numpy()[0]
-        )
-        d_end_time_diff = (
-            orig_nc["time"].to_numpy()[-1] - self.combined_nc["depth_time"].to_numpy()[-1]
-        )
-        self.logger.info(
-            "%s: d_beg_time_diff: %s, d_end_time_diff: %s",
-            sensor,
-            d_beg_time_diff.astype("timedelta64[s]"),
-            d_end_time_diff.astype("timedelta64[s]"),
-        )
-        if self.args.mission in (
-            "2008.289.03",
-            "2010.259.01",
-            "2010.259.02",
-        ):
-            # This could be a more general check for all missions, but let's restrict it
-            # to known problematic missions for now.  The above info message can help
-            # determine if this is needed for other missions.
-            self.logger.info(
-                "%s: Special QC for mission %s: Setting corrected_depth to NaN for times after %s",
-                sensor,
-                self.args.mission,
-                self.combined_nc["depth_time"][-1].to_numpy(),
-            )
-            corrected_depth[
-                np.where(
-                    orig_nc.get_index("time") > self.combined_nc["depth_time"].to_numpy()[-1],
-                )
-            ] = np.nan
-        if self.args.plot:
-            plt.figure(figsize=(18, 6))
-            plt.plot(
-                orig_nc["time"].to_numpy(),
-                orig_depth,
-                "-",
-                orig_nc["time"].to_numpy(),
-                corrected_depth,
-                "--",
-                orig_nc["time"].to_numpy(),
-                pitch,
-                ".",
-            )
-            plt.ylabel("Depth (m) & Pitch (deg)")
-            plt.legend(("Original depth", "Pitch corrected depth", "Pitch"))
-            plt.title(
-                f"Original and pitch corrected depth for {self.args.auv_name} {self.args.mission}",
-            )
-            plt.show()
-
-        return corrected_depth
-
     def _nudge_pos(self, max_sec_diff_at_end=10):
         """Apply linear nudges to underwater latitudes and longitudes so that
         they match the surface gps positions.
         """
         try:
-            lon = self.combined_nc["universals_longitude"]
+            lon = self.combined_nc["universals_longitude"] * 180.0 / np.pi
         except KeyError:
             error_message = "No universals_longitude data in combined_nc"
             raise EOFError(error_message) from None
-        lat = self.combined_nc["universals_latitude"]
+        lat = self.combined_nc["universals_latitude"] * 180.0 / np.pi
         lon_fix = self.combined_nc["nal9602_longitude_fix"]
         lat_fix = self.combined_nc["nal9602_latitude_fix"]
 
@@ -555,6 +367,7 @@ class Combine_NetCDF:
         log_file = self.args.log_file
         src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         group_files = sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc"))
+        self.summary_fields = set()
         self.combined_nc = xr.Dataset()
         for group_file in group_files:
             self.logger.info("Group file: %s", group_file.name)
@@ -567,10 +380,23 @@ class Combine_NetCDF:
                     new_group = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
                     new_var = new_group + "_" + orig_var.lower()
                     self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
-                    self.combined_nc[new_var] = ds[orig_var]
+                    if (
+                        orig_var in ("latitude", "longitude")
+                        and ds[orig_var].attrs.get("units") == "radians"
+                    ):
+                        # Convert radians to degrees
+                        self.combined_nc[new_var] = ds[orig_var] * 180.0 / np.pi
+                        self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
+                        self.combined_nc[new_var].attrs["units"] = "degrees"
+                    else:
+                        self.combined_nc[new_var] = ds[orig_var]
 
         # Add nudged longitude and latitude variables to the combined_nc dataset
-        nudged_longitude, nudged_latitude = self._nudge_pos()
+        try:
+            nudged_longitude, nudged_latitude = self._nudge_pos()
+        except ValueError as e:
+            self.logger.error("Nudging positions failed: %s", e)  # noqa: TRY400
+            return
         self.combined_nc["nudged_longitude"] = nudged_longitude
         self.combined_nc["nudged_longitude"].attrs = {
             "long_name": "Nudged Longitude",
@@ -589,7 +415,7 @@ class Combine_NetCDF:
     def write_netcdf(self) -> None:
         log_file = self.args.log_file
         netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_cal.nc")
+        out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_combined.nc")
 
         self.combined_nc.attrs = self.global_metadata()
         self.logger.info("Writing combined group data to %s", out_fn)
@@ -600,6 +426,7 @@ class Combine_NetCDF:
             "Data variables written: %s",
             ", ".join(sorted(self.combined_nc.variables)),
         )
+        self.logger.info("Wrote combined (_combined.nc) netCDF file: %s", out_fn)
 
         return netcdfs_dir
 
