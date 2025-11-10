@@ -34,6 +34,7 @@ from logs2netcdfs import (
     TIME60HZ,
     AUV_NetCDF,
 )
+from nc42netcdfs import BASE_LRAUV_PATH
 from scipy.interpolate import interp1d
 
 
@@ -127,16 +128,20 @@ class Align_NetCDF:
 
         return metadata
 
-    def process_cal(self, vehicle: str = "", name: str = "") -> None:  # noqa: C901, PLR0912, PLR0915
+    def process_cal(self, vehicle: str = "", name: str = "", log_file: str = "") -> None:  # noqa: C901, PLR0912, PLR0915
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
-        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
-        in_fn = f"{vehicle}_{name}_cal.nc"
-        try:
-            self.calibrated_nc = xr.open_dataset(Path(netcdfs_dir, in_fn))
-        except ValueError as e:
-            raise InvalidCalFile(e) from e
-        self.logger.info("Processing %s from %s", in_fn, netcdfs_dir)
+        if name and vehicle:
+            netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
+            src_file = Path(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
+        elif log_file:
+            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(log_file).parent}")
+            src_file = Path(netcdfs_dir, f"{Path(log_file).stem}_cal.nc")
+        else:
+            msg = "Must provide either mission and vehicle or log_file"
+            raise ValueError(msg)
+        self.calibrated_nc = xr.open_dataset(src_file)
+        self.logger.info("Processing %s", src_file)
         self.aligned_nc = xr.Dataset()
         self.min_time = datetime.now(UTC)
         self.max_time = datetime(1970, 1, 1, tzinfo=UTC)
@@ -178,7 +183,7 @@ class Align_NetCDF:
                     bounds_error=False,
                 )
             except KeyError:
-                error_message = f"No nudged_latitude data in {in_fn}"
+                error_message = f"No nudged_latitude data in {src_file}"
                 raise InvalidCalFile(error_message) from None
             lon_interp = interp1d(
                 self.calibrated_nc["nudged_longitude"].get_index("time").view(np.int64).tolist(),
@@ -278,7 +283,7 @@ class Align_NetCDF:
             )
             self.aligned_nc[f"{instr}_latitude"].attrs = self.calibrated_nc["nudged_latitude"].attrs
             self.aligned_nc[f"{instr}_latitude"].attrs["comment"] += (
-                f". Variable nudged_latitude from {in_fn} file linearly"
+                f". Variable nudged_latitude from {src_file} file linearly"
                 f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_latitude"].attrs["long_name"] = "Latitude"
@@ -294,7 +299,7 @@ class Align_NetCDF:
                 "nudged_longitude"
             ].attrs
             self.aligned_nc[f"{instr}_longitude"].attrs["comment"] += (
-                f". Variable nudged_longitude from {in_fn} file linearly"
+                f". Variable nudged_longitude from {src_file} file linearly"
                 f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[f"{instr}_longitude"].attrs["long_name"] = "Longitude"
@@ -374,6 +379,15 @@ class Align_NetCDF:
             help="Mission directory, e.g.: 2020.064.10",
         )
         parser.add_argument(
+            "--log_file",
+            action="store",
+            help=(
+                "Path to the log file of original LRAUV data, e.g.: "
+                "brizo/missionlogs/2025/20250903_20250909/"
+                "20250905T072042/202509050720_202509051653.nc4"
+            ),
+        )
+        parser.add_argument(
             "--plot",
             action="store_true",
             help="Create intermediate plots to validate data operations.",
@@ -401,6 +415,10 @@ if __name__ == "__main__":
     align_netcdf = Align_NetCDF()
     align_netcdf.process_command_line()
     p_start = time.time()
-    netcdf_dir = align_netcdf.process_cal()
-    align_netcdf.write_netcdf(netcdf_dir)
+    if align_netcdf.args.auv_name and align_netcdf.args.mission:
+        netcdf_dir = align_netcdf.process_cal()
+        align_netcdf.write_netcdf(netcdf_dir)
+    elif align_netcdf.args.log_file:
+        netcdf_dir = align_netcdf.process_cal(log_file=align_netcdf.args.log_file)
+        align_netcdf.write_netcdf(netcdf_dir)
     align_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
