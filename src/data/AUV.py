@@ -103,7 +103,9 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
         dt_nudged = np.array([], dtype="datetime64[ns]")
     if segi.any():
         # Return difference of numpy timestamps in units of minutes
-        seg_min = (lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]).astype("timedelta64[m]")
+        seg_min = (lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]).astype(
+            "timedelta64[s]"
+        ).astype(float) / 60.0
     else:
         seg_min = 0
     logger.info(
