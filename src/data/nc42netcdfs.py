@@ -401,6 +401,24 @@ class Extract:
                     percent_different,
                     max_abs_diff,
                 )
+                self.logger.warning(
+                    "Dead Reckoned timing: Differences begin at index %d",
+                    np.where(non_zero_mask)[0][0],
+                )
+                lon_subset = lon_time[
+                    max(0, np.where(non_zero_mask)[0][0] - 5) : np.where(non_zero_mask)[0][0] + 5
+                ]
+                lat_subset = lat_time[
+                    max(0, np.where(non_zero_mask)[0][0] - 5) : np.where(non_zero_mask)[0][0] + 5
+                ]
+                self.logger.warning(
+                    "Dead Reckoned timing: longitude_time around this index: %s",
+                    " ".join(f"{val:14.2f}" for val in lon_subset),
+                )
+                self.logger.warning(
+                    "Dead Reckoned timing: latitude_time around this index:  %s",
+                    " ".join(f"{val:14.2f}" for val in lat_subset),
+                )
             elif percent_different > MINOR_PERCENT_THRESHOLD or max_abs_diff > MINOR_TIME_THRESHOLD:
                 self.logger.warning(
                     "Dead Reckoned timing: Minor synchronization issues detected - "
