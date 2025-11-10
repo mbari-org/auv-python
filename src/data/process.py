@@ -300,7 +300,7 @@ class Processor:
             cal_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
         cal_netcdf.logger.removeHandler(self.log_handler)
 
-    def align(self, mission: str) -> None:
+    def align(self, mission: str = "", log_file: str = "") -> None:
         self.logger.info("Alignment steps for %s", mission)
         align_netcdf = Align_NetCDF()
         align_netcdf.args = argparse.Namespace()
@@ -313,7 +313,10 @@ class Processor:
         align_netcdf.logger.addHandler(self.log_handler)
         align_netcdf.commandline = self.commandline
         try:
-            netcdf_dir = align_netcdf.process_cal()
+            if log_file:
+                netcdf_dir = align_netcdf.process_cal(log_file=log_file)
+            else:
+                netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
