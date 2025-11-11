@@ -811,7 +811,7 @@ class Extract:
             # Override any coordinates attribute in src with just the time coordinate
             dst_var.setncattr("coordinates", var_name + "_time")
             # Downstream process uses cf_xarray to recognize coordinates, add required attribute
-            if var_name.startswith(("longitude", "latitude")):
+            if src_group.name == "/" and var_name.startswith(("longitude", "latitude")):
                 dst_var.setncattr("units", "radians")
             elif var_name.startswith("depth"):
                 dst_var.setncattr("units", "meters")
