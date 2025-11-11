@@ -107,13 +107,13 @@ class Combine_NetCDF:
         metadata["featureType"] = "trajectory"
         try:
             metadata["time_coverage_start"] = str(
-                self.combined_nc["depth_time"].to_pandas().iloc[0].isoformat(),
+                pd.to_datetime(self.combined_nc["depth_time"].values, unit="s")[0].isoformat(),
             )
         except KeyError:
             error_message = "No depth_time variable in combined_nc"
             raise EOFError(error_message) from None
         metadata["time_coverage_end"] = str(
-            self.combined_nc["depth_time"].to_pandas().iloc[-1].isoformat(),
+            pd.to_datetime(self.combined_nc["depth_time"].values, unit="s")[-1].isoformat(),
         )
         metadata["distribution_statement"] = "Any use requires prior approval from MBARI"
         metadata["license"] = metadata["distribution_statement"]
@@ -371,25 +371,36 @@ class Combine_NetCDF:
         self.combined_nc = xr.Dataset()
         for group_file in group_files:
             self.logger.info("Group file: %s", group_file.name)
-            # Loop through each variable in the group file and add it to the combined_nc member list
-            with xr.open_dataset(group_file) as ds:
+            with xr.open_dataset(group_file, decode_cf=False) as ds:
+                # New group name is loawercase with underscores removed
+                group_name = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
+
                 for orig_var in ds.variables:
                     if orig_var.lower().endswith("time"):
-                        self.logger.debug("Skipping time variable: %s", orig_var)
+                        self.logger.info("Skipping time variable: %s", orig_var)
                         continue
-                    new_group = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
-                    new_var = new_group + "_" + orig_var.lower()
+                    new_var = group_name + "_" + orig_var.lower()
                     self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
                     if (
                         orig_var in ("latitude", "longitude")
                         and ds[orig_var].attrs.get("units") == "radians"
                     ):
                         # Convert radians to degrees
-                        self.combined_nc[new_var] = ds[orig_var] * 180.0 / np.pi
+                        self.combined_nc[new_var] = xr.DataArray(
+                            ds[orig_var].to_numpy() * 180.0 / np.pi,
+                            coords=ds[orig_var].coords,
+                            dims=ds[orig_var].dims,
+                        )
                         self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
                         self.combined_nc[new_var].attrs["units"] = "degrees"
+
                     else:
-                        self.combined_nc[new_var] = ds[orig_var]
+                        self.combined_nc[new_var] = xr.DataArray(
+                            ds[orig_var].to_numpy(),
+                            coords=ds[orig_var].coords,
+                            dims=ds[orig_var].dims,
+                        )
+                        self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
 
         # Add nudged longitude and latitude variables to the combined_nc dataset
         try:
