@@ -107,13 +107,13 @@ class Combine_NetCDF:
         metadata["featureType"] = "trajectory"
         try:
             metadata["time_coverage_start"] = str(
-                pd.to_datetime(self.combined_nc["depth_time"].values, unit="s")[0].isoformat(),
+                pd.to_datetime(self.combined_nc["universals_time"].values, unit="s")[0].isoformat(),
             )
         except KeyError:
-            error_message = "No depth_time variable in combined_nc"
+            error_message = "No universals_time variable in combined_nc"
             raise EOFError(error_message) from None
         metadata["time_coverage_end"] = str(
-            pd.to_datetime(self.combined_nc["depth_time"].values, unit="s")[-1].isoformat(),
+            pd.to_datetime(self.combined_nc["universals_time"].values, unit="s")[-1].isoformat(),
         )
         metadata["distribution_statement"] = "Any use requires prior approval from MBARI"
         metadata["license"] = metadata["distribution_statement"]
@@ -332,19 +332,20 @@ class Combine_NetCDF:
                 )
 
     def _nudge_pos(self, max_sec_diff_at_end=10):
-        """Apply linear nudges to underwater latitudes and longitudes so that
-        they match the surface gps positions.
+        """Match variables from lrauv processing to those needed by
+        AUV.nudged_positions() so that linear nudges to underwater dead reckoned
+        positions will match the GPS positions at the surface.
         """
         try:
-            lon = self.combined_nc["universals_longitude"] * 180.0 / np.pi
+            lon = self.combined_nc["universals_longitude"]
         except KeyError:
             error_message = "No universals_longitude data in combined_nc"
             raise EOFError(error_message) from None
-        lat = self.combined_nc["universals_latitude"] * 180.0 / np.pi
+        lat = self.combined_nc["universals_latitude"]
         lon_fix = self.combined_nc["nal9602_longitude_fix"]
         lat_fix = self.combined_nc["nal9602_latitude_fix"]
 
-        # Use the shared function from AUV module
+        # Use the shared nudge_positions() function from AUV module
         lon_nudged, lat_nudged, segment_count, segment_minsum = nudge_positions(
             nav_longitude=lon,
             nav_latitude=lat,
@@ -356,10 +357,6 @@ class Combine_NetCDF:
             max_sec_diff_at_end=max_sec_diff_at_end,
             create_plots=True,
         )
-
-        # Store results in instance variables for compatibility
-        self.segment_count = segment_count
-        self.segment_minsum = segment_minsum
 
         return lon_nudged, lat_nudged
 
@@ -465,6 +462,7 @@ class Combine_NetCDF:
         self.combined_nc = xr.Dataset()
         for group_file in group_files:
             self.logger.info("Group file: %s", group_file.name)
+            # Open group file without decoding to have np.allclose work properly
             with xr.open_dataset(group_file, decode_cf=False) as ds:
                 # Group name to prepend variable names is lowercase with underscores removed
                 group_name = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
@@ -474,15 +472,15 @@ class Combine_NetCDF:
                     if orig_var.lower().endswith("time"):
                         continue
                     new_var = group_name + "_" + orig_var.lower()
+                    dim_name = time_info["time_coord_mapping"][ds[orig_var].dims[0]]
                     self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
                     if (
                         orig_var in ("latitude", "longitude")
                         and ds[orig_var].attrs.get("units") == "radians"
                     ):
-                        # Convert radians to degrees
                         self.combined_nc[new_var] = xr.DataArray(
                             ds[orig_var].to_numpy() * 180.0 / np.pi,
-                            dims=[time_info["time_coord_mapping"][ds[orig_var].dims[0]]],
+                            dims=[dim_name],
                             coords=[ds[orig_var].get_index(orig_var + "_time")],
                         )
                         self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
@@ -490,10 +488,16 @@ class Combine_NetCDF:
                     else:
                         self.combined_nc[new_var] = xr.DataArray(
                             ds[orig_var].to_numpy(),
-                            dims=[time_info["time_coord_mapping"][ds[orig_var].dims[0]]],
+                            dims=[dim_name],
                             coords=[ds[orig_var].get_index(orig_var + "_time")],
                         )
                         self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
+
+                    # Add metadata required for cf_xarray decoding
+                    self.combined_nc[new_var].coords[dim_name].attrs["units"] = (
+                        "seconds since 1970-01-01T00:00:00Z"
+                    )
+                    self.combined_nc[new_var].coords[dim_name].attrs["standard_name"] = "time"
 
                 # Construct useful comment for consolidated time coordinate
                 if time_info["consolidated_time_name"] in self.combined_nc.variables:
@@ -506,6 +510,12 @@ class Combine_NetCDF:
                     self.combined_nc[time_info["consolidated_time_name"]].attrs["comment"] = (
                         f"Consolidated time coordinate from: {mapping_info}"
                     )
+
+        # Write out an intermediate netCDF file so that cf_xarray can decode
+        # the data properly for nudging positions
+        intermediate_file = self._intermediate_write_netcdf()
+        with xr.open_dataset(intermediate_file, decode_cf=True) as ds:
+            self.combined_nc = ds.load()
 
         # Add nudged longitude and latitude variables to the combined_nc dataset
         try:
@@ -527,6 +537,30 @@ class Combine_NetCDF:
             "units": "degrees_north",
             "comment": "Dead reckoned latitude nudged to GPS positions",
         }
+        # Remove the intermediate file
+        Path(intermediate_file).unlink()
+
+    def _intermediate_write_netcdf(self) -> None:
+        """Write out an intermediate combined netCDF file so that data can be
+        read using decode_cf=True for nudge_positions() to work with cf accessors."""
+        log_file = self.args.log_file
+        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_combined_intermediate.nc")
+
+        self.combined_nc.attrs = self.global_metadata()
+        self.logger.info("Writing intermediate combined group data to %s", out_fn)
+        if Path(out_fn).exists():
+            Path(out_fn).unlink()
+        self.combined_nc.to_netcdf(out_fn)
+        self.logger.info(
+            "Data variables written: %s",
+            ", ".join(sorted(self.combined_nc.variables)),
+        )
+        self.logger.info(
+            "Wrote intermediate (_combined_intermediate.nc) netCDF file: %s",
+            out_fn,
+        )
+        return out_fn
 
     def write_netcdf(self) -> None:
         log_file = self.args.log_file
