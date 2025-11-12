@@ -565,15 +565,16 @@ class Combine_NetCDF:
         """Add nudged longitude and latitude variables to the combined dataset."""
         try:
             nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
-                nav_longitude=self.combined_nc["universals_longitude"],
-                nav_latitude=self.combined_nc["universals_latitude"],
+                # For LRAUV data the nav positions are shifted by 1 to align with GPS fixes
+                nav_longitude=self.combined_nc["universals_longitude"].shift(universals_time=1),
+                nav_latitude=self.combined_nc["universals_latitude"].shift(universals_time=1),
                 gps_longitude=self.combined_nc["nal9602_longitude_fix"],
                 gps_latitude=self.combined_nc["nal9602_latitude_fix"],
                 logger=self.logger,
                 auv_name="",
                 mission="",
                 max_sec_diff_at_end=max_sec_diff_at_end,
-                create_plots=True,
+                create_plots=self.args.plot,
             )
         except ValueError as e:
             self.logger.error("Nudging positions failed: %s", e)  # noqa: TRY400
@@ -691,12 +692,6 @@ class Combine_NetCDF:
             description=__doc__,
             epilog=examples,
         )
-
-        parser.add_argument(
-            "--noinput",
-            action="store_true",
-            help="Execute without asking for a response, e.g. to not ask to re-download file",
-        )
         parser.add_argument(
             "--log_file",
             action="store",
@@ -708,10 +703,8 @@ class Combine_NetCDF:
         )
         parser.add_argument(
             "--plot",
-            action="store",
-            help="Create intermediate plots"
-            " to validate data operations. Use first<n> to plot <n>"
-            " points, e.g. first2000. Program blocks upon show.",
+            action="store_true",
+            help="Create intermediate plot(s) to help validate processing",
         )
         parser.add_argument(
             "-v",
