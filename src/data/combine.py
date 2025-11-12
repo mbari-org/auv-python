@@ -331,35 +331,6 @@ class Combine_NetCDF:
                     set_to_nan=True,
                 )
 
-    def _nudge_pos(self, max_sec_diff_at_end=10):
-        """Match variables from lrauv processing to those needed by
-        AUV.nudged_positions() so that linear nudges to underwater dead reckoned
-        positions will match the GPS positions at the surface.
-        """
-        try:
-            lon = self.combined_nc["universals_longitude"]
-        except KeyError:
-            error_message = "No universals_longitude data in combined_nc"
-            raise EOFError(error_message) from None
-        lat = self.combined_nc["universals_latitude"]
-        lon_fix = self.combined_nc["nal9602_longitude_fix"]
-        lat_fix = self.combined_nc["nal9602_latitude_fix"]
-
-        # Use the shared nudge_positions() function from AUV module
-        lon_nudged, lat_nudged, segment_count, segment_minsum = nudge_positions(
-            nav_longitude=lon,
-            nav_latitude=lat,
-            gps_longitude=lon_fix,
-            gps_latitude=lat_fix,
-            logger=self.logger,
-            auv_name="",
-            mission="",
-            max_sec_diff_at_end=max_sec_diff_at_end,
-            create_plots=True,
-        )
-
-        return lon_nudged, lat_nudged
-
     def _consolidate_group_time_coords(self, ds: xr.Dataset, group_name: str) -> dict:
         """Analyze and consolidate time coordinates for a group.
 
@@ -408,17 +379,37 @@ class Combine_NetCDF:
             # Compare sizes first
             if len(time_array) != len(first_time):
                 all_identical = False
+                self.logger.debug(
+                    "Group %s: Time coordinate '%s' length %d differs from '%s' length %d",
+                    group_name,
+                    _name,
+                    len(time_array),
+                    first_time_name,
+                    len(first_time),
+                )
                 break
 
             # Compare values with tolerance
             try:
                 if not np.allclose(time_array.values, first_time.values, atol=1e-6):
                     all_identical = False
+                    self.logger.debug(
+                        "Group %s: Time coordinate '%s' values differ from '%s'",
+                        group_name,
+                        _name,
+                        first_time_name,
+                    )
                     break
             except TypeError:
                 # Handle datetime arrays
                 if not np.array_equal(time_array.values, first_time.values):
                     all_identical = False
+                    self.logger.debug(
+                        "Group %s: Time coordinate '%s' values differ from '%s'",
+                        group_name,
+                        _name,
+                        first_time_name,
+                    )
                     break
 
         if all_identical:
@@ -453,112 +444,146 @@ class Combine_NetCDF:
             "time_coord_mapping": time_coord_mapping,
         }
 
-    def combine_groups(self):
-        log_file = self.args.log_file
-        src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        group_files = sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc"))
-        self.summary_fields = set()
-        self.combined_nc = xr.Dataset()
-        for group_file in group_files:
-            self.logger.info("Group file: %s", group_file.name)
-            # Open group file without decoding to have np.allclose work properly
-            with xr.open_dataset(group_file, decode_cf=False) as ds:
-                # Group name to prepend variable names is lowercase with underscores removed
-                group_name = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
-                time_info = self._consolidate_group_time_coords(ds, group_name)
+    def _add_time_coordinates_to_combined(self, time_info: dict, ds: xr.Dataset) -> None:
+        """Add time coordinates to the combined dataset."""
+        if time_info["consolidated_time_name"]:
+            self._add_consolidated_time_coordinate(time_info)
+        else:
+            self._add_separate_time_coordinates(time_info, ds)
 
-                # Add time coordinate(s) to combined_nc
-                if time_info["consolidated_time_name"]:
-                    self.logger.info(
-                        "Adding consolidated time coordinate %-45s %s",
-                        f"{time_info['consolidated_time_name']} as",
-                        time_info["consolidated_time_name"],
-                    )
-                    self.combined_nc[time_info["consolidated_time_name"]] = xr.DataArray(
-                        time_info["consolidated_time_data"].to_numpy(),
-                        dims=[time_info["consolidated_time_name"]],
-                        coords={
-                            time_info["consolidated_time_name"]: time_info[
-                                "consolidated_time_data"
-                            ].to_numpy()
-                        },
-                    )
-                    self.combined_nc[time_info["consolidated_time_name"]].attrs = time_info[
-                        "consolidated_time_data"
-                    ].attrs.copy()
-                else:
-                    for orig_time_var, new_time_var in time_info["time_coord_mapping"].items():
-                        self.logger.info(
-                            "Adding time coordinate %-58s %s",
-                            f"{orig_time_var} as",
-                            new_time_var,
-                        )
-                        self.combined_nc[new_time_var] = xr.DataArray(
-                            ds[orig_time_var].to_numpy(),
-                            dims=[new_time_var],
-                            coords={new_time_var: ds[orig_time_var].to_numpy()},
-                        )
-                        self.combined_nc[new_time_var].attrs = ds[orig_time_var].attrs.copy()
+    def _add_consolidated_time_coordinate(self, time_info: dict) -> None:
+        """Add a consolidated time coordinate to the combined dataset."""
+        time_name = time_info["consolidated_time_name"]
+        self.logger.info(
+            "Adding consolidated time coordinate %-45s %s",
+            f"{time_name} as",
+            time_name,
+        )
+        self.combined_nc[time_name] = xr.DataArray(
+            time_info["consolidated_time_data"].to_numpy(),
+            dims=[time_name],
+            coords={time_name: time_info["consolidated_time_data"].to_numpy()},
+        )
+        self.combined_nc[time_name].attrs = time_info["consolidated_time_data"].attrs.copy()
 
-                for orig_var in ds.variables:
-                    if orig_var.lower().endswith("time"):
-                        continue
-                    new_var = group_name + "_" + orig_var.lower()
-                    dim_name = time_info["time_coord_mapping"][ds[orig_var].dims[0]]
-                    self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
-                    if (
-                        orig_var in ("latitude", "longitude")
-                        and ds[orig_var].attrs.get("units") == "radians"
-                    ):
-                        self.combined_nc[new_var] = xr.DataArray(
-                            ds[orig_var].to_numpy() * 180.0 / np.pi,
-                            dims=[dim_name],
-                            coords={
-                                dim_name: ds[orig_var].get_index(orig_var + "_time").to_numpy()
-                            },
-                        )
-                        self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
-                        self.combined_nc[new_var].attrs["units"] = "degrees"
-                    else:
-                        self.combined_nc[new_var] = xr.DataArray(
-                            ds[orig_var].to_numpy(),
-                            dims=[dim_name],
-                            coords={
-                                dim_name: ds[orig_var].get_index(orig_var + "_time").to_numpy()
-                            },
-                        )
-                        self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
+    def _add_separate_time_coordinates(self, time_info: dict, ds: xr.Dataset) -> None:
+        """Add separate time coordinates to the combined dataset."""
+        for orig_time_var, new_time_var in time_info["time_coord_mapping"].items():
+            self.logger.info(
+                "Adding time coordinate %-58s %s",
+                f"{orig_time_var} as",
+                new_time_var,
+            )
+            self.combined_nc[new_time_var] = xr.DataArray(
+                ds[orig_time_var].to_numpy(),
+                dims=[new_time_var],
+                coords={new_time_var: ds[orig_time_var].to_numpy()},
+            )
+            self.combined_nc[new_time_var].attrs = ds[orig_time_var].attrs.copy()
 
-                    # Add metadata required for cf_xarray decoding
-                    self.combined_nc[new_var].coords[dim_name].attrs["units"] = (
-                        "seconds since 1970-01-01T00:00:00Z"
-                    )
-                    self.combined_nc[new_var].coords[dim_name].attrs["standard_name"] = "time"
+    def _get_time_coordinate_data(self, time_info: dict, ds: xr.Dataset, orig_time_dim: str):
+        """Get the appropriate time coordinate data for a variable."""
+        if time_info["consolidated_time_name"]:
+            return time_info["consolidated_time_data"].to_numpy()
+        return ds[orig_time_dim].to_numpy()
 
-                # Construct useful comment for consolidated time coordinate
-                if time_info["consolidated_time_name"] in self.combined_nc.variables:
-                    mapping_info = ", ".join(
-                        [
-                            f"{orig} -> {new}"
-                            for orig, new in time_info["time_coord_mapping"].items()
-                        ]
-                    )
-                    self.combined_nc[time_info["consolidated_time_name"]].attrs["comment"] = (
-                        f"Consolidated time coordinate from: {mapping_info}"
-                    )
+    def _create_data_array_for_variable(
+        self, ds: xr.Dataset, orig_var: str, dim_name: str, time_coord_data
+    ) -> xr.DataArray:
+        """Create a DataArray for a variable, handling unit conversions."""
+        if orig_var in ("latitude", "longitude") and ds[orig_var].attrs.get("units") == "radians":
+            data_array = xr.DataArray(
+                ds[orig_var].to_numpy() * 180.0 / np.pi,
+                dims=[dim_name],
+                coords={dim_name: time_coord_data},
+            )
+            data_array.attrs = ds[orig_var].attrs.copy()
+            data_array.attrs["units"] = "degrees"
+        else:
+            data_array = xr.DataArray(
+                ds[orig_var].to_numpy(),
+                dims=[dim_name],
+                coords={dim_name: time_coord_data},
+            )
+            data_array.attrs = ds[orig_var].attrs.copy()
+        return data_array
 
-        # Write out an intermediate netCDF file so that cf_xarray can decode
-        # the data properly for nudging positions
-        intermediate_file = self._intermediate_write_netcdf()
-        with xr.open_dataset(intermediate_file, decode_cf=True) as ds:
-            self.combined_nc = ds.load()
+    def _add_time_metadata_to_variable(self, var_name: str, dim_name: str) -> None:
+        """Add required time metadata for cf_xarray decoding."""
+        self.combined_nc[var_name].coords[dim_name].attrs["units"] = (
+            "seconds since 1970-01-01T00:00:00Z"
+        )
+        self.combined_nc[var_name].coords[dim_name].attrs["standard_name"] = "time"
 
-        # Add nudged longitude and latitude variables to the combined_nc dataset
+    def _process_group_variables(self, ds: xr.Dataset, group_name: str, time_info: dict) -> None:
+        """Process all data variables in a group."""
+        for orig_var in ds.variables:
+            if orig_var.lower().endswith("time"):
+                continue
+
+            # Skip scalar variables (no dimensions)
+            if len(ds[orig_var].dims) == 0:
+                self.logger.debug("Skipping scalar variable: %s", orig_var)
+                continue
+
+            new_var = group_name + "_" + orig_var.lower()
+
+            # Get the original time dimension for this variable
+            orig_time_dim = ds[orig_var].dims[0]  # Assuming first dim is time
+
+            # Check if this dimension has a mapping
+            if orig_time_dim not in time_info["time_coord_mapping"]:
+                self.logger.warning(
+                    "No time mapping found for %s dimension %s", orig_var, orig_time_dim
+                )
+                continue
+
+            dim_name = time_info["time_coord_mapping"][orig_time_dim]
+            time_coord_data = self._get_time_coordinate_data(time_info, ds, orig_time_dim)
+
+            self.logger.info("Adding variable %-65s %s", f"{orig_var} as", new_var)
+
+            # Create the data array
+            self.combined_nc[new_var] = self._create_data_array_for_variable(
+                ds, orig_var, dim_name, time_coord_data
+            )
+
+            # Add time metadata
+            self._add_time_metadata_to_variable(new_var, dim_name)
+
+    def _add_consolidation_comment(self, time_info: dict) -> None:
+        """Add a comment documenting time coordinate consolidation."""
+        if time_info["consolidated_time_name"] in self.combined_nc.variables:
+            mapping_info = ", ".join(
+                [f"{orig} -> {new}" for orig, new in time_info["time_coord_mapping"].items()]
+            )
+            self.combined_nc[time_info["consolidated_time_name"]].attrs["comment"] = (
+                f"Consolidated time coordinate from: {mapping_info}"
+            )
+
+    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:
+        """Add nudged longitude and latitude variables to the combined dataset."""
         try:
-            nudged_longitude, nudged_latitude = self._nudge_pos()
+            nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
+                nav_longitude=self.combined_nc["universals_longitude"],
+                nav_latitude=self.combined_nc["universals_latitude"],
+                gps_longitude=self.combined_nc["nal9602_longitude_fix"],
+                gps_latitude=self.combined_nc["nal9602_latitude_fix"],
+                logger=self.logger,
+                auv_name="",
+                mission="",
+                max_sec_diff_at_end=max_sec_diff_at_end,
+                create_plots=True,
+            )
         except ValueError as e:
             self.logger.error("Nudging positions failed: %s", e)  # noqa: TRY400
             return
+
+        self.logger.info(
+            "nudge_positions created %d segments with segment_minsum = %f",
+            segment_count,
+            segment_minsum,
+        )
         self.combined_nc["nudged_longitude"] = nudged_longitude
         self.combined_nc["nudged_longitude"].attrs = {
             "long_name": "Nudged Longitude",
@@ -573,8 +598,42 @@ class Combine_NetCDF:
             "units": "degrees_north",
             "comment": "Dead reckoned latitude nudged to GPS positions",
         }
-        # Remove the intermediate file
-        Path(intermediate_file).unlink()
+
+    def combine_groups(self):
+        """Combine group files into a single NetCDF dataset with consolidated time coordinates."""
+        log_file = self.args.log_file
+        src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        group_files = sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc"))
+        self.summary_fields = set()
+        self.combined_nc = xr.Dataset()
+
+        for group_file in group_files:
+            self.logger.info("Group file: %s", group_file.name)
+            # Open group file without decoding to have np.allclose work properly
+            with xr.open_dataset(group_file, decode_cf=False) as ds:
+                # Group name to prepend variable names is lowercase with underscores removed
+                group_name = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
+                time_info = self._consolidate_group_time_coords(ds, group_name)
+
+                # Add time coordinate(s) to combined dataset
+                self._add_time_coordinates_to_combined(time_info, ds)
+
+                # Process all data variables in the group
+                self._process_group_variables(ds, group_name, time_info)
+
+                # Add consolidation comment if applicable
+                self._add_consolidation_comment(time_info)
+
+        # Write intermediate file for cf_xarray decoding
+        intermediate_file = self._intermediate_write_netcdf()
+        with xr.open_dataset(intermediate_file, decode_cf=True) as ds:
+            self.combined_nc = ds.load()
+
+        # Add nudged coordinates
+        self._add_nudged_coordinates()
+
+        # Clean up intermediate file
+        ##Path(intermediate_file).unlink()
 
     def _intermediate_write_netcdf(self) -> None:
         """Write out an intermediate combined netCDF file so that data can be
