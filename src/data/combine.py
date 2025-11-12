@@ -427,9 +427,8 @@ class Combine_NetCDF:
             time_coord_mapping = dict.fromkeys(time_vars, consolidated_name)
 
             self.logger.info(
-                "Group %s: All %d time coordinates identical - consolidating to '%s'",
-                group_name,
-                len(time_vars),
+                "%-65s %s",
+                f"Consoliding {len(time_vars)} coordinates to",
                 consolidated_name,
             )
 
@@ -468,6 +467,39 @@ class Combine_NetCDF:
                 group_name = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
                 time_info = self._consolidate_group_time_coords(ds, group_name)
 
+                # Add time coordinate(s) to combined_nc
+                if time_info["consolidated_time_name"]:
+                    self.logger.info(
+                        "Adding consolidated time coordinate %-45s %s",
+                        f"{time_info['consolidated_time_name']} as",
+                        time_info["consolidated_time_name"],
+                    )
+                    self.combined_nc[time_info["consolidated_time_name"]] = xr.DataArray(
+                        time_info["consolidated_time_data"].to_numpy(),
+                        dims=[time_info["consolidated_time_name"]],
+                        coords={
+                            time_info["consolidated_time_name"]: time_info[
+                                "consolidated_time_data"
+                            ].to_numpy()
+                        },
+                    )
+                    self.combined_nc[time_info["consolidated_time_name"]].attrs = time_info[
+                        "consolidated_time_data"
+                    ].attrs.copy()
+                else:
+                    for orig_time_var, new_time_var in time_info["time_coord_mapping"].items():
+                        self.logger.info(
+                            "Adding time coordinate %-58s %s",
+                            f"{orig_time_var} as",
+                            new_time_var,
+                        )
+                        self.combined_nc[new_time_var] = xr.DataArray(
+                            ds[orig_time_var].to_numpy(),
+                            dims=[new_time_var],
+                            coords={new_time_var: ds[orig_time_var].to_numpy()},
+                        )
+                        self.combined_nc[new_time_var].attrs = ds[orig_time_var].attrs.copy()
+
                 for orig_var in ds.variables:
                     if orig_var.lower().endswith("time"):
                         continue
@@ -481,7 +513,9 @@ class Combine_NetCDF:
                         self.combined_nc[new_var] = xr.DataArray(
                             ds[orig_var].to_numpy() * 180.0 / np.pi,
                             dims=[dim_name],
-                            coords=[ds[orig_var].get_index(orig_var + "_time")],
+                            coords={
+                                dim_name: ds[orig_var].get_index(orig_var + "_time").to_numpy()
+                            },
                         )
                         self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
                         self.combined_nc[new_var].attrs["units"] = "degrees"
@@ -489,7 +523,9 @@ class Combine_NetCDF:
                         self.combined_nc[new_var] = xr.DataArray(
                             ds[orig_var].to_numpy(),
                             dims=[dim_name],
-                            coords=[ds[orig_var].get_index(orig_var + "_time")],
+                            coords={
+                                dim_name: ds[orig_var].get_index(orig_var + "_time").to_numpy()
+                            },
                         )
                         self.combined_nc[new_var].attrs = ds[orig_var].attrs.copy()
 
