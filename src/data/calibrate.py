@@ -1676,7 +1676,7 @@ class Calibrate_NetCDF:
             auv_name=self.args.auv_name,
             mission=self.args.mission,
             max_sec_diff_at_end=max_sec_diff_at_end,
-            create_plots=True,
+            create_plots=False,
         )
 
         # Store results in instance variables for compatibility

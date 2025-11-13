@@ -68,6 +68,7 @@ from socket import gethostname
 from align import Align_NetCDF, InvalidCalFile
 from archive import LOG_NAME, Archiver
 from calibrate import EXPECTED_SENSORS, Calibrate_NetCDF
+from combine import Combine_NetCDF
 from create_products import CreateProducts
 from dorado_info import FAILED, TEST, dorado_info
 from emailer import NOTIFICATION_EMAIL, Emailer
@@ -299,7 +300,7 @@ class Processor:
             cal_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
         cal_netcdf.logger.removeHandler(self.log_handler)
 
-    def align(self, mission: str) -> None:
+    def align(self, mission: str = "", log_file: str = "") -> None:
         self.logger.info("Alignment steps for %s", mission)
         align_netcdf = Align_NetCDF()
         align_netcdf.args = argparse.Namespace()
@@ -312,7 +313,10 @@ class Processor:
         align_netcdf.logger.addHandler(self.log_handler)
         align_netcdf.commandline = self.commandline
         try:
-            netcdf_dir = align_netcdf.process_cal()
+            if log_file:
+                netcdf_dir = align_netcdf.process_cal(log_file=log_file)
+            else:
+                netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
@@ -739,6 +743,8 @@ class Processor:
         extract = Extract()
         extract.args = argparse.Namespace()
         extract.args.verbose = self.args.verbose
+        extract.args.log_file = self.args.log_file
+        extract.commandline = self.commandline
         extract.logger.setLevel(self._log_levels[self.args.verbose])
         extract.logger.addHandler(self.log_handler)
 
@@ -747,6 +753,23 @@ class Processor:
         extract.logger.info("Downloading %s", url)
         input_file = extract.download_with_pooch(url, output_dir)
         return extract.extract_groups_to_files_netcdf4(input_file)
+
+    def combine(self, log_file: str) -> None:
+        self.logger.info("Combining netCDF files for log file: %s", log_file)
+        self.logger.info(
+            "Equivalent to the calibrate step for Dorado class vehicles. "
+            "Adds nudge positions and more layers of quality control."
+        )
+        combine = Combine_NetCDF()
+        combine.args = argparse.Namespace()
+        combine.args.verbose = self.args.verbose
+        combine.args.log_file = self.args.log_file
+        combine.commandline = self.commandline
+        combine.logger.setLevel(self._log_levels[self.args.verbose])
+        combine.logger.addHandler(self.log_handler)
+
+        combine.combine_groups()
+        combine.write_netcdf()
 
     @log_file_processor
     def process_log_file(self, log_file: str) -> None:
@@ -764,7 +787,8 @@ class Processor:
         self.logger.info("commandline = %s", self.commandline)
 
         netcdfs_dir = self.extract(log_file)
-        # self.align(log_file)
+        self.combine(log_file=log_file)
+        self.align(log_file=log_file)
         # self.resample(log_file)
         # self.create_products(log_file)
         self.logger.info("Finished processing log file: %s", log_file)

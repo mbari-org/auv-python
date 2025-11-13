@@ -189,11 +189,6 @@ class Extract:
             downloader=downloader,
         )
 
-    def get_groups_netcdf4(self, file_path):
-        """Get list of groups using netCDF4 library."""
-        with netCDF4.Dataset(file_path, "r") as dataset:
-            return list(dataset.groups.keys())
-
     def extract_groups_to_files_netcdf4(self, log_file: str) -> Path:
         """Extract each group from .nc4 file to a separate .nc file using netCDF4 library.
 
@@ -242,21 +237,26 @@ class Extract:
         if not root_parms:
             return
 
-        try:
-            self.logger.info("Extracting root group '/'")
-            vars_to_extract = self._get_available_variables(src_dataset, root_parms)
+        self.logger.info("Extracting root group '/'")
+        vars_to_extract, _ = self._get_available_variables(src_dataset, root_parms)
 
-            if vars_to_extract:
-                output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Universals.nc"
-                self._create_netcdf_file(
-                    log_file, group_name, src_dataset, vars_to_extract, output_file
-                )
-                self.logger.info("Extracted root group '/' to %s", output_file)
-            else:
-                self.logger.warning("No requested variables found in root group '/'")
+        # Add debugging output for root group processing
+        self.logger.info("=== ROOT GROUP DEBUG ===")
+        self.logger.info("Available variables: %s", sorted(vars_to_extract))
+        self.logger.info("Available dimensions: %s", sorted(src_dataset.dimensions.keys()))
+        self.logger.info(
+            "Available coordinate variables: %s",
+            [v for v in sorted(src_dataset.variables.keys()) if v in src_dataset.dimensions],
+        )
 
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Could not extract root group '/': %s", e)
+        if vars_to_extract:
+            output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Universals.nc"
+            self._create_netcdf_file(
+                log_file, group_name, src_dataset, vars_to_extract, output_file
+            )
+            self.logger.info("Extracted root group '/' to %s", output_file)
+        else:
+            self.logger.warning("No requested variables found in root group '/'")
 
     def _extract_single_group(
         self,
@@ -272,7 +272,7 @@ class Extract:
             self.logger.debug(" Group %s", group_name)
             src_group = src_dataset.groups[group_name]
 
-            vars_to_extract = self._get_available_variables(src_group, group_parms)
+            vars_to_extract, requested_vars = self._get_available_variables(src_group, group_parms)
 
             if vars_to_extract:
                 output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_{group_name}.nc"
@@ -281,12 +281,12 @@ class Extract:
                 )
                 self.logger.info("Extracted %s to %s", group_name, output_file)
             else:
-                self.logger.warning("No requested variables found in group %s", group_name)
+                self.logger.warning(
+                    "No requested variables (%s) found in group %s", requested_vars, group_name
+                )
 
         except KeyError:
             self.logger.warning("Group %s not found", group_name)
-        # except Exception as e:  # noqa: BLE001
-        #     self.logger.warning("Could not extract %s: %s", group_name, e)
 
     def _get_available_variables(
         self, src_group: netCDF4.Group, group_parms: list[dict[str, Any]]
@@ -297,39 +297,7 @@ class Extract:
         vars_to_extract = [var for var in requested_vars if var in available_vars]
 
         self.logger.debug("  Variables to extract: %s", vars_to_extract)
-        return vars_to_extract
-
-    def _find_time_coordinate(self, src_group: netCDF4.Group) -> str:
-        """Find the time coordinate variable in a group using introspection.
-
-        Returns:
-            str: Name of the time coordinate variable, or empty string if not found
-        """
-        # Strategy 1: Look for variables with "time" in the name (most common)
-        time_vars = [var_name for var_name in src_group.variables if "time" in var_name.lower()]
-        if time_vars:
-            # Prefer variables that start with 'time' (like time_NAL9602)
-            time_vars.sort(key=lambda x: (not x.lower().startswith("time"), x))
-            self.logger.debug("Found time coordinate %s via name pattern", time_vars[0])
-            return time_vars[0]
-
-        # Strategy 2: Look for variables with time-like units
-        for var_name, var in src_group.variables.items():
-            if hasattr(var, "units"):
-                units = getattr(var, "units", "").lower()
-                time_patterns = ["seconds since", "days since", "hours since"]
-                if any(pattern in units for pattern in time_patterns):
-                    self.logger.debug("Found time coordinate %s via units", var_name)
-                    return var_name
-
-        # Strategy 3: Look for unlimited dimension (backup)
-        for dim_name, dim in src_group.dimensions.items():
-            if dim.isunlimited() and dim_name in src_group.variables:
-                self.logger.debug("Found time coordinate %s via unlimited dimension", dim_name)
-                return dim_name
-
-        self.logger.debug("No time coordinate found in group")
-        return ""
+        return vars_to_extract, requested_vars
 
     def _get_time_filters_for_variables(
         self, log_file: str, group_name: str, src_group: netCDF4.Group, vars_to_extract: list[str]
@@ -346,6 +314,10 @@ class Extract:
         self.logger.info("========================= Group %s =========================", group_name)
         # Find all time coordinates used by variables in extraction list
         time_coords_found = self._find_time_coordinates(group_name, src_group, vars_to_extract)
+
+        # Add diagnostic check to compare original time coordinate values
+        if len(time_coords_found) > 1:
+            self._analyze_original_time_coordinates(src_group, time_coords_found, group_name)
 
         # Parse plot time settings once
         plot_group_name, plot_time_coord_name = self._parse_plot_time_argument()
@@ -365,6 +337,103 @@ class Extract:
 
         return time_filters
 
+    def _analyze_original_time_coordinates(
+        self, src_group: netCDF4.Group, time_coords_found: set[str], group_name: str
+    ):
+        """Quick diagnostic for Dead Reckoned timing issues in root group."""
+        # Only analyze root group Dead Reckoned coordinates
+        if group_name != "/":
+            return
+
+        if (
+            "latitude_time" not in time_coords_found
+            or "longitude_time" not in time_coords_found
+            or "latitude_time" not in src_group.variables
+            or "longitude_time" not in src_group.variables
+        ):
+            return
+
+        lat_time = src_group.variables["latitude_time"][:]
+        lon_time = src_group.variables["longitude_time"][:]
+
+        # Quick check for Dead Reckoned timing synchronization
+        min_len = min(len(lat_time), len(lon_time))
+        if min_len == 0:
+            return
+
+        # Compare overlapping portion
+        overlap_equal = np.array_equal(lat_time[:min_len], lon_time[:min_len])
+
+        if overlap_equal and len(lat_time) == len(lon_time):
+            self.logger.info(
+                "Dead Reckoned timing: latitude_time and longitude_time are properly synchronized"
+            )
+            return
+
+        # Calculate timing differences for diagnosis
+        time_diff = lon_time[:min_len] - lat_time[:min_len]
+        non_zero_mask = time_diff != 0
+        num_differences = np.sum(non_zero_mask)
+        percent_different = 100.0 * num_differences / min_len
+
+        if len(lat_time) != len(lon_time):
+            self.logger.warning(
+                "Dead Reckoned timing: Different array lengths - "
+                "latitude_time: %d, longitude_time: %d",
+                len(lat_time),
+                len(lon_time),
+            )
+
+        if num_differences > 0:
+            diff_values = time_diff[non_zero_mask]
+            max_abs_diff = np.max(np.abs(diff_values))
+
+            # Define thresholds for Dead Reckoned timing issues
+            MAJOR_PERCENT_THRESHOLD = 50.0  # 50% different points
+            MAJOR_TIME_THRESHOLD = 3600.0  # 1 hour difference
+            MINOR_PERCENT_THRESHOLD = 5.0  # 5% different points
+            MINOR_TIME_THRESHOLD = 60.0  # 1 minute difference
+
+            if percent_different > MAJOR_PERCENT_THRESHOLD or max_abs_diff > MAJOR_TIME_THRESHOLD:
+                self.logger.warning(
+                    "Dead Reckoned timing: Significant synchronization issues detected - "
+                    "%.1f%% of coordinates have timing differences (max: %.1f seconds)",
+                    percent_different,
+                    max_abs_diff,
+                )
+                self.logger.warning(
+                    "Dead Reckoned timing: Differences begin at index %d",
+                    np.where(non_zero_mask)[0][0],
+                )
+                lon_subset = lon_time[
+                    max(0, np.where(non_zero_mask)[0][0] - 5) : np.where(non_zero_mask)[0][0] + 5
+                ]
+                lat_subset = lat_time[
+                    max(0, np.where(non_zero_mask)[0][0] - 5) : np.where(non_zero_mask)[0][0] + 5
+                ]
+                self.logger.warning(
+                    "Dead Reckoned timing: longitude_time around this index: %s",
+                    " ".join(f"{val:14.2f}" for val in lon_subset),
+                )
+                self.logger.warning(
+                    "Dead Reckoned timing: latitude_time around this index:  %s",
+                    " ".join(f"{val:14.2f}" for val in lat_subset),
+                )
+            elif percent_different > MINOR_PERCENT_THRESHOLD or max_abs_diff > MINOR_TIME_THRESHOLD:
+                self.logger.warning(
+                    "Dead Reckoned timing: Minor synchronization issues detected - "
+                    "%.1f%% of coordinates have timing differences (max: %.1f seconds)",
+                    percent_different,
+                    max_abs_diff,
+                )
+            else:
+                self.logger.info(
+                    "Dead Reckoned timing: Small timing differences detected - "
+                    "%.1f%% of coordinates differ (max: %.1f seconds)",
+                    percent_different,
+                    max_abs_diff,
+                )
+
     def _find_time_coordinates(
         self, group_name: str, src_group: netCDF4.Group, vars_to_extract: list[str]
     ) -> set[str]:
@@ -374,12 +443,14 @@ class Extract:
             "=================================== Group: %s =======================================",
             group_name,
         )
-        for var_name in vars_to_extract:
+        # Sort variables to make processing deterministic
+        for var_name in sorted(vars_to_extract):
             if var_name in src_group.variables:
                 var = src_group.variables[var_name]
 
                 # Check each dimension to see if it's a time coordinate
-                for dim_name in var.dimensions:
+                # Sort dimensions to make processing deterministic
+                for dim_name in sorted(var.dimensions):
                     if dim_name in src_group.variables:
                         dim_var = src_group.variables[dim_name]
 
@@ -665,7 +736,7 @@ class Extract:
 
         self.logger.info("Time filtering plot displayed for %s", plot_data["variable_name"])
 
-    def _copy_variable_with_appropriate_time_filter(
+    def _copy_variable_with_appropriate_time_filter(  # noqa: C901, PLR0912
         self,
         src_group: netCDF4.Group,
         dst_dataset: netCDF4.Dataset,
@@ -673,52 +744,79 @@ class Extract:
         time_filters: dict[str, dict],
     ):
         """Copy a variable with appropriate time filtering applied."""
-        try:
-            src_var = src_group.variables[var_name]
+        src_var = src_group.variables[var_name]
 
-            # Create variable in destination
+        # Skip variables that use time dimensions with 0 points
+        for dim_name in src_var.dimensions:
+            if (
+                dim_name in time_filters
+                and time_filters[dim_name]["filtered"]
+                and len(time_filters[dim_name]["indices"]) == 0
+            ):
+                self.logger.debug(
+                    "Skipping variable %s (uses dimension %s with 0 points)", var_name, dim_name
+                )
+                return
+
+        # Create variable in destination
+        try:
             dst_var = dst_dataset.createVariable(
                 var_name,
                 src_var.dtype,
                 src_var.dimensions,
+                zlib=True,
+                complevel=4,
             )
+        except ValueError as e:
+            self.logger.warning(
+                "Could not create variable %s in destination dataset: %s. ",
+                var_name,
+                str(e),
+            )
+            return
 
-            # Check if this variable itself is a time coordinate that needs filtering
-            if var_name in time_filters and time_filters[var_name]["filtered"]:
-                # This is a time coordinate variable that needs filtering
-                time_indices = time_filters[var_name]["indices"]
-                dst_var[:] = src_var[:][time_indices]
-                dst_var.setncattr("comment", time_filters[var_name]["comment"])
-                self.logger.debug("Applied time filtering to time coordinate %s", var_name)
+        # Check if this variable itself is a time coordinate that needs filtering
+        if var_name in time_filters and time_filters[var_name]["filtered"]:
+            # This is a time coordinate variable that needs filtering
+            time_indices = time_filters[var_name]["indices"]
+            dst_var[:] = src_var[:][time_indices]
+            dst_var.setncattr("comment", time_filters[var_name]["comment"])
+            self.logger.debug("Applied time filtering to time coordinate %s", var_name)
 
-            # Check if this variable depends on any filtered time dimensions
-            elif src_var.dimensions:
-                # Find which (if any) of this variable's dimensions are filtered time coordinates
-                filtered_dims = {}
-                for dim_name in src_var.dimensions:
-                    if dim_name in time_filters and time_filters[dim_name]["filtered"]:
-                        filtered_dims[dim_name] = time_filters[dim_name]["indices"]
+        # Check if this variable depends on any filtered time dimensions
+        elif src_var.dimensions:
+            # Find which (if any) of this variable's dimensions are filtered time coordinates
+            filtered_dims = {}
+            for dim_name in src_var.dimensions:
+                if dim_name in time_filters and time_filters[dim_name]["filtered"]:
+                    filtered_dims[dim_name] = time_filters[dim_name]["indices"]
 
-                if filtered_dims:
-                    # Apply filtering for the appropriate dimensions
-                    self._apply_multidimensional_time_filter(
-                        src_var, dst_var, var_name, filtered_dims
-                    )
-                else:
-                    # No time filtering needed
-                    dst_var[:] = src_var[:]
+            if filtered_dims:
+                # Apply filtering for the appropriate dimensions
+                self._apply_multidimensional_time_filter(src_var, dst_var, var_name, filtered_dims)
             else:
-                # Scalar variable or no dimensions
+                # No time filtering needed
                 dst_var[:] = src_var[:]
+        else:
+            # Scalar variable or no dimensions
+            dst_var[:] = src_var[:]
 
-            # Copy attributes
-            for attr_name in src_var.ncattrs():
-                dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
+        # Copy attributes
+        for attr_name in src_var.ncattrs():
+            dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
+        if var_name in time_filters and time_filters[var_name]["filtered"]:
+            # Downstream process uses cf_xarray to recognize coordinates, add required attribute
+            dst_var.setncattr("standard_name", "time")
+        else:
+            # Override any coordinates attribute in src with just the time coordinate
+            dst_var.setncattr("coordinates", var_name + "_time")
+            # Downstream process uses cf_xarray to recognize coordinates, add required attribute
+            if src_group.name == "/" and var_name.startswith(("longitude", "latitude")):
+                dst_var.setncattr("units", "radians")
+            elif var_name.startswith("depth"):
+                dst_var.setncattr("units", "meters")
 
-            self.logger.debug("    Copied variable: %s", var_name)
-
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed to copy variable %s: %s", var_name, e)
+        self.logger.debug("    Copied variable: %s", var_name)
 
     def _apply_multidimensional_time_filter(
         self, src_var, dst_var, var_name: str, filtered_dims: dict[str, list[int]]
@@ -764,43 +862,22 @@ class Extract:
         time_filters: dict[str, dict],
     ):
         """Create dimensions in the destination dataset, adjusting time dimensions if filtered."""
-        # NetCDF3 allows only one unlimited dimension
-        primary_time_dim = self._find_primary_time_dimension(src_group, dims_needed, time_filters)
-        unlimited_dim_created = False
-
+        # Use fixed dimensions for all - simpler and avoids NetCDF3 unlimited dimension issues
         for dim_name in dims_needed:
             if dim_name not in src_group.dimensions:
                 continue
 
             src_dim = src_group.dimensions[dim_name]
-            should_be_unlimited = dim_name == primary_time_dim and not unlimited_dim_created
             size = self._calculate_dimension_size(
-                dim_name, src_dim, time_filters, should_be_unlimited
+                dim_name, src_dim, time_filters, should_be_unlimited=False
             )
 
-            # Track if we created the unlimited dimension
-            if size is None:
-                unlimited_dim_created = True
+            # Skip dimensions with 0 points to avoid NetCDF3 conflicts
+            if size == 0:
+                self.logger.debug("Skipping dimension %s with 0 points", dim_name)
+                continue
 
             dst_dataset.createDimension(dim_name, size)
-
-    def _find_primary_time_dimension(
-        self, src_group: netCDF4.Group, dims_needed: set[str], time_filters: dict[str, dict]
-    ) -> str | None:
-        """Find the primary time dimension that should be unlimited in NetCDF3."""
-        for dim_name in dims_needed:
-            if dim_name in src_group.dimensions:
-                src_dim = src_group.dimensions[dim_name]
-                is_time_like = "time" in dim_name.lower() or dim_name in time_filters
-                if src_dim.isunlimited() and is_time_like:
-                    return dim_name
-
-        # Fallback: return first unlimited dimension found
-        for dim_name in dims_needed:
-            if dim_name in src_group.dimensions and src_group.dimensions[dim_name].isunlimited():
-                return dim_name
-
-        return None
 
     def _calculate_dimension_size(
         self,
@@ -808,21 +885,12 @@ class Extract:
         src_dim,
         time_filters: dict[str, dict],
         should_be_unlimited: bool,  # noqa: FBT001
-    ) -> int | None:
-        """Calculate the size for a dimension, handling NetCDF3 unlimited dimension constraint."""
+    ) -> int:
+        """Calculate the size for a dimension - always returns fixed size for simplicity."""
         is_filtered_time = dim_name in time_filters and time_filters[dim_name]["filtered"]
 
         if is_filtered_time:
             filtered_size = len(time_filters[dim_name]["indices"])
-            if should_be_unlimited:
-                self.logger.debug(
-                    "Created filtered unlimited time dimension %s: %s -> unlimited (%d points)",
-                    dim_name,
-                    len(src_dim),
-                    filtered_size,
-                )
-                return None  # Unlimited
-
             self.logger.debug(
                 "Created filtered fixed time dimension %s: %s -> %s",
                 dim_name,
@@ -831,18 +899,16 @@ class Extract:
             )
             return filtered_size
 
-        # Non-filtered dimension
-        if should_be_unlimited:
-            self.logger.debug("Created unlimited dimension %s", dim_name)
-            return None
-
+        # Non-filtered dimension - always fixed size
         size = len(src_dim)
         if src_dim.isunlimited():
             self.logger.debug(
-                "Converting unlimited dimension %s to fixed size %s (NetCDF3 limitation)",
+                "Converting unlimited dimension %s to fixed size %s",
                 dim_name,
                 size,
             )
+        else:
+            self.logger.debug("Created fixed dimension %s: %s", dim_name, size)
         return size
 
     def _create_netcdf_file(  # noqa: PLR0913
@@ -872,7 +938,7 @@ class Extract:
             if any(tf["filtered"] for tf in time_filters.values()):
                 dst_dataset.setncattr(
                     "processing_note",
-                    "Non-monotonic time values filtered from original, see comment in variables",
+                    "Non-monotonic time values filtered from original, see variable comments",
                 )
 
             # Create dimensions - may need to adjust time dimension sizes
@@ -910,16 +976,6 @@ class Extract:
                 dims_needed.update(var.dimensions)
         return dims_needed
 
-    def _create_dimensions(
-        self, src_group: netCDF4.Group, dst_dataset: netCDF4.Dataset, dims_needed: set[str]
-    ):
-        """Create dimensions in the destination dataset."""
-        for dim_name in dims_needed:
-            if dim_name in src_group.dimensions:
-                src_dim = src_group.dimensions[dim_name]
-                size = len(src_dim) if not src_dim.isunlimited() else None
-                dst_dataset.createDimension(dim_name, size)
-
     def _get_coordinate_variables(
         self, src_group: netCDF4.Group, dims_needed: set[str], vars_to_extract: list[str]
     ) -> list[str]:
@@ -929,28 +985,6 @@ class Extract:
             if dim_name in src_group.variables and dim_name not in vars_to_extract:
                 coord_vars.append(dim_name)  # noqa: PERF401
         return coord_vars
-
-    def _copy_variable(self, src_group: netCDF4.Group, dst_dataset: netCDF4.Dataset, var_name: str):
-        """Helper method to copy a variable from source to destination."""
-        try:
-            src_var = src_group.variables[var_name]
-
-            # Create variable in destination
-            dst_var = dst_dataset.createVariable(
-                var_name,
-                src_var.dtype,
-                src_var.dimensions,
-            )
-
-            # Copy data and attributes
-            dst_var[:] = src_var[:]
-            for attr_name in src_var.ncattrs():
-                dst_var.setncattr(attr_name, src_var.getncattr(attr_name))
-
-            self.logger.debug("    Copied variable: %s", var_name)
-
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed to copy variable %s: %s", var_name, e)
 
     def global_metadata(self, log_file: str, group_name: str):
         """Use instance variables to return a dictionary of
