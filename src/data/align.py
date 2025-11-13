@@ -14,6 +14,7 @@ __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
 import logging
+import os
 import re
 import sys
 import time
@@ -42,6 +43,10 @@ class InvalidCalFile(Exception):
     pass
 
 
+class InvalidCombinedFile(Exception):
+    pass
+
+
 class Align_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
@@ -53,6 +58,8 @@ class Align_NetCDF:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
+        # Try to get actual host name, fall back to container name
+        actual_hostname = os.getenv("HOST_NAME", gethostname())
         repo = git.Repo(search_parent_directories=True)
         try:
             gitcommit = repo.head.object.hexsha
@@ -94,17 +101,30 @@ class Align_NetCDF:
         metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
-        metadata["title"] = (
-            f"Calibrated and aligned AUV sensor data from"
-            f" {self.args.auv_name} mission {self.args.mission}"
-        )
-        from_data = "calibrated data"
-        metadata["source"] = (
-            f"MBARI Dorado-class AUV data produced from {from_data}"
-            f" with execution of '{self.commandline}' at {iso_now} on"
-            f" host {gethostname()} using git commit {gitcommit} from"
-            f" software at 'https://github.com/mbari-org/auv-python'"
-        )
+        if self.args.auv_name and self.args.mission:
+            metadata["title"] = (
+                f"Calibrated and aligned AUV sensor data from"
+                f" {self.args.auv_name} mission {self.args.mission}"
+            )
+            from_data = "calibrated data"
+            metadata["source"] = (
+                f"MBARI Dorado-class AUV data produced from {from_data}"
+                f" with execution of '{self.commandline}' at {iso_now} on"
+                f" host {actual_hostname} using git commit {gitcommit} from"
+                f" software at 'https://github.com/mbari-org/auv-python'"
+            )
+        else:
+            metadata["title"] = (
+                f"Combined and aligned LRAUV instrument data from"
+                f" log file {Path(self.args.log_file).name}"
+            )
+            from_data = "combined data"
+            metadata["source"] = (
+                f"MBARI Long Range AUV data produced from {from_data}"
+                f" with execution of '{self.commandline}' at {iso_now} on"
+                f" host {actual_hostname} using git commit {gitcommit} from"
+                f" software at 'https://github.com/mbari-org/auv-python'"
+            )
         metadata["summary"] = (
             "Observational oceanographic data obtained from an Autonomous"
             " Underwater Vehicle mission with measurements at"
@@ -115,7 +135,7 @@ class Align_NetCDF:
         # Append location of original data files to summary
         matches = re.search(
             "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
-            self.calibrated_nc.attrs["summary"],
+            self.combined_nc.attrs["summary"],
         )
         if matches:
             metadata["summary"] += " " + matches.group(1)
@@ -334,6 +354,229 @@ class Align_NetCDF:
 
         return netcdfs_dir
 
+    def process_combined(self, log_file: str) -> None:  # noqa: C901, PLR0912, PLR0915
+        """Process combined LRAUV data from *_combined.nc files created by combine.py"""
+        netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(log_file).parent}")
+        src_file = Path(netcdfs_dir, f"{Path(log_file).stem}_combined.nc")
+
+        self.combined_nc = xr.open_dataset(src_file)
+        self.logger.info("Processing %s", src_file)
+        self.aligned_nc = xr.Dataset()
+        self.min_time = datetime.now(UTC)
+        self.max_time = datetime(1970, 1, 1, tzinfo=UTC)
+        self.min_depth = np.inf
+        self.max_depth = -np.inf
+        self.min_lat = np.inf
+        self.max_lat = -np.inf
+        self.min_lon = np.inf
+        self.max_lon = -np.inf
+
+        # Find navigation coordinates from combined data - must be from universals group
+        nav_coords = {}
+        for coord_type in ["longitude", "latitude", "depth", "time"]:
+            coord_var = f"universals_{coord_type}"
+            if coord_var not in self.combined_nc:
+                error_message = (
+                    f"Required universals coordinate {coord_var} not found in {src_file}"
+                )
+                raise InvalidCombinedFile(error_message)
+            nav_coords[coord_type] = coord_var
+            self.logger.info("Found navigation coordinate: %s", coord_var)
+
+        # Create interpolators for navigation coordinates
+        try:
+            lat_interp = interp1d(
+                self.combined_nc[nav_coords["latitude"]]
+                .get_index("universals_time")
+                .view(np.int64)
+                .tolist(),
+                self.combined_nc[nav_coords["latitude"]].values,
+                fill_value=(
+                    self.combined_nc[nav_coords["latitude"]][0],
+                    self.combined_nc[nav_coords["latitude"]][-1],
+                ),
+                bounds_error=False,
+            )
+
+            lon_interp = interp1d(
+                self.combined_nc[nav_coords["longitude"]]
+                .get_index("universals_time")
+                .view(np.int64)
+                .tolist(),
+                self.combined_nc[nav_coords["longitude"]].values,
+                fill_value=(
+                    self.combined_nc[nav_coords["longitude"]][0],
+                    self.combined_nc[nav_coords["longitude"]][-1],
+                ),
+                bounds_error=False,
+            )
+
+            depth_interp = interp1d(
+                self.combined_nc[nav_coords["depth"]]
+                .get_index("universals_time")
+                .view(np.int64)
+                .tolist(),
+                self.combined_nc[nav_coords["depth"]].values,
+                fill_value=(
+                    self.combined_nc[nav_coords["depth"]][0],
+                    self.combined_nc[nav_coords["depth"]][-1],
+                ),
+                bounds_error=False,
+            )
+
+        except KeyError as e:
+            error_message = f"Missing navigation data in {src_file}: {e}"
+            raise InvalidCombinedFile(error_message) from e
+        except ValueError as e:
+            error_message = f"Cannot interpolate navigation coordinates: {e}"
+            raise InvalidCombinedFile(error_message) from e
+
+        # Process group-based variables (skip coordinate variables)
+        for variable in self.combined_nc:
+            # Skip time coordinate variables
+            if variable.endswith("_time"):
+                continue
+
+            # Skip the navigation coordinate variables themselves
+            if variable in nav_coords.values():
+                continue
+
+            # Extract group name from variable (e.g., "ctd_seabird_salinity" -> "ctd_seabird")
+            var_parts = variable.split("_")
+            if len(var_parts) < 2:  # noqa: PLR2004
+                self.logger.debug("Skipping variable with unexpected name format: %s", variable)
+                continue
+
+            # Try to find the corresponding time coordinate
+            # Look for pattern: group_name + "_time"
+            possible_time_coords = []
+            for i in range(len(var_parts)):
+                group_candidate = "_".join(var_parts[: i + 1])
+                time_coord_candidate = f"{group_candidate}_time"
+                if time_coord_candidate in self.combined_nc:
+                    possible_time_coords.append((group_candidate, time_coord_candidate))
+
+            if not possible_time_coords:
+                self.logger.warning("No time coordinate found for variable: %s", variable)
+                continue
+
+            # Use the longest matching group name (most specific)
+            group_name, timevar = max(possible_time_coords, key=lambda x: len(x[0]))
+            self.logger.debug(
+                "Processing %s with group %s and time %s", variable, group_name, timevar
+            )
+
+            # Copy the original variable
+            self.aligned_nc[variable] = self.combined_nc[variable]
+
+            # Get the time index for this variable
+            var_time = self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
+
+            # Calculate sampling rate
+            sample_rate = np.round(
+                1.0 / (np.mean(np.diff(self.combined_nc[timevar])) / np.timedelta64(1, "s")),
+                decimals=2,
+            )
+
+            # Create aligned variable with proper attributes
+            self.aligned_nc[variable] = xr.DataArray(
+                self.combined_nc[variable].values,
+                dims={timevar},
+                coords=[self.combined_nc[variable].get_index(timevar)],
+                name=variable,
+            )
+            self.aligned_nc[variable].attrs = self.combined_nc[variable].attrs
+            self.aligned_nc[variable].attrs["coordinates"] = (
+                f"{group_name}_time {group_name}_depth {group_name}_latitude {group_name}_longitude"
+            )
+            self.logger.info("%s: instrument_sample_rate_hz = %.2f", variable, sample_rate)
+            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
+
+            # Create interpolated coordinate variables for this group
+            coord_names = ["depth", "latitude", "longitude"]
+            coord_interps = [depth_interp, lat_interp, lon_interp]
+            coord_sources = [nav_coords["depth"], nav_coords["latitude"], nav_coords["longitude"]]
+
+            for coord_name, coord_interp, coord_source in zip(
+                coord_names, coord_interps, coord_sources, strict=True
+            ):
+                coord_var_name = f"{group_name}_{coord_name}"
+
+                self.aligned_nc[coord_var_name] = xr.DataArray(
+                    coord_interp(var_time).astype(np.float64).tolist(),
+                    dims={timevar},
+                    coords=[self.combined_nc[variable].get_index(timevar)],
+                    name=coord_var_name,
+                )
+
+                # Copy attributes from source coordinate
+                if coord_source in self.combined_nc:
+                    self.aligned_nc[coord_var_name].attrs = self.combined_nc[coord_source].attrs
+
+                # Update attributes
+                self.aligned_nc[coord_var_name].attrs["long_name"] = coord_name.title()
+                self.aligned_nc[coord_var_name].attrs["instrument_sample_rate_hz"] = sample_rate
+
+                if coord_name in ["latitude", "longitude"]:
+                    self.aligned_nc[coord_var_name].attrs["comment"] = (
+                        self.aligned_nc[coord_var_name].attrs.get("comment", "")
+                        + f". Variable {coord_source} from {src_file} file linearly"
+                        f" interpolated onto {group_name} time values."
+                    )
+
+            # Update spatial temporal bounds for global metadata
+            if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC) < pd.to_datetime(
+                self.min_time
+            ):
+                self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC)
+            if pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
+                UTC
+            ) > pd.to_datetime(self.max_time):
+                self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(UTC)
+
+            # Update bounds using the interpolated coordinates
+            depth_coord = f"{group_name}_depth"
+            lat_coord = f"{group_name}_latitude"
+            lon_coord = f"{group_name}_longitude"
+
+            if self.aligned_nc[depth_coord].min() < self.min_depth:
+                self.min_depth = self.aligned_nc[depth_coord].min().to_numpy()
+            if self.aligned_nc[depth_coord].max() > self.max_depth:
+                self.max_depth = self.aligned_nc[depth_coord].max().to_numpy()
+            if self.aligned_nc[lat_coord].min() < self.min_lat:
+                self.min_lat = self.aligned_nc[lat_coord].min().to_numpy()
+            if self.aligned_nc[lat_coord].max() > self.max_lat:
+                self.max_lat = self.aligned_nc[lat_coord].max().to_numpy()
+            if self.aligned_nc[lon_coord].min() < self.min_lon:
+                self.min_lon = self.aligned_nc[lon_coord].min().to_numpy()
+            if self.aligned_nc[lon_coord].max() > self.max_lon:
+                self.max_lon = self.aligned_nc[lon_coord].max().to_numpy()
+
+        return netcdfs_dir
+
+    def write_combined_netcdf(
+        self, netcdfs_dir, vehicle: str = "", name: str = "", log_file: str = ""
+    ) -> None:
+        """Write aligned combined data to NetCDF file"""
+        if log_file:
+            # For LRAUV log files, use the log file stem for output name
+            out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_align.nc")
+        else:
+            name = name or self.args.mission
+            vehicle = vehicle or self.args.auv_name
+            out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_align.nc")
+
+        self.aligned_nc.attrs = self.global_metadata()
+        self.logger.info("Writing aligned combined data to %s", out_fn)
+        if out_fn.exists():
+            self.logger.debug("Removing existing file %s", out_fn)
+            out_fn.unlink()
+        self.aligned_nc.to_netcdf(out_fn)
+        self.logger.info(
+            "Data variables written: %s",
+            ", ".join(sorted(self.aligned_nc.variables)),
+        )
+
     def write_netcdf(self, netcdfs_dir, vehicle: str = "", name: str = "") -> None:
         name = name or self.args.mission
         vehicle = vehicle or self.args.auv_name
@@ -354,6 +597,13 @@ class Align_NetCDF:
         examples += "  Align calibrated data for some missions:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
         examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
+        examples += "  Align combined LRAUV data:\n"
+        examples += (
+            "    "
+            + sys.argv[0]
+            + " --log_file brizo/missionlogs/2025/20250909_20250915/20250914T080941/"
+            + "202509140809_202509150109.nc4\n"
+        )
 
         parser = argparse.ArgumentParser(
             formatter_class=RawTextHelpFormatter,
@@ -415,10 +665,17 @@ if __name__ == "__main__":
     align_netcdf = Align_NetCDF()
     align_netcdf.process_command_line()
     p_start = time.time()
-    if align_netcdf.args.auv_name and align_netcdf.args.mission:
+
+    if align_netcdf.args.log_file:
+        # Process combined LRAUV data using log_file
+        netcdf_dir = align_netcdf.process_combined(log_file=align_netcdf.args.log_file)
+        align_netcdf.write_combined_netcdf(netcdf_dir, log_file=align_netcdf.args.log_file)
+    elif align_netcdf.args.auv_name and align_netcdf.args.mission:
+        # Process calibrated data using auv_name and mission
         netcdf_dir = align_netcdf.process_cal()
         align_netcdf.write_netcdf(netcdf_dir)
-    elif align_netcdf.args.log_file:
-        netcdf_dir = align_netcdf.process_cal(log_file=align_netcdf.args.log_file)
-        align_netcdf.write_netcdf(netcdf_dir)
+    else:
+        align_netcdf.logger.error("Must provide either --log_file or both --auv_name and --mission")
+        sys.exit(1)
+
     align_netcdf.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
