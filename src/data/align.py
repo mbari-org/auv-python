@@ -113,7 +113,7 @@ class Align_NetCDF:
                 f" host {actual_hostname} using git commit {gitcommit} from"
                 f" software at 'https://github.com/mbari-org/auv-python'"
             )
-        else:
+        elif self.args.log_file:
             metadata["title"] = (
                 f"Combined and aligned LRAUV instrument data from"
                 f" log file {Path(self.args.log_file).name}"
@@ -133,10 +133,16 @@ class Align_NetCDF:
             " software."
         )
         # Append location of original data files to summary
-        matches = re.search(
-            "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
-            self.combined_nc.attrs["summary"],
-        )
+        if self.args.auv_name and self.args.mission:
+            matches = re.search(
+                "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
+                self.calibrated_nc.attrs["summary"],
+            )
+        elif self.args.log_file:
+            matches = re.search(
+                "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
+                self.combined_nc.attrs["summary"],
+            )
         if matches:
             metadata["summary"] += " " + matches.group(1)
         metadata["comment"] = (
