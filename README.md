@@ -103,11 +103,11 @@ First time use with Docker on a server using a service account:
 * git clone git&#xFEFF;@github.com:mbari-org/auv-python.git
 * cd auv-python
 * Create a .env file in `/opt/auv-python` with the following contents:   
-    `M3_VOL=<mount_location>`   
-    `AUVCTD_VOL=<mount_location>`   
-    `CALIBRATION_VOL=<mount_location>`   
-    `WORK_VOL=<auv-python_home>/data`   
-
+    `M3_VOL=<mount_location>`
+    `AUVCTD_VOL=<mount_location>`
+    `CALIBRATION_VOL=<mount_location>`
+    `WORK_VOL=<auv-python_home>/data`
+    `HOST_NAME=<name_of_host>`
 After installation and when logging into the server again mission data can be processed thusly:
 * Setting up environment and printing help message:   
     `sudo -u docker_user -i`  
