@@ -447,7 +447,9 @@ class Align_NetCDF:
             if variable in nav_coords.values():
                 continue
 
-            # Extract group name from variable (e.g., "ctd_seabird_salinity" -> "ctd_seabird")
+            # Extract group name from variable following convention for LRAUV data
+            # enforced in combine.py where first underscore separates group name
+            # from the rest of the variable name
             var_parts = variable.split("_")
             if len(var_parts) < 2:  # noqa: PLR2004
                 self.logger.debug("Skipping variable with unexpected name format: %s", variable)
