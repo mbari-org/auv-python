@@ -24,7 +24,9 @@
             //"args": ["--auv_name", "dorado", "--mission", "2017.044.00", "--noinput", "-v"]
             //"args": ["--auv_name", "i2map", "--mission", "2019.157.02", "--noinput",  "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--noinput", "-v"]
-            "args": ["--auv_name", "dorado", "--mission", "2023.324.00", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs"]
+            //"args": ["--auv_name", "dorado", "--mission", "2023.324.00", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs"]
+            // Mission suffering from GPS Rollover bug. Add 1024 * 7 * 24 * 3600 = 619315200 seconds
+            "args": ["--auv_name", "dorado", "--mission", "2025.316.02", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs", "--add_seconds", "619315200"   ]
         },
         {
             "name": "1.1 - lopcToNetCDF",
@@ -271,7 +273,8 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.010.10"]
             //"args": ["-v", "2", "--mission", "2004.029.03", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2023.192.01", "--noinput", "--no_cleanup"],
-            "args": ["-v", "1", "--mission", "2010.151.04", "--noinput", "--no_cleanup", "--clobber"],
+            //"args": ["-v", "1", "--mission", "2010.151.04", "--noinput", "--no_cleanup", "--clobber"],
+            "args": ["-v", "1", "--mission", "2025.316.02", "--noinput", "--no_cleanup", "--add_seconds", "619315200"],
 
         },
         {

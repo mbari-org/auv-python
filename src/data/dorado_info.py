@@ -2954,3 +2954,11 @@ dorado_info["2025.281.01"] = {
         " - ctdToUse = ctd2 "
     ),
 }
+dorado_info["2025.316.02"] = {
+    "program": f"{MBTSLINE}",
+    "comment": (
+        "Monterey Bay MBTS Mission - 31625G"
+        " ISUS, and LISST payloads removed, main vehicle computer NTP synced with GPS Week Rollover Bug, 1024*7*24*3600 seconds added to timestamps. "
+        " - ctdToUse = ctd2 "
+    ),
+}
