@@ -56,7 +56,7 @@ class Gulper:
             self.logger.info("Reading mission start time from file_path = %s", file_path)
             ds = xr.open_dataset(file_path)
 
-        epoch_seconds = ds.time[0].astype("datetime64[s]").astype("int64")
+        epoch_seconds = float(ds.time[0].astype("datetime64[s]").astype("int64"))
         self.logger.info("Mission start time = %s epoch seconds", epoch_seconds)
         return epoch_seconds
 
@@ -116,11 +116,6 @@ class Gulper:
                 lines = [line.decode(errors="ignore") for line in resp.iter_lines()]
 
         mission_start_esecs = self.mission_start_esecs()
-        self.logger.info(
-            "Mission %s start time = %s epoch seconds",
-            self.args.mission,
-            mission_start_esecs,
-        )
 
         # Starting with 2005.299.12 and continuing through 2022.286.01 and later
         # Used to get mission elapsed time (etime) - matches 'changed state' messages too
