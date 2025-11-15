@@ -173,8 +173,8 @@ class Processor:
         auv_netcdf.args.auv_name = self.vehicle
         auv_netcdf.args.mission = mission
         auv_netcdf.args.use_portal = self.args.use_portal
-        auv_netcdf.set_portal()
         auv_netcdf.args.add_seconds = self.args.add_seconds
+        auv_netcdf.set_portal()
         auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
         auv_netcdf.logger.addHandler(self.log_handler)
