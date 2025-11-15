@@ -148,6 +148,7 @@ def complete_i2map_processing():
     ns.skip_download_process = False
     ns.last_n_days = 0
     ns.num_cores = 1
+    ns.add_seconds = None
     ns.verbose = 1
     proc.args = ns
     proc.process_missions(TEST_START_YEAR)
