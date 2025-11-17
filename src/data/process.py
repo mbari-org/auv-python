@@ -226,6 +226,7 @@ class Processor:
         auv_netcdf.args.auv_name = self.vehicle
         auv_netcdf.args.mission = mission
         auv_netcdf.args.use_portal = self.args.use_portal
+        auv_netcdf.args.add_seconds = self.args.add_seconds
         auv_netcdf.set_portal()
         auv_netcdf.args.verbose = self.args.verbose
         auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
@@ -314,7 +315,7 @@ class Processor:
         align_netcdf.commandline = self.commandline
         try:
             if log_file:
-                netcdf_dir = align_netcdf.process_cal(log_file=log_file)
+                netcdf_dir = align_netcdf.process_combined(log_file=log_file)
             else:
                 netcdf_dir = align_netcdf.process_cal()
             align_netcdf.write_netcdf(netcdf_dir)
@@ -976,6 +977,15 @@ class Processor:
             action="store",
             type=int,
             help="Number of core processors to use",
+        )
+        parser.add_argument(
+            "--add_seconds",
+            action="store",
+            type=int,
+            help=(
+                "Add seconds to time variables. Used to correct Dorado log files "
+                "saved with GPS Week Rollover Bug."
+            ),
         )
         parser.add_argument(
             "-v",

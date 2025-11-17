@@ -32,27 +32,33 @@ class Gulper:
             return self.args.start_esecs
 
         # Get the first time record from mission's navigation.nc file
-        if self.args.local:
-            url = Path(
-                self.args.base_path,
-                self.args.auv_name,
-                MISSIONNETCDFS,
-                self.args.mission,
-                "navigation.nc",
-            )
-        else:
-            # Relies on auv-python having processed the mission
-            url = os.path.join(  # noqa: PTH118
-                "http://dods.mbari.org/opendap/data/auvctd/",
-                MISSIONNETCDFS,
-                self.args.mission.split(".")[0],
-                self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
-                self.args.mission,
-                "navigation.nc",
-            )
-        self.logger.info("Reading mission start time from %s", url)
-        ds = xr.open_dataset(url)
-        return ds.time[0].to_numpy().astype("float64") / 1e9
+        file_path = Path(
+            self.args.base_path,
+            self.args.auv_name,
+            MISSIONNETCDFS,
+            self.args.mission,
+            "navigation.nc",
+        )
+        # Relies on auv-python having processed the mission
+        url = os.path.join(  # noqa: PTH118
+            "http://dods.mbari.org/opendap/data/auvctd/",
+            MISSIONNETCDFS,
+            self.args.mission.split(".")[0],
+            self.args.mission.split(".")[0] + self.args.mission.split(".")[1],
+            self.args.mission,
+            "navigation.nc",
+        )
+        try:
+            self.logger.info("Reading mission start time from url = %s", url)
+            ds = xr.open_dataset(url)
+        except OSError:
+            self.logger.info("%s not available yet", url)
+            self.logger.info("Reading mission start time from file_path = %s", file_path)
+            ds = xr.open_dataset(file_path)
+
+        epoch_seconds = float(ds.time[0].astype("datetime64[s]").astype("int64"))
+        self.logger.info("Mission start time = %s epoch seconds", epoch_seconds)
+        return epoch_seconds
 
     def parse_gulpers(self, sec_delay: int = 1) -> dict:  # noqa: C901, PLR0912, PLR0915
         """Parse the Gulper times and bottle numbers from the auvctd syslog file.

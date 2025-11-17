@@ -554,8 +554,36 @@ class AUV_NetCDF:
                 self.logger.error("data seriously does not match shape")  # noqa: TRY400
                 raise
 
+    def correct_times(self, log_data, add_seconds: int = 0):
+        """Correct timeTag variables in log_data by adding add_seconds
+        returning the corrected log_data"""
+        new_log_data = []
+        for variable in log_data:
+            if variable.data_type == "timeTag":
+                self.logger.info(
+                    "Adding to time values: %d seconds",
+                    add_seconds,
+                )
+                # Create a new log_record with corrected data
+                corrected_variable = log_record(
+                    variable.data_type,
+                    variable.short_name,
+                    variable.long_name,
+                    variable.units,
+                    variable.instrument_name,
+                    [tv + add_seconds for tv in variable.data],  # ← New data list
+                )
+                new_log_data.append(corrected_variable)
+            else:
+                # For non-timeTag variables
+                new_log_data.append(variable)  # or create a copy if needed
+        return new_log_data
+
     def write_variables(self, log_data, netcdf_filename):
         log_data = self._correct_dup_short_names(log_data)
+        if self.args.mission == "2025.316.02" and self.args.add_seconds:
+            # So far only this mission is known to suffer from GPS Week Rollover bug
+            log_data = self.correct_times(log_data, self.args.add_seconds)
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         for variable in log_data:
             self.logger.debug(
@@ -705,6 +733,10 @@ class AUV_NetCDF:
             self.nc_file.summary = SUMMARY_SOURCE.format(src_dir)
         if hasattr(self.args, "summary") and self.args.summary:
             self.nc_file.summary = self.args.summary
+        if self.args.add_seconds:
+            self.nc_file.summary += (
+                f". Corrected timeTag variables by adding {self.args.add_seconds} seconds. "
+            )
         monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
         if (~monotonic).any():
             self.logger.info(
@@ -954,6 +986,14 @@ class AUV_NetCDF:
             help="Directory for the vehicle's mission logs, e.g.: /Volumes/AUVCTD/missionlogs",
         )
         parser.add_argument(
+            # To use for mission 2025.316.02 which suffered from the GPS week rollover bug:
+            # 1024 * 7 * 24 * 3600 = 619315200 seconds to add to timeTag variables in the log_data
+            "--add_seconds",
+            type=int,
+            default=0,
+            help="Seconds to add to timeTag in log data",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             type=int,
@@ -988,10 +1028,8 @@ if __name__ == "__main__":
         else:
             raise argparse.ArgumentError(
                 None,
-                "Must provide --src_dir with --auv_name & --mission",
+                "Must provide --vehicle_dir with --auv_name & --mission",
             )
-
-        auv_netcdf.download_process_logs(src_dir=Path())
     elif auv_netcdf.args.start and auv_netcdf.args.end:
         auv_netcdf._deployments_between()
     else:
