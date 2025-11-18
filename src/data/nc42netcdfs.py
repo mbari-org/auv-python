@@ -1021,6 +1021,7 @@ class Extract:
             f" using git commit {gitcommit} from"
             f" software at 'https://github.com/mbari-org/auv-python'"
         )
+        metadata["group_name"] = group_name
         metadata["summary"] = (
             "Observational oceanographic data obtained from a Long Range Autonomous"
             " Underwater Vehicle mission with measurements at original sampling"
