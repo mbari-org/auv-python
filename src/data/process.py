@@ -308,6 +308,7 @@ class Processor:
         align_netcdf.args.base_path = self.args.base_path
         align_netcdf.args.auv_name = self.vehicle
         align_netcdf.args.mission = mission
+        align_netcdf.args.log_file = self.args.log_file
         align_netcdf.args.plot = None
         align_netcdf.args.verbose = self.args.verbose
         align_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
@@ -316,9 +317,10 @@ class Processor:
         try:
             if log_file:
                 netcdf_dir = align_netcdf.process_combined(log_file=log_file)
+                align_netcdf.write_combined_netcdf(netcdf_dir, log_file=log_file)
             else:
                 netcdf_dir = align_netcdf.process_cal()
-            align_netcdf.write_netcdf(netcdf_dir)
+                align_netcdf.write_combined_netcdf(netcdf_dir, vehicle=self.vehicle)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
             error_message = f"{mission} {e}"
@@ -326,12 +328,13 @@ class Processor:
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 
-    def resample(self, mission: str) -> None:
+    def resample(self, mission: str = "") -> None:
         self.logger.info("Resampling steps for %s", mission)
         resamp = Resampler()
         resamp.args = argparse.Namespace()
         resamp.args.auv_name = self.vehicle
         resamp.args.mission = mission
+        resamp.args.log_file = self.args.log_file
         resamp.args.plot = None
         resamp.args.freq = self.args.freq
         resamp.args.mf_width = self.args.mf_width
@@ -341,13 +344,17 @@ class Processor:
         resamp.logger.setLevel(self._log_levels[self.args.verbose])
         resamp.logger.addHandler(self.log_handler)
         file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
-        nc_file = Path(
-            self.args.base_path,
-            resamp.args.auv_name,
-            MISSIONNETCDFS,
-            resamp.args.mission,
-            file_name,
-        )
+        if resamp.args.log_file:
+            netcdfs_dir = Path(BASE_LRAUV_PATH, Path(resamp.args.log_file).parent)
+            nc_file = Path(netcdfs_dir, f"{Path(resamp.args.log_file).stem}_align.nc")
+        else:
+            nc_file = Path(
+                self.args.base_path,
+                resamp.args.auv_name,
+                MISSIONNETCDFS,
+                resamp.args.mission,
+                file_name,
+            )
         if self.args.flash_threshold and self.args.resample:
             self.logger.info(
                 "Executing only resample step to produce netCDF file with flash_threshold = %s",
@@ -373,7 +380,7 @@ class Processor:
         try:
             resamp.resample_mission(nc_file)
         except FileNotFoundError as e:
-            self.logger.error("%s %s", mission, e)  # noqa: TRY400
+            self.logger.error("%s %s", nc_file, e)  # noqa: TRY400
         finally:
             resamp.logger.removeHandler(self.log_handler)
 
@@ -763,6 +770,7 @@ class Processor:
         )
         combine = Combine_NetCDF()
         combine.args = argparse.Namespace()
+        combine.args.plot = None
         combine.args.verbose = self.args.verbose
         combine.args.log_file = self.args.log_file
         combine.commandline = self.commandline
@@ -790,7 +798,7 @@ class Processor:
         netcdfs_dir = self.extract(log_file)
         self.combine(log_file=log_file)
         self.align(log_file=log_file)
-        # self.resample(log_file)
+        self.resample()
         # self.create_products(log_file)
         self.logger.info("Finished processing log file: %s", log_file)
 
