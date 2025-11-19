@@ -29,12 +29,12 @@ class I2mapProcessor(Processor):
 
 
 if __name__ == "__main__":
-    VEHICLE = "i2map"
+    AUV_NAME = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://thalassa.shore.mbari.org/M3"
     START_YEAR = 2017
 
-    proc = I2mapProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    proc = I2mapProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
     proc.process_missions(START_YEAR)

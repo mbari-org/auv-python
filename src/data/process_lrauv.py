@@ -30,7 +30,7 @@ class LRAUVProcessor(Processor):
 
 
 if __name__ == "__main__":
-    VEHICLE = "tethys"
+    AUV_NAME = "tethys"
     LRAUV_DIR = "/Volumes/LRAUV"
     # It's possible that we might need calibration files for some sensors
     # in the future, so point to a potential directory where they can be found.
@@ -38,6 +38,6 @@ if __name__ == "__main__":
     MOUNT_DIR = "smb://atlas.shore.mbari.org/LRAUV"
     START_YEAR = 2012
 
-    proc = LRAUVProcessor(VEHICLE, LRAUV_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    proc = LRAUVProcessor(AUV_NAME, LRAUV_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
     proc.process_log_files()

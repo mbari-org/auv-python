@@ -30,12 +30,12 @@ class DoradoProcessor(Processor):
 
 
 if __name__ == "__main__":
-    VEHICLE = "dorado"
+    AUV_NAME = "dorado"
     VEHICLE_DIR = "/Volumes/AUVCTD/missionlogs"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://atlas.shore.mbari.org/AUVCTD"
     START_YEAR = 2003
 
-    proc = DoradoProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    proc = DoradoProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
     proc.process_missions(START_YEAR)

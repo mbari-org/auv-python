@@ -132,12 +132,12 @@ class Processor:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self, vehicle, vehicle_dir, mount_dir, calibration_dir) -> None:
+    def __init__(self, auv_name, vehicle_dir, mount_dir, calibration_dir) -> None:
         # Variables to be set by subclasses, e.g.:
-        # vehicle = "i2map"
+        # auv_name = "i2map"
         # vehicle_dir = "/Volumes/M3/master/i2MAP"
         # mount_dir = "smb://thalassa.shore.mbari.org/M3"
-        self.vehicle = vehicle
+        self.auv_name = auv_name
         self.vehicle_dir = vehicle_dir
         self.mount_dir = mount_dir
         self.calibration_dir = calibration_dir
@@ -187,14 +187,14 @@ class Processor:
             self.logger.error("%s does not exist.", self.vehicle_dir)
             self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
-        if self.vehicle.lower() == "dorado" or self.vehicle == "Dorado389":
+        if self.auv_name.lower() == "dorado" or self.auv_name == "Dorado389":
             if self.args.local:
                 path = Path(self.vehicle_dir, mission)
             else:
                 year = mission.split(".")[0]
                 yearyd = "".join(mission.split(".")[:2])
                 path = Path(self.vehicle_dir, year, yearyd, mission)
-        elif self.vehicle.lower() == "i2map":
+        elif self.auv_name.lower() == "i2map":
             year = int(mission.split(".")[0])
             # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
             # but use the mission_list() method to find the mission dir instead
@@ -205,8 +205,8 @@ class Processor:
                 self.logger.error("Cannot find %s in %s", mission, self.vehicle_dir)
                 error_message = f"Cannot find {mission} in {self.vehicle_dir}"
                 raise FileNotFoundError(error_message)
-        elif self.vehicle == "Dorado389":
-            # The Dorado389 vehicle is a special case used for testing locally and in CI
+        elif self.auv_name == "Dorado389":
+            # The Dorado389 auv_name is a special case used for testing locally and in CI
             path = self.vehicle_dir
         if not Path(path).exists():
             self.logger.error("%s does not exist.", path)
@@ -223,7 +223,7 @@ class Processor:
         auv_netcdf.args.noinput = self.args.noinput
         auv_netcdf.args.clobber = self.args.clobber
         auv_netcdf.args.noreprocess = self.args.noreprocess
-        auv_netcdf.args.auv_name = self.vehicle
+        auv_netcdf.args.auv_name = self.auv_name
         auv_netcdf.args.mission = mission
         auv_netcdf.args.use_portal = self.args.use_portal
         auv_netcdf.args.add_seconds = self.args.add_seconds
@@ -238,7 +238,7 @@ class Processor:
         # Run lopcToNetCDF.py - mimic log message from logs2netcdfs.py
         lopc_bin = Path(
             self.args.base_path,
-            self.vehicle,
+            self.auv_name,
             MISSIONLOGS,
             mission,
             "lopc.bin",
@@ -246,7 +246,7 @@ class Processor:
         try:
             file_size = Path(lopc_bin).stat().st_size
         except FileNotFoundError:
-            if "lopc" in EXPECTED_SENSORS[self.vehicle]:
+            if "lopc" in EXPECTED_SENSORS[self.auv_name]:
                 self.logger.warning("No lopc.bin file for %s", mission)
             return
         self.logger.info("Processing file %s (%d bytes)", lopc_bin, file_size)
@@ -255,7 +255,7 @@ class Processor:
         lopc_processor.args.bin_fileName = lopc_bin
         lopc_processor.args.netCDF_fileName = os.path.join(  # noqa: PTH118 This is an arg, keep it a string
             self.args.base_path,
-            self.vehicle,
+            self.auv_name,
             MISSIONNETCDFS,
             mission,
             "lopc.nc",
@@ -286,7 +286,7 @@ class Processor:
         cal_netcdf.args.noinput = self.args.noinput
         cal_netcdf.args.clobber = self.args.clobber
         cal_netcdf.args.noreprocess = self.args.noreprocess
-        cal_netcdf.args.auv_name = self.vehicle
+        cal_netcdf.args.auv_name = self.auv_name
         cal_netcdf.args.mission = mission
         cal_netcdf.args.plot = None
         cal_netcdf.calibration_dir = self.calibration_dir
@@ -306,7 +306,7 @@ class Processor:
         align_netcdf = Align_NetCDF()
         align_netcdf.args = argparse.Namespace()
         align_netcdf.args.base_path = self.args.base_path
-        align_netcdf.args.auv_name = self.vehicle
+        align_netcdf.args.auv_name = self.auv_name
         align_netcdf.args.mission = mission
         align_netcdf.args.log_file = self.args.log_file
         align_netcdf.args.plot = None
@@ -320,7 +320,7 @@ class Processor:
                 align_netcdf.write_combined_netcdf(netcdf_dir, log_file=log_file)
             else:
                 netcdf_dir = align_netcdf.process_cal()
-                align_netcdf.write_combined_netcdf(netcdf_dir, vehicle=self.vehicle)
+                align_netcdf.write_combined_netcdf(netcdf_dir, vehicle=self.auv_name)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
             error_message = f"{mission} {e}"
@@ -332,7 +332,7 @@ class Processor:
         self.logger.info("Resampling steps for %s", mission)
         resamp = Resampler()
         resamp.args = argparse.Namespace()
-        resamp.args.auv_name = self.vehicle
+        resamp.args.auv_name = self.auv_name
         resamp.args.mission = mission
         resamp.args.log_file = self.args.log_file
         resamp.args.plot = None
@@ -396,7 +396,7 @@ class Processor:
         If log_file is provided, archive the processed data for LRAUV class vehicles."""
         arch = Archiver(add_logger_handlers)
         arch.args = argparse.Namespace()
-        arch.args.auv_name = self.vehicle
+        arch.args.auv_name = self.auv_name
         arch.mount_dir = self.mount_dir
         arch.args.mission = mission
         arch.commandline = self.commandline
@@ -441,7 +441,7 @@ class Processor:
         cp = CreateProducts()
         cp.args = argparse.Namespace()
         cp.args.base_path = self.args.base_path
-        cp.args.auv_name = self.vehicle
+        cp.args.auv_name = self.auv_name
         cp.args.mission = mission
         cp.args.local = self.args.local
         cp.args.start_esecs = None
@@ -459,7 +459,7 @@ class Processor:
         self.logger.info("Sending notification email for %s", mission)
         email = Emailer()
         email.args = argparse.Namespace()
-        email.args.auv_name = self.vehicle
+        email.args.auv_name = self.auv_name
         email.args.mission = mission
         email.commandline = self.commandline
         email.args.clobber = self.args.clobber
@@ -495,10 +495,10 @@ class Processor:
             )
             try:
                 shutil.rmtree(
-                    Path(self.args.base_path, self.vehicle, MISSIONLOGS, mission),
+                    Path(self.args.base_path, self.auv_name, MISSIONLOGS, mission),
                 )
                 shutil.rmtree(
-                    Path(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission),
+                    Path(self.args.base_path, self.auv_name, MISSIONNETCDFS, mission),
                 )
                 self.logger.info("Done removing %s work files", mission)
             except FileNotFoundError as e:
@@ -524,7 +524,7 @@ class Processor:
     def process_mission(self, mission: str, src_dir: str = "") -> None:  # noqa: C901, PLR0912, PLR0915
         netcdfs_dir = Path(
             self.args.base_path,
-            self.vehicle,
+            self.auv_name,
             MISSIONNETCDFS,
             mission,
         )
@@ -535,7 +535,7 @@ class Processor:
             self.cleanup(mission)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
-            Path(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"),
+            Path(netcdfs_dir, f"{self.auv_name}_{mission}_{LOG_NAME}"),
             mode="w+",
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
@@ -547,12 +547,12 @@ class Processor:
         self.logger.info("commandline = %s", self.commandline)
         try:
             program = ""
-            if self.vehicle.lower() == "dorado":
+            if self.auv_name.lower() == "dorado":
                 program = dorado_info[mission]["program"]
                 self.logger.info(
                     'dorado_info[mission]["comment"] = %s', dorado_info[mission]["comment"]
                 )
-            elif self.vehicle.lower() == "i2map":
+            elif self.auv_name.lower() == "i2map":
                 program = "i2map"
             if program == TEST:
                 error_message = (
@@ -660,10 +660,10 @@ class Processor:
             if hasattr(self, "log_handler"):
                 # If no log_handler then process_mission() failed, likely due to missing mount
                 # Always archive the mission, especially the processing.log file
-                if self.vehicle == "Dorado389" and mission == "2011.256.02":
+                if self.auv_name == "Dorado389" and mission == "2011.256.02":
                     self.logger.info(
                         "Not archiving %s %s as it's likely CI testing",
-                        self.vehicle,
+                        self.auv_name,
                         mission,
                     )
                 if self.args.download_process:
@@ -806,7 +806,7 @@ class Processor:
         if self.args.log_file:
             # log_file is string like:
             # brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
-            self.vehicle = self.args.log_file.split("/")[0].lower()
+            self.auv_name = self.args.log_file.split("/")[0].lower()
             self.process_log_file(self.args.log_file)
 
     def process_command_line(self):
@@ -1028,12 +1028,12 @@ class Processor:
 
 
 if __name__ == "__main__":
-    VEHICLE = "i2map"
+    AUV_NAME = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://thalassa.shore.mbari.org/M3"
 
     # Initialize for i2MAP processing, meant to be subclassed for other vehicles
-    proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    proc = Processor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
     proc.process_command_line()
     proc.process_missions()
