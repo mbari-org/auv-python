@@ -27,6 +27,7 @@ import pandas as pd
 import xarray as xr
 from dorado_info import dorado_info
 from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, AUV_NetCDF
+from nc42netcdfs import BASE_LRAUV_PATH
 from pysolar.solar import get_altitude
 from scipy import signal
 
@@ -1006,7 +1007,8 @@ class Resampler:
         instrs_to_pad: dict[str, timedelta],
         depth_threshold: float,
     ) -> None:
-        timevar = f"{instr}_{TIME}"
+        # Get the time variable name from the dimension of the variable
+        timevar = self.ds[variable].dims[0]
         if instr == "biolume" and variable == "biolume_raw":
             # Only biolume_avg_biolume and biolume_flow treated like other data
             # All other biolume variables in self.df_r[] are computed from biolume_raw
@@ -1135,16 +1137,24 @@ class Resampler:
         mission_start = datetime.max  # noqa: DTZ901
         mission_end = datetime.min  # noqa: DTZ901
         instrs_to_pad = {}
+        self.logger.info("Determining mission start and end times")
+        time_coords = []
         for instr in self.instruments_variables(nc_file):
             time_coord = f"{instr}_{TIME}"
-            mission_start = min(pd.to_datetime(self.ds[time_coord].min().values), mission_start)
-            mission_end = max(pd.to_datetime(self.ds[time_coord].max().values), mission_end)
-        for instr in self.instruments_variables(nc_file):
-            time_coord = f"{instr}_{TIME}"
+            try:
+                mission_start = min(pd.to_datetime(self.ds[time_coord].min().values), mission_start)
+                mission_end = max(pd.to_datetime(self.ds[time_coord].max().values), mission_end)
+                time_coords.append(time_coord)
+            except KeyError:
+                # Likely an LRAUV _combined.nc file with multiple different dimensions in a Group
+                self.logger.info(
+                    "Ignoring expected time_coord that could not be found: %s", time_coord
+                )
+        for time_coord in time_coords:
             duration = mission_end - pd.to_datetime(self.ds[time_coord].max().values)
             self.logger.info(
                 "%-10s: %s to %s (%s before mission_end)",
-                instr,
+                time_coord.split("_")[0],
                 self.ds[time_coord].min().values,
                 self.ds[time_coord].max().values,
                 duration,
@@ -1152,10 +1162,10 @@ class Resampler:
             if mission_end - pd.to_datetime(
                 self.ds[time_coord].max().values,
             ) > timedelta(minutes=min_crit):
-                instrs_to_pad[instr] = duration
+                instrs_to_pad[time_coord.split("_")[0]] = duration
                 self.logger.warning(
                     "Instrument %s has a gap > %d minutes at the end of the mission: %s",
-                    instr,
+                    time_coord.split("_")[0],
                     min_crit,
                     mission_end - pd.to_datetime(self.ds[time_coord].max().values),
                 )
@@ -1199,8 +1209,10 @@ class Resampler:
                 # Use the pitch corrected depth coordinate for 'ctd1' for dorado,
                 # 'seabird25p' for i2map.  The depth coordinate for pitch_corrected_instr
                 # must be as complete as possible as it's used for all the other
-                # nosecone instruments.
-                pitch_corrected_instr = "ctd1"
+                # nosecone instruments.  If we are processing LRAUV data then
+                # use 'ctddseabird', otherwise start with 'ctd1' and fall back to
+                # 'seabird25p' if needed for i2map missions.
+                pitch_corrected_instr = "ctdseabird" if self.args.log_file else "ctd1"
                 if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
                     if pitch_corrected_instr in instrs_to_pad:
@@ -1322,6 +1334,15 @@ class Resampler:
                 help="Mission directory, e.g.: 2020.064.10",
             ),
         )
+        parser.add_argument(
+            "--log_file",
+            action="store",
+            help=(
+                "Path to the log file of original LRAUV data, e.g.: "
+                "brizo/missionlogs/2025/20250903_20250909/"
+                "20250905T072042/202509050720_202509051653.nc4"
+            ),
+        )
         parser.add_argument("--plot", action="store_true", help="Plot data")
         parser.add_argument(
             "--plot_seconds",
@@ -1374,15 +1395,21 @@ class Resampler:
 if __name__ == "__main__":
     resamp = Resampler()
     resamp.process_command_line()
-    file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
-    nc_file = Path(
-        BASE_PATH,
-        resamp.args.auv_name,
-        MISSIONNETCDFS,
-        resamp.args.mission,
-        file_name,
-    )
+    if resamp.args.log_file:
+        netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(resamp.args.log_file).parent}")
+        nc_file = Path(netcdfs_dir, f"{Path(resamp.args.log_file).stem}_align.nc")
+    else:
+        file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
+        nc_file = Path(
+            BASE_PATH,
+            resamp.args.auv_name,
+            MISSIONNETCDFS,
+            resamp.args.mission,
+            file_name,
+        )
     p_start = time.time()
+    # Everything that Resampler needs should be in the self described nc_file
+    # whether it is Dorado/i2MAP or LRAUV
     resamp.resample_mission(
         nc_file,
         mf_width=resamp.args.mf_width,
