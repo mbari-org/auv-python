@@ -13,6 +13,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -113,10 +114,17 @@ class Align_NetCDF:
                 f" host {actual_hostname} using git commit {gitcommit} from"
                 f" software at 'https://github.com/mbari-org/auv-python'"
             )
+            metadata["summary"] = (
+                "Observational oceanographic data obtained from an Autonomous"
+                " Underwater Vehicle mission with measurements at"
+                " original sampling intervals. The data have been calibrated"
+                " and the coordinate variables aligned using MBARI's auv-python"
+                " software."
+            )
         elif self.args.log_file:
             metadata["title"] = (
                 f"Combined and aligned LRAUV instrument data from"
-                f" log file {Path(self.args.log_file).name}"
+                f" log file {Path(self.args.log_file)}"
             )
             from_data = "combined data"
             metadata["source"] = (
@@ -125,32 +133,38 @@ class Align_NetCDF:
                 f" host {actual_hostname} using git commit {gitcommit} from"
                 f" software at 'https://github.com/mbari-org/auv-python'"
             )
-        metadata["summary"] = (
-            "Observational oceanographic data obtained from an Autonomous"
-            " Underwater Vehicle mission with measurements at"
-            " original sampling intervals. The data have been calibrated"
-            " and the coordinate variables aligned using MBARI's auv-python"
-            " software."
-        )
+            metadata["summary"] = (
+                "Observational oceanographic data obtained from an Autonomous"
+                " Underwater Vehicle mission with measurements at"
+                " original sampling intervals. The position variables have been"
+                " corrected to GPS positions and aligned with the data variables"
+                " using MBARI's auv-python software."
+            )
         # Append location of original data files to summary
         if self.args.auv_name and self.args.mission:
             matches = re.search(
                 "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
                 self.calibrated_nc.attrs["summary"],
             )
+            metadata["comment"] = (
+                f"MBARI Dorado-class AUV data produced from calibrated data"
+                f" with execution of '{self.commandline}' at {iso_now} on"
+                f" host {gethostname()}. Software available at"
+                f" 'https://github.com/mbari-org/auv-python'"
+            )
         elif self.args.log_file:
             matches = re.search(
                 "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
                 self.combined_nc.attrs["summary"],
             )
+            metadata["comment"] = (
+                f"MBARI LRAUV-class AUV data produced from logged data"
+                f" with execution of '{self.commandline}' at {iso_now} on"
+                f" host {gethostname()}. Software available at"
+                f" 'https://github.com/mbari-org/auv-python'"
+            )
         if matches:
             metadata["summary"] += " " + matches.group(1)
-        metadata["comment"] = (
-            f"MBARI Dorado-class AUV data produced from calibrated data"
-            f" with execution of '{self.commandline}' at {iso_now} on"
-            f" host {gethostname()}. Software available at"
-            f" 'https://github.com/mbari-org/auv-python'"
-        )
 
         return metadata
 
@@ -474,31 +488,14 @@ class Align_NetCDF:
                 "Processing %s with group %s and time %s", variable, group_name, timevar
             )
 
-            # Copy the original variable
-            self.aligned_nc[variable] = self.combined_nc[variable]
-
             # Get the time index for this variable
-            var_time = self.aligned_nc[variable].get_index(timevar).view(np.int64).tolist()
+            var_time = self.combined_nc[variable].get_index(timevar).view(np.int64).tolist()
 
             # Calculate sampling rate
             sample_rate = np.round(
                 1.0 / (np.mean(np.diff(self.combined_nc[timevar])) / np.timedelta64(1, "s")),
                 decimals=2,
             )
-
-            # Create aligned variable with proper attributes
-            self.aligned_nc[variable] = xr.DataArray(
-                self.combined_nc[variable].values,
-                dims={timevar},
-                coords=[self.combined_nc[variable].get_index(timevar)],
-                name=variable,
-            )
-            self.aligned_nc[variable].attrs = self.combined_nc[variable].attrs
-            self.aligned_nc[variable].attrs["coordinates"] = (
-                f"{group_name}_time {group_name}_depth {group_name}_latitude {group_name}_longitude"
-            )
-            self.logger.info("%s: instrument_sample_rate_hz = %.2f", variable, sample_rate)
-            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
 
             # Create interpolated coordinate variables for this group
             coord_names = ["depth", "latitude", "longitude"]
@@ -525,7 +522,7 @@ class Align_NetCDF:
                 self.aligned_nc[coord_var_name].attrs["long_name"] = coord_name.title()
                 self.aligned_nc[coord_var_name].attrs["instrument_sample_rate_hz"] = sample_rate
 
-                if coord_name in ["latitude", "longitude"]:
+                if coord_name in ["longitude", "latitude", "depth"]:
                     self.aligned_nc[coord_var_name].attrs["comment"] = (
                         self.aligned_nc[coord_var_name].attrs.get("comment", "")
                         + f". Variable {coord_source} from {src_file} file linearly"
@@ -542,11 +539,69 @@ class Align_NetCDF:
             ) > pd.to_datetime(self.max_time):
                 self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(UTC)
 
-            # Update bounds using the interpolated coordinates
-            depth_coord = f"{group_name}_depth"
-            lat_coord = f"{group_name}_latitude"
-            lon_coord = f"{group_name}_longitude"
+            # Coordinates - use mapping from global variable_time_coord_mapping attribute
+            variable_time_coord_mapping = json.loads(
+                self.combined_nc.attrs.get("variable_time_coord_mapping", "{}")
+            )
+            time_coord = variable_time_coord_mapping.get(variable)
+            depth_coord = (
+                time_coord[:-5] + "_depth"
+                if time_coord and time_coord.endswith("_time")
+                else f"{group_name}_depth"
+            )
+            lat_coord = (
+                time_coord[:-5] + "_latitude"
+                if time_coord and time_coord.endswith("_time")
+                else f"{group_name}_latitude"
+            )
+            lon_coord = (
+                time_coord[:-5] + "_longitude"
+                if time_coord and time_coord.endswith("_time")
+                else f"{group_name}_longitude"
+            )
 
+            # Add interpolated depth, latitude, and longitude variables
+            if depth_coord in self.combined_nc:
+                self.aligned_nc[depth_coord].attrs = self.combined_nc[depth_coord].attrs
+            self.aligned_nc[depth_coord] = xr.DataArray(
+                depth_interp(var_time).astype(np.float64).tolist(),
+                dims={timevar},
+                coords=[self.combined_nc[variable].get_index(timevar)],
+                name=depth_coord,
+            )
+            self.aligned_nc[depth_coord].attrs["long_name"] = "Depth"
+            self.aligned_nc[depth_coord].attrs["comment"] = "depth from Group_Universals.nc"
+            self.aligned_nc[depth_coord].attrs["instrument_sample_rate_hz"] = sample_rate
+
+            self.aligned_nc[lat_coord] = xr.DataArray(
+                lat_interp(var_time).astype(np.float64).tolist(),
+                dims={timevar},
+                coords=[self.combined_nc[variable].get_index(timevar)],
+                name=lat_coord,
+            )
+            self.aligned_nc[lat_coord].attrs = self.combined_nc["nudged_latitude"].attrs
+            self.aligned_nc[lat_coord].attrs["comment"] += (
+                f". Variable nudged_latitude from {src_file} file linearly"
+                f" interpolated onto {variable.split('_')[0]} time values."
+            )
+            self.aligned_nc[lat_coord].attrs["long_name"] = "Latitude"
+            self.aligned_nc[lat_coord].attrs["instrument_sample_rate_hz"] = sample_rate
+
+            self.aligned_nc[lon_coord] = xr.DataArray(
+                lon_interp(var_time).astype(np.float64).tolist(),
+                dims={timevar},
+                coords=[self.combined_nc[variable].get_index(timevar)],
+                name=lon_coord,
+            )
+            self.aligned_nc[lon_coord].attrs = self.combined_nc["nudged_longitude"].attrs
+            self.aligned_nc[lon_coord].attrs["comment"] += (
+                f". Variable nudged_longitude from {src_file} file linearly"
+                f" interpolated onto {variable.split('_')[0]} time values."
+            )
+            self.aligned_nc[lon_coord].attrs["long_name"] = "Longitude"
+            self.aligned_nc[lon_coord].attrs["instrument_sample_rate_hz"] = sample_rate
+
+            # Update bounds using the interpolated coordinates
             if self.aligned_nc[depth_coord].min() < self.min_depth:
                 self.min_depth = self.aligned_nc[depth_coord].min().to_numpy()
             if self.aligned_nc[depth_coord].max() > self.max_depth:
@@ -559,6 +614,29 @@ class Align_NetCDF:
                 self.min_lon = self.aligned_nc[lon_coord].min().to_numpy()
             if self.aligned_nc[lon_coord].max() > self.max_lon:
                 self.max_lon = self.aligned_nc[lon_coord].max().to_numpy()
+
+            # Create aligned variable with proper attributes
+            self.aligned_nc[variable] = xr.DataArray(
+                self.combined_nc[variable].values,
+                dims={timevar},
+                coords=[self.combined_nc[variable].get_index(timevar)],
+                name=variable,
+            )
+            self.aligned_nc[variable].attrs = self.combined_nc[variable].attrs
+            if (
+                time_coord in self.aligned_nc
+                and depth_coord in self.aligned_nc
+                and lat_coord in self.aligned_nc
+                and lon_coord in self.aligned_nc
+            ):
+                self.aligned_nc[variable].attrs["coordinates"] = (
+                    f"{time_coord} {depth_coord} {lat_coord} {lon_coord}"
+                )
+            else:
+                self.logger.info("Skipping setting coordinates attribute for %s", variable)
+
+            self.logger.info("%s: instrument_sample_rate_hz = %.2f", variable, sample_rate)
+            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
 
         return netcdfs_dir
 
@@ -595,7 +673,7 @@ class Align_NetCDF:
             self.logger.debug("Removing file %s", out_fn)
             out_fn.unlink()
         self.aligned_nc.to_netcdf(out_fn)
-        self.logger.info(
+        self.logger.debug(
             "Data variables written: %s",
             ", ".join(sorted(self.aligned_nc.variables)),
         )
