@@ -785,7 +785,7 @@ class Processor:
         netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
-            Path(BASE_LRAUV_PATH, f"{log_file}_extract.log"), mode="w+"
+            Path(netcdfs_dir, f"{Path(log_file).stem}_processing.log"), mode="w+"
         )
         self.log_handler.setLevel(self._log_levels[self.args.verbose])
         self.log_handler.setFormatter(AUV_NetCDF._formatter)

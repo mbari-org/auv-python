@@ -256,7 +256,7 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
         seg_min = float(lat.cf["T"].data[segi][-1] - lat.cf["T"].data[segi][0]) / 1.0e9 / 60
 
     logger.info(
-        f"{seg_count + 1:4d}: {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14}",  # noqa: E501, G004
+        f"{seg_count + 1:5d}: {'-':>12} {'-':>12} {'-':>12} {len(segi):-9d} {seg_min:9.2f} {'-':>14} {'-':>14}",  # noqa: E501, G004
     )
     segment_count = seg_count
     segment_minsum = seg_minsum
