@@ -78,6 +78,17 @@ class Resampler:
             )
             gitcommit = "<failed to get git commit>"
         iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
+
+        # Ensure that only the latitude and longitude variables have
+        # standard_name attributes equal to "latitude" and "longitude" so that
+        # the .cf[] accessor works correctly
+        for var in self.resampled_nc.data_vars:
+            if self.resampled_nc[var].attrs.get("standard_name") in ["latitude", "longitude"]:
+                if var in {"latitude", "longitude"}:
+                    continue
+                self.logger.info("Removing standard_name attribute from variable %s", var)
+                del self.resampled_nc[var].attrs["standard_name"]
+
         # Common dynamic attributes for all auv platforms
         self.metadata["time_coverage_start"] = str(min(self.resampled_nc.time.values))
         self.metadata["time_coverage_end"] = str(max(self.resampled_nc.time.values))
@@ -1050,7 +1061,7 @@ class Resampler:
                     .resample(freq.lower())
                     .mean()
                 )
-                self.df_r[variable].loc[instr_data.index] = instr_data
+                self.df_r.loc[instr_data.index, variable] = instr_data
             else:
                 self.df_r[variable] = (
                     self.df_o[f"{variable}_mf"]

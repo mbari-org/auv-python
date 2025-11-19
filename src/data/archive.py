@@ -172,7 +172,7 @@ class Archiver:
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
 
-    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:
+    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:  # noqa: C901, PLR0912
         "Copy the intermediate and resampled netCDF file(s) to the archive LRAUV location"
         src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         dst_dir = Path(LRAUV_VOL, Path(log_file).parent)
@@ -196,7 +196,7 @@ class Archiver:
                     "%-75s exists, but is not being archived because --clobber is not specified.",
                     src_file.name,
                 )
-        for ftype in (f"{freq}.nc", "cal.nc", "align.nc"):
+        for ftype in (f"{freq}.nc", "combined.nc", "align.nc"):
             src_file = Path(src_dir, f"{Path(log_file).stem}_{ftype}")
             dst_file = Path(dst_dir, src_file.name)
             if self.args.clobber:
@@ -209,6 +209,19 @@ class Archiver:
             else:
                 self.logger.info(
                     "%-36s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
+                    src_file.name,
+                )
+        # Copy the processing.log file last so that we get everything
+        src_file = Path(src_dir, f"{Path(log_file).stem}_{LOG_NAME}")
+        dst_file = Path(dst_dir, src_file.name)
+        if src_file.exists():
+            if self.args.clobber:
+                self.logger.info("copyfile %s %s", src_file, dst_dir)
+                shutil.copyfile(src_file, dst_file)
+                self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+            else:
+                self.logger.info(
+                    "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
                     src_file.name,
                 )
 
