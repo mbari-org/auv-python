@@ -320,7 +320,7 @@ class Processor:
                 align_netcdf.write_combined_netcdf(netcdf_dir, log_file=log_file)
             else:
                 netcdf_dir = align_netcdf.process_cal()
-                align_netcdf.write_netcdf(netcdf_dir, vehicle=self.vehicle, mission=mission)
+                align_netcdf.write_combined_netcdf(netcdf_dir, vehicle=self.vehicle)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
             error_message = f"{mission} {e}"
