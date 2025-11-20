@@ -23,6 +23,10 @@ if __name__ == "__main__":
     MOUNT_DIR = "smb://atlas.shore.mbari.org/AUVCTD"
     START_YEAR = 2011
 
-    proc = DoradoProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
-    proc.process_command_line()
+    # Parse command line and initialize with config pattern
+    temp_proc = DoradoProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    args = temp_proc.process_command_line()
+
+    # Create configured processor instance
+    proc = DoradoProcessor.from_args(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR, args)
     proc.process_missions(START_YEAR)

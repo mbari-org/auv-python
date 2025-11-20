@@ -36,8 +36,11 @@ if __name__ == "__main__":
     # in the future, so point to a potential directory where they can be found.
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://atlas.shore.mbari.org/LRAUV"
-    START_YEAR = 2012
 
-    proc = LRAUVProcessor(AUV_NAME, LRAUV_DIR, MOUNT_DIR, CALIBRATION_DIR)
-    proc.process_command_line()
+    # Parse command line and initialize with config pattern
+    temp_proc = LRAUVProcessor(AUV_NAME, LRAUV_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    args = temp_proc.process_command_line()
+
+    # Create configured processor instance
+    proc = LRAUVProcessor.from_args(AUV_NAME, LRAUV_DIR, MOUNT_DIR, CALIBRATION_DIR, args)
     proc.process_log_files()

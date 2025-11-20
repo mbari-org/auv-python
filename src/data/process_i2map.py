@@ -35,6 +35,10 @@ if __name__ == "__main__":
     MOUNT_DIR = "smb://thalassa.shore.mbari.org/M3"
     START_YEAR = 2017
 
-    proc = I2mapProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
-    proc.process_command_line()
+    # Parse command line and initialize with config pattern
+    temp_proc = I2mapProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    args = temp_proc.process_command_line()
+
+    # Create configured processor instance
+    proc = I2mapProcessor.from_args(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR, args)
     proc.process_missions(START_YEAR)
