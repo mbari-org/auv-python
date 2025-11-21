@@ -1,10 +1,16 @@
 # noqa: INP001
 import logging
 import os
+import sys
 from argparse import Namespace
 from pathlib import Path
 
 import pytest
+
+# Add the current directory to Python path so modules can import each other
+# This preserves the original import behavior while allowing package structure
+sys.path.insert(0, str(Path(__file__).parent))
+
 from calibrate import Calibrate_NetCDF
 from hs2_proc import hs2_read_cal_file
 from logs2netcdfs import BASE_PATH, MISSIONLOGS
