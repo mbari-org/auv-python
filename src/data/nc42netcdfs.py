@@ -8,7 +8,6 @@ Makes the original data more accessible for analysis and visualization.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 
-import argparse
 import logging
 import os
 import sys
@@ -20,6 +19,7 @@ import git
 import netCDF4
 import numpy as np
 import pooch
+from common_args import get_standard_lrauv_parser
 
 # Conditional imports for plotting (only when needed)
 try:
@@ -1032,6 +1032,7 @@ class Extract:
         return metadata
 
     def process_command_line(self):
+        """Process command line arguments using shared parser infrastructure."""
         examples = "Examples:" + "\n\n"
         examples += "  Write to local missionnetcdfs direcory:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
@@ -1044,11 +1045,13 @@ class Extract:
             + "202509140809_202509150109.nc4 --plot_time /latitude_time\n"
         )
 
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        # Use shared parser with nc42netcdfs-specific additions
+        parser = get_standard_lrauv_parser(
             description=__doc__,
             epilog=examples,
         )
+
+        # Add nc42netcdfs-specific arguments
         parser.add_argument(
             "--filter_monotonic_time",
             action="store_true",
@@ -1070,20 +1073,6 @@ class Extract:
             "--end",
             action="store",
             help="Convert a range of missions wth end time in YYYYMMDD format",
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            help="Name of the AUV and the directory name for its data, e.g.: tethys, ahi, pontus",
-        )
-        parser.add_argument(
-            "--log_file",
-            action="store",
-            help=(
-                "Path to the log file for the mission, e.g.: "
-                "brizo/missionlogs/2025/20250903_20250909/"
-                "20250905T072042/202509050720_202509051653.nc4"
-            ),
         )
         parser.add_argument(
             "--known_hash",
@@ -1108,20 +1097,6 @@ class Extract:
                 "Plot before and after time coordinate filtering for the specified variable. "
                 "Shows the effect of outlier removal and monotonic filtering."
                 "Format for <VARIABLE_NAME> is /Group/variable_name."
-            ),
-        )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
             ),
         )
 

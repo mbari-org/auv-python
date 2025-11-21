@@ -9,7 +9,7 @@ all of the available metadata from associated .cfg and .xml files.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
-import argparse
+import argparse  # noqa: I001
 import asyncio
 import concurrent
 import logging
@@ -27,8 +27,10 @@ import numpy as np
 import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
-from AUV import monotonic_increasing_time_indices
 from netCDF4 import Dataset
+
+from AUV import monotonic_increasing_time_indices
+from common_args import get_standard_dorado_parser
 from readauvlog import log_record
 
 LOG_FILES = (
@@ -883,42 +885,19 @@ class AUV_NetCDF:
             self.deployments_url = Path(self.args.portal, "deployments")
 
     def process_command_line(self):
+        """Process command line arguments using shared parser infrastructure."""
         examples = "Examples:" + "\n\n"
         examples += "  Write to local missionnetcdfs direcory:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
         examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
 
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        # Use shared parser with logs2netcdfs-specific additions
+        parser = get_standard_dorado_parser(
             description=__doc__,
             epilog=examples,
         )
 
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            help=(
-                "Dorado389, i2map, or multibeam. Will be saved in "
-                "directory with this name no matter its portal entry"
-            ),
-        )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        )
-        parser.add_argument(
-            "--local",
-            action="store_true",
-            help="Specify if files are local in the MISSION directory",
-        )
-
+        # Add logs2netcdfs-specific arguments
         parser.add_argument(
             "--title",
             action="store",
@@ -928,22 +907,6 @@ class AUV_NetCDF:
             "--summary",
             action="store",
             help="Additional information about the dataset",
-        )
-
-        parser.add_argument(
-            "--noinput",
-            action="store_true",
-            help="Execute without asking for a response, e.g.  to not ask to re-download file",
-        )
-        parser.add_argument(
-            "--clobber",
-            action="store_true",
-            help="Use with --noinput to overwrite existing downloaded log files",
-        )
-        parser.add_argument(
-            "--noreprocess",
-            action="store_true",
-            help="Use with --noinput to not re-process existing downloaded log files",
         )
         parser.add_argument(
             "--start",
@@ -973,39 +936,9 @@ class AUV_NetCDF:
             " http://stoqs.mbari.org:8080/auvdata/v1",
         )
         parser.add_argument(
-            "--use_portal",
-            action="store_true",
-            help=(
-                "Download data using portal (much faster than copy over"
-                " remote connection), otherwise copy from mount point"
-            ),
-        )
-        parser.add_argument(
             "--vehicle_dir",
             action="store",
             help="Directory for the vehicle's mission logs, e.g.: /Volumes/AUVCTD/missionlogs",
-        )
-        parser.add_argument(
-            # To use for mission 2025.316.02 which suffered from the GPS week rollover bug:
-            # 1024 * 7 * 24 * 3600 = 619315200 seconds to add to timeTag variables in the log_data
-            "--add_seconds",
-            type=int,
-            default=0,
-            help="Seconds to add to timeTag in log data",
-        )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
         )
 
         self.args = parser.parse_args()

@@ -12,14 +12,12 @@ interpolated onto that original time axis.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
-import argparse
-import json
+import json  # noqa: I001
 import logging
 import os
 import re
 import sys
 import time
-from argparse import RawTextHelpFormatter
 from datetime import UTC, datetime
 from pathlib import Path
 from socket import gethostname
@@ -27,17 +25,12 @@ from socket import gethostname
 import git
 import numpy as np
 import pandas as pd
-import xarray as xr
-from logs2netcdfs import (
-    BASE_PATH,
-    MISSIONNETCDFS,
-    SUMMARY_SOURCE,
-    TIME,
-    TIME60HZ,
-    AUV_NetCDF,
-)
-from nc42netcdfs import BASE_LRAUV_PATH
 from scipy.interpolate import interp1d
+import xarray as xr
+
+from common_args import get_standard_lrauv_parser
+from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
+from nc42netcdfs import BASE_LRAUV_PATH
 
 
 class InvalidCalFile(Exception):
@@ -679,6 +672,7 @@ class Align_NetCDF:
         )
 
     def process_command_line(self):
+        """Process command line arguments using shared parser infrastructure."""
         examples = "Examples:" + "\n\n"
         examples += "  Align calibrated data for some missions:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
@@ -691,57 +685,19 @@ class Align_NetCDF:
             + "202509140809_202509150109.nc4\n"
         )
 
-        parser = argparse.ArgumentParser(
-            formatter_class=RawTextHelpFormatter,
+        # Use shared LRAUV parser since align handles both Dorado and LRAUV
+        parser = get_standard_lrauv_parser(
             description=__doc__,
             epilog=examples,
         )
 
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help=f"Base directory for missionlogs and missionnetcdfs, default: {BASE_PATH}",
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="Dorado389",
-            help="Dorado389 (default), i2MAP, or Multibeam",
-        )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        )
-        parser.add_argument(
-            "--log_file",
-            action="store",
-            help=(
-                "Path to the log file of original LRAUV data, e.g.: "
-                "brizo/missionlogs/2025/20250903_20250909/"
-                "20250905T072042/202509050720_202509051653.nc4"
-            ),
-        )
+        # Add align-specific arguments
         parser.add_argument(
             "--plot",
             action="store_true",
             help="Create intermediate plots to validate data operations.",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
+
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)

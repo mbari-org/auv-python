@@ -7,14 +7,17 @@ Send email to notify of new data.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
-import argparse
-import logging
+import logging  # noqa: I001
 import platform
 import sys
 import time
 from pathlib import Path
 
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
+from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
+from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
+
+# Define BASE_PATH for backward compatibility
+BASE_PATH = DEFAULT_BASE_PATH
 
 NOTIFICATION_EMAIL = "auvctd@listserver.mbari.org"
 TEMPLATE = """
@@ -90,31 +93,13 @@ class Emailer:
         )
 
     def process_command_line(self):
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        """Process command line arguments using shared parser infrastructure."""
+        # Use shared parser with emailer-specific additions
+        parser = get_standard_dorado_parser(
             description=__doc__,
         )
-        (
-            parser.add_argument(
-                "--base_path",
-                action="store",
-                default=BASE_PATH,
-                help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
-            ),
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="Dorado389",
-            help="Dorado389 (default), i2map, or Multibeam",
-        )
-        (
-            parser.add_argument(
-                "--mission",
-                action="store",
-                help="Mission directory, e.g.: 2020.064.10",
-            ),
-        )
+
+        # Add emailer-specific arguments
         parser.add_argument(
             "--email_to",
             action="store",
@@ -124,20 +109,7 @@ class Emailer:
                 f"default: {NOTIFICATION_EMAIL}"
             ),
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
+
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)
