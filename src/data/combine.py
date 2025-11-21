@@ -38,22 +38,21 @@ align.py script.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 
-import argparse  # noqa: I001
-import json
+import json  # noqa: I001
 import logging
 import sys
 import time
-from argparse import RawTextHelpFormatter
 from datetime import UTC
 from pathlib import Path
 from socket import gethostname
 from typing import NamedTuple
+
 import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import numpy as np
-import xarray as xr
-
 import pandas as pd
+import xarray as xr
 from AUV import monotonic_increasing_time_indices, nudge_positions
+from common_args import get_standard_lrauv_parser
 from logs2netcdfs import AUV_NetCDF, TIME, TIME60HZ
 from nc42netcdfs import BASE_LRAUV_PATH, GROUP
 
@@ -717,6 +716,7 @@ class Combine_NetCDF:
         return netcdfs_dir
 
     def process_command_line(self):
+        """Process command line arguments using shared parser infrastructure."""
         examples = "Examples:" + "\n\n"
         examples += "  Combine original data from Group files for an LRAUV log file:\n"
         examples += (
@@ -727,43 +727,21 @@ class Combine_NetCDF:
             + "202509140809_202509150109.nc4\n"
         )
 
-        parser = argparse.ArgumentParser(
-            formatter_class=RawTextHelpFormatter,
+        # Use shared parser with combine-specific additions
+        parser = get_standard_lrauv_parser(
             description=__doc__,
             epilog=examples,
         )
-        parser.add_argument(
-            "--log_file",
-            action="store",
-            help=(
-                "Path to the log file of original LRAUV data, e.g.: "
-                "brizo/missionlogs/2025/20250903_20250909/"
-                "20250905T072042/202509050720_202509051653.nc4"
-            ),
-        )
+
+        # Add combine-specific arguments
         parser.add_argument(
             "--plot",
             action="store_true",
             help="Create intermediate plot(s) to help validate processing",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
 
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
-
         self.commandline = " ".join(sys.argv)
 
 

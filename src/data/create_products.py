@@ -7,7 +7,7 @@ Create "quick look" plots and other products from processed data.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
-import argparse
+import argparse  # noqa: I001
 import contextlib
 import logging
 import os
@@ -22,10 +22,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
 import xarray as xr
+
+from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
+from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
 from resample import AUVCTD_OPENDAP_BASE, FREQ
 from scipy.interpolate import griddata
+
+# Define BASE_PATH for backward compatibility
+BASE_PATH = DEFAULT_BASE_PATH
 
 MISSIONODVS = "missionodvs"
 MISSIONIMAGES = "missionimages"
@@ -524,51 +529,19 @@ class CreateProducts:
         )
 
     def process_command_line(self):
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        """Process command line arguments using shared parser infrastructure."""
+        # Use shared parser with create_products-specific additions
+        parser = get_standard_dorado_parser(
             description=__doc__,
         )
-        (
-            parser.add_argument(
-                "--base_path",
-                action="store",
-                default=BASE_PATH,
-                help=f"Base directory for missionlogs and missionnetcdfs, default: {BASE_PATH}",
-            ),
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="dorado",
-            help="dorado (default), i2map",
-        )
-        (
-            parser.add_argument(
-                "--mission",
-                action="store",
-                help="Mission directory, e.g.: 2020.064.10",
-            ),
-        )
+
+        # Add create_products-specific arguments
         parser.add_argument(
             "--start_esecs",
             help="Start time of mission in epoch seconds, optional for gulper time lookup",
             type=float,
         )
-        parser.add_argument("--local", help="Read local files", action="store_true")
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
+
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)

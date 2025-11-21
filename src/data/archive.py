@@ -9,18 +9,21 @@ Use smb://titan.shore.mbari.org/M3 for paring with original data.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2022, Monterey Bay Aquarium Research Institute"
 
-import argparse
-import logging
+import logging  # noqa: I001
 import os
 import shutil
 import sys
 import time
 from pathlib import Path
 
+from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from create_products import MISSIONIMAGES, MISSIONODVS
-from logs2netcdfs import BASE_PATH, LOG_FILES, MISSIONNETCDFS, AUV_NetCDF
+from logs2netcdfs import AUV_NetCDF, LOG_FILES, MISSIONNETCDFS
 from nc42netcdfs import BASE_LRAUV_PATH, GROUP
 from resample import FREQ
+
+# Define BASE_PATH for backward compatibility
+BASE_PATH = DEFAULT_BASE_PATH
 
 LOG_NAME = "processing.log"
 AUVCTD_VOL = "/Volumes/AUVCTD"
@@ -226,33 +229,13 @@ class Archiver:
                 )
 
     def process_command_line(self):
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        """Process command line arguments using shared parser infrastructure."""
+        # Use shared parser with archive-specific additions
+        parser = get_standard_dorado_parser(
             description=__doc__,
         )
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="Dorado389",
-            help="Dorado389 (default), i2map, or Multibeam",
-        )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        )
-        parser.add_argument(
-            "--freq",
-            action="store",
-            default=FREQ,
-            help="Resample freq",
-        )
+
+        # Add archive-specific arguments
         parser.add_argument(
             "--M3",
             action="store_true",
@@ -264,11 +247,6 @@ class Archiver:
             help="Copy reampled netCDF file(s) to appropriate place on AUVCTD",
         )
         parser.add_argument(
-            "--clobber",
-            action="store_true",
-            help="Remove existing netCDF files before copying to the AUVCTD directory",
-        )
-        parser.add_argument(
             "--archive_only_products",
             action="store_true",
             help="Copy to AUVCTD directory only the products, not the netCDF files",
@@ -278,20 +256,7 @@ class Archiver:
             action="store_true",
             help="Create products from the resampled netCDF file(s)",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
+
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)

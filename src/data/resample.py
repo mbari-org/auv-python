@@ -9,8 +9,7 @@ from netCDF file and resample them to common time axis.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
-import argparse
-import logging
+import logging  # noqa: I001
 import re
 import sys
 import time
@@ -25,11 +24,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
-from dorado_info import dorado_info
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, AUV_NetCDF
-from nc42netcdfs import BASE_LRAUV_PATH
 from pysolar.solar import get_altitude
 from scipy import signal
+
+from common_args import get_standard_lrauv_parser
+from dorado_info import dorado_info
+from logs2netcdfs import AUV_NetCDF, BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME
+from nc42netcdfs import BASE_LRAUV_PATH
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -1320,40 +1321,13 @@ class Resampler:
         self.logger.info("Saved resampled mission to %s", out_fn)
 
     def process_command_line(self):
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        """Process command line arguments using shared parser infrastructure."""
+        # Use shared parser with resample-specific additions
+        parser = get_standard_lrauv_parser(
             description=__doc__,
         )
-        (
-            parser.add_argument(
-                "--base_path",
-                action="store",
-                default=BASE_PATH,
-                help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
-            ),
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="Dorado389",
-            help="Dorado389 (default), i2MAP, or Multibeam",
-        )
-        (
-            parser.add_argument(
-                "--mission",
-                action="store",
-                help="Mission directory, e.g.: 2020.064.10",
-            ),
-        )
-        parser.add_argument(
-            "--log_file",
-            action="store",
-            help=(
-                "Path to the log file of original LRAUV data, e.g.: "
-                "brizo/missionlogs/2025/20250903_20250909/"
-                "20250905T072042/202509050720_202509051653.nc4"
-            ),
-        )
+
+        # Add resample-specific arguments
         parser.add_argument("--plot", action="store_true", help="Plot data")
         parser.add_argument(
             "--plot_seconds",
@@ -1361,19 +1335,6 @@ class Resampler:
             default=PLOT_SECONDS,
             type=float,
             help="Plot seconds of data",
-        )
-        parser.add_argument(
-            "--mf_width",
-            action="store",
-            default=MF_WIDTH,
-            type=int,
-            help="Median filter width",
-        )
-        parser.add_argument(
-            "--freq",
-            action="store",
-            default=FREQ,
-            help="Resample freq",
         )
         parser.add_argument(
             "--flash_threshold",
@@ -1384,20 +1345,7 @@ class Resampler:
                 "and append to output filename"
             ),
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
+
         self.args = parser.parse_args()
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)
