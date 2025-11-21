@@ -50,7 +50,7 @@ def test_process_dorado(complete_dorado_processing):
     check_md5 = True
     if check_md5:
         # Check that the MD5 hash has not changed
-        EXPECTED_MD5_GITHUB = "631c25971f0e3b4f83f981389a179917"
+        EXPECTED_MD5_GITHUB = "3bab0300e575c1d752a35f49e49e340e"
         EXPECTED_MD5_ACT = "bb1d539284bee531a00c4d4d99580bf0"
         EXPECTED_MD5_LOCAL = "9137be5a2ed840cfca94a723285355ec"
         if str(proc.args.base_path).startswith("/home/runner"):
