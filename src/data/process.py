@@ -178,6 +178,9 @@ class Processor:
         "end_yd": None,
         "last_n_days": None,
         "mission": None,
+        "start": None,  # LRAUV datetime filtering
+        "end": None,  # LRAUV datetime filtering
+        "auv_name": None,  # LRAUV AUV name filtering
     }
 
     # Subset of config schema that should be passed to child processes
@@ -279,6 +282,125 @@ class Processor:
             except ValueError:
                 self.logger.warning("Cannot parse year from %s", mission)
         return missions
+
+    def _parse_datetime_string(self, datetime_str: str) -> datetime | None:
+        """Parse datetime string in YYYYMMDDTHHMMSS format."""
+        try:
+            return datetime.strptime(datetime_str, "%Y%m%dT%H%M%S").replace(tzinfo=UTC)
+        except ValueError:
+            return None
+
+    def _normalize_datetime_dir(self, dir_datetime_str: str) -> str:
+        """Normalize datetime directory name to YYYYMMDDTHHMMSS format."""
+        if "T" not in dir_datetime_str:
+            return ""
+
+        PARTIAL_DATETIME_LEN = 13  # YYYYMMDDTHHNN format
+        SHORT_DATETIME_LEN = 11  # YYYYMMDDTHH format
+
+        if len(dir_datetime_str) == PARTIAL_DATETIME_LEN:
+            return dir_datetime_str + "00"  # Add seconds
+        if len(dir_datetime_str) == SHORT_DATETIME_LEN:
+            return dir_datetime_str + "0000"  # Add minutes and seconds
+        return dir_datetime_str
+
+    def _find_log_files_in_datetime_dir(
+        self, datetime_dir: Path, start_dt: datetime, end_dt: datetime
+    ) -> list:
+        """Find log files in a datetime directory if it's in range."""
+        log_files = []
+
+        # Normalize and parse directory datetime
+        normalized_str = self._normalize_datetime_dir(datetime_dir.name)
+        if not normalized_str:
+            return log_files
+
+        dir_dt = self._parse_datetime_string(normalized_str)
+        if not dir_dt:
+            return log_files
+
+        # Check if directory datetime is in range
+        if start_dt <= dir_dt <= end_dt:
+            # Look for main log file (*.nc4 file)
+            nc4_files = list(datetime_dir.glob("*.nc4"))
+            if nc4_files:
+                relative_path = str(nc4_files[0].relative_to(Path(self.vehicle_dir)))
+                log_files.append(relative_path)
+                self.logger.debug("Found log file: %s", relative_path)
+
+        return log_files
+
+    def _should_process_auv_dir(self, auv_dir: Path, auv_name: str) -> bool:
+        """Check if an AUV directory should be processed based on auv_name filter."""
+        if auv_name and auv_dir.name.lower() != auv_name.lower():
+            return False
+
+        missionlogs_dir = auv_dir / "missionlogs"
+        return missionlogs_dir.exists()
+
+    def log_file_list(self, start_datetime: str, end_datetime: str, auv_name: str = None) -> list:
+        """Return a list of LRAUV log files within the specified datetime range.
+
+        Args:
+            start_datetime: Start datetime in YYYYMMDDTHHMMSS format
+            end_datetime: End datetime in YYYYMMDDTHHMMSS format
+            auv_name: Optional AUV name to filter results (e.g., 'brizo', 'ahi')
+
+        Returns:
+            List of log file paths relative to base_path
+        """
+        log_files = []
+        vehicle_dir = Path(self.vehicle_dir).resolve()
+
+        # Parse datetime strings
+        start_dt = self._parse_datetime_string(start_datetime)
+        end_dt = self._parse_datetime_string(end_datetime)
+
+        if not start_dt or not end_dt:
+            self.logger.exception("Invalid datetime format. Use YYYYMMDDTHHMMSS")
+            return log_files
+
+        if auv_name:
+            self.logger.info(
+                "Finding log files from %s to %s for AUV: %s",
+                start_datetime,
+                end_datetime,
+                auv_name,
+            )
+        else:
+            self.logger.info(
+                "Finding log files from %s to %s for all AUVs",
+                start_datetime,
+                end_datetime,
+            )
+
+        # Search through each AUV directory
+        for auv_dir in vehicle_dir.glob("*/"):
+            if not self._should_process_auv_dir(auv_dir, auv_name):
+                continue
+
+            missionlogs_dir = auv_dir / "missionlogs"
+
+            # Search through years
+            for year_dir in sorted(missionlogs_dir.glob("*/")):
+                try:
+                    year = int(year_dir.name)
+                    # Skip if year is clearly outside our range
+                    if year < start_dt.year or year > end_dt.year:
+                        continue
+                except ValueError:
+                    continue
+
+                # Search through date range directories and datetime directories
+                for date_range_dir in year_dir.glob("*/"):
+                    for datetime_dir in date_range_dir.glob("*/"):
+                        files_found = self._find_log_files_in_datetime_dir(
+                            datetime_dir, start_dt, end_dt
+                        )
+                        log_files.extend(files_found)
+
+        self.logger.info("Found %d log files in date range", len(log_files))
+        return log_files
 
     def get_mission_dir(self, mission: str) -> str:
         """Return the mission directory."""
@@ -827,8 +949,8 @@ class Processor:
         combine.logger.setLevel(self._log_levels[self.config["verbose"]])
         combine.logger.addHandler(self.log_handler)
 
-        combine.combine_groups()
-        combine.write_netcdf()
+        combine.combine_groups(log_file=log_file)
+        combine.write_netcdf(log_file=log_file)
 
     @log_file_processor
     def process_log_file(self, log_file: str) -> None:
@@ -858,6 +980,28 @@ class Processor:
             # brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
             self.auv_name = self.config["log_file"].split("/")[0].lower()
             self.process_log_file(self.config["log_file"])
+        elif self.config.get("start") and self.config.get("end"):
+            # Process multiple log files within datetime range
+            log_files = self.log_file_list(
+                self.config["start"], self.config["end"], self.config.get("auv_name")
+            )
+            if not log_files:
+                self.logger.warning(
+                    "No log files found in datetime range %s to %s",
+                    self.config["start"],
+                    self.config["end"],
+                )
+                return
+
+            self.logger.info("Processing %d log files in datetime range", len(log_files))
+            for log_file in log_files:
+                # Extract AUV name from path
+                self.auv_name = log_file.split("/")[0].lower()
+                self.logger.info("Processing log file: %s", log_file)
+                self.process_log_file(log_file)
+        else:
+            self.logger.error("Must provide either --log_file or both --start and --end arguments")
+            return
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -987,6 +1131,23 @@ class Processor:
             help="For LRAUV class data - process only this log file",
         )
         parser.add_argument(
+            "--start",
+            action="store",
+            help="For LRAUV class data - start processing from this datetime "
+            "(YYYYMMDDTHHMMSS format)",
+        )
+        parser.add_argument(
+            "--end",
+            action="store",
+            help="For LRAUV class data - end processing at this datetime (YYYYMMDDTHHMMSS format)",
+        )
+        parser.add_argument(
+            "--auv_name",
+            action="store",
+            help="For LRAUV class data - restrict log file search to this AUV name "
+            "(e.g., brizo, ahi). If not specified, all AUVs will be searched.",
+        )
+        parser.add_argument(
             "--freq",
             action="store",
             default=FREQ,
@@ -1093,6 +1254,9 @@ if __name__ == "__main__":
 
     # Process based on arguments
     if args.log_file:
+        proc.process_log_files()
+    elif args.start and args.end:
+        # Process LRAUV log files in datetime range
         proc.process_log_files()
     else:
         proc.process_missions(2020)
