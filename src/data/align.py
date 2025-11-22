@@ -48,10 +48,15 @@ class Align_NetCDF:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def global_metadata(self):
+    def global_metadata(self, auv_name: str = "", mission: str = "", log_file: str = "") -> dict:  # noqa: PLR0915
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
+        # Support calling with self.args values and for
+        # either mission/vehicle or log_file as method args
+        auv_name = self.args.auv_name or auv_name
+        mission = self.args.mission or mission
+        log_file = self.args.log_file or log_file
         # Try to get actual host name, fall back to container name
         actual_hostname = os.getenv("HOST_NAME", gethostname())
         repo = git.Repo(search_parent_directories=True)
@@ -95,10 +100,9 @@ class Align_NetCDF:
         metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
-        if self.args.auv_name and self.args.mission:
+        if auv_name and mission:
             metadata["title"] = (
-                f"Calibrated and aligned AUV sensor data from"
-                f" {self.args.auv_name} mission {self.args.mission}"
+                f"Calibrated and aligned AUV sensor data from {auv_name} mission {mission}"
             )
             from_data = "calibrated data"
             metadata["source"] = (
@@ -114,10 +118,9 @@ class Align_NetCDF:
                 " and the coordinate variables aligned using MBARI's auv-python"
                 " software."
             )
-        elif self.args.log_file:
+        elif log_file:
             metadata["title"] = (
-                f"Combined and aligned LRAUV instrument data from"
-                f" log file {Path(self.args.log_file)}"
+                f"Combined and aligned LRAUV instrument data from log file {Path(log_file)}"
             )
             from_data = "combined data"
             metadata["source"] = (
@@ -145,7 +148,7 @@ class Align_NetCDF:
                 f" host {gethostname()}. Software available at"
                 f" 'https://github.com/mbari-org/auv-python'"
             )
-        elif self.args.log_file:
+        elif log_file:
             matches = re.search(
                 "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
                 self.combined_nc.attrs["summary"],
@@ -384,6 +387,10 @@ class Align_NetCDF:
         self.min_lon = np.inf
         self.max_lon = -np.inf
 
+        # Coordinates - use mapping from global variable_time_coord_mapping attribute
+        variable_time_coord_mapping = json.loads(
+            self.combined_nc.attrs.get("variable_time_coord_mapping", "{}")
+        )
         # Find navigation coordinates from combined data - must be from universals group
         nav_coords = {}
         for coord_type in ["longitude", "latitude", "depth", "time"]:
@@ -400,7 +407,7 @@ class Align_NetCDF:
         try:
             lat_interp = interp1d(
                 self.combined_nc[nav_coords["latitude"]]
-                .get_index("universals_time")
+                .get_index(variable_time_coord_mapping[nav_coords["latitude"]])
                 .view(np.int64)
                 .tolist(),
                 self.combined_nc[nav_coords["latitude"]].values,
@@ -413,7 +420,7 @@ class Align_NetCDF:
 
             lon_interp = interp1d(
                 self.combined_nc[nav_coords["longitude"]]
-                .get_index("universals_time")
+                .get_index(variable_time_coord_mapping[nav_coords["longitude"]])
                 .view(np.int64)
                 .tolist(),
                 self.combined_nc[nav_coords["longitude"]].values,
@@ -426,7 +433,7 @@ class Align_NetCDF:
 
             depth_interp = interp1d(
                 self.combined_nc[nav_coords["depth"]]
-                .get_index("universals_time")
+                .get_index(variable_time_coord_mapping[nav_coords["depth"]])
                 .view(np.int64)
                 .tolist(),
                 self.combined_nc[nav_coords["depth"]].values,
@@ -532,10 +539,6 @@ class Align_NetCDF:
             ) > pd.to_datetime(self.max_time):
                 self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(UTC)
 
-            # Coordinates - use mapping from global variable_time_coord_mapping attribute
-            variable_time_coord_mapping = json.loads(
-                self.combined_nc.attrs.get("variable_time_coord_mapping", "{}")
-            )
             time_coord = variable_time_coord_mapping.get(variable)
             depth_coord = (
                 time_coord[:-5] + "_depth"
@@ -645,7 +648,7 @@ class Align_NetCDF:
             vehicle = vehicle or self.args.auv_name
             out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_align.nc")
 
-        self.aligned_nc.attrs = self.global_metadata()
+        self.aligned_nc.attrs = self.global_metadata(log_file=log_file)
         self.logger.info("Writing aligned combined data to %s", out_fn)
         if out_fn.exists():
             self.logger.debug("Removing existing file %s", out_fn)
