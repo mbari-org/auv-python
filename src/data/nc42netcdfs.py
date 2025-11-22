@@ -241,10 +241,10 @@ class Extract:
         vars_to_extract, _ = self._get_available_variables(src_dataset, root_parms)
 
         # Add debugging output for root group processing
-        self.logger.info("=== ROOT GROUP DEBUG ===")
-        self.logger.info("Available variables: %s", sorted(vars_to_extract))
-        self.logger.info("Available dimensions: %s", sorted(src_dataset.dimensions.keys()))
-        self.logger.info(
+        self.logger.debug("=== ROOT GROUP DEBUG ===")
+        self.logger.debug("Available variables: %s", sorted(vars_to_extract))
+        self.logger.debug("Available dimensions: %s", sorted(src_dataset.dimensions.keys()))
+        self.logger.debug(
             "Available coordinate variables: %s",
             [v for v in sorted(src_dataset.variables.keys()) if v in src_dataset.dimensions],
         )
