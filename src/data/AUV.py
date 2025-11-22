@@ -116,6 +116,7 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     MIN_SEGMENT_LENGTH = 10
     seg_count = 0
     seg_minsum = 0
+    error_message = ""
     for i in range(len(lat_fix) - 1):
         # Segment of dead reckoned (under water) positions, each surrounded by GPS fixes
         segi = np.where(
