@@ -14,7 +14,7 @@
             //"args": ["--auv_name", "i2map", "--mission", "2020.055.01", "--noinput", "--local", "-v", "2", "--clobber"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v", "2", "--portal", "http://stoqs.mbari.org:8080/auvdata/v1", "--clobber"]
             //"args": ["--auv_name", "Dorado389", "--mission", "2020.245.00", "--noinput", "-v"]
-            //"args": ["--auv_name", "Dorado389", "--mission", "2017.297.00", "--local",  "-v", "2"]
+            "args": ["--auv_name", "dorado", "--mission", "2017.297.00",  "-v", "2", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs"]
             //"args": ["--auv_name", "Dorado389", "--start", "20190701", "--end", "20191230", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2021.062.01", "--noinput",  "-v", "1"]
             //"args": ["--auv_name", "dorado", "--mission", "2021.109.00", "--noinput", "-v"]
@@ -26,7 +26,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2010.265.00", "--noinput", "-v"]
             //"args": ["--auv_name", "dorado", "--mission", "2023.324.00", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs"]
             // Mission suffering from GPS Rollover bug. Add 1024 * 7 * 24 * 3600 = 619315200 seconds
-            "args": ["--auv_name", "dorado", "--mission", "2025.316.02", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs", "--add_seconds", "619315200"   ]
+            //"args": ["--auv_name", "dorado", "--mission", "2025.316.02", "--noinput", "-v", "--vehicle_dir", "/Volumes/AUVCTD/missionlogs", "--add_seconds", "619315200"   ]
         },
         {
             "name": "1.1 - lopcToNetCDF",
@@ -84,7 +84,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2010.181.00", "--plot",  "first1000", "-v", "1"]
             // OverflowError: time values outside range of 64 bit signed integers in calibrate.py:413
             //"args": ["--auv_name", "dorado", "--mission", "2017.304.00", "--plot",  "first1000", "-v", "1"]
-            //"args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
+            "args": ["--auv_name", "dorado", "--mission", "2017.297.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2022.094.01", "-v", "2"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.025.00", "-v", "2"]
             //"args": ["--auv_name", "dorado", "--mission", "2017.248.01", "-v", "1"]
@@ -102,7 +102,7 @@
             //"args": ["--auv_name", "dorado", "--mission", "2018.079.00", "-v", "1"]
             //"args": ["--auv_name", "i2map", "--mission", "2018.348.01", "-v", "2"]
             //"args": ["--auv_name", "dorado", "--mission", "2023.324.00", "-v", "1", "--plot", "first10000"]
-            "args": ["--auv_name", "dorado", "--mission", "2022.201.00", "-v", "1", "--plot", "first10000"]
+            //"args": ["--auv_name", "dorado", "--mission", "2022.201.00", "-v", "1", "--plot", "first10000"]
         },
         {
             "name": "2.1 - Test hs2_proc.py (its unit tests)",
@@ -120,7 +120,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
-            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4"]
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--plot"]
             "args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4", "--plot"]
         },
         {

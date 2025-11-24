@@ -213,13 +213,19 @@ class Combine_NetCDF:
                 self.combined_nc[f"{var}_qced"] = (
                     self.combined_nc[var]
                     .drop_isel({coord: out_of_range_indices})
-                    .rename({f"{instrument}_time": f"{instrument}_time_qced"})
+                    .rename({f"{coord}": f"{coord}_qced"})
+                    .rename(f"{var}_qced")
                 )
             self.combined_nc = self.combined_nc.drop_vars(inst_vars)
             for var in inst_vars:
                 self.logger.debug("Renaming %s_qced to %s", var, var)
-                self.combined_nc[var] = self.combined_nc[f"{var}_qced"].rename(
-                    {f"{coord}_qced": coord},
+                coord = next(iter(self.combined_nc[f"{var}_qced"].coords))
+                self.combined_nc[var] = (
+                    self.combined_nc[f"{var}_qced"]
+                    .rename(
+                        {f"{coord}": coord[:-5]},  # Remove '_qced' suffix from coord name
+                    )
+                    .rename(var)
                 )
             qced_vars = [f"{var}_qced" for var in inst_vars]
             self.combined_nc = self.combined_nc.drop_vars(qced_vars)
@@ -581,8 +587,42 @@ class Combine_NetCDF:
                 f"Consolidated time coordinate from: {mapping_info}"
             )
 
+    def _initial_coordinate_qc(self, log_file: str = "") -> None:
+        """Perform initial QC on core coordinate variables for specific log files."""
+        log_file = log_file or self.args.log_file
+        if log_file in (
+            "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4",
+        ):
+            self.logger.info("Performing initial coordinate QC for %s", self.args.log_file)
+            self._range_qc_combined_nc(
+                instrument="universals",
+                variables=[
+                    "universals_longitude",
+                    "universals_latitude",
+                ],
+                ranges={
+                    "universals_longitude": Range(-123.5, -121.5),
+                    "universals_latitude": Range(35.0, 37.0),
+                },
+                set_to_nan=False,
+            )
+            self._range_qc_combined_nc(
+                instrument="nal9602",
+                variables=[
+                    "nal9602_longitude_fix",
+                    "nal9602_latitude_fix",
+                ],
+                ranges={
+                    "nal9602_longitude_fix": Range(-123.5, -121.5),
+                    "nal9602_latitude_fix": Range(35.0, 37.0),
+                },
+                set_to_nan=False,
+            )
+
     def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10, log_file: str = "") -> None:
         """Add nudged longitude and latitude variables to the combined dataset."""
+        log_file = log_file or self.args.log_file
+        self._initial_coordinate_qc(log_file=log_file)
         try:
             nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
                 # For LRAUV data the nav positions are shifted by 1 to align with GPS fixes
