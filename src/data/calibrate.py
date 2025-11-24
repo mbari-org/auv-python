@@ -600,6 +600,49 @@ class Calibrate_NetCDF:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    # noqa: PLR0913 - Many parameters needed for initialization
+    def __init__(  # noqa: PLR0913
+        self,
+        auv_name: str,
+        mission: str,
+        base_path: str,
+        calibration_dir: str,
+        plot: str = None,
+        verbose: int = 0,
+        commandline: str = "",
+        local: bool = False,  # noqa: FBT001, FBT002
+        noinput: bool = False,  # noqa: FBT001, FBT002
+        clobber: bool = False,  # noqa: FBT001, FBT002
+        noreprocess: bool = False,  # noqa: FBT001, FBT002
+    ) -> None:
+        """Initialize Calibrate_NetCDF with explicit parameters.
+
+        Args:
+            auv_name: Name of the AUV
+            mission: Mission identifier
+            base_path: Base directory path for data
+            calibration_dir: Directory containing calibration files
+            plot: Optional plot specification
+            verbose: Verbosity level (0=WARN, 1=INFO, 2=DEBUG)
+            commandline: Command line string for metadata
+            local: Use local data only (no downloads)
+            noinput: Don't prompt for user input
+            clobber: Overwrite existing files
+            noreprocess: Skip reprocessing if output exists
+        """
+        self.auv_name = auv_name
+        self.mission = mission
+        self.base_path = base_path
+        self.calibration_dir = calibration_dir
+        self.plot = plot
+        self.verbose = verbose
+        self.commandline = commandline
+        self.local = local
+        self.noinput = noinput
+        self.clobber = clobber
+        self.noreprocess = noreprocess
+        self.logger.setLevel(self._log_levels[verbose])
+
     def global_metadata(self):
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
@@ -631,7 +674,7 @@ class Calibrate_NetCDF:
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
 
         metadata["title"] = (
-            f"Calibrated AUV sensor data from {self.args.auv_name} mission {self.args.mission}"
+            f"Calibrated AUV sensor data from {self.auv_name} mission {self.mission}"
         )
         metadata["summary"] = (
             "Observational oceanographic data obtained from an Autonomous"
@@ -665,7 +708,7 @@ class Calibrate_NetCDF:
                 with Path(local_filename).open("wb") as handle:
                     for chunk in resp.content.iter_chunked(1024):
                         handle.write(chunk)
-                    if self.args.verbose > 1:
+                    if self.verbose > 1:
                         self.logger.info("%s(done)", Path(local_filename).name)
 
     def _define_sensor_info(self, start_datetime):
@@ -830,7 +873,7 @@ class Calibrate_NetCDF:
         )
 
         # Changes over time
-        if self.args.auv_name.lower().startswith("dorado"):
+        if self.auv_name.lower().startswith("dorado"):
             self.sinfo["depth"]["sensor_offset"] = None
             if start_datetime >= datetime(2007, 4, 30, tzinfo=UTC):
                 # First missions with 10 Gulpers: 2007.120.00 & 2007.120.01
@@ -1199,7 +1242,7 @@ class Calibrate_NetCDF:
         self.logger.debug(
             "Finding calibration file for oxygen serial number = %s on mission %s",
             serial_number,
-            self.args.mission,
+            self.mission,
         )
 
         safe_calibration_dir = Path(self.calibration_dir).resolve()
@@ -1244,7 +1287,7 @@ class Calibrate_NetCDF:
                 self.logger.info(
                     "Breaking from loop as %s is after %s with mission_start=%s",
                     cal_dates[cal_date],
-                    self.args.mission,
+                    self.mission,
                     mission_start,
                 )
                 break
@@ -1254,14 +1297,14 @@ class Calibrate_NetCDF:
             self.logger.info(
                 "File %s is just before %s with mission_start=%s",
                 cal_dates[cal_date_to_use],
-                self.args.mission,
+                self.mission,
                 mission_start,
             )
         else:
             self.logger.info(
                 "File %s is the first calibration file, but is after %s with mission_start=%s",
                 cal_dates[cal_date_to_use],
-                self.args.mission,
+                self.mission,
                 mission_start,
             )
 
@@ -1372,7 +1415,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -1514,7 +1557,7 @@ class Calibrate_NetCDF:
             # - all missions in Monterey Bay (Zone 10)
             self.logger.info(
                 "Converting from Easting/Northing to lat/lon for mission %s",
-                self.args.mission,
+                self.mission,
             )
             proj = pyproj.Proj(proj="utm", zone=10, ellps="WGS84", radians=False)
             navlons, navlats = proj(
@@ -1571,14 +1614,14 @@ class Calibrate_NetCDF:
         # pdIndx = find(Nav.depth > 1);
         # posDepths = Nav.depth(pdIndx);
         pos_depths = np.where(self.combined_nc["navigation_depth"].to_numpy() > 1)
-        if self.args.mission in {"2013.301.02", "2009.111.00"}:
+        if self.mission in {"2013.301.02", "2009.111.00"}:
             self.logger.info("Bypassing Nav QC depth check")
             maxGoodDepth = 1250
         else:
             if pos_depths[0].size == 0:
                 self.logger.warning(
                     "No positive depths found in %s/navigation.nc",
-                    self.args.mission,
+                    self.mission,
                 )
                 maxGoodDepth = 1250
             else:
@@ -1586,15 +1629,15 @@ class Calibrate_NetCDF:
                 self.logger.debug("median of positive valued depths = %s", np.median(pos_depths))
             if maxGoodDepth < 0:
                 maxGoodDepth = 100  # Fudge for the 2009.272.00 mission where median was -0.1347!
-            if self.args.mission == "2010.153.01":
+            if self.mission == "2010.153.01":
                 maxGoodDepth = 1250  # Fudge for 2010.153.01 where the depth was bogus, about 1.3
 
         self.logger.debug("Finding depths less than '%s' and times > 0'", maxGoodDepth)
 
-        if self.args.mission == "2010.172.01":
+        if self.mission == "2010.172.01":
             self.logger.info(
                 "Performing special QC for %s/navigation.nc",
-                self.args.mission,
+                self.mission,
             )
             self._range_qc_combined_nc(
                 instrument="navigation",
@@ -1624,9 +1667,9 @@ class Calibrate_NetCDF:
             "2017.347.00",
             "2017.304.00",
         }
-        if self.args.mission in missions_to_check:
+        if self.mission in missions_to_check:
             self.logger.info(
-                "Removing points outside of Monterey Bay for %s/navigation.nc", self.args.mission
+                "Removing points outside of Monterey Bay for %s/navigation.nc", self.mission
             )
             self._range_qc_combined_nc(
                 instrument="navigation",
@@ -1636,10 +1679,10 @@ class Calibrate_NetCDF:
                     "navigation_latitude": Range(36, 37),
                 },
             )
-        if self.args.mission == "2010.284.00":
+        if self.mission == "2010.284.00":
             self.logger.info(
                 "Removing points outside of time range for %s/navigation.nc",
-                self.args.mission,
+                self.mission,
             )
             self._range_qc_combined_nc(
                 instrument="navigation",
@@ -1672,8 +1715,8 @@ class Calibrate_NetCDF:
             gps_longitude=lon_fix,
             gps_latitude=lat_fix,
             logger=self.logger,
-            auv_name=self.args.auv_name,
-            mission=self.args.mission,
+            auv_name=self.auv_name,
+            mission=self.mission,
             max_sec_diff_at_end=max_sec_diff_at_end,
             create_plots=False,
         )
@@ -1691,27 +1734,27 @@ class Calibrate_NetCDF:
             self.logger.exception("%s", e)  # noqa: TRY401
             return
         except AttributeError:
-            if self.args.mission == "2010.151.04":
+            if self.mission == "2010.151.04":
                 # Gulf of Mexico mission - use data from usbl.dat file(s)
                 usbl_file = Path(
-                    self.args.base_path,
-                    self.args.auv_name,
+                    self.base_path,
+                    self.auv_name,
                     MISSIONNETCDFS,
-                    self.args.mission,
+                    self.mission,
                     "usbl.nc",
                 )
                 if not usbl_file.exists():
                     # Copy from archive AUVCTD/missionnetcdfs/YYYY/YYYYJJJ the usbl.nc file
                     from archive import AUVCTD_VOL
 
-                    year = self.args.mission.split(".")[0]
-                    YYYYJJJ = "".join(self.args.mission.split(".")[:2])
+                    year = self.mission.split(".")[0]
+                    YYYYJJJ = "".join(self.mission.split(".")[:2])
                     missionnetcdfs_dir = Path(
                         AUVCTD_VOL,
                         MISSIONNETCDFS,
                         year,
                         YYYYJJJ,
-                        self.args.mission,
+                        self.mission,
                     )
                     shutil.copyfile(
                         Path(missionnetcdfs_dir, "usbl.nc"),
@@ -1732,7 +1775,7 @@ class Calibrate_NetCDF:
             else:
                 error_message = (
                     f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                    f" in {Path(MISSIONLOGS, self.args.mission)}"
+                    f" in {Path(MISSIONLOGS, self.mission)}"
                 )
                 raise EOFError(error_message) from None
 
@@ -1782,7 +1825,7 @@ class Calibrate_NetCDF:
             "units": "degrees_east",
             "comment": f"longitude from {source}",
         }
-        if self.args.mission in {
+        if self.mission in {
             "2004.345.00",
             "2005.240.00",
             "2007.134.09",
@@ -1797,9 +1840,7 @@ class Calibrate_NetCDF:
             "2017.304.00",
             "2011.166.00",
         }:
-            self.logger.info(
-                "Removing points outside of Monterey Bay for %s/gps.nc", self.args.mission
-            )
+            self.logger.info("Removing points outside of Monterey Bay for %s/gps.nc", self.mission)
             self._range_qc_combined_nc(
                 instrument="gps",
                 variables=vars_to_qc,
@@ -1888,12 +1929,12 @@ class Calibrate_NetCDF:
             "2012.258.00": Range(-1, 160),  # Shallow Monterey Bay
             "2012.270.04": Range(-1, 30),  # Shallow Monterey Bay
         }
-        if self.args.mission in mission_depth_ranges:
-            valid_depth_range = mission_depth_ranges[self.args.mission]
+        if self.mission in mission_depth_ranges:
+            valid_depth_range = mission_depth_ranges[self.mission]
             self.logger.info(
-                "Removing depths outside of valid_depth_range=%s for self.args.mission=%s",
+                "Removing depths outside of valid_depth_range=%s for self.mission=%s",
                 valid_depth_range,
-                self.args.mission,
+                self.mission,
             )
             out_of_range = np.where(
                 (depths < valid_depth_range.min) | (depths > valid_depth_range.max),
@@ -1941,20 +1982,19 @@ class Calibrate_NetCDF:
         b = signal.windows.boxcar(a)
         depth_filtpres_boxcar = signal.filtfilt(b, a, pres)
         pres_plot = True  # Set to False for debugging other plots
-        if self.args.plot and pres_plot:
+        if self.plot and pres_plot:
             # Use Pandas to plot multiple columns of data
             # to validate that the filtering works as expected
             pbeg = 0
             pend = len(depths.get_index("time"))
-            if self.args.plot.startswith("first"):
-                pend = int(self.args.plot.split("first")[1])
+            if self.plot.startswith("first"):
+                pend = int(self.plot.split("first")[1])
             df_plot = pd.DataFrame(index=depths.get_index("time")[pbeg:pend])
             df_plot["pres"] = pres[pbeg:pend]
             df_plot["depth_filtpres_butter"] = depth_filtpres_butter[pbeg:pend]
             df_plot["depth_filtpres_boxcar"] = depth_filtpres_boxcar[pbeg:pend]
             title = (
-                f"First {pend} points from"
-                f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}"
+                f"First {pend} points from" f" {self.mission}/{self.sinfo[sensor]['data_filename']}"
             )
             ax = df_plot.plot(title=title, figsize=(18, 6))
             ax.grid("on")
@@ -2144,19 +2184,18 @@ class Calibrate_NetCDF:
             red_bs = red_bs[:][~mfl.mask]
 
         red_blue_plot = True  # Set to False for debugging other plots
-        if self.args.plot and red_blue_plot:
+        if self.plot and red_blue_plot:
             # Use Pandas to more easiily plot multiple columns of data
             pbeg = 0
             pend = len(blue_bs.get_index("hs2_time"))
-            if self.args.plot.startswith("first"):
-                pend = int(self.args.plot.split("first")[1])
+            if self.plot.startswith("first"):
+                pend = int(self.plot.split("first")[1])
             df_plot = pd.DataFrame(index=blue_bs.get_index("hs2_time")[pbeg:pend])
             df_plot["blue_bs"] = blue_bs[pbeg:pend]
             df_plot["red_bs"] = red_bs[pbeg:pend]
             ## df_plot["fl"] = fl[pbeg:pend]
             title = (
-                f"First {pend} points from"
-                f" {self.args.mission}/{self.sinfo[sensor]['data_filename']}"
+                f"First {pend} points from" f" {self.mission}/{self.sinfo[sensor]['data_filename']}"
             )
             ax = df_plot.plot(title=title, figsize=(18, 6), ylim=(-0.003, 0.004))
             ax.grid("on")
@@ -2189,7 +2228,7 @@ class Calibrate_NetCDF:
             sensor,
             orig_nc,
         )
-        out_fn = f"{self.args.auv_name}_{self.args.mission}_cal.nc"
+        out_fn = f"{self.auv_name}_{self.mission}_cal.nc"
         self.combined_nc[f"{sensor}_depth"].attrs = {
             "long_name": "Depth",
             "units": "m",
@@ -2299,7 +2338,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -2338,8 +2377,10 @@ class Calibrate_NetCDF:
         self.combined_nc[f"{sensor}_temperature"] = temperature
 
         self.logger.debug("Calling _calibrated_sal_from_cond_frequency()")
+        # Create a simple namespace for backward compatibility with helper functions
+        args_ns = type("obj", (object,), {"plot": self.plot})()
         cal_conductivity, cal_salinity = _calibrated_sal_from_cond_frequency(
-            self.args,
+            args_ns,
             self.combined_nc,
             self.logger,
             cf,
@@ -2466,12 +2507,12 @@ class Calibrate_NetCDF:
                 "",
             )
         except KeyError:
-            self.logger.debug("No dissolvedO2 data in %s", self.args.mission)
+            self.logger.debug("No dissolvedO2 data in %s", self.mission)
         except ValueError as e:
             cfg_file = Path(
                 MISSIONLOGS,
-                "".join(self.args.mission.split(".")[:2]),
-                self.args.mission,
+                "".join(self.mission.split(".")[:2]),
+                self.mission,
                 self.sinfo["ctd"]["cal_filename"],
             )
             self.logger.exception("Likely missing a calibration coefficient in %s", cfg_file)
@@ -2504,7 +2545,7 @@ class Calibrate_NetCDF:
                 "port",
             )
         except KeyError:
-            self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
+            self.logger.debug("No dissolvedO2_port data in %s", self.mission)
         self.logger.debug("Collecting dissolvedO2_port")
         try:
             dissolvedO2_stbd = xr.DataArray(
@@ -2533,7 +2574,7 @@ class Calibrate_NetCDF:
                 "stbd",
             )
         except KeyError:
-            self.logger.debug("No dissolvedO2_port data in %s", self.args.mission)
+            self.logger.debug("No dissolvedO2_port data in %s", self.mission)
 
         # === flow variables ===
         # A lot of 0.0 values in Dorado missions until about 2020.282.01
@@ -2552,7 +2593,7 @@ class Calibrate_NetCDF:
             }
             self.combined_nc[f"{sensor}_flow1"] = flow1
         except KeyError:
-            self.logger.debug("No flow1 data in %s", self.args.mission)
+            self.logger.debug("No flow1 data in %s", self.mission)
         self.logger.debug("Collecting flow2")
         try:
             flow2 = xr.DataArray(
@@ -2568,7 +2609,7 @@ class Calibrate_NetCDF:
             }
             self.combined_nc[f"{sensor}_flow2"] = flow2
         except KeyError:
-            self.logger.debug("No flow2 data in %s", self.args.mission)
+            self.logger.debug("No flow2 data in %s", self.mission)
 
         # === beam_transmittance variable from seabird25p on i2map vehicle ===
         try:
@@ -2594,7 +2635,7 @@ class Calibrate_NetCDF:
         except KeyError:
             self.logger.debug(
                 "No transmissometer data in %s/%s.nc",
-                self.args.mission,
+                self.mission,
                 sensor,
             )
 
@@ -2602,7 +2643,7 @@ class Calibrate_NetCDF:
             sensor,
             orig_nc,
         )
-        out_fn = f"{self.args.auv_name}_{self.args.mission}_cal.nc"
+        out_fn = f"{self.auv_name}_{self.mission}_cal.nc"
         self.combined_nc[f"{sensor}_depth"].attrs = {
             "long_name": "Depth",
             "units": "m",
@@ -2629,13 +2670,13 @@ class Calibrate_NetCDF:
             self.combined_nc[f"{sensor}_par"] = par
 
         except KeyError:
-            self.logger.debug("No par data in %s/%s.nc", self.args.mission, sensor)
+            self.logger.debug("No par data in %s/%s.nc", self.mission, sensor)
 
         self.combined_nc[f"{sensor}_depth"] = self._geometric_depth_correction(
             sensor,
             orig_nc,
         )
-        out_fn = f"{self.args.auv_name}_{self.args.mission}_cal.nc"
+        out_fn = f"{self.auv_name}_{self.mission}_cal.nc"
         self.combined_nc[f"{sensor}_depth"].attrs = {
             "long_name": "Depth",
             "units": "m",
@@ -2648,7 +2689,7 @@ class Calibrate_NetCDF:
 
         # === ad hoc Range checking ===
         self.logger.info(
-            "Performing range checking of %s in %s/%s.nc", vars_to_qc, self.args.mission, sensor
+            "Performing range checking of %s in %s/%s.nc", vars_to_qc, self.mission, sensor
         )
         self._range_qc_combined_nc(
             instrument=sensor,
@@ -2656,9 +2697,9 @@ class Calibrate_NetCDF:
             ranges={f"{sensor}_salinity": Range(30, 40)},
             set_to_nan=True,
         )
-        if self.args.mission == "2010.284.00":
+        if self.mission == "2010.284.00":
             self.logger.info(
-                "Removing points outside of time range for %s/%s.nc", self.args.mission, sensor
+                "Removing points outside of time range for %s/%s.nc", self.mission, sensor
             )
             self._range_qc_combined_nc(
                 instrument=sensor,
@@ -2682,7 +2723,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -2727,7 +2768,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -2842,7 +2883,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -2920,9 +2961,9 @@ class Calibrate_NetCDF:
             "coordinates": f"{sensor}_{TIME60HZ} {sensor}_depth60hz",
             "comment": f"raw values from {source} {lag_info}",
         }
-        if self.args.mission == "2010.284.00":
+        if self.mission == "2010.284.00":
             self.logger.info(
-                "Removing points outside of time range for %s/biolume.nc", self.args.mission
+                "Removing points outside of time range for %s/biolume.nc", self.mission
             )
             for time_axis in (TIME, TIME60HZ):
                 self._range_qc_combined_nc(
@@ -2953,7 +2994,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -2965,7 +3006,7 @@ class Calibrate_NetCDF:
         if "time" not in orig_nc.coords:
             error_message = (
                 f"{sensor} has no time coordinate - likely an incomplete lopc.nc file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message)
 
@@ -3043,7 +3084,7 @@ class Calibrate_NetCDF:
         except AttributeError:
             error_message = (
                 f"{sensor} has no orig_data - likely a missing or zero-sized .log file"
-                f" in {Path(MISSIONLOGS, self.args.mission)}"
+                f" in {Path(MISSIONLOGS, self.mission)}"
             )
             raise EOFError(error_message) from None
 
@@ -3157,7 +3198,7 @@ class Calibrate_NetCDF:
             d_beg_time_diff.astype("timedelta64[s]"),
             d_end_time_diff.astype("timedelta64[s]"),
         )
-        if self.args.mission in (
+        if self.mission in (
             "2008.289.03",
             "2010.259.01",
             "2010.259.02",
@@ -3168,7 +3209,7 @@ class Calibrate_NetCDF:
             self.logger.info(
                 "%s: Special QC for mission %s: Setting corrected_depth to NaN for times after %s",
                 sensor,
-                self.args.mission,
+                self.mission,
                 self.combined_nc["depth_time"][-1].to_numpy(),
             )
             corrected_depth[
@@ -3176,7 +3217,7 @@ class Calibrate_NetCDF:
                     orig_nc.get_index("time") > self.combined_nc["depth_time"].to_numpy()[-1],
                 )
             ] = np.nan
-        if self.args.plot:
+        if self.plot:
             plt.figure(figsize=(18, 6))
             plt.plot(
                 orig_nc["time"].to_numpy(),
@@ -3192,7 +3233,7 @@ class Calibrate_NetCDF:
             plt.ylabel("Depth (m) & Pitch (deg)")
             plt.legend(("Original depth", "Pitch corrected depth", "Pitch"))
             plt.title(
-                f"Original and pitch corrected depth for {self.args.auv_name} {self.args.mission}",
+                f"Original and pitch corrected depth for {self.auv_name} {self.mission}",
             )
             plt.show()
 
@@ -3231,11 +3272,10 @@ class Calibrate_NetCDF:
         elif hasattr(getattr(self, sensor), "orig_data"):
             self.logger.warning("No method (yet) to process %s", sensor)
 
-    def write_netcdf(self, netcdfs_dir, vehicle: str = "", name: str = "") -> None:
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
+    def write_netcdf(self, netcdfs_dir: Path) -> None:
+        """Write calibrated netCDF file using instance attributes."""
         self.combined_nc.attrs = self.global_metadata()
-        out_fn = Path(netcdfs_dir, f"{vehicle}_{name}_cal.nc")
+        out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_cal.nc")
         self.logger.info("Writing calibrated instrument data to %s", out_fn)
         if Path(out_fn).exists():
             Path(out_fn).unlink()
@@ -3245,12 +3285,13 @@ class Calibrate_NetCDF:
             ", ".join(sorted(self.combined_nc.variables)),
         )
 
-    def process_logs(self, vehicle: str = "", name: str = "", process_gps: bool = True) -> None:  # noqa: FBT001, FBT002
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
-        logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
-        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
-        start_datetime = datetime.strptime(".".join(name.split(".")[:2]), "%Y.%j").astimezone(
+    def process_logs(self, process_gps: bool = True) -> Path:  # noqa: FBT001, FBT002
+        """Process logs using instance attributes."""
+        logs_dir = Path(self.base_path, self.auv_name, MISSIONLOGS, self.mission)
+        netcdfs_dir = Path(self.base_path, self.auv_name, MISSIONNETCDFS, self.mission)
+        start_datetime = datetime.strptime(
+            ".".join(self.mission.split(".")[:2]), "%Y.%j"
+        ).astimezone(
             UTC,
         )
         self._define_sensor_info(start_datetime)
@@ -3261,12 +3302,12 @@ class Calibrate_NetCDF:
             if not process_gps and sensor == "gps":
                 continue  # to skip gps processing in conftest.py fixture
             getattr(self, sensor).cal_align_data = xr.Dataset()
-            self.logger.debug("Processing %s %s %s", vehicle, name, sensor)
+            self.logger.debug("Processing %s %s %s", self.auv_name, self.mission, sensor)
             try:
                 self._process(sensor, logs_dir, netcdfs_dir)
             except EOFError as e:
-                short_name = vehicle.lower()
-                if vehicle == "Dorado389":
+                short_name = self.auv_name.lower()
+                if self.auv_name == "Dorado389":
                     # For supporting pytest & conftest.py fixture
                     short_name = "dorado"
                 if sensor in EXPECTED_SENSORS[short_name]:
@@ -3303,7 +3344,7 @@ class Calibrate_NetCDF:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 

@@ -168,6 +168,29 @@ class Extract:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    def __init__(  # noqa: PLR0913
+        self,
+        log_file: str = None,
+        plot_time: bool = False,  # noqa: FBT001, FBT002
+        filter_monotonic_time: bool = True,  # noqa: FBT001, FBT002
+        verbose: int = 0,
+        commandline: str = "",
+    ) -> None:
+        """Initialize Extract with explicit parameters.
+
+        Args:
+            log_file: Log file path for processing
+            plot_time: Enable time plotting
+            filter_monotonic_time: Filter out non-monotonic time values
+            verbose: Verbosity level (0-2)
+            commandline: Command line string for tracking
+        """
+        self.log_file = log_file
+        self.plot_time = plot_time
+        self.filter_monotonic_time = filter_monotonic_time
+        self.verbose = verbose
+        self.commandline = commandline
+
     def show_variable_mapping(self):
         """Show the variable mapping."""
         for group, parms in sorted(SCIENG_PARMS.items()):
@@ -308,7 +331,7 @@ class Extract:
             dict: Map of time_coord_name -> {"indices": list[int], "filtered": bool}
         """
         # Check if time filtering is enabled
-        if not getattr(self.args, "filter_monotonic_time", True):
+        if not self.filter_monotonic_time:
             return {}
 
         self.logger.info("========================= Group %s =========================", group_name)
@@ -462,10 +485,10 @@ class Extract:
 
     def _parse_plot_time_argument(self) -> tuple[str | None, str | None]:
         """Parse the --plot_time argument and return (group_name, time_coord_name)."""
-        if not getattr(self.args, "plot_time", None):
+        if not self.plot_time:
             return None, None
 
-        plot_time = self.args.plot_time
+        plot_time = self.plot_time
         if not plot_time.startswith("/"):
             msg = "Invalid plot_time format, must be /<group_name>/<time_coord_name>"
             raise ValueError(msg)
@@ -930,7 +953,7 @@ class Extract:
             self._copy_global_attributes(src_group, dst_dataset)
 
             # Add standard global attributes
-            log_file = self.args.log_file
+            log_file = self.log_file
             for attr_name, attr_value in self.global_metadata(log_file, group_name).items():
                 dst_dataset.setncattr(attr_name, attr_value)
 
@@ -1013,7 +1036,7 @@ class Extract:
         metadata["license"] = metadata["distribution_statement"]
         metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
-        log_file = self.args.log_file
+        log_file = self.log_file
         metadata["title"] = f"Extracted LRAUV data from {log_file}, Group: {group_name}"
         metadata["source"] = (
             f"MBARI LRAUV data extracted from {log_file}"
@@ -1101,7 +1124,7 @@ class Extract:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 

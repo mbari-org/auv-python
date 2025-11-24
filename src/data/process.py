@@ -437,12 +437,22 @@ class Processor:
 
     def download_process(self, mission: str, src_dir: str) -> None:
         self.logger.info("Download and processing steps for %s", mission)
-        auv_netcdf = AUV_NetCDF()
-        auv_netcdf.args = self._create_child_namespace(auv_name=self.auv_name, mission=mission)
+        auv_netcdf = AUV_NetCDF(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=str(self.config["base_path"]),
+            local=self.config["local"],
+            noinput=self.config["noinput"],
+            clobber=self.config["clobber"],
+            noreprocess=self.config["noreprocess"],
+            use_portal=self.config["use_portal"],
+            add_seconds=self.config["add_seconds"],
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
         auv_netcdf.set_portal()
         auv_netcdf.logger.setLevel(self._log_levels[self.config["verbose"]])
         auv_netcdf.logger.addHandler(self.log_handler)
-        auv_netcdf.commandline = self.commandline
         auv_netcdf.download_process_logs(src_dir=src_dir)
         auv_netcdf.logger.removeHandler(self.log_handler)
 
@@ -489,14 +499,20 @@ class Processor:
 
     def calibrate(self, mission: str) -> None:
         self.logger.info("Calibration steps for %s", mission)
-        cal_netcdf = Calibrate_NetCDF()
-        cal_netcdf.args = self._create_child_namespace(
-            auv_name=self.auv_name, mission=mission, plot=None
+        cal_netcdf = Calibrate_NetCDF(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=self.config["base_path"],
+            calibration_dir=self.calibration_dir,
+            plot=None,
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+            local=self.config["local"],
+            noinput=self.config["noinput"],
+            clobber=self.config["clobber"],
+            noreprocess=self.config["noreprocess"],
         )
-        cal_netcdf.calibration_dir = self.calibration_dir
-        cal_netcdf.logger.setLevel(self._log_levels[self.config["verbose"]])
         cal_netcdf.logger.addHandler(self.log_handler)
-        cal_netcdf.commandline = self.commandline
         try:
             netcdf_dir = cal_netcdf.process_logs()
             cal_netcdf.write_netcdf(netcdf_dir)
@@ -505,21 +521,24 @@ class Processor:
         cal_netcdf.logger.removeHandler(self.log_handler)
 
     def align(self, mission: str = "", log_file: str = "") -> None:
-        self.logger.info("Alignment steps for %s", mission)
-        align_netcdf = Align_NetCDF()
-        align_netcdf.args = self._create_child_namespace(
-            auv_name=self.auv_name, mission=mission, plot=None
+        self.logger.info("Alignment steps for %s", mission or log_file)
+        align_netcdf = Align_NetCDF(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=self.config["base_path"],
+            log_file=log_file,
+            plot=None,
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
         )
-        align_netcdf.logger.setLevel(self._log_levels[self.config["verbose"]])
         align_netcdf.logger.addHandler(self.log_handler)
-        align_netcdf.commandline = self.commandline
         try:
             if log_file:
-                netcdf_dir = align_netcdf.process_combined(log_file=log_file)
-                align_netcdf.write_combined_netcdf(netcdf_dir, log_file=log_file)
+                netcdf_dir = align_netcdf.process_combined()
+                align_netcdf.write_combined_netcdf(netcdf_dir)
             else:
                 netcdf_dir = align_netcdf.process_cal()
-                align_netcdf.write_combined_netcdf(netcdf_dir, vehicle=self.auv_name)
+                align_netcdf.write_combined_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
             error_message = f"{mission} {e}"
@@ -529,23 +548,29 @@ class Processor:
 
     def resample(self, mission: str = "") -> None:
         self.logger.info("Resampling steps for %s", mission)
-        resamp = Resampler()
-        resamp.args = self._create_child_namespace(
-            auv_name=self.auv_name, mission=mission, plot=None
+        resamp = Resampler(
+            auv_name=self.auv_name,
+            mission=mission,
+            log_file=self.config["log_file"],
+            freq=self.config["freq"],
+            mf_width=self.config["mf_width"],
+            flash_threshold=self.config["flash_threshold"],
+            verbose=self.config["verbose"],
+            plot=None,
+            commandline=self.commandline,
         )
-        resamp.commandline = self.commandline
         resamp.logger.setLevel(self._log_levels[self.config["verbose"]])
         resamp.logger.addHandler(self.log_handler)
-        file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
-        if resamp.args.log_file:
-            netcdfs_dir = Path(BASE_LRAUV_PATH, Path(resamp.args.log_file).parent)
-            nc_file = Path(netcdfs_dir, f"{Path(resamp.args.log_file).stem}_align.nc")
+        file_name = f"{resamp.auv_name}_{resamp.mission}_align.nc"
+        if resamp.log_file:
+            netcdfs_dir = Path(BASE_LRAUV_PATH, Path(resamp.log_file).parent)
+            nc_file = Path(netcdfs_dir, f"{Path(resamp.log_file).stem}_align.nc")
         else:
             nc_file = Path(
                 self.config["base_path"],
-                resamp.args.auv_name,
+                resamp.auv_name,
                 MISSIONNETCDFS,
-                resamp.args.mission,
+                resamp.mission,
                 file_name,
             )
         if self.config["flash_threshold"] and self.config["resample"]:
@@ -556,7 +581,7 @@ class Processor:
             dap_file_str = os.path.join(  # noqa: PTH118
                 AUVCTD_OPENDAP_BASE.replace("opendap/", ""),
                 "surveys",
-                resamp.args.mission.split(".")[0],
+                resamp.mission.split(".")[0],
                 "netcdf",
                 file_name,
             )
@@ -587,30 +612,39 @@ class Processor:
 
         If mission is provided, archive the processed data for Dorado class vehicles.
         If log_file is provided, archive the processed data for LRAUV class vehicles."""
-        arch = Archiver(add_logger_handlers)
-        arch.args = self._create_child_namespace(auv_name=self.auv_name, mission=mission)
+        arch = Archiver(
+            add_handlers=add_logger_handlers,
+            auv_name=self.auv_name,
+            mission=mission,
+            clobber=self.config["clobber"],
+            resample=self.config["resample"],
+            flash_threshold=self.config["flash_threshold"],
+            archive_only_products=self.config["archive_only_products"],
+            create_products=self.config["create_products"],
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
         arch.mount_dir = self.mount_dir
-        arch.commandline = self.commandline
         arch.logger.setLevel(self._log_levels[self.config["verbose"]])
         if add_logger_handlers:
             arch.logger.addHandler(self.log_handler)
         if mission:
             # Dorado class vehicle archiving
             self.logger.info("Archiving steps for %s", mission)
-            file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
+            file_name_base = f"{arch.auv_name}_{arch.mission}"
             nc_file_base = Path(
                 BASE_PATH,
-                arch.args.auv_name,
+                arch.auv_name,
                 MISSIONNETCDFS,
-                arch.args.mission,
+                arch.mission,
                 file_name_base,
             )
             self.logger.info("nc_file_base = %s, BASE_PATH = %s", nc_file_base, BASE_PATH)
             if str(BASE_PATH).startswith(("/home/runner/", "/root")):
                 arch.logger.info(
                     "Not archiving %s %s to AUVCTD as it's likely CI testing",
-                    arch.args.auv_name,
-                    arch.args.mission,
+                    arch.auv_name,
+                    arch.mission,
                 )
             else:
                 arch.copy_to_AUVTCD(nc_file_base, self.config["freq"])
@@ -623,16 +657,21 @@ class Processor:
         arch.logger.removeHandler(self.log_handler)
 
     def create_products(self, mission: str) -> None:
-        cp = CreateProducts()
-        cp.args = self._create_child_namespace(
-            auv_name=self.auv_name, mission=mission, start_esecs=None
+        cp = CreateProducts(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=str(self.config["base_path"]),
+            start_esecs=None,
+            local=self.config["local"],
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
         )
         cp.logger.setLevel(self._log_levels[self.config["verbose"]])
         cp.logger.addHandler(self.log_handler)
 
         # cp.plot_biolume()
         # cp.plot_2column()
-        if "dorado" in cp.args.auv_name.lower():
+        if "dorado" in cp.auv_name.lower():
             cp.gulper_odv()
         cp.logger.removeHandler(self.log_handler)
 
@@ -925,9 +964,13 @@ class Processor:
 
     def extract(self, log_file: str) -> None:
         self.logger.info("Extracting log file: %s", log_file)
-        extract = Extract()
-        extract.args = self._create_child_namespace()
-        extract.commandline = self.commandline
+        extract = Extract(
+            log_file=log_file,
+            plot_time=False,
+            filter_monotonic_time=True,
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
         extract.logger.setLevel(self._log_levels[self.config["verbose"]])
         extract.logger.addHandler(self.log_handler)
 
@@ -943,14 +986,17 @@ class Processor:
             "Equivalent to the calibrate step for Dorado class vehicles. "
             "Adds nudge positions and more layers of quality control."
         )
-        combine = Combine_NetCDF()
-        combine.args = self._create_child_namespace(plot=None)
-        combine.commandline = self.commandline
+        combine = Combine_NetCDF(
+            log_file=log_file,
+            verbose=self.config["verbose"],
+            plot=None,
+            commandline=self.commandline,
+        )
         combine.logger.setLevel(self._log_levels[self.config["verbose"]])
         combine.logger.addHandler(self.log_handler)
 
-        combine.combine_groups(log_file=log_file)
-        combine.write_netcdf(log_file=log_file)
+        combine.combine_groups()
+        combine.write_netcdf()
 
     @log_file_processor
     def process_log_file(self, log_file: str) -> None:

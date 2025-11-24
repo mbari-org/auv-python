@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 __author__ = "Mike McCann"
-__version__ = "$Revision: 1.43 $".split()[1]
-__date__ = "$Date: 2020/11/23 21:40:04 $".split()[1]
+__version__ = ["$Revision:", "1.43", "$"][1]
+__date__ = ["$Date:", "2020/11/23", "21:40:04", "$"][1]
 __copyright__ = "2009"
 __license__ = "GPL v3"
 __contact__ = "mccann at mbari.org"

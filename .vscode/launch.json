@@ -301,7 +301,7 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--create_products", "--num_cores", "1", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2007", "--end_year", "2007", "--start_yd", "171", "--end_yd", "171", "--num_cores", "1", "--create_products", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.261.01", "--create_products", "--archive", "--archive_only_products"]
-            //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1"]
+            "args": ["-v", "1", "--noinput", "--no_cleanup",  "--start_year", "2011", "--end_year", "2011", "--start_yd", "158", "--end_yd", "164", "--num_cores", "1"]
             //"args": ["-v", "1", "--noinput",  "--start_year", "2016", "--end_year", "2016", "--start_yd", "270", "--end_yd", "270", "--num_cores", "1", "--create_products", "--archive", "--archive_only_products"]
             //"args": ["-v", "1", "--noinput", "--num_cores", "1", "--mission", "2023.285.01"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2018.079.00"]
@@ -313,7 +313,7 @@
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2020.337.00", "--clobber"]
             //"args": ["-v", "1", "--noinput", "--no_cleanup",  "--mission", "2008.010.10"]
             //"args": ["-v", "2", "--mission", "2004.029.03", "--noinput", "--no_cleanup"],
-            "args": ["-v", "1", "--mission", "2023.192.01", "--noinput", "--no_cleanup"],
+            //"args": ["-v", "1", "--mission", "2023.192.01", "--noinput", "--no_cleanup"],
             //"args": ["-v", "1", "--mission", "2010.151.04", "--noinput", "--no_cleanup", "--clobber"],
             //"args": ["-v", "1", "--mission", "2025.316.02", "--noinput", "--no_cleanup", "--add_seconds", "619315200"],
 
@@ -339,6 +339,8 @@
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--no_cleanup", "--clobber"]
             // Has different universals time coodinates for longitude/latitude and depth
             "args": ["-v", "1", "--auv_name", "tethys", "--start", "20120901T000000", "--end", "20121101T000000", "--noinput", "--no_cleanup"]
+            // Conflicting sizes for nudged_time and data
+            //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--no_cleanup"
             //"args": ["-v", "1", "--auv_name", "brizo", "--start", "20250915T000000", "--end", "20250917T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
             // No nudged latitude and longitude variables
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250915T015535/202509150155_202509151602.nc4", "--no_cleanup"]

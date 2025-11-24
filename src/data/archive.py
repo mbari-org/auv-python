@@ -36,7 +36,44 @@ class Archiver:
     _handler.setFormatter(AUV_NetCDF._formatter)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self, add_handlers=True):  # noqa: FBT002
+    def __init__(  # noqa: PLR0913
+        self,
+        add_handlers: bool = True,  # noqa: FBT001, FBT002
+        auv_name: str = None,
+        mission: str = None,
+        clobber: bool = False,  # noqa: FBT001, FBT002
+        resample: bool = False,  # noqa: FBT001, FBT002
+        flash_threshold: float = None,
+        archive_only_products: bool = False,  # noqa: FBT001, FBT002
+        create_products: bool = False,  # noqa: FBT001, FBT002
+        verbose: int = 0,
+        commandline: str = "",
+    ):
+        """Initialize Archiver with explicit parameters.
+
+        Args:
+            add_handlers: Whether to add logging handlers
+            auv_name: Name of the AUV vehicle
+            mission: Mission identifier
+            clobber: Overwrite existing files
+            resample: Resample flag
+            flash_threshold: Flash detection threshold
+            archive_only_products: Archive only product files
+            create_products: Create product files flag
+            verbose: Verbosity level (0-2)
+            commandline: Command line string for tracking
+        """
+        self.auv_name = auv_name
+        self.mission = mission
+        self.clobber = clobber
+        self.resample = resample
+        self.flash_threshold = flash_threshold
+        self.archive_only_products = archive_only_products
+        self.create_products = create_products
+        self.verbose = verbose
+        self.commandline = commandline
+        self.mount_dir = None  # Will be set by caller
+
         if add_handlers:
             self.logger.addHandler(self._handler)
 
@@ -56,29 +93,26 @@ class Archiver:
             self.logger.exception("%s not found", surveys_dir)
             self.logger.info("Is smb://atlas.shore.mbari.org/AUVCTD mounted?")
             sys.exit(1)
-        year = self.args.mission.split(".")[0]
+        year = self.mission.split(".")[0]
         surveynetcdfs_dir = Path(surveys_dir, year, "netcdf")
 
         # To avoid "fchmod failed: Permission denied" message use shutil.copyfile
 
-        if not self.args.archive_only_products:
+        if not self.archive_only_products:
             self.logger.info("Archiving %s files to %s", nc_file_base, surveynetcdfs_dir)
             # Copy netCDF files to AUVCTD/surveys/YYYY/netcdf
-            if hasattr(self.args, "flash_threshold"):
-                if self.args.flash_threshold and self.args.resample:
-                    ft_ending = f"{freq}_ft{self.args.flash_threshold:.0E}.nc".replace(
-                        "E+",
-                        "E",
-                    )
-                    ftypes = (ft_ending,)
-                else:
-                    ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
+            if self.flash_threshold and self.resample:
+                ft_ending = f"{freq}_ft{self.flash_threshold:.0E}.nc".replace(
+                    "E+",
+                    "E",
+                )
+                ftypes = (ft_ending,)
             else:
                 ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
             for ftype in ftypes:
                 src_file = Path(f"{nc_file_base}_{ftype}")
                 dst_file = Path(surveynetcdfs_dir, src_file.name)
-                if self.args.clobber:
+                if self.clobber:
                     if dst_file.exists():
                         self.logger.info("Removing %s", dst_file)
                         dst_file.unlink()
@@ -91,15 +125,15 @@ class Archiver:
                         src_file.name,
                     )
 
-            if not hasattr(self.args, "resample") or not self.args.resample:
+            if not self.resample:
                 # Copy intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
-                YYYYJJJ = "".join(self.args.mission.split(".")[:2])
+                YYYYJJJ = "".join(self.mission.split(".")[:2])
                 missionnetcdfs_dir = Path(
                     AUVCTD_VOL,
                     MISSIONNETCDFS,
                     year,
                     YYYYJJJ,
-                    self.args.mission,
+                    self.mission,
                 )
                 Path(missionnetcdfs_dir).mkdir(parents=True, exist_ok=True)
                 src_dir = Path(nc_file_base).parent
@@ -107,7 +141,7 @@ class Archiver:
                 # so that lopc.nc is archived along with the other netcdf versions of the log files.
                 for log in [*LOG_FILES, "lopc.log"]:
                     src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
-                    if self.args.clobber:
+                    if self.clobber:
                         if src_file.exists():
                             shutil.copyfile(src_file, missionnetcdfs_dir / src_file.name)
                             self.logger.info("copyfile %s %s done.", src_file, missionnetcdfs_dir)
@@ -122,14 +156,14 @@ class Archiver:
         for src_dir, dst_dir in ((MISSIONODVS, "odv"), (MISSIONIMAGES, "images")):
             src_dir = Path(  # noqa: PLW2901
                 BASE_PATH,
-                self.args.auv_name,
+                self.auv_name,
                 src_dir,
-                self.args.mission,
+                self.mission,
             )
             if Path(src_dir).exists():
                 dst_dir = Path(surveys_dir, year, dst_dir)  # noqa: PLW2901
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
-                if self.args.clobber:
+                if self.clobber:
                     # Copy files individually to avoid permission issues with copytree.
                     # This will not copy subdirectories, but we don't expect any.
                     for src_file in src_dir.glob("*"):
@@ -151,7 +185,7 @@ class Archiver:
                     )
             else:
                 self.logger.debug("%s not found", src_dir)
-        if self.args.create_products or (hasattr(self.args, "resample") and self.args.resample):
+        if self.create_products or self.resample:
             # Do not copy processing.log file if only partial processing was done
             self.logger.info(
                 "Partial processing, not archiving %s",
@@ -162,7 +196,7 @@ class Archiver:
             src_file = Path(f"{nc_file_base}_{LOG_NAME}")
             dst_file = Path(surveynetcdfs_dir, src_file.name)
             if src_file.exists():
-                if self.args.clobber:
+                if self.clobber:
                     self.logger.info("copyfile %s %s", src_file, surveynetcdfs_dir)
                     shutil.copyfile(src_file, dst_file)
                     self.logger.info("copyfile %s %s done.", src_file, surveynetcdfs_dir)
@@ -187,7 +221,7 @@ class Archiver:
             sys.exit(1)
         for src_file in sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc")):
             dst_file = Path(dst_dir, src_file.name)
-            if self.args.clobber:
+            if self.clobber:
                 if dst_file.exists():
                     self.logger.info("Removing %s", dst_file)
                     dst_file.unlink()
@@ -202,7 +236,7 @@ class Archiver:
         for ftype in (f"{freq}.nc", "combined.nc", "align.nc"):
             src_file = Path(src_dir, f"{Path(log_file).stem}_{ftype}")
             dst_file = Path(dst_dir, src_file.name)
-            if self.args.clobber:
+            if self.clobber:
                 if dst_file.exists():
                     self.logger.info("Removing %s", dst_file)
                     dst_file.unlink()
@@ -218,7 +252,7 @@ class Archiver:
         src_file = Path(src_dir, f"{Path(log_file).stem}_{LOG_NAME}")
         dst_file = Path(dst_dir, src_file.name)
         if src_file.exists():
-            if self.args.clobber:
+            if self.clobber:
                 self.logger.info("copyfile %s %s", src_file, dst_dir)
                 shutil.copyfile(src_file, dst_file)
                 self.logger.info("copyfile %s %s done.", src_file, dst_dir)
@@ -258,7 +292,7 @@ class Archiver:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 

@@ -91,6 +91,27 @@ class Combine_NetCDF:
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
     variable_time_coord_mapping: dict = {}
 
+    def __init__(
+        self,
+        log_file: str,
+        verbose: int = 0,
+        plot: str = None,
+        commandline: str = "",
+    ) -> None:
+        """Initialize Combine_NetCDF with explicit parameters.
+
+        Args:
+            log_file: LRAUV log file path for processing
+            verbose: Verbosity level (0=WARN, 1=INFO, 2=DEBUG)
+            plot: Optional plot specification
+            commandline: Command line string for metadata
+        """
+        self.log_file = log_file
+        self.verbose = verbose
+        self.plot = plot
+        self.commandline = commandline
+        self.logger.setLevel(self._log_levels[verbose])
+
     def global_metadata(self):
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
@@ -121,7 +142,7 @@ class Combine_NetCDF:
         metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
         metadata["variable_time_coord_mapping"] = json.dumps(self.variable_time_coord_mapping)
-        log_file = self.args.log_file
+        log_file = self.log_file
         metadata["title"] = (
             f"Combined LRAUV data from {log_file} - relevant variables extracted for STOQS"
         )
@@ -587,13 +608,12 @@ class Combine_NetCDF:
                 f"Consolidated time coordinate from: {mapping_info}"
             )
 
-    def _initial_coordinate_qc(self, log_file: str = "") -> None:
+    def _initial_coordinate_qc(self) -> None:
         """Perform initial QC on core coordinate variables for specific log files."""
-        log_file = log_file or self.args.log_file
-        if log_file in (
+        if self.log_file in (
             "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4",
         ):
-            self.logger.info("Performing initial coordinate QC for %s", self.args.log_file)
+            self.logger.info("Performing initial coordinate QC for %s", self.log_file)
             self._range_qc_combined_nc(
                 instrument="universals",
                 variables=[
@@ -619,10 +639,9 @@ class Combine_NetCDF:
                 set_to_nan=False,
             )
 
-    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10, log_file: str = "") -> None:
+    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:
         """Add nudged longitude and latitude variables to the combined dataset."""
-        log_file = log_file or self.args.log_file
-        self._initial_coordinate_qc(log_file=log_file)
+        self._initial_coordinate_qc()
         try:
             nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
                 nav_longitude=self.combined_nc["universals_longitude"],
@@ -632,9 +651,9 @@ class Combine_NetCDF:
                 logger=self.logger,
                 auv_name="",
                 mission="",
-                log_file=log_file,
+                log_file=self.log_file,
                 max_sec_diff_at_end=max_sec_diff_at_end,
-                create_plots=self.args.plot,
+                create_plots=self.plot,
             )
         except ValueError as e:
             self.logger.error("Nudging positions failed: %s", e)  # noqa: TRY400
@@ -682,11 +701,10 @@ class Combine_NetCDF:
             ),
         }
 
-    def combine_groups(self, log_file: str = None) -> None:
+    def combine_groups(self) -> None:
         """Combine group files into a single NetCDF dataset with consolidated time coordinates."""
-        log_file = self.args.log_file or log_file
-        src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        group_files = sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc"))
+        src_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
+        group_files = sorted(src_dir.glob(f"{Path(self.log_file).stem}_{GROUP}_*.nc"))
         self.summary_fields = set()
         self.combined_nc = xr.Dataset()
 
@@ -711,22 +729,21 @@ class Combine_NetCDF:
                 self.variable_time_coord_mapping.update(time_info["variable_time_coord_mapping"])
 
         # Write intermediate file for cf_xarray decoding
-        intermediate_file = self._intermediate_write_netcdf(log_file=log_file)
+        intermediate_file = self._intermediate_write_netcdf()
         with xr.open_dataset(intermediate_file, decode_cf=True) as ds:
             self.combined_nc = ds.load()
 
         # Add nudged coordinates
-        self._add_nudged_coordinates(log_file=log_file)
+        self._add_nudged_coordinates()
 
         # Clean up intermediate file
         Path(intermediate_file).unlink()
 
-    def _intermediate_write_netcdf(self, log_file: str = None) -> None:
+    def _intermediate_write_netcdf(self) -> None:
         """Write out an intermediate combined netCDF file so that data can be
         read using decode_cf=True for nudge_positions() to work with cf accessors."""
-        log_file = self.args.log_file or log_file
-        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_combined_intermediate.nc")
+        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
+        out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined_intermediate.nc")
 
         self.combined_nc.attrs = self.global_metadata()
         self.logger.info("Writing intermediate combined group data to %s", out_fn)
@@ -743,10 +760,10 @@ class Combine_NetCDF:
         )
         return out_fn
 
-    def write_netcdf(self, log_file: str = None) -> None:
-        log_file = self.args.log_file or log_file
-        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        out_fn = Path(netcdfs_dir, f"{Path(log_file).stem}_combined.nc")
+    def write_netcdf(self) -> None:
+        """Write combined netCDF file using instance attributes."""
+        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
+        out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined.nc")
 
         self.combined_nc.attrs = self.global_metadata()
         self.logger.info("Writing combined group data to %s", out_fn)
@@ -787,7 +804,7 @@ class Combine_NetCDF:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 
