@@ -188,8 +188,7 @@ class Resampler:
                 self.mission,
             )
         self.metadata["title"] += (
-            f"aligned, and resampled AUV sensor data from"
-            f" {self.auv_name} mission {self.mission}"
+            f"aligned, and resampled AUV sensor data from {self.auv_name} mission {self.mission}"
         )
         try:
             self.metadata["summary"] += (

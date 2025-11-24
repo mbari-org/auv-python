@@ -1993,9 +1993,7 @@ class Calibrate_NetCDF:
             df_plot["pres"] = pres[pbeg:pend]
             df_plot["depth_filtpres_butter"] = depth_filtpres_butter[pbeg:pend]
             df_plot["depth_filtpres_boxcar"] = depth_filtpres_boxcar[pbeg:pend]
-            title = (
-                f"First {pend} points from" f" {self.mission}/{self.sinfo[sensor]['data_filename']}"
-            )
+            title = f"First {pend} points from {self.mission}/{self.sinfo[sensor]['data_filename']}"
             ax = df_plot.plot(title=title, figsize=(18, 6))
             ax.grid("on")
             self.logger.debug("Pausing with plot entitled: %s. Close window to continue.", title)
@@ -2194,9 +2192,7 @@ class Calibrate_NetCDF:
             df_plot["blue_bs"] = blue_bs[pbeg:pend]
             df_plot["red_bs"] = red_bs[pbeg:pend]
             ## df_plot["fl"] = fl[pbeg:pend]
-            title = (
-                f"First {pend} points from" f" {self.mission}/{self.sinfo[sensor]['data_filename']}"
-            )
+            title = f"First {pend} points from {self.mission}/{self.sinfo[sensor]['data_filename']}"
             ax = df_plot.plot(title=title, figsize=(18, 6), ylim=(-0.003, 0.004))
             ax.grid("on")
             self.logger.debug("Pausing with plot entitled: %s. Close window to continue.", title)
