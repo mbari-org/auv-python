@@ -625,13 +625,8 @@ class Combine_NetCDF:
         self._initial_coordinate_qc(log_file=log_file)
         try:
             nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
-                # For LRAUV data the nav positions are shifted by 1 to align with GPS fixes
-                nav_longitude=self.combined_nc["universals_longitude"].shift(
-                    **{self.variable_time_coord_mapping["universals_longitude"]: 1}
-                ),
-                nav_latitude=self.combined_nc["universals_latitude"].shift(
-                    **{self.variable_time_coord_mapping["universals_latitude"]: 1}
-                ),
+                nav_longitude=self.combined_nc["universals_longitude"],
+                nav_latitude=self.combined_nc["universals_latitude"],
                 gps_longitude=self.combined_nc["nal9602_longitude_fix"],
                 gps_latitude=self.combined_nc["nal9602_latitude_fix"],
                 logger=self.logger,
