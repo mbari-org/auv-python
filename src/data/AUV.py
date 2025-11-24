@@ -37,6 +37,7 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     auv_name: str = "",
     mission: str = "",
     max_sec_diff_at_end: int = 10,
+    log_file: str = "",
     create_plots: bool = False,  # noqa: FBT001, FBT002
 ) -> tuple[xr.DataArray, xr.DataArray, int, float]:
     """
@@ -115,6 +116,7 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     MIN_SEGMENT_LENGTH = 10
     seg_count = 0
     seg_minsum = 0
+    error_message = ""
     for i in range(len(lat_fix) - 1):
         # Segment of dead reckoned (under water) positions, each surrounded by GPS fixes
         segi = np.where(
@@ -169,16 +171,23 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 end_lon_diff,
                 end_lat_diff,
             )
-            logger.info(
-                "Fix this error by calling _range_qc_combined_nc() in "
-                "_navigation_process() and/or _gps_process() for %s %s",
-                auv_name,
-                mission,
-            )
+            if log_file:
+                logger.info(
+                    "Fix this error by calling _range_qc_combined_nc() in "
+                    "_navigation_process() and/or _gps_process() for %s",
+                    log_file,
+                )
+                logger.info("Run to get a plot: combine.py -v 1 --plot --log_file %s", log_file)
+            elif auv_name and mission:
+                logger.info(
+                    "Fix this error by calling _range_qc_combined_nc() in "
+                    "_navigation_process() and/or _gps_process() for %s %s",
+                    auv_name,
+                    mission,
+                )
             error_message = (
                 f"abs(end_lon_diff) ({end_lon_diff}) > 1 or abs(end_lat_diff) ({end_lat_diff}) > 1"
             )
-            raise ValueError(error_message)
         if abs(end_sec_diff) > max_sec_diff_at_end:
             logger.warning(
                 "abs(end_sec_diff) (%s) > max_sec_diff_at_end (%s)",
@@ -276,11 +285,15 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
         name="latitude",
     )
 
-    # Optional plotting code
+    # Optional plotting code - raise error after opportunity to plot
     if create_plots:
         _create_nudge_plots(
             lat, lon, lat_fix, lon_fix, lat_nudged, lon_nudged, auv_name, mission, logger
         )
+
+    if error_message:
+        logger.error("Nudge positions error: %s", error_message)
+        raise ValueError(error_message)
 
     return lon_nudged, lat_nudged, segment_count, segment_minsum
 

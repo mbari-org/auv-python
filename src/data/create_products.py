@@ -43,6 +43,35 @@ class CreateProducts:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    def __init__(  # noqa: PLR0913
+        self,
+        auv_name: str = None,
+        mission: str = None,
+        base_path: str = str(BASE_PATH),
+        start_esecs: float = None,
+        local: bool = False,  # noqa: FBT001, FBT002
+        verbose: int = 0,
+        commandline: str = "",
+    ):
+        """Initialize CreateProducts with explicit parameters.
+
+        Args:
+            auv_name: Name of the AUV vehicle
+            mission: Mission identifier
+            base_path: Base path for output files
+            start_esecs: Start epoch seconds for processing
+            local: Local processing flag
+            verbose: Verbosity level (0-2)
+            commandline: Command line string for tracking
+        """
+        self.auv_name = auv_name
+        self.mission = mission
+        self.base_path = base_path
+        self.start_esecs = start_esecs
+        self.local = local
+        self.verbose = verbose
+        self.commandline = commandline
+
     # Column name format required by ODV - will be tab delimited
     ODV_COLUMN_NAMES = [  # noqa: RUF012
         "Cruise",
@@ -95,18 +124,18 @@ class CreateProducts:
     def _open_ds(self):
         local_nc = Path(
             BASE_PATH,
-            self.args.auv_name,
+            self.auv_name,
             MISSIONNETCDFS,
-            self.args.mission,
-            f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
+            self.mission,
+            f"{self.auv_name}_{self.mission}_{FREQ}.nc",
         )
         # Requires mission to have been processed and archived to AUVCTD
         dap_url = os.path.join(  # noqa: PTH118
             AUVCTD_OPENDAP_BASE,
             "surveys",
-            self.args.mission.split(".")[0],
+            self.mission.split(".")[0],
             "netcdf",
-            f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
+            f"{self.auv_name}_{self.mission}_{FREQ}.nc",
         )
         try:
             self.ds = xr.open_dataset(dap_url)
@@ -354,13 +383,13 @@ class CreateProducts:
                 col = 1
 
         # Save plot to file
-        images_dir = Path(BASE_PATH, self.args.auv_name, MISSIONIMAGES)
+        images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES)
         Path(images_dir).mkdir(parents=True, exist_ok=True)
 
         plt.savefig(
             Path(
                 images_dir,
-                f"{self.args.auv_name}_{self.args.mission}_{FREQ}_2column.png",
+                f"{self.auv_name}_{self.mission}_{FREQ}_2column.png",
             ),
         )
 
@@ -390,29 +419,29 @@ class CreateProducts:
 
         gulper = Gulper()
         gulper.args = argparse.Namespace()
-        gulper.args.base_path = self.args.base_path
-        gulper.args.auv_name = self.args.auv_name
-        gulper.args.mission = self.args.mission
-        gulper.args.local = self.args.local
-        gulper.args.verbose = self.args.verbose
-        gulper.args.start_esecs = self.args.start_esecs
-        gulper.logger.setLevel(self._log_levels[self.args.verbose])
+        gulper.args.base_path = self.base_path
+        gulper.args.auv_name = self.auv_name
+        gulper.args.mission = self.mission
+        gulper.args.local = self.local
+        gulper.args.verbose = self.verbose
+        gulper.args.start_esecs = self.start_esecs
+        gulper.logger.setLevel(self._log_levels[self.verbose])
         gulper.logger.addHandler(self._handler)
 
         gulper_times = gulper.parse_gulpers()
         if not gulper_times:
-            self.logger.info("No gulper times found for %s", self.args.mission)
+            self.logger.info("No gulper times found for %s", self.mission)
             return
         odv_dir = Path(
             BASE_PATH,
-            self.args.auv_name,
+            self.auv_name,
             MISSIONODVS,
-            self.args.mission,
+            self.mission,
         )
         Path(odv_dir).mkdir(parents=True, exist_ok=True)
         gulper_odv_filename = Path(
             odv_dir,
-            f"{self.args.auv_name}_{self.args.mission}_{FREQ}_Gulper.txt",
+            f"{self.auv_name}_{self.mission}_{FREQ}_Gulper.txt",
         )
         self._open_ds()
 
@@ -436,7 +465,7 @@ class CreateProducts:
                 )
                 for count, name in enumerate(odv_column_names):
                     if name == "Cruise":
-                        f.write(f"{self.args.auv_name}_{self.args.mission}_{FREQ}")
+                        f.write(f"{self.auv_name}_{self.mission}_{FREQ}")
                     elif name == "Station":
                         f.write(f"{int(gulper_data['profile_number'].to_numpy().mean()):d}")
                     elif name == "Type":
@@ -543,7 +572,7 @@ class CreateProducts:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 

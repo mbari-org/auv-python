@@ -1,5 +1,4 @@
 # noqa: INP001
-import logging
 import os
 import sys
 from argparse import Namespace
@@ -95,16 +94,23 @@ TEST_I2MAP_START_YEAR = 2018
 def mission_data():
     if not Path(TEST_VEHICLE_DIR).exists():
         pytest.fail(f"\n\n{bootstrap_mission}\n")
-    """Load a short recent mission to have some real data to work with"""
-    cal_netcdf = Calibrate_NetCDF()
-    ns = Namespace()
+    """Load a short mission to have some real data to work with"""
     # The BASE_PATH environment variable can be set in ci.yml for running in GitHub Actions
-    ns.base_path = os.getenv("BASE_PATH", BASE_PATH)
-    ns.auv_name = TEST_VEHICLE
-    ns.mission = TEST_MISSION
-    ns.plot = None
-    cal_netcdf.args = ns
-    cal_netcdf.logger.setLevel(logging.DEBUG)
+    base_path = os.getenv("BASE_PATH", BASE_PATH)
+
+    cal_netcdf = Calibrate_NetCDF(
+        auv_name=TEST_VEHICLE,
+        mission=TEST_MISSION,
+        base_path=base_path,
+        calibration_dir=TEST_CALIBRATION_DIR,
+        plot=None,
+        verbose=2,  # DEBUG level
+        commandline="test",
+        local=True,
+        noinput=True,
+        clobber=False,
+        noreprocess=False,
+    )
     cal_netcdf.process_logs(process_gps=False)
     return cal_netcdf
 

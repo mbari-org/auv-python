@@ -51,7 +51,41 @@ class Resampler:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self) -> None:
+    def __init__(  # noqa: PLR0913
+        self,
+        auv_name: str = None,
+        mission: str = None,
+        log_file: str = None,
+        freq: str = FREQ,
+        mf_width: int = MF_WIDTH,
+        flash_threshold: float = None,
+        verbose: int = 0,
+        plot: bool = None,  # noqa: FBT001
+        commandline: str = "",
+    ) -> None:
+        """Initialize Resampler with explicit parameters.
+
+        Args:
+            auv_name: Name of the AUV vehicle
+            mission: Mission identifier
+            log_file: Log file path (for LRAUV processing)
+            freq: Resampling frequency (default: '1S')
+            mf_width: Median filter width (default: 3)
+            flash_threshold: Flash detection threshold
+            verbose: Verbosity level (0-2)
+            plot: Enable plotting
+            commandline: Command line string for tracking
+        """
+        self.auv_name = auv_name
+        self.mission = mission
+        self.log_file = log_file
+        self.freq = freq
+        self.mf_width = mf_width
+        self.flash_threshold = flash_threshold
+        self.verbose = verbose
+        self.plot = plot
+        self.commandline = commandline
+
         plt.rcParams["figure.figsize"] = (15, 5)
         self.resampled_nc = xr.Dataset()
         iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
@@ -134,7 +168,7 @@ class Resampler:
         self.metadata["summary"] = (
             f"Observational oceanographic data obtained from an Autonomous"
             f" Underwater Vehicle mission with measurements sampled at"
-            f" {self.args.freq} intervals."
+            f" {self.freq} intervals."
             f" Data processed at {iso_now} using MBARI's auv-python software."
         )
 
@@ -144,41 +178,40 @@ class Resampler:
         """
         self.metadata["title"] = "Calibrated, "
         try:
-            if dorado_info[self.args.mission].get("program"):
+            if dorado_info[self.mission].get("program"):
                 self.metadata["title"] = (
-                    f"{dorado_info[self.args.mission]['program']} program - calibrated, "
+                    f"{dorado_info[self.mission]['program']} program - calibrated, "
                 )
         except KeyError:
             self.logger.warning(
                 "No entry for for mission %s program in dorado_info.py",
-                self.args.mission,
+                self.mission,
             )
         self.metadata["title"] += (
-            f"aligned, and resampled AUV sensor data from"
-            f" {self.args.auv_name} mission {self.args.mission}"
+            f"aligned, and resampled AUV sensor data from {self.auv_name} mission {self.mission}"
         )
         try:
             self.metadata["summary"] += (
                 f" Processing log file: {AUVCTD_OPENDAP_BASE}/surveys/"
-                f"{self.args.mission.split('.')[0]}/netcdf/"
-                f"{self.args.auv_name}_{self.args.mission}_processing.log"
+                f"{self.mission.split('.')[0]}/netcdf/"
+                f"{self.auv_name}_{self.mission}_processing.log"
             )
         except KeyError:
             # Likely no _1S.nc file was created, hence no summary to append to
             self.logger.warning(
                 "Could not add processing log file to summary matadata for mission %s",
-                self.args.mission,
+                self.mission,
             )
 
         try:
-            if dorado_info[self.args.mission].get("program"):
-                self.metadata["program"] = dorado_info[self.args.mission].get("program")
-            if dorado_info[self.args.mission].get("comment"):
-                self.metadata["comment"] = dorado_info[self.args.mission].get("comment")
+            if dorado_info[self.mission].get("program"):
+                self.metadata["program"] = dorado_info[self.mission].get("program")
+            if dorado_info[self.mission].get("comment"):
+                self.metadata["comment"] = dorado_info[self.mission].get("comment")
         except KeyError:
             self.logger.warning(
                 "No entry for for mission %s program or comment in dorado_info.py",
-                self.args.mission,
+                self.mission,
             )
         try:
             # Parse from ctd1_depth comment: "using SensorOffset(x=1.003, y=0.0001)"
@@ -189,7 +222,7 @@ class Resampler:
         except KeyError:
             self.logger.warning(
                 "No comment for pitch correction in ctd1_depth for mission %s",
-                self.args.mission,
+                self.mission,
             )
 
         return self.metadata
@@ -200,7 +233,7 @@ class Resampler:
         """
         self.metadata["title"] = (
             f"Calibrated, aligned, and resampled AUV sensor data from"
-            f" {self.args.auv_name} mission {self.args.mission}"
+            f" {self.auv_name} mission {self.mission}"
         )
         # Append location of original data files to summary
         matches = re.search(
@@ -212,8 +245,8 @@ class Resampler:
                 " "
                 + matches.group(1)
                 + f".  Processing log file: {AUVCTD_OPENDAP_BASE}/surveys/"
-                + f"{self.args.mission.split('.')[0]}/netcdf/"
-                + f"{self.args.auv_name}_{self.args.mission}_processing.log"
+                + f"{self.mission.split('.')[0]}/netcdf/"
+                + f"{self.auv_name}_{self.mission}_processing.log"
             )
             # Append shortened location of original data files to title
             # Useful for I2Map data as it's in a YYYY/MM directory structure
@@ -235,7 +268,7 @@ class Resampler:
         except KeyError:
             self.logger.warning(
                 "No entry for for mission %s comment in dorado_info.py",
-                self.args.mission,
+                self.mission,
             )
 
         return self.metadata
@@ -272,12 +305,12 @@ class Resampler:
             self.logger.warning(
                 "Variable %s_depth not found in %s align.nc file",
                 instr,
-                self.args.mission,
+                self.mission,
             )
             self.logger.info(
                 "Cannot continue without a pitch corrected depth coordinate",
             )
-            msg = f"{instr}_depth not found in {self.args.auv_name}_{self.args.mission}_align.nc"
+            msg = f"{instr}_depth not found in {self.auv_name}_{self.mission}_align.nc"
             raise InvalidAlignFile(msg) from None
         try:
             self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
@@ -285,7 +318,7 @@ class Resampler:
         except KeyError:
             msg = (
                 f"Variable {instr}_latitude or {instr}_longitude not found in "
-                f"{self.args.mission} align.nc file"
+                f"{self.mission} align.nc file"
             )
             self.logger.warning(msg)
             raise InvalidAlignFile(msg) from None
@@ -357,8 +390,8 @@ class Resampler:
         self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
         self.resampled_nc["depth"].attrs["comment"] += (
             f". {self.ds[f'{instr}_depth'].attrs['comment']}"
-            f" mean sampled at {self.args.freq} intervals following"
-            f" {self.args.mf_width} point median filter."
+            f" mean sampled at {self.freq} intervals following"
+            f" {self.mf_width} point median filter."
         )
         self.resampled_nc["latitude"].attrs = self.ds[f"{instr}_latitude"].attrs
         self.resampled_nc["latitude"].attrs["comment"] += (
@@ -602,8 +635,8 @@ class Resampler:
         peaks, _ = signal.find_peaks(s_biolume_raw, height=max_bg)
         s_peaks = pd.Series(s_biolume_raw.iloc[peaks], index=s_biolume_raw.index[peaks])
         s_med_bg_peaks = pd.Series(s_med_bg.iloc[peaks], index=s_biolume_raw.index[peaks])
-        if self.args.flash_threshold:
-            flash_threshold = self.args.flash_threshold
+        if self.flash_threshold:
+            flash_threshold = self.flash_threshold
         flash_threshold_note = f"Computed with flash_threshold = {flash_threshold:.0e}"
         self.logger.info("Using flash_threshold = %.4e", flash_threshold)
         nbflash_high = s_peaks[s_peaks > (s_med_bg_peaks + flash_threshold)]
@@ -1224,7 +1257,7 @@ class Resampler:
                 # nosecone instruments.  If we are processing LRAUV data then
                 # use 'ctddseabird', otherwise start with 'ctd1' and fall back to
                 # 'seabird25p' if needed for i2map missions.
-                pitch_corrected_instr = "ctdseabird" if self.args.log_file else "ctd1"
+                pitch_corrected_instr = "ctdseabird" if self.log_file else "ctd1"
                 if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
                     if pitch_corrected_instr in instrs_to_pad:
@@ -1237,7 +1270,7 @@ class Resampler:
                     freq,
                 )
                 self.save_coordinates(instr, mf_width, freq, aggregator)
-                if self.args.plot:
+                if self.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
                 self.add_profile(depth_threshold=depth_threshold)
             if instr != last_instr:
@@ -1293,7 +1326,7 @@ class Resampler:
                         f" median filtered with {mf_width} samples"
                         f" and resampled with {aggregator} to {freq} intervals."
                     )
-                    if self.args.plot:
+                    if self.plot:
                         self.plot_variable(instr, variable, freq, plot_seconds)
         try:
             self._build_global_metadata()
@@ -1304,18 +1337,18 @@ class Resampler:
                 e,  # noqa: TRY401
                 nc_file,
             )
-        if self.args.auv_name.lower() == "dorado":
+        if self.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
-        elif self.args.auv_name.lower() == "i2map":
+        elif self.auv_name.lower() == "i2map":
             self.resampled_nc.attrs = self.i2map_global_metadata()
         self.resampled_nc["time"].attrs = {
             "standard_name": "time",
             "long_name": "Time (UTC)",
         }
         out_fn = str(nc_file).replace("_align.nc", f"_{freq}.nc")
-        if self.args.flash_threshold and self.args.flash_threshold != FLASH_THRESHOLD:
+        if self.flash_threshold and self.flash_threshold != FLASH_THRESHOLD:
             # Append flash_threshold to output filename
-            ft_ending = f"_ft{self.args.flash_threshold:.0E}.nc".replace("E+", "E")
+            ft_ending = f"_ft{self.flash_threshold:.0E}.nc".replace("E+", "E")
             out_fn = out_fn.replace(".nc", ft_ending)
         self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")
         self.logger.info("Saved resampled mission to %s", out_fn)
@@ -1347,7 +1380,7 @@ class Resampler:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 

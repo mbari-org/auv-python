@@ -51,9 +51,12 @@ class CommonArgumentParser:
         )
         parser.add_argument(
             "--verbose",
+            "-v",
             type=int,
             choices=range(3),
             default=0,
+            const=1,
+            nargs="?",
             help="Verbosity level: 0=WARN (default), 1=INFO, 2=DEBUG",
         )
 
