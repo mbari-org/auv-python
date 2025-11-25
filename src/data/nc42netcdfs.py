@@ -171,7 +171,7 @@ class Extract:
     def __init__(  # noqa: PLR0913
         self,
         log_file: str = None,
-        plot_time: bool = False,  # noqa: FBT001, FBT002
+        plot_time: str = None,
         filter_monotonic_time: bool = True,  # noqa: FBT001, FBT002
         verbose: int = 0,
         commandline: str = "",
@@ -180,7 +180,7 @@ class Extract:
 
         Args:
             log_file: Log file path for processing
-            plot_time: Enable time plotting
+            plot_time: Optional plot time specification (e.g., /latitude_time)
             filter_monotonic_time: Filter out non-monotonic time values
             verbose: Verbosity level (0-2)
             commandline: Command line string for tracking
@@ -357,6 +357,10 @@ class Extract:
                 plot_time_coord_name,
             )
             time_filters[time_coord_name] = time_filter
+
+        # Align latitude and longitude in root group if needed
+        if group_name == "/":
+            time_filters = self._align_root_group_coordinates(time_filters, vars_to_extract)
 
         return time_filters
 
@@ -934,6 +938,86 @@ class Extract:
             self.logger.debug("Created fixed dimension %s: %s", dim_name, size)
         return size
 
+    def _align_root_group_coordinates(
+        self, time_filters: dict[str, dict], vars_to_extract: list[str]
+    ) -> dict[str, dict]:
+        """Align latitude and longitude indices in root group when they have different lengths.
+
+        When time coordinate filtering removes different numbers of points from latitude_time
+        and longitude_time, we need to use the union of both filtered indices to keep them
+        aligned.
+
+        Args:
+            time_filters: Dictionary mapping time coordinate names to filter info
+            vars_to_extract: List of variable names being extracted
+
+        Returns:
+            Modified time_filters with aligned indices for latitude and longitude
+        """
+        # Only apply to root group variables
+        lat_vars = [v for v in vars_to_extract if v.startswith("latitude")]
+        lon_vars = [v for v in vars_to_extract if v.startswith("longitude")]
+
+        if not lat_vars or not lon_vars:
+            return time_filters
+
+        # Find the time coordinates for latitude and longitude
+        lat_time_coords = [f"{v}_time" for v in lat_vars]
+        lon_time_coords = [f"{v}_time" for v in lon_vars]
+
+        # Get the filtered time coordinates that exist
+        lat_filtered = [
+            tc for tc in lat_time_coords if tc in time_filters and time_filters[tc]["filtered"]
+        ]
+        lon_filtered = [
+            tc for tc in lon_time_coords if tc in time_filters and time_filters[tc]["filtered"]
+        ]
+
+        if not lat_filtered or not lon_filtered:
+            return time_filters
+
+        # For simplicity, handle the common case of single lat/lon time coordinates
+        if len(lat_filtered) == 1 and len(lon_filtered) == 1:
+            lat_tc = lat_filtered[0]
+            lon_tc = lon_filtered[0]
+
+            # Use numpy arrays for efficient intersection - indices are already lists
+            lat_indices = np.array(time_filters[lat_tc]["indices"], dtype=np.int64)
+            lon_indices = np.array(time_filters[lon_tc]["indices"], dtype=np.int64)
+
+            # Quick check if they're already identical using numpy comparison
+            if lat_indices.shape == lon_indices.shape and np.array_equal(lat_indices, lon_indices):
+                return time_filters
+
+            # Use numpy's intersect1d for efficient intersection of sorted arrays
+            # assume_unique=True since indices come from filtered time coordinates
+            aligned_indices = np.intersect1d(lat_indices, lon_indices, assume_unique=True)
+
+            if len(aligned_indices) < len(lat_indices) or len(aligned_indices) < len(lon_indices):
+                self.logger.info(
+                    "Aligning root group coordinates: latitude has %d points, "
+                    "longitude has %d points, using %d common indices",
+                    len(lat_indices),
+                    len(lon_indices),
+                    len(aligned_indices),
+                )
+
+                # Convert back to list for consistency with the rest of the code
+                aligned_list = aligned_indices.tolist()
+
+                # Update both time filters with aligned indices
+                time_filters[lat_tc]["indices"] = aligned_list
+                time_filters[lon_tc]["indices"] = aligned_list
+
+                # Update comments to reflect alignment
+                alignment_note = " Aligned with longitude/latitude."
+                if not time_filters[lat_tc]["comment"].endswith(alignment_note):
+                    time_filters[lat_tc]["comment"] += alignment_note
+                if not time_filters[lon_tc]["comment"].endswith(alignment_note):
+                    time_filters[lon_tc]["comment"] += alignment_note
+
+        return time_filters
+
     def _create_netcdf_file(  # noqa: PLR0913
         self,
         log_file: str,
@@ -1124,8 +1208,14 @@ class Extract:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.verbose])
+
+        # Set instance attributes from parsed arguments
+        self.log_file = self.args.log_file
+        self.plot_time = self.args.plot_time
+        self.filter_monotonic_time = self.args.filter_monotonic_time
+        self.verbose = self.args.verbose
         self.commandline = " ".join(sys.argv)
+        self.logger.setLevel(self._log_levels[self.verbose])
 
 
 if __name__ == "__main__":
