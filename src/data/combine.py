@@ -93,7 +93,7 @@ class Combine_NetCDF:
 
     def __init__(
         self,
-        log_file: str,
+        log_file: str = None,
         verbose: int = 0,
         plot: str = None,
         commandline: str = "",
@@ -101,7 +101,7 @@ class Combine_NetCDF:
         """Initialize Combine_NetCDF with explicit parameters.
 
         Args:
-            log_file: LRAUV log file path for processing
+            log_file: LRAUV log file path for processing (required for processing, optional for CLI)
             verbose: Verbosity level (0=WARN, 1=INFO, 2=DEBUG)
             plot: Optional plot specification
             commandline: Command line string for metadata
@@ -110,7 +110,8 @@ class Combine_NetCDF:
         self.verbose = verbose
         self.plot = plot
         self.commandline = commandline
-        self.logger.setLevel(self._log_levels[verbose])
+        if verbose:
+            self.logger.setLevel(self._log_levels[verbose])
 
     def global_metadata(self):
         """Use instance variables to return a dictionary of
@@ -472,7 +473,7 @@ class Combine_NetCDF:
         # Time coordinates differ - keep them separate
         time_coord_mapping = {name: f"{group_name}_{name.lower()}" for name in time_vars}
 
-        self.logger.warning(
+        self.logger.info(
             "Group %s: Time coordinates differ - keeping separate: %s",
             group_name,
             list(time_vars.keys()),
@@ -804,8 +805,13 @@ class Combine_NetCDF:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.verbose])
+
+        # Set instance attributes from parsed arguments
+        self.log_file = self.args.log_file
+        self.verbose = self.args.verbose
+        self.plot = "--plot" if self.args.plot else None
         self.commandline = " ".join(sys.argv)
+        self.logger.setLevel(self._log_levels[self.verbose])
 
 
 if __name__ == "__main__":
