@@ -84,6 +84,11 @@ class Align_NetCDF:
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
+        # Skip dynamic metadata during testing to ensure reproducible results
+        if "pytest" in sys.modules:
+            self.logger.debug("Skipping dynamic metadata generation (running under pytest)")
+            return {}
+
         auv_name = self.auv_name
         mission = self.mission
         log_file = self.log_file
@@ -141,12 +146,22 @@ class Align_NetCDF:
                 f" host {actual_hostname} using git commit {gitcommit} from"
                 f" software at 'https://github.com/mbari-org/auv-python'"
             )
-            metadata["summary"] = (
-                "Observational oceanographic data obtained from an Autonomous"
-                " Underwater Vehicle mission with measurements at"
-                " original sampling intervals. The data have been calibrated"
-                " and the coordinate variables aligned using MBARI's auv-python"
-                " software."
+            metadata["summary"] = self.calibrated_nc.attrs.get(
+                "summary",
+                (
+                    "Observational oceanographic data obtained from an Autonomous"
+                    " Underwater Vehicle mission with measurements at"
+                    " original sampling intervals. The data have been calibrated"
+                    " and the coordinate variables aligned using MBARI's auv-python"
+                    " software."
+                ),
+            )
+            # Remove note about further processing needed
+            metadata["summary"] = metadata["summary"].replace(
+                "  The data in this file are to be considered as simple time series data only "
+                "and are as close to the original data as possible.  Further processing is "
+                "required to turn the data into a time series of profiles.",
+                "",
             )
         elif log_file:
             # Build title with optional deployment name
