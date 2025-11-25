@@ -310,7 +310,10 @@ class Resampler:
             self.logger.info(
                 "Cannot continue without a pitch corrected depth coordinate",
             )
-            msg = f"{instr}_depth not found in {self.auv_name}_{self.mission}_align.nc"
+            if self.log_file:
+                msg = f"A CTD depth was not found in {self.ds.encoding['source']}"
+            else:
+                msg = f"{instr}_depth not found in {self.auv_name}_{self.mission}_align.nc"
             raise InvalidAlignFile(msg) from None
         try:
             self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
@@ -1256,8 +1259,11 @@ class Resampler:
                 # must be as complete as possible as it's used for all the other
                 # nosecone instruments.  If we are processing LRAUV data then
                 # use 'ctddseabird', otherwise start with 'ctd1' and fall back to
-                # 'seabird25p' if needed for i2map missions.
+                # 'seabird25p' if needed for i2map missions. Early LRAUV missions
+                # had only CTD_NeilBrown instruments, later ones had CTD_Seabird.
                 pitch_corrected_instr = "ctdseabird" if self.log_file else "ctd1"
+                if f"{pitch_corrected_instr}_depth" not in self.ds:
+                    pitch_corrected_instr = "ctdneilbrown"
                 if f"{pitch_corrected_instr}_depth" not in self.ds:
                     pitch_corrected_instr = "seabird25p"
                     if pitch_corrected_instr in instrs_to_pad:
