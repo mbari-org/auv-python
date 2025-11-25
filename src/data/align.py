@@ -31,6 +31,7 @@ import xarray as xr
 from common_args import get_standard_lrauv_parser
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS, SUMMARY_SOURCE, TIME, TIME60HZ
 from nc42netcdfs import BASE_LRAUV_PATH
+from utils import get_deployment_name
 
 
 class InvalidCalFile(Exception):
@@ -148,9 +149,13 @@ class Align_NetCDF:
                 " software."
             )
         elif log_file:
-            metadata["title"] = (
-                f"Combined and aligned LRAUV instrument data from log file {Path(log_file)}"
-            )
+            # Build title with optional deployment name
+            title = f"Combined and aligned LRAUV instrument data from log file {Path(log_file)}"
+            deployment_name = get_deployment_name(log_file, BASE_LRAUV_PATH, self.logger)
+            if deployment_name:
+                title += f" - Deployment: {deployment_name}"
+            metadata["title"] = title
+
             from_data = "combined data"
             metadata["source"] = (
                 f"MBARI Long Range AUV data produced from {from_data}"
@@ -158,12 +163,15 @@ class Align_NetCDF:
                 f" host {actual_hostname} using git commit {gitcommit} from"
                 f" software at 'https://github.com/mbari-org/auv-python'"
             )
-            metadata["summary"] = (
-                "Observational oceanographic data obtained from an Autonomous"
-                " Underwater Vehicle mission with measurements at"
-                " original sampling intervals. The position variables have been"
-                " corrected to GPS positions and aligned with the data variables"
-                " using MBARI's auv-python software."
+            metadata["summary"] = self.combined_nc.attrs.get(
+                "summary",
+                (
+                    "Observational oceanographic data obtained from an Autonomous"
+                    " Underwater Vehicle mission with measurements at"
+                    " original sampling intervals. The position variables have been"
+                    " corrected to GPS positions and aligned with the data variables"
+                    " using MBARI's auv-python software."
+                ),
             )
         # Append location of original data files to summary
         if self.auv_name and self.mission:
@@ -678,7 +686,7 @@ class Align_NetCDF:
             self.logger.debug("Removing existing file %s", out_fn)
             out_fn.unlink()
         self.aligned_nc.to_netcdf(out_fn)
-        self.logger.info(
+        self.logger.debug(
             "Data variables written: %s",
             ", ".join(sorted(self.aligned_nc.variables)),
         )

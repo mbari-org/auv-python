@@ -20,6 +20,7 @@ import netCDF4
 import numpy as np
 import pooch
 from common_args import get_standard_lrauv_parser
+from utils import get_deployment_name
 
 # Conditional imports for plotting (only when needed)
 try:
@@ -1121,7 +1122,14 @@ class Extract:
         metadata["useconst"] = "Not intended for legal use. Data may contain inaccuracies."
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
         log_file = self.log_file
-        metadata["title"] = f"Extracted LRAUV data from {log_file}, Group: {group_name}"
+
+        # Build title with optional deployment name
+        title = f"Extracted LRAUV data from {log_file}, Group: {group_name}"
+        deployment_name = get_deployment_name(log_file, BASE_LRAUV_PATH, self.logger)
+        if deployment_name:
+            title += f" - Deployment: {deployment_name}"
+        metadata["title"] = title
+
         metadata["source"] = (
             f"MBARI LRAUV data extracted from {log_file}"
             f" with execution of '{self.commandline}' at {iso_now}"

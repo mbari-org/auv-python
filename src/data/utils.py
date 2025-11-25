@@ -23,7 +23,59 @@
 
 """
 
+import logging
 import math
+from pathlib import Path
+
+
+def get_deployment_name(
+    log_file: str, base_lrauv_path: Path, logger: logging.Logger = None
+) -> str | None:
+    """Parse deployment name from .dlist file in great-grandparent directory.
+
+    Args:
+        log_file: Path to log file (e.g., tethys/missionlogs/2012/20120908_20120920/.../.nc4)
+        base_lrauv_path: Base path for local LRAUV data
+        logger: Optional logger for debug messages
+
+    Returns:
+        Deployment name string or None if not found
+    """
+    try:
+        log_path = Path(log_file)
+        # Get great-grandparent directory (e.g., tethys/missionlogs/2012)
+        great_grandparent_dir = log_path.parent.parent.parent
+        # The directory with the .dlist file (e.g., 20120908_20120920)
+        deployment_dir = log_path.parent.parent
+        # Construct .dlist filename from deployment directory name
+        dlist_filename = f"{deployment_dir.name}.dlist"
+
+        # Try file share location first (/Volumes/LRAUV/vehicle/missionlogs/YYYY/...)
+        lrauv_share = Path("/Volumes/LRAUV")
+        dlist_path = lrauv_share / great_grandparent_dir / dlist_filename
+
+        # If not on file share, try local base_lrauv_path
+        if not dlist_path.exists():
+            dlist_path = Path(base_lrauv_path, great_grandparent_dir, dlist_filename)
+
+        if not dlist_path.exists():
+            if logger:
+                logger.debug("No .dlist file found at %s", dlist_path)
+            return None
+
+        with dlist_path.open() as f:
+            first_line = f.readline().strip()
+            # Parse "# Deployment name: <deployment_name>" (case insensitive)
+            if first_line.lower().startswith("# deployment name:"):
+                deployment_name = first_line.split(":", 1)[1].strip()
+                if logger:
+                    logger.debug("Found deployment name: %s", deployment_name)
+                return deployment_name
+            return None
+    except (OSError, IndexError) as e:
+        if logger:
+            logger.debug("Error parsing deployment name: %s", e)
+        return None
 
 
 def simplify_points(pts, tolerance):

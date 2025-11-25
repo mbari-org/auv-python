@@ -30,7 +30,7 @@ from scipy import signal
 from common_args import get_standard_lrauv_parser
 from dorado_info import dorado_info
 from logs2netcdfs import AUV_NetCDF, BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME
-from nc42netcdfs import BASE_LRAUV_PATH
+from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 
 MF_WIDTH = 3
 FREQ = "1S"
@@ -174,8 +174,13 @@ class Resampler:
 
     def dorado_global_metadata(self) -> dict:
         """Use instance variables to return a dictionary of
-        metadata specific for the data that are written
+        metadata specific for the data that are written.
+        Calls _build_global_metadata() first to populate common metadata.
         """
+        # First populate common metadata (git commit, host, geospatial bounds, etc.)
+        self._build_global_metadata()
+
+        # Then add dorado-specific metadata
         self.metadata["title"] = "Calibrated, "
         try:
             if dorado_info[self.mission].get("program"):
@@ -229,13 +234,19 @@ class Resampler:
 
     def i2map_global_metadata(self) -> dict:
         """Use instance variables to return a dictionary of
-        metadata specific for the data that are written
+        metadata specific for the data that are written.
+        Calls _build_global_metadata() first to populate common metadata.
         """
+        # First populate common metadata (git commit, host, geospatial bounds, etc.)
+        self._build_global_metadata()
+
+        # Then add i2map-specific metadata
         self.metadata["title"] = (
             f"Calibrated, aligned, and resampled AUV sensor data from"
             f" {self.auv_name} mission {self.mission}"
         )
         # Append location of original data files to summary
+        self.metadata["summary"] = self.ds.attrs.get
         matches = re.search(
             "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
             self.ds.attrs["summary"],
@@ -270,6 +281,48 @@ class Resampler:
                 "No entry for for mission %s comment in dorado_info.py",
                 self.mission,
             )
+
+        return self.metadata
+
+    def lrauv_global_metadata(self) -> dict:
+        """Use instance variables to return a dictionary of
+        metadata specific for LRAUV data that are written.
+        Calls _build_global_metadata() first to populate common metadata.
+        """
+        # First populate common metadata (git commit, host, geospatial bounds, etc.)
+        self._build_global_metadata()
+
+        # Then add LRAUV-specific metadata
+        # Preserve title and summary from align.nc if available
+        if "title" in self.ds.attrs:
+            self.metadata["title"] = self.ds.attrs["title"].replace(
+                "Combined and aligned LRAUV", "Combined, Aligned, and Resampled LRAUV"
+            )
+        else:
+            self.metadata["title"] = (
+                f"Resampled LRAUV data from {self.log_file} at {self.freq} intervals"
+            )
+
+        if "summary" in self.ds.attrs:
+            self.metadata["summary"] = self.ds.attrs["summary"]
+        else:
+            self.metadata["summary"] = (
+                "Observational oceanographic data obtained from a Long Range Autonomous "
+                "Underwater Vehicle mission. Data have been aligned and resampled."
+            )
+        # Add resampling information and processing log file link to the summary
+        self.metadata["summary"] += (
+            f" Data resampled to {self.freq} intervals following {self.mf_width} "
+            f"point median filter."
+        )
+        self.metadata["summary"] += (
+            f". Processing log file: {BASE_LRAUV_WEB}/"
+            f"{self.log_file.replace('.nc4', '_processing.log')}"
+        )
+
+        # Preserve comment from align.nc if available, otherwise use default
+        if "comment" in self.ds.attrs:
+            self.metadata["comment"] = self.ds.attrs["comment"]
 
         return self.metadata
 
@@ -1334,19 +1387,15 @@ class Resampler:
                     )
                     if self.plot:
                         self.plot_variable(instr, variable, freq, plot_seconds)
-        try:
-            self._build_global_metadata()
-        except KeyError as e:
-            self.logger.exception(
-                "Missing global attribute %s in %s. Cannot add global metadata to "
-                "resampled mission.",
-                e,  # noqa: TRY401
-                nc_file,
-            )
+
+        # Call vehicle-specific metadata method which will call _build_global_metadata()
         if self.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
         elif self.auv_name.lower() == "i2map":
             self.resampled_nc.attrs = self.i2map_global_metadata()
+        else:
+            # Assume LRAUV for any other vehicle
+            self.resampled_nc.attrs = self.lrauv_global_metadata()
         self.resampled_nc["time"].attrs = {
             "standard_name": "time",
             "long_name": "Time (UTC)",
