@@ -29,7 +29,7 @@ from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from netCDF4 import Dataset
 
-from AUV import monotonic_increasing_time_indices
+from utils import monotonic_increasing_time_indices
 from common_args import get_standard_dorado_parser
 from readauvlog import log_record
 

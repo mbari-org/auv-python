@@ -51,7 +51,7 @@ import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import numpy as np
 import pandas as pd
 import xarray as xr
-from AUV import monotonic_increasing_time_indices, nudge_positions
+from utils import monotonic_increasing_time_indices, nudge_positions
 from common_args import get_standard_lrauv_parser
 from logs2netcdfs import AUV_NetCDF, TIME, TIME60HZ
 from nc42netcdfs import BASE_LRAUV_PATH, GROUP

@@ -50,7 +50,7 @@ import xarray as xr
 from scipy import signal
 from scipy.interpolate import interp1d
 
-from AUV import monotonic_increasing_time_indices, nudge_positions
+from utils import monotonic_increasing_time_indices, nudge_positions
 from common_args import get_standard_dorado_parser
 from hs2_proc import compute_backscatter, hs2_calc_bb, hs2_read_cal_file
 from logs2netcdfs import AUV_NetCDF, MISSIONLOGS, MISSIONNETCDFS, TIME, TIME60HZ
