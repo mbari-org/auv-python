@@ -156,11 +156,17 @@ class Align_NetCDF:
                     " software."
                 ),
             )
-            # Remove note about further processing needed
+            # Remove notes not needed after align step
             metadata["summary"] = metadata["summary"].replace(
-                "  The data in this file are to be considered as simple time series data only "
-                "and are as close to the original data as possible.  Further processing is "
-                "required to turn the data into a time series of profiles.",
+                " These data have been processed from the original lopc.bin file produced by the LOPC instrument.",  # noqa: E501
+                "",
+            )
+            metadata["summary"] = metadata["summary"].replace(
+                " The data in this file are to be considered as simple time series data only and are as close to the original data as possible.",  # noqa: E501
+                "",
+            )
+            metadata["summary"] = metadata["summary"].replace(
+                " Further processing is required to turn the data into a time series of profiles.",
                 "",
             )
         elif log_file:
