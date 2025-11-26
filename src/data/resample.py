@@ -176,7 +176,7 @@ class Resampler:
         )
         return None
 
-    def dorado_global_metadata(self) -> dict:
+    def dorado_global_metadata(self) -> dict:  # noqa: PLR0912
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written.
         Calls _build_global_metadata() first to populate common metadata.
@@ -203,6 +203,8 @@ class Resampler:
         self.metadata["title"] += (
             f"aligned, and resampled AUV sensor data from {self.auv_name} mission {self.mission}"
         )
+        if "summary" in self.ds.attrs:
+            self.metadata["summary"] = self.ds.attrs["summary"]
         try:
             self.metadata["summary"] += (
                 f" Processing log file: {AUVCTD_OPENDAP_BASE}/surveys/"
@@ -321,11 +323,6 @@ class Resampler:
 
         if "summary" in self.ds.attrs:
             self.metadata["summary"] = self.ds.attrs["summary"]
-        else:
-            self.metadata["summary"] = (
-                "Observational oceanographic data obtained from a Long Range Autonomous "
-                "Underwater Vehicle mission. Data have been aligned and resampled."
-            )
         # Add resampling information and processing log file link to the summary
         self.metadata["summary"] += (
             f" Data resampled to {self.freq} intervals following {self.mf_width} "
