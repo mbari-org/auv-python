@@ -207,10 +207,11 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
         if len(segi) > MIN_SEGMENT_LENGTH:
             logger.info(
-                f"{i:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"  # noqa: G004
+                f"{seg_count:5d}: {end_sec_diff:12.3f} {end_lon_diff:12.7f}"  # noqa: G004
                 f" {end_lat_diff:12.7f} {len(segi):-9d} {seg_min:9.2f}"
                 f" {u_drift:14.3f} {v_drift:14.3f} {lat.cf['T'].data[segi][-1]}",
             )
+            seg_count += 1
 
         # Start with zero adjustment at beginning and linearly ramp up to the diff at the end
         lon_nudge = np.interp(
@@ -253,7 +254,6 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
         lon_nudged_array = np.append(lon_nudged_array, lon[segi] + lon_nudge)
         lat_nudged_array = np.append(lat_nudged_array, lat[segi] + lat_nudge)
         dt_nudged = np.append(dt_nudged, lon.cf["T"].data[segi])
-        seg_count += 1
 
     # Any dead reckoned points after last GPS fix
     segi = np.where(lat.cf["T"].data > lat_fix.cf["T"].data[-1])[0]
