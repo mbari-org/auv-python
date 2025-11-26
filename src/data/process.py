@@ -546,12 +546,12 @@ class Processor:
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 
-    def resample(self, mission: str = "") -> None:
+    def resample(self, mission: str = "", log_file: str = "") -> None:
         self.logger.info("Resampling steps for %s", mission)
         resamp = Resampler(
             auv_name=self.auv_name,
             mission=mission,
-            log_file=self.config["log_file"],
+            log_file=log_file,
             freq=self.config["freq"],
             mf_width=self.config["mf_width"],
             flash_threshold=self.config["flash_threshold"],
@@ -597,7 +597,7 @@ class Processor:
             subprocess.run([wget_path, dap_file_str, "-O", nc_file_str], check=True)  # noqa: S603
         try:
             resamp.resample_mission(nc_file)
-        except FileNotFoundError as e:
+        except (FileNotFoundError, InvalidAlignFile) as e:
             self.logger.error("%s %s", nc_file, e)  # noqa: TRY400
         finally:
             resamp.logger.removeHandler(self.log_handler)
@@ -1016,7 +1016,7 @@ class Processor:
         netcdfs_dir = self.extract(log_file)
         self.combine(log_file=log_file)
         self.align(log_file=log_file)
-        self.resample()
+        self.resample(log_file=log_file)
         # self.create_products(log_file)
         self.logger.info("Finished processing log file: %s", log_file)
 

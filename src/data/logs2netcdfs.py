@@ -799,7 +799,7 @@ class AUV_NetCDF:
             self.nc_file.summary = self.summary
         if self.add_seconds:
             self.nc_file.summary += (
-                f". Corrected timeTag variables by adding {self.add_seconds} seconds. "
+                f". Corrected timeTag variables by adding {self.add_seconds} seconds"
             )
         monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
         if (~monotonic).any():

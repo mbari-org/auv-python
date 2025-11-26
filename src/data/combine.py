@@ -55,6 +55,7 @@ from AUV import monotonic_increasing_time_indices, nudge_positions
 from common_args import get_standard_lrauv_parser
 from logs2netcdfs import AUV_NetCDF, TIME, TIME60HZ
 from nc42netcdfs import BASE_LRAUV_PATH, GROUP
+from utils import get_deployment_name
 
 AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
 
@@ -93,7 +94,7 @@ class Combine_NetCDF:
 
     def __init__(
         self,
-        log_file: str,
+        log_file: str = None,
         verbose: int = 0,
         plot: str = None,
         commandline: str = "",
@@ -101,7 +102,7 @@ class Combine_NetCDF:
         """Initialize Combine_NetCDF with explicit parameters.
 
         Args:
-            log_file: LRAUV log file path for processing
+            log_file: LRAUV log file path for processing (required for processing, optional for CLI)
             verbose: Verbosity level (0=WARN, 1=INFO, 2=DEBUG)
             plot: Optional plot specification
             commandline: Command line string for metadata
@@ -110,7 +111,10 @@ class Combine_NetCDF:
         self.verbose = verbose
         self.plot = plot
         self.commandline = commandline
-        self.logger.setLevel(self._log_levels[verbose])
+        self.nudge_segment_count = None
+        self.nudge_total_minutes = None
+        if verbose:
+            self.logger.setLevel(self._log_levels[verbose])
 
     def global_metadata(self):
         """Use instance variables to return a dictionary of
@@ -143,9 +147,14 @@ class Combine_NetCDF:
         metadata["history"] = f"Created by {self.commandline} on {iso_now}"
         metadata["variable_time_coord_mapping"] = json.dumps(self.variable_time_coord_mapping)
         log_file = self.log_file
-        metadata["title"] = (
-            f"Combined LRAUV data from {log_file} - relevant variables extracted for STOQS"
-        )
+
+        # Build title with optional deployment name
+        title = f"Combined LRAUV data from {log_file}"
+        deployment_name = get_deployment_name(log_file, BASE_LRAUV_PATH, self.logger)
+        if deployment_name:
+            title += f" - Deployment: {deployment_name}"
+        metadata["title"] = title
+
         metadata["summary"] = (
             "Observational oceanographic data obtained from a Long Range Autonomous"
             " Underwater Vehicle mission with measurements at"
@@ -155,6 +164,14 @@ class Combine_NetCDF:
         if self.summary_fields:
             # Should be just one item in set, but just in case join them
             metadata["summary"] += " " + ". ".join(self.summary_fields)
+
+        # Add nudging information to summary if available
+        if self.nudge_segment_count is not None and self.nudge_total_minutes is not None:
+            metadata["summary"] += (
+                f" {self.nudge_segment_count} underwater segments over "
+                f"{self.nudge_total_minutes:.1f} minutes nudged toward GPS fixes."
+            )
+
         metadata["comment"] = (
             f"MBARI Long Range AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"
@@ -472,7 +489,7 @@ class Combine_NetCDF:
         # Time coordinates differ - keep them separate
         time_coord_mapping = {name: f"{group_name}_{name.lower()}" for name in time_vars}
 
-        self.logger.warning(
+        self.logger.info(
             "Group %s: Time coordinates differ - keeping separate: %s",
             group_name,
             list(time_vars.keys()),
@@ -664,6 +681,15 @@ class Combine_NetCDF:
             segment_count,
             segment_minsum,
         )
+
+        # Calculate total underwater time and store for metadata
+        time_coord = self.combined_nc[self.variable_time_coord_mapping["universals_longitude"]]
+        time_diff = time_coord.to_numpy()[-1] - time_coord.to_numpy()[0]
+        # Convert timedelta64 to seconds (handles nanosecond precision)
+        total_seconds = float(time_diff / np.timedelta64(1, "s"))
+        self.nudge_segment_count = segment_count
+        self.nudge_total_minutes = total_seconds / 60.0
+
         self.combined_nc["nudged_longitude"] = xr.DataArray(
             nudged_longitude,
             coords=[
@@ -804,8 +830,13 @@ class Combine_NetCDF:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.verbose])
+
+        # Set instance attributes from parsed arguments
+        self.log_file = self.args.log_file
+        self.verbose = self.args.verbose
+        self.plot = "--plot" if self.args.plot else None
         self.commandline = " ".join(sys.argv)
+        self.logger.setLevel(self._log_levels[self.verbose])
 
 
 if __name__ == "__main__":
