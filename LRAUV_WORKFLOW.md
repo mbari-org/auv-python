@@ -36,24 +36,27 @@ on the local file system's work directory is as follows:
         The data in the .nc files are identical to what is in the .nc4 groups.
     
     combine.py
-        Apply calibration coefficients to the original data. The calibrated data
-        are written to a new netCDF file in the missionnetcdfs/<mission>
-        directory ending with _cal.nc. This step also includes nudging the
-        underwater portions of the navigation positions to the GPS fixes
-        done at the surface and applying pitch corrections to the sensor
-        depth for those sensors (instruments) for which offset values are
-        specified in SensorInfo. Some minimal QC is done in this step, namely
-        removal on non-monotonic times. The record variables in the netCDF
-        file have only their original coordinates, namely time associated with
-        them.
+        Combine all group data into a single NetCDF file with consolidated
+        time coordinates. When GPS fix data is available, this step includes
+        nudging the underwater portions of the navigation positions to the
+        GPS fixes done at the surface. GPS fixes are filtered to ensure
+        monotonically increasing timestamps before nudging. Some minimal QC
+        is done in this step, namely removal of non-monotonic times. The
+        nudged coordinates are added as separate variables (nudged_longitude,
+        nudged_latitude) with their own time dimension. For missions without
+        GPS data, the combine step completes successfully but without nudged
+        coordinates.
 
     align.py
-        Interpolate corrected lat/lon variables to the original sampling
-        intervals for each instrument's record variables. This format is
-        analogous to the .nc4 files produced by the LRAUV unserialize
-        process. These are the best files to use for the highest temporal
-        resolution of the data. Unlike the .nc4 files align.py's output files
-        use a naming convention rather than netCDF4 groups for each instrument.
+        Interpolate nudged lat/lon variables to the original sampling
+        intervals for each instrument's record variables. This step requires
+        nudged coordinates from combine.py and will fail with an informative
+        error if they are not present (as in missions without GPS data).
+        This format is analogous to the .nc4 files produced by the LRAUV
+        unserialize process. These are the best files to use for the highest
+        temporal resolution of the data. Unlike the .nc4 files, align.py's
+        output files use a naming convention rather than netCDF4 groups for
+        each instrument.
 
     resample.py
         Produce a netCDF file with all of the instrument's record variables

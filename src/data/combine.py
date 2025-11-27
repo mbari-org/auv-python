@@ -51,7 +51,7 @@ import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import numpy as np
 import pandas as pd
 import xarray as xr
-from AUV import monotonic_increasing_time_indices, nudge_positions
+from utils import monotonic_increasing_time_indices, nudge_positions
 from common_args import get_standard_lrauv_parser
 from logs2netcdfs import AUV_NetCDF, TIME, TIME60HZ
 from nc42netcdfs import BASE_LRAUV_PATH, GROUP
@@ -659,12 +659,42 @@ class Combine_NetCDF:
     def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:
         """Add nudged longitude and latitude variables to the combined dataset."""
         self._initial_coordinate_qc()
+
+        # Check if GPS fix variables exist
+        if (
+            "nal9602_longitude_fix" not in self.combined_nc
+            or "nal9602_latitude_fix" not in self.combined_nc
+        ):
+            self.logger.warning(
+                "No GPS fix variables found in combined dataset - "
+                "skipping nudged coordinate creation"
+            )
+            return
+
+        # Ensure GPS fixes have monotonically increasing timestamps
+        gps_lon = self.combined_nc["nal9602_longitude_fix"]
+        gps_lat = self.combined_nc["nal9602_latitude_fix"]
+        gps_time_coord = gps_lon.coords[gps_lon.dims[0]]
+
+        # Convert to pandas index which handles datetime comparisons properly
+        gps_time_index = gps_time_coord.to_index()
+        gps_monotonic = monotonic_increasing_time_indices(gps_time_index)
+        if not np.all(gps_monotonic):
+            monotonic_count = np.sum(gps_monotonic)
+            self.logger.warning(
+                "Filtered GPS fixes from %d to %d to ensure monotonically increasing timestamps",
+                len(gps_lon),
+                monotonic_count,
+            )
+            gps_lon = gps_lon.isel({gps_lon.dims[0]: gps_monotonic})
+            gps_lat = gps_lat.isel({gps_lat.dims[0]: gps_monotonic})
+
         try:
             nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
                 nav_longitude=self.combined_nc["universals_longitude"],
                 nav_latitude=self.combined_nc["universals_latitude"],
-                gps_longitude=self.combined_nc["nal9602_longitude_fix"],
-                gps_latitude=self.combined_nc["nal9602_latitude_fix"],
+                gps_longitude=gps_lon,
+                gps_latitude=gps_lat,
                 logger=self.logger,
                 auv_name="",
                 mission="",

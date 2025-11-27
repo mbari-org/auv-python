@@ -65,7 +65,7 @@ from getpass import getuser
 from pathlib import Path
 from socket import gethostname
 
-from align import Align_NetCDF, InvalidCalFile
+from align import Align_NetCDF, InvalidCalFile, InvalidCombinedFile
 from archive import LOG_NAME, Archiver
 from calibrate import EXPECTED_SENSORS, Calibrate_NetCDF
 from combine import Combine_NetCDF
@@ -1044,7 +1044,10 @@ class Processor:
                 # Extract AUV name from path
                 self.auv_name = log_file.split("/")[0].lower()
                 self.logger.info("Processing log file: %s", log_file)
-                self.process_log_file(log_file)
+                try:
+                    self.process_log_file(log_file)
+                except (InvalidCalFile, InvalidCombinedFile) as e:
+                    self.logger.warning("%s", e)
         else:
             self.logger.error("Must provide either --log_file or both --start and --end arguments")
             return
