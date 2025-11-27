@@ -64,7 +64,7 @@
             //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--plot_time", "/longitude_time"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109_cleaned_by_quinn.nc4", "--plot_time", "/longitude_time"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109_cleaned_by_quinn_latlon.nc4", "--plot_time", "/longitude_time"]
-            // Conflicting sizes for nudged_time and data
+            // Conflicting sizes for nudged_time and data - fixed by filtering GPS fixes to be monotonically increasing
             "args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot_time", "/longitude_time"]
         },
         {
@@ -125,7 +125,7 @@
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--plot"]
             //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4", "--plot"]
-            // Conflicting sizes for nudged_time and data
+            // Conflicting sizes for nudged_time and data - fixed by filtering GPS fixes to be monotonically increasing
             "args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot"]
 
         },
@@ -348,11 +348,13 @@
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--no_cleanup", "--clobber"]
             // Has different universals time coodinates for longitude/latitude and depth
             //"args": ["-v", "1", "--auv_name", "tethys", "--start", "20120901T000000", "--end", "20121101T000000", "--noinput", "--no_cleanup"]
-            // Conflicting sizes for nudged_time and data
-            "args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--no_cleanup"
+            // Conflicting sizes for nudged_time and data - fixed by filtering GPS fixes to be monotonically increasing
+            //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--no_cleanup"
             //"args": ["-v", "1", "--auv_name", "brizo", "--start", "20250915T000000", "--end", "20250917T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
-            // No nudged latitude and longitude variables
+            // No nudged latitude and longitude variables - fixed as of 26 Nov 2025
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250915T015535/202509150155_202509151602.nc4", "--no_cleanup"]
+            // Plankitvore deployment for CeNCOOS Syncro
+            "args": ["-v", "1", "--auv_name", "ahi", "--start", "20250401T000000", "--end", "20250502T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
         },
 
     ]

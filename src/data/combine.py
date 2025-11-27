@@ -660,6 +660,17 @@ class Combine_NetCDF:
         """Add nudged longitude and latitude variables to the combined dataset."""
         self._initial_coordinate_qc()
 
+        # Check if GPS fix variables exist
+        if (
+            "nal9602_longitude_fix" not in self.combined_nc
+            or "nal9602_latitude_fix" not in self.combined_nc
+        ):
+            self.logger.warning(
+                "No GPS fix variables found in combined dataset - "
+                "skipping nudged coordinate creation"
+            )
+            return
+
         # Ensure GPS fixes have monotonically increasing timestamps
         gps_lon = self.combined_nc["nal9602_longitude_fix"]
         gps_lat = self.combined_nc["nal9602_latitude_fix"]
