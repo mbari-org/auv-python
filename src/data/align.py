@@ -460,6 +460,17 @@ class Align_NetCDF:
             nav_coords[coord_type] = coord_var
             self.logger.info("Found navigation coordinate: %s", coord_var)
 
+        # Check for required nudged coordinates
+        if "nudged_longitude" not in self.combined_nc or "nudged_latitude" not in self.combined_nc:
+            error_message = (
+                f"Required nudged coordinates not found in {src_file}. "
+                "These are created during combine.py processing when GPS fixes are available. "
+                "Cannot proceed with alignment without nudged coordinates."
+            )
+            raise InvalidCombinedFile(error_message)
+
+        self.logger.info("Found nudged coordinates: nudged_longitude, nudged_latitude")
+
         # Create interpolators for navigation coordinates
         try:
             lat_interp = interp1d(
