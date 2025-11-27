@@ -153,6 +153,7 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
     lon = nav_longitude
     lat = nav_latitude
+
     lon_fix = gps_longitude
     lat_fix = gps_latitude
 

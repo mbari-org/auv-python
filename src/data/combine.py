@@ -659,12 +659,31 @@ class Combine_NetCDF:
     def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:
         """Add nudged longitude and latitude variables to the combined dataset."""
         self._initial_coordinate_qc()
+
+        # Ensure GPS fixes have monotonically increasing timestamps
+        gps_lon = self.combined_nc["nal9602_longitude_fix"]
+        gps_lat = self.combined_nc["nal9602_latitude_fix"]
+        gps_time_coord = gps_lon.coords[gps_lon.dims[0]]
+
+        # Convert to pandas index which handles datetime comparisons properly
+        gps_time_index = gps_time_coord.to_index()
+        gps_monotonic = monotonic_increasing_time_indices(gps_time_index)
+        if not np.all(gps_monotonic):
+            monotonic_count = np.sum(gps_monotonic)
+            self.logger.warning(
+                "Filtered GPS fixes from %d to %d to ensure monotonically increasing timestamps",
+                len(gps_lon),
+                monotonic_count,
+            )
+            gps_lon = gps_lon.isel({gps_lon.dims[0]: gps_monotonic})
+            gps_lat = gps_lat.isel({gps_lat.dims[0]: gps_monotonic})
+
         try:
             nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
                 nav_longitude=self.combined_nc["universals_longitude"],
                 nav_latitude=self.combined_nc["universals_latitude"],
-                gps_longitude=self.combined_nc["nal9602_longitude_fix"],
-                gps_latitude=self.combined_nc["nal9602_latitude_fix"],
+                gps_longitude=gps_lon,
+                gps_latitude=gps_lat,
                 logger=self.logger,
                 auv_name="",
                 mission="",
