@@ -561,6 +561,26 @@ class Combine_NetCDF:
             data_array.attrs = ds[orig_var].attrs.copy()
             data_array.attrs["units"] = "degrees"
             data_array.attrs["coordinates"] = f"{dim_name}"
+        elif len(ds[orig_var].dims) == 2:  # noqa: PLR2004
+            # Handle 2D arrays (time, array_index) - e.g. biolume_raw, digitized_raw_ad_counts_M
+            second_dim_name = ds[orig_var].dims[1]
+            second_dim_size = ds[orig_var].shape[1]
+            self.logger.debug(
+                "Reading 2 dimensional %s data arrays with shape %s",
+                orig_var,
+                ds[orig_var].shape,
+            )
+            data_array = xr.DataArray(
+                ds[orig_var].to_numpy(),
+                dims=[dim_name, second_dim_name],
+                coords={
+                    dim_name: time_coord_data,
+                    second_dim_name: np.arange(second_dim_size),
+                },
+            )
+            data_array.attrs = ds[orig_var].attrs.copy()
+            data_array.attrs["comment"] = f"{orig_var} from group {ds.attrs.get('group_name', '')}"
+            data_array.attrs["coordinates"] = f"{dim_name} {second_dim_name}"
         else:
             data_array = xr.DataArray(
                 ds[orig_var].to_numpy(),
@@ -624,6 +644,94 @@ class Combine_NetCDF:
             self.combined_nc[time_info["consolidated_time_name"]].attrs["comment"] = (
                 f"Consolidated time coordinate from: {mapping_info}"
             )
+
+    def _expand_ubat_to_60hz(self) -> None:
+        """Expand UBAT digitized_raw_ad_counts 2D array into 60hz time series.
+
+        Replaces the 2D array with a 1D 60Hz time series, analogous to how
+        Dorado biolume_raw is stored with a time60hz coordinate.
+        """
+        ubat_var = "wetlabsubat_digitized_raw_ad_counts"
+
+        if ubat_var not in self.combined_nc:
+            self.logger.debug(
+                "No UBAT digitized_raw_ad_counts variable found, skipping 60hz expansion"
+            )
+            return
+
+        self.logger.info("Expanding UBAT %s to 60hz time series", ubat_var)
+
+        # Get the 2D array (time, sample_index)
+        ubat_2d = self.combined_nc[ubat_var]
+
+        if len(ubat_2d.dims) != 2:  # noqa: PLR2004
+            self.logger.warning("UBAT variable is not 2D, skipping 60hz expansion")
+            return
+
+        time_dim = ubat_2d.dims[0]
+        n_samples = ubat_2d.shape[1]
+
+        # Get the time coordinate
+        time_coord = self.combined_nc[time_dim]
+        n_times = len(time_coord)
+
+        # Save original attributes before removing
+        original_attrs = ubat_2d.attrs.copy()
+
+        # Calculate 60hz time offsets (assuming samples span 1 second)
+        # Each sample is 1/60th of a second apart
+        sample_offsets = np.arange(n_samples) / 60.0
+
+        # Create 60hz time series by adding offsets to each 1Hz time
+        time_60hz_list = []
+        for i in range(n_times):
+            base_time = time_coord.to_numpy()[i]
+            # Add offsets to create 60 timestamps per second
+            times_for_this_second = base_time + sample_offsets
+            time_60hz_list.append(times_for_this_second)
+
+        # Flatten the arrays
+        time_60hz = np.concatenate(time_60hz_list)
+        data_60hz = ubat_2d.to_numpy().flatten()
+
+        # Remove the old 2D variable
+        del self.combined_nc[ubat_var]
+
+        # Create new 60hz time coordinate with attributes
+        time_60hz_name = f"{time_dim}_60hz"
+        time_60hz_coord = xr.DataArray(
+            time_60hz,
+            dims=[time_60hz_name],
+            name=time_60hz_name,
+            attrs={
+                "units": "seconds since 1970-01-01T00:00:00Z",
+                "standard_name": "time",
+                "long_name": "Time at 60Hz sampling rate",
+            },
+        )
+
+        # Create replacement 1D variable with 60hz time coordinate
+        self.combined_nc[ubat_var] = xr.DataArray(
+            data_60hz,
+            coords={time_60hz_name: time_60hz_coord},
+            dims=[time_60hz_name],
+            name=ubat_var,
+        )
+
+        # Restore and update attributes
+        self.combined_nc[ubat_var].attrs = original_attrs
+        self.combined_nc[ubat_var].attrs["long_name"] = "UBAT digitized raw AD counts at 60Hz"
+        self.combined_nc[ubat_var].attrs["coordinates"] = time_60hz_name
+        self.combined_nc[ubat_var].attrs["comment"] = (
+            original_attrs.get("comment", "") + " Expanded from 2D to 1D 60Hz time series"
+        )
+
+        self.logger.info(
+            "Replaced 2D %s with 1D 60hz time series: %d samples from %d 1Hz records",
+            ubat_var,
+            len(data_60hz),
+            n_times,
+        )
 
     def _initial_coordinate_qc(self) -> None:
         """Perform initial QC on core coordinate variables for specific log files."""
@@ -783,6 +891,9 @@ class Combine_NetCDF:
 
                 # Collect variable coordinate mapping by group, which can be flattened
                 self.variable_time_coord_mapping.update(time_info["variable_time_coord_mapping"])
+
+        # Expand UBAT 2D arrays to 60hz time series
+        self._expand_ubat_to_60hz()
 
         # Write intermediate file for cf_xarray decoding
         intermediate_file = self._intermediate_write_netcdf()

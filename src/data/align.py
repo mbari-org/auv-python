@@ -538,20 +538,24 @@ class Align_NetCDF:
                 continue
 
             # Try to find the corresponding time coordinate
-            # Look for pattern: group_name + "_time"
-            possible_time_coords = []
-            for i in range(len(var_parts)):
-                group_candidate = "_".join(var_parts[: i + 1])
-                time_coord_candidate = f"{group_candidate}_time"
-                if time_coord_candidate in self.combined_nc:
-                    possible_time_coords.append((group_candidate, time_coord_candidate))
+            # Check what time coordinate the variable actually uses
+            var_dims = self.combined_nc[variable].dims
+            var_time_coords = [dim for dim in var_dims if "time" in dim.lower()]
 
-            if not possible_time_coords:
+            if not var_time_coords:
                 self.logger.warning("No time coordinate found for variable: %s", variable)
                 continue
 
-            # Use the longest matching group name (most specific)
-            group_name, timevar = max(possible_time_coords, key=lambda x: len(x[0]))
+            # Use the time coordinate that the variable actually has
+            timevar = var_time_coords[0]  # Should only be one time dimension
+            # Extract group name from time coordinate
+            if timevar.endswith("_time_60hz"):
+                group_name = timevar[:-10]  # Remove "_time_60hz" (10 chars)
+            elif timevar.endswith("_time"):
+                group_name = timevar[:-5]  # Remove "_time"
+            else:
+                group_name = timevar
+
             self.logger.debug(
                 "Processing %s with group %s and time %s", variable, group_name, timevar
             )
