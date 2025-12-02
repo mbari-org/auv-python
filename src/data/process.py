@@ -561,10 +561,10 @@ class Processor:
         )
         resamp.logger.setLevel(self._log_levels[self.config["verbose"]])
         resamp.logger.addHandler(self.log_handler)
-        file_name = f"{resamp.auv_name}_{resamp.mission}_align.nc"
+        file_name = f"{resamp.auv_name}_{resamp.mission}_align.nc4"
         if resamp.log_file:
             netcdfs_dir = Path(BASE_LRAUV_PATH, Path(resamp.log_file).parent)
-            nc_file = Path(netcdfs_dir, f"{Path(resamp.log_file).stem}_align.nc")
+            nc_file = Path(netcdfs_dir, f"{Path(resamp.log_file).stem}_align.nc4")
         else:
             nc_file = Path(
                 self.config["base_path"],

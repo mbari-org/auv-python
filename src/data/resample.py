@@ -387,7 +387,7 @@ class Resampler:
             if self.log_file:
                 msg = f"A CTD depth was not found in {self.ds.encoding['source']}"
             else:
-                msg = f"{instr}_depth not found in {self.auv_name}_{self.mission}_align.nc"
+                msg = f"{instr}_depth not found in {self.auv_name}_{self.mission}_align.nc4"
             raise InvalidAlignFile(msg) from None
         try:
             self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
@@ -1831,7 +1831,7 @@ class Resampler:
             "standard_name": "time",
             "long_name": "Time (UTC)",
         }
-        out_fn = str(nc_file).replace("_align.nc", f"_{freq}.nc")
+        out_fn = str(nc_file).replace("_align.nc4", f"_{freq}.nc")
         if self.flash_threshold and self.flash_threshold != FLASH_THRESHOLD:
             # Append flash_threshold to output filename
             ft_ending = f"_ft{self.flash_threshold:.0E}.nc".replace("E+", "E")
@@ -1899,9 +1899,9 @@ if __name__ == "__main__":
     resamp.process_command_line()
     if resamp.args.log_file:
         netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(resamp.args.log_file).parent}")
-        nc_file = Path(netcdfs_dir, f"{Path(resamp.args.log_file).stem}_align.nc")
+        nc_file = Path(netcdfs_dir, f"{Path(resamp.args.log_file).stem}_align.nc4")
     else:
-        file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
+        file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc4"
         nc_file = Path(
             BASE_PATH,
             resamp.args.auv_name,

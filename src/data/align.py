@@ -226,10 +226,10 @@ class Align_NetCDF:
         """Process calibrated netCDF file using instance attributes."""
         if self.mission and self.auv_name:
             netcdfs_dir = Path(self.base_path, self.auv_name, MISSIONNETCDFS, self.mission)
-            src_file = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_cal.nc")
+            src_file = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_cal.nc4")
         elif self.log_file:
             netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            src_file = Path(netcdfs_dir, f"{Path(self.log_file).stem}_cal.nc")
+            src_file = Path(netcdfs_dir, f"{Path(self.log_file).stem}_cal.nc4")
         else:
             msg = "Must provide either mission and vehicle or log_file"
             raise ValueError(msg)
@@ -712,9 +712,9 @@ class Align_NetCDF:
         """Write aligned combined data to NetCDF file"""
         if self.log_file:
             # For LRAUV log files, use the log file stem for output name
-            out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_align.nc")
+            out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_align.nc4")
         else:
-            out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_align.nc")
+            out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_align.nc4")
 
         self.aligned_nc.attrs = self.global_metadata()
         self.logger.info("Writing aligned combined data to %s", out_fn)
@@ -730,7 +730,7 @@ class Align_NetCDF:
     def write_netcdf(self, netcdfs_dir: Path) -> None:
         """Write aligned netCDF file using instance attributes."""
         self.aligned_nc.attrs = self.global_metadata()
-        out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_align.nc")
+        out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_align.nc4")
         self.logger.info("Writing aligned data to %s", out_fn)
         if out_fn.exists():
             self.logger.debug("Removing file %s", out_fn)
