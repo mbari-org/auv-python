@@ -117,12 +117,13 @@ class Resampler:
             gitcommit = "<failed to get git commit>"
         iso_now = datetime.now(tz=UTC).isoformat().split(".")[0] + "Z"
 
-        # Ensure that only the latitude and longitude variables have
-        # standard_name attributes equal to "latitude" and "longitude" so that
+        # Ensure that only the latitude, longitude, and depth variables have
+        # standard_name attributes equal to "latitude", "longitude", and "depth" so that
         # the .cf[] accessor works correctly
         for var in self.resampled_nc.data_vars:
-            if self.resampled_nc[var].attrs.get("standard_name") in ["latitude", "longitude"]:
-                if var in {"latitude", "longitude"}:
+            standard_name = self.resampled_nc[var].attrs.get("standard_name")
+            if standard_name in ["latitude", "longitude", "depth"]:
+                if var in {"latitude", "longitude", "depth"}:
                     continue
                 self.logger.info("Removing standard_name attribute from variable %s", var)
                 del self.resampled_nc[var].attrs["standard_name"]
@@ -457,6 +458,7 @@ class Resampler:
         self.df_r["longitude"].index.rename("time", inplace=True)  # noqa: PD002
         self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
         self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
+        self.resampled_nc["depth"].attrs["standard_name"] = "depth"
         self.resampled_nc["depth"].attrs["comment"] += (
             f". {self.ds[f'{instr}_depth'].attrs['comment']}"
             f" mean sampled at {self.freq} intervals following"
