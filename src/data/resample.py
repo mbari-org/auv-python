@@ -488,11 +488,14 @@ class Resampler:
             sunsets: A list of sunset times for each night.
             sunrises: A list of sunrise times for each night.
         """
-        lat = float(self.ds["navigation_latitude"].median())
-        lon = float(self.ds["navigation_longitude"].median())
+        lat_var, lon_var = self._find_lat_lon_variables()
+        lat = float(self.ds[lat_var].median())
+        lon = float(self.ds[lon_var].median())
         self.logger.debug("Getting sun altitudes for nighttime selection")
         sun_alts = []
-        for ts in self.ds["navigation_time"].to_numpy()[::stride]:
+        # Get the time coordinate for the latitude variable
+        time_coord = self.ds[lat_var].dims[0]
+        for ts in self.ds[time_coord].to_numpy()[::stride]:
             # About 10-minute resolution from 5 Hz navigation data
             sun_alts.append(  # noqa: PERF401
                 get_altitude(
@@ -504,9 +507,7 @@ class Resampler:
 
         # Find sunset and sunrise - where sun altitude changes sign
         sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
-        ss_sr_times = (
-            self.ds["navigation_time"].isel({"navigation_time": sign_changes * stride}).to_numpy()
-        )
+        ss_sr_times = self.ds[time_coord].isel({time_coord: sign_changes * stride}).to_numpy()
         self.logger.debug("Sunset and sunrise times: %s", ss_sr_times)
 
         sunsets = []
@@ -546,6 +547,43 @@ class Resampler:
         if not sunsets or not sunrises:
             self.logger.info("No sunset or sunrise found during this mission.")
         return nighttime_bl_raw, sunsets, sunrises
+
+    def _find_lat_lon_variables(self) -> tuple[str, str]:
+        """Find latitude and longitude variables in the dataset.
+
+        Searches for variables ending in _latitude and _longitude.
+        Prefers navigation_, nudged_, or onboard_ prefixes in that order.
+
+        Returns:
+            tuple: (lat_var_name, lon_var_name)
+
+        Raises:
+            KeyError: If no latitude/longitude variables are found
+        """
+        lat_vars = [v for v in self.ds.variables if v.endswith("_latitude")]
+        lon_vars = [v for v in self.ds.variables if v.endswith("_longitude")]
+
+        if not lat_vars or not lon_vars:
+            msg = (
+                f"No latitude/longitude variables found. "
+                f"Available variables: {list(self.ds.variables.keys())}"
+            )
+            raise KeyError(msg)
+
+        # Prefer navigation_, then nudged_, then onboard_, then any other
+        for prefix in ["navigation_", "nudged_", "onboard_"]:
+            for lat_var in lat_vars:
+                if lat_var.startswith(prefix):
+                    lon_var = prefix + "longitude"
+                    if lon_var in lon_vars:
+                        self.logger.debug("Using %s and %s for coordinates", lat_var, lon_var)
+                        return lat_var, lon_var
+
+        # Fall back to first available pair
+        lat_var = lat_vars[0]
+        lon_var = lon_vars[0]
+        self.logger.info("Using first available coordinates: %s and %s", lat_var, lon_var)
+        return lat_var, lon_var
 
     def add_profile(self, depth_threshold: float) -> None:
         # Find depth vertices value using scipy's find_peaks algorithm
@@ -860,6 +898,345 @@ class Resampler:
 
         return fluo, sunsets, sunrises
 
+    def add_wetlabsubat_proxies(  # noqa: PLR0913, PLR0915, C901, PLR0912
+        self,
+        freq,
+        window_size_secs: int = 5,
+        envelope_mini: float = 1.5e10,
+        flash_threshold: float = FLASH_THRESHOLD,
+        proxy_ratio_adinos: float = 3.9811e13,  # Default value for LRAUV
+        proxy_cal_factor: float = 0.00470,  # Default value for LRAUV
+    ) -> tuple[pd.Series, list[datetime], list[datetime]]:
+        """Add biolume proxy variables computed from wetlabsubat_digitized_raw_ad_counts.
+
+        This is parallel to add_biolume_proxies() but for LRAUV wetlabsubat data.
+        Computations follow Appendix B in Messie et al. 2019.
+        https://www.sciencedirect.com/science/article/pii/S0079661118300478
+        """
+        self.logger.info(
+            "Adding wetlabsubat proxy variables computed from wetlabsubat_digitized_raw_ad_counts"
+        )
+        sample_rate = 60  # Assume all digitized_raw_ad_counts data is sampled at 60 Hz
+        window_size = window_size_secs * sample_rate
+
+        # s_ubat_raw includes daytime data - see below for nighttime data
+        s_ubat_raw = self.ds["wetlabsubat_digitized_raw_ad_counts"].to_pandas().dropna()
+
+        # Compute background biolumenesence envelope
+        self.logger.debug("Applying rolling min filter")
+        min_bg_unsmoothed = s_ubat_raw.rolling(
+            window_size,
+            min_periods=0,
+            center=True,
+        ).min()
+        min_bg = (
+            min_bg_unsmoothed.rolling(window_size, min_periods=0, center=True).mean().to_numpy()
+        )
+
+        self.logger.debug("Applying rolling median filter")
+        med_bg_unsmoothed = s_ubat_raw.rolling(
+            window_size,
+            min_periods=0,
+            center=True,
+        ).median()
+        s_med_bg = med_bg_unsmoothed.rolling(
+            window_size,
+            min_periods=0,
+            center=True,
+        ).mean()
+        med_bg = s_med_bg.to_numpy()
+        max_bg = med_bg * 2.0 - min_bg
+        # envelope_mini: minimum value for the envelope (max_bgrd - med_bgrd)
+        # to avoid very dim flashes when the background is low
+        max_bg[max_bg - med_bg < envelope_mini] = (
+            med_bg[max_bg - med_bg < envelope_mini] + envelope_mini
+        )
+
+        # Find the high and low peaks
+        self.logger.debug("Finding peaks")
+        peaks, _ = signal.find_peaks(s_ubat_raw, height=max_bg)
+        s_peaks = pd.Series(s_ubat_raw.iloc[peaks], index=s_ubat_raw.index[peaks])
+        s_med_bg_peaks = pd.Series(s_med_bg.iloc[peaks], index=s_ubat_raw.index[peaks])
+        if self.flash_threshold:
+            flash_threshold = self.flash_threshold
+        flash_threshold_note = f"Computed with flash_threshold = {flash_threshold:.0e}"
+        self.logger.info("Using flash_threshold = %.4e", flash_threshold)
+        nbflash_high = s_peaks[s_peaks > (s_med_bg_peaks + flash_threshold)]
+        nbflash_low = s_peaks[s_peaks <= (s_med_bg_peaks + flash_threshold)]
+
+        # Construct full time series of flashes with NaNs for non-flash values
+        s_nbflash_high = pd.Series(np.nan, index=s_ubat_raw.index)
+        s_nbflash_high.loc[nbflash_high.index] = nbflash_high
+        s_nbflash_low = pd.Series(np.nan, index=s_ubat_raw.index)
+        s_nbflash_low.loc[nbflash_low.index] = nbflash_low
+
+        # Count the number of flashes per second - use 15 second window stepping every second
+        flash_count_seconds = 15
+        flash_window = flash_count_seconds * sample_rate
+        self.logger.debug("Counting flashes using %d second window", flash_count_seconds)
+        nbflash_high_counts = (
+            s_nbflash_high.rolling(flash_window, step=1, min_periods=0, center=True)
+            .count()
+            .resample(freq.lower())
+            .mean()
+            / flash_count_seconds
+        )
+        nbflash_low_counts = (
+            s_nbflash_low.rolling(flash_window, step=1, min_periods=0, center=True)
+            .count()
+            .resample(freq.lower())
+            .mean()
+            / flash_count_seconds
+        )
+
+        # Get flow data - try both flow_rate and flow variable names
+        flow = None
+        if "wetlabsubat_flow_rate" in self.ds:
+            flow = (
+                self.ds[["wetlabsubat_flow_rate"]]["wetlabsubat_flow_rate"]
+                .to_pandas()
+                .resample("1s")
+                .mean()
+                .ffill()
+            )
+            self.logger.info("Using wetlabsubat_flow_rate for flow calculations")
+        elif "wetlabsubat_flow" in self.ds:
+            flow = (
+                self.ds[["wetlabsubat_flow"]]["wetlabsubat_flow"]
+                .to_pandas()
+                .resample("1s")
+                .mean()
+                .ffill()
+            )
+            self.logger.info("Using wetlabsubat_flow for flow calculations")
+
+        # Flow sensor is not always on or may not be present, fill in 0.0 values with 350 ml/s
+        zero_note = ""
+        if flow is None:
+            self.logger.info("No flow data found - using constant 350 ml/s")
+            # Create flow series with same index as resampled data
+            flow = pd.Series(350.0, index=nbflash_high_counts.index)
+            zero_note = "No flow data available - used constant 350 ml/s"
+        else:
+            num_zero_flow = len(np.where(flow == 0)[0])
+            if num_zero_flow > 0:
+                zero_note = (
+                    f"Zero flow values found: {num_zero_flow} of {len(flow)} "
+                    f"- replaced with 350 ml/s"
+                )
+                self.logger.info(zero_note)
+                flow = flow.replace(0.0, 350.0)
+
+        # Compute flashes per liter - pandas.Series.divide() will match indexes
+        # Units: flashes per liter = (flashes per second / mL/s) * 1000 mL/L
+        self.logger.info(
+            "Computing flashes per liter: wetlabsubat_nbflash_high, wetlabsubat_nbflash_low"
+        )
+        self.df_r["wetlabsubat_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
+        self.df_r["wetlabsubat_nbflash_high"].attrs["long_name"] = (
+            "High intensity flashes (copepods proxy)"
+        )
+        self.df_r["wetlabsubat_nbflash_high"].attrs["units"] = "flashes/liter"
+        self.df_r["wetlabsubat_nbflash_high"].attrs["comment"] = (
+            f"{zero_note} - {flash_threshold_note}"
+        )
+
+        self.df_r["wetlabsubat_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
+        self.df_r["wetlabsubat_nbflash_low"].attrs["long_name"] = (
+            "Low intensity flashes (Larvacean proxy)"
+        )
+        self.df_r["wetlabsubat_nbflash_low"].attrs["units"] = "flashes/liter"
+        self.df_r["wetlabsubat_nbflash_low"].attrs["comment"] = (
+            f"{zero_note} - {flash_threshold_note}"
+        )
+
+        # Flash intensity - proxy for small jellies - for entire mission, not just nightime
+        all_raw = self.ds[["wetlabsubat_digitized_raw_ad_counts"]][
+            "wetlabsubat_digitized_raw_ad_counts"
+        ].to_pandas()
+        med_bg_60 = pd.Series(
+            np.interp(all_raw.index, s_med_bg.index, med_bg),
+            index=all_raw.index,
+        )
+        intflash = (
+            (all_raw - med_bg_60)
+            .rolling(flash_window, min_periods=0, center=True)
+            .max()
+            .resample("1s")
+            .mean()
+        )
+        self.logger.info(
+            "Saving flash intensity: wetlabsubat_intflash - "
+            "the upper bound of the background envelope"
+        )
+        self.df_r["wetlabsubat_intflash"] = intflash
+        self.df_r["wetlabsubat_intflash"].attrs["long_name"] = (
+            "Flashes intensity (small jellies proxy)"
+        )
+        self.df_r["wetlabsubat_intflash"].attrs["units"] = "counts"
+        self.df_r["wetlabsubat_intflash"].attrs["comment"] = (
+            f"intensity of flashes from {sample_rate} Hz "
+            f"wetlabsubat_digitized_raw_ad_counts variable in {freq} intervals."
+        )
+
+        # Make min_bg a 1S pd.Series so that we can divide by flow, matching indexes
+        s_min_bg = min_bg_unsmoothed.rolling(
+            window_size,
+            min_periods=0,
+            center=True,
+        ).mean()
+        bg_biolume = pd.Series(s_min_bg, index=s_ubat_raw.index).resample("1s").mean()
+        self.logger.info("Saving Background bioluminescence (dinoflagellates proxy)")
+        self.df_r["wetlabsubat_bg_biolume"] = bg_biolume.divide(flow) * 1000
+        self.df_r["wetlabsubat_bg_biolume"].attrs["long_name"] = (
+            "Background bioluminescence (dinoflagellates proxy)"
+        )
+        self.df_r["wetlabsubat_bg_biolume"].attrs["units"] = "counts/liter"
+        self.df_r["wetlabsubat_bg_biolume"].attrs["comment"] = zero_note
+
+        fluo = None
+        nighttime_ubat_raw, sunsets, sunrises = self.select_nighttime_ubat_raw()
+        if nighttime_ubat_raw.empty:
+            self.logger.info(
+                "No nighttime wetlabsubat data to compute adinos, diatoms, hdinos proxies",
+            )
+        else:
+            # (2) Phytoplankton proxies - look for wetlabsbb2fl fluorescence/chlorophyll data
+            fluo_var = None
+            for var in self.resampled_nc.variables:
+                if "wetlabsbb2fl" in var.lower() and (
+                    "fl" in var.lower() or "chlorophyll" in var.lower()
+                ):
+                    fluo_var = var
+                    break
+
+            if fluo_var is None:
+                self.logger.info(
+                    "No wetlabsbb2fl fluorescence data found. "
+                    "Not computing adinos, diatoms, and hdinos"
+                )
+                return fluo, sunsets, sunrises
+
+            self.logger.info("Using %s for phytoplankton proxy calculations", fluo_var)
+            fluo = (
+                self.resampled_nc[fluo_var]
+                .where(
+                    (self.resampled_nc["time"] > min(sunsets))
+                    & (self.resampled_nc["time"] < max(sunrises)),
+                )
+                .to_pandas()
+                .resample(freq.lower())
+                .mean()
+            )
+            # Set negative values from fluorescence to NaN
+            fluo[fluo < 0] = np.nan
+            self.logger.info("Using proxy_ratio_adinos = %.4e", proxy_ratio_adinos)
+            self.logger.info("Using proxy_cal_factor = %.6f", proxy_cal_factor)
+
+            nighttime_bg_biolume = (
+                pd.Series(s_min_bg, index=nighttime_ubat_raw.index).resample("1s").mean()
+            )
+            nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow) * 1000
+            pseudo_fluorescence = nighttime_bg_biolume_perliter / proxy_ratio_adinos
+            self.df_r["wetlabsubat_proxy_adinos"] = (
+                np.minimum(fluo, pseudo_fluorescence) / proxy_cal_factor
+            )
+            self.df_r["wetlabsubat_proxy_adinos"].attrs["comment"] = (
+                f"Autotrophic dinoflagellate proxy using proxy_ratio_adinos"
+                f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
+            )
+            self.df_r["wetlabsubat_proxy_hdinos"] = (
+                pseudo_fluorescence - np.minimum(fluo, pseudo_fluorescence)
+            ) / proxy_cal_factor
+            self.df_r["wetlabsubat_proxy_hdinos"].attrs["comment"] = (
+                f"Heterotrophic dinoflagellate proxy using proxy_ratio_adinos"
+                f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
+            )
+            wetlabsubat_proxy_diatoms = (fluo - pseudo_fluorescence) / proxy_cal_factor
+            wetlabsubat_proxy_diatoms[wetlabsubat_proxy_diatoms < 0] = 0
+            self.df_r["wetlabsubat_proxy_diatoms"] = wetlabsubat_proxy_diatoms
+            self.df_r["wetlabsubat_proxy_diatoms"].attrs["comment"] = (
+                f"Diatom proxy using proxy_ratio_adinos"
+                f" = {proxy_ratio_adinos:.4e} and proxy_cal_factor = {proxy_cal_factor:.6f}"
+            )
+
+        return fluo, sunsets, sunrises
+
+    def select_nighttime_ubat_raw(
+        self,
+        stride: int = 3000,
+    ) -> tuple[pd.Series, list[datetime], list[datetime]]:
+        """
+        Select nighttime wetlabsubat_digitized_raw_ad_counts data for multiple nights in a mission.
+        Parallel to select_nighttime_bl_raw() but for LRAUV wetlabsubat data.
+        Default stride of 3000 gives 10-minute resolution from 5 Hz navigation data.
+
+        Returns:
+            nighttime_ubat_raw: A pandas Series containing nighttime ubat data.
+            sunsets: A list of sunset times for each night.
+            sunrises: A list of sunrise times for each night.
+        """
+        lat_var, lon_var = self._find_lat_lon_variables()
+        lat = float(self.ds[lat_var].median())
+        lon = float(self.ds[lon_var].median())
+        self.logger.debug("Getting sun altitudes for nighttime selection")
+        sun_alts = []
+        # Get the time coordinate for the latitude variable
+        time_coord = self.ds[lat_var].dims[0]
+        for ts in self.ds[time_coord].to_numpy()[::stride]:
+            # About 10-minute resolution from 5 Hz navigation data
+            sun_alts.append(  # noqa: PERF401
+                get_altitude(
+                    lat,
+                    lon,
+                    datetime.fromtimestamp(ts.astype(int) / 1.0e9, tz=UTC),
+                ),
+            )
+
+        # Find sunset and sunrise - where sun altitude changes sign
+        sign_changes = np.where(np.diff(np.sign(sun_alts)))[0]
+        ss_sr_times = self.ds[time_coord].isel({time_coord: sign_changes * stride}).to_numpy()
+        self.logger.debug("Sunset and sunrise times: %s", ss_sr_times)
+
+        sunsets = []
+        sunrises = []
+        nighttime_ubat_raw = pd.Series(dtype="float64")
+
+        # Iterate over sunset and sunrise pairs
+        for i in range(0, len(ss_sr_times) - 1, 2):
+            sunset = ss_sr_times[i] + pd.to_timedelta(1, "h")  # 1 hour past sunset
+            sunrise = ss_sr_times[i + 1] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
+            sunsets.append(sunset)
+            sunrises.append(sunrise)
+
+            self.logger.info(
+                "Extracting wetlabsubat_digitized_raw_ad_counts data "
+                "between sunset %s and sunrise %s",
+                sunset,
+                sunrise,
+            )
+            nighttime_data = (
+                self.ds["wetlabsubat_digitized_raw_ad_counts"]
+                .where(
+                    (self.ds["wetlabsubat_time_60hz"] > sunset)
+                    & (self.ds["wetlabsubat_time_60hz"] < sunrise),
+                )
+                .to_pandas()
+                .dropna()
+            )
+            # This complication is needed because concat will not like an empty DataFrame
+            nighttime_ubat_raw = (
+                nighttime_ubat_raw.copy()
+                if nighttime_data.empty
+                else nighttime_data.copy()
+                if nighttime_ubat_raw.empty
+                else pd.concat([nighttime_ubat_raw, nighttime_data])  # if both DataFrames non empty
+            )
+
+        if not sunsets or not sunrises:
+            self.logger.info("No sunset or sunrise found during this mission.")
+        return nighttime_ubat_raw, sunsets, sunrises
+
     def correct_biolume_proxies(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         biolume_fluo: pd.Series,  # from add_biolume_proxies
@@ -1138,6 +1515,16 @@ class Resampler:
                 biolume_sunrises,
                 depth_threshold,
             )
+        elif instr == "wetlabsubat" and variable == "wetlabsubat_digitized_raw_ad_counts":
+            # All wetlabsubat proxy variables are computed from wetlabsubat_digitized_raw_ad_counts
+            # Use default parameters for LRAUV - these may need adjustment in the future
+            proxy_cal_factor = 0.00470
+            proxy_ratio_adinos = 3.9811e13
+            self.add_wetlabsubat_proxies(
+                freq=freq,
+                proxy_cal_factor=proxy_cal_factor,
+                proxy_ratio_adinos=proxy_ratio_adinos,
+            )
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
             self.df_o[f"{variable}_mf"] = (
@@ -1352,6 +1739,28 @@ class Resampler:
             for variable in variables:
                 if instr == "biolume" and variable == "biolume_raw":
                     # resample_variable() creates new proxy variables
+                    # not in the original align.nc file
+                    self.resample_variable(
+                        instr,
+                        variable,
+                        mf_width,
+                        freq,
+                        mission_start,
+                        mission_end,
+                        instrs_to_pad,
+                        depth_threshold,
+                    )
+                    for var in self.df_r:
+                        if var not in variables:
+                            # save new proxy variable
+                            self.df_r[var].index.rename("time", inplace=True)  # noqa: PD002
+                            self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var].attrs = self.df_r[var].attrs
+                            self.resampled_nc[var].attrs["coordinates"] = (
+                                "time depth latitude longitude"
+                            )
+                elif instr == "wetlabsubat" and variable == "wetlabsubat_digitized_raw_ad_counts":
+                    # resample_variable() creates new proxy variables for LRAUV
                     # not in the original align.nc file
                     self.resample_variable(
                         instr,
