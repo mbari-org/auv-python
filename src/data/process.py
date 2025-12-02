@@ -104,7 +104,7 @@ def log_file_processor(func):
         t_start = time.time()
         try:
             return func(self, log_file)
-        except (TestMission, FailedMission) as e:
+        except (TestMission, FailedMission, EOFError) as e:
             self.logger.info(str(e))
         finally:
             if hasattr(self, "log_handler"):
