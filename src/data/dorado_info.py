@@ -2293,7 +2293,7 @@ dorado_info["2017.304.00"] = {
         "Overnight diamond pattern for CANON September 2017"
         " Bad blocks in hs2 data"
         " QC note: Best CTD is ctd2, ctd2 not great but better for salt although a couple screwey profiles in temp"
-        " - ctdToUse = ctd1 "
+        " - ctdToUse = ctd2 "
     ),
 }
 dorado_info["2017.347.00"] = {
@@ -2951,7 +2951,7 @@ dorado_info["2025.281.01"] = {
     "comment": (
         "Monterey Bay MBTS Mission - 28125G"
         " ISUS, and LISST payloads removed, biolume payload re-installed "
-        " - ctdToUse = ctd2 "
+        " - ctdToUse = ctd1 "
     ),
 }
 dorado_info["2025.316.02"] = {

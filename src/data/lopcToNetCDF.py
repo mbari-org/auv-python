@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 __author__ = "Mike McCann"
-__version__ = "$Revision: 1.43 $".split()[1]
-__date__ = "$Date: 2020/11/23 21:40:04 $".split()[1]
+__version__ = ["$Revision:", "1.43", "$"][1]
+__date__ = ["$Date:", "2020/11/23", "21:40:04", "$"][1]
 __copyright__ = "2009"
 __license__ = "GPL v3"
 __contact__ = "mccann at mbari.org"
@@ -1895,7 +1895,7 @@ class LOPC_Processor:
             " produced by the LOPC instrument.  The data in this file are to be"
             " considered as simple time series data only and are as close to the"
             " original data as possible.  Further processing is required to turn"
-            " the data into a time series of profiles."
+            " the data into a time series of profiles"
         )
         self.ncFile.keywords = "plankton, particles, detritus, marine snow, particle counter"
         self.ncFile.Conventions = "CF-1.6"

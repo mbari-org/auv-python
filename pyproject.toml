@@ -14,6 +14,7 @@ dependencies = [
     "datashader>=0.18.1",
     "defusedxml>=0.7.1",
     "gitpython>=3.1.44",
+    "gsw>=3.6.20",
     "hvplot>=0.11.3",
     "ipympl>=0.9.7",
     "jupyter>=1.1.1",
@@ -109,3 +110,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "src/data/dorado_info.py" = ["E501"]
+# Legacy module names that don't follow PEP 8 naming convention
+"src/data/AUV.py" = ["N999"]
+"src/data/BLFilter.py" = ["N999"] 
+"src/data/lopcMEP.py" = ["N999"]
+"src/data/lopcToNetCDF.py" = ["N999"]
+"src/data/process_Dorado389.py" = ["N999"]
+"src/data/usblToNetCDF.py" = ["N999"]

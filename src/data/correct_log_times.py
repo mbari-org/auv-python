@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from shutil import copyfile
 
-from AUV import AUV
 from logs2netcdfs import AUV_NetCDF
 from readauvlog import log_record
 
@@ -41,7 +40,7 @@ DEPLOYMENTS_URL = Path(PORTAL_BASE, "deployments")
 TIME = "time"
 
 
-class TimeCorrect(AUV):
+class TimeCorrect:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _handler.setFormatter(AUV_NetCDF._formatter)

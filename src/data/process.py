@@ -1,13 +1,26 @@
 #!/usr/bin/env python
 """
-Base module for data processing.
+Base module for data processing for Dorado class and LRAUV class data.
 
 Run the data through standard science data processing to calibrated,
 aligned, and resampled netCDF files.  Use a standard set of processing options;
 more flexibility is available via the inndividual processing modules.
 
+The desire is to reuse as much code as possible between Dorado class
+and LRAUV class data processing. The initial steps of creating the _cal.nc
+files differ because Dorado class data are raw binary log files that need to be
+processed to _nc files, while LRAUV class data are NetCDF4 log files that
+already contain much of the necessary information. The initial step for Dorado
+class data are: download_process and calibrate, while for LRAUV class data
+are: extract and combine. After that, the processing steps are similar with
+the data in a local directory organized similarly to their institutional
+archives.
+
+Dorado class data processing:
+=============================
+
 Limit processing to specific steps by providing arugments:
-    --download_process
+    --download_process (logs2netcdf.py & lopcToNetCDF.py)
     --calibrate
     --align
     --resample
@@ -18,6 +31,21 @@ Limit processing to specific steps by providing arugments:
 If none provided then perform all steps.
 
 Uses command line arguments from logs2netcdf.py and calibrate.py.
+
+
+LRAUV class data processing:
+============================
+
+Limit processing to specific steps by providing arugments:
+    --extract (nc42netcdfs.py)
+    --combine
+    --align
+    --resample
+    --archive
+    --create_products
+    --email_to
+    --cleanup
+If none provided then perform all steps.
 """
 
 __author__ = "Mike McCann"
@@ -37,14 +65,16 @@ from getpass import getuser
 from pathlib import Path
 from socket import gethostname
 
-from align import Align_NetCDF, InvalidCalFile
+from align import Align_NetCDF, InvalidCalFile, InvalidCombinedFile
 from archive import LOG_NAME, Archiver
 from calibrate import EXPECTED_SENSORS, Calibrate_NetCDF
+from combine import Combine_NetCDF
 from create_products import CreateProducts
 from dorado_info import FAILED, TEST, dorado_info
 from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
+from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB, Extract
 from resample import (
     AUVCTD_OPENDAP_BASE,
     FLASH_THRESHOLD,
@@ -67,6 +97,29 @@ class FailedMission(Exception):
     pass
 
 
+def log_file_processor(func):
+    """Decorator to handle LRAUV log_file processing exceptions and cleanup."""
+
+    def wrapper(self, log_file: str):
+        t_start = time.time()
+        try:
+            return func(self, log_file)
+        except (TestMission, FailedMission) as e:
+            self.logger.info(str(e))
+        finally:
+            if hasattr(self, "log_handler"):
+                # Cleanup and archiving logic
+                self.archive(mission=None, log_file=log_file)
+                if not self.config.get("no_cleanup"):
+                    self.cleanup(log_file=log_file)
+                self.logger.info(
+                    "log_file %s took %.1f seconds to process", log_file, time.time() - t_start
+                )
+                self.logger.removeHandler(self.log_handler)
+
+    return wrapper
+
+
 class Processor:
     """
     Base class for data processing. Run the data through standard science data
@@ -79,15 +132,117 @@ class Processor:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self, vehicle, vehicle_dir, mount_dir, calibration_dir) -> None:
+    def __init__(self, auv_name, vehicle_dir, mount_dir, calibration_dir, config=None) -> None:  # noqa: PLR0913
         # Variables to be set by subclasses, e.g.:
-        # vehicle = "i2map"
+        # auv_name = "i2map"
         # vehicle_dir = "/Volumes/M3/master/i2MAP"
         # mount_dir = "smb://thalassa.shore.mbari.org/M3"
-        self.vehicle = vehicle
+        self.auv_name = auv_name
         self.vehicle_dir = vehicle_dir
         self.mount_dir = mount_dir
         self.calibration_dir = calibration_dir
+        self.config = config or {}
+
+    # Configuration schema with defaults - shared between from_args and common_config
+    _CONFIG_SCHEMA = {
+        # Core configuration
+        "base_path": BASE_PATH,
+        "local": False,
+        "noinput": False,
+        "clobber": False,
+        "noreprocess": False,
+        "use_portal": False,
+        "add_seconds": None,
+        "verbose": 0,
+        "freq": FREQ,
+        "mf_width": MF_WIDTH,
+        "flash_threshold": None,
+        "log_file": None,
+        # Processing control
+        "download_process": False,
+        "calibrate": False,
+        "align": False,
+        "resample": False,
+        "archive": False,
+        "create_products": False,
+        "email_to": None,
+        "cleanup": False,
+        "no_cleanup": False,
+        "skip_download_process": False,
+        "archive_only_products": False,
+        "num_cores": None,
+        # Filtering/processing params (only used in from_args, not common_config)
+        "start_year": None,
+        "end_year": None,
+        "start_yd": None,
+        "end_yd": None,
+        "last_n_days": None,
+        "mission": None,
+        "start": None,  # LRAUV datetime filtering
+        "end": None,  # LRAUV datetime filtering
+        "auv_name": None,  # LRAUV AUV name filtering
+    }
+
+    # Subset of config schema that should be passed to child processes
+    _CHILD_CONFIG_KEYS = {
+        "base_path",
+        "local",
+        "noinput",
+        "clobber",
+        "noreprocess",
+        "use_portal",
+        "add_seconds",
+        "verbose",
+        "freq",
+        "mf_width",
+        "flash_threshold",
+        "log_file",
+        "download_process",
+        "calibrate",
+        "align",
+        "resample",
+        "archive",
+        "create_products",
+        "email_to",
+        "cleanup",
+        "no_cleanup",
+        "skip_download_process",
+        "archive_only_products",
+        "num_cores",
+    }
+
+    @property
+    def common_config(self):
+        """Get common configuration used by all child processes"""
+        return {
+            key: self.config.get(key, self._CONFIG_SCHEMA[key]) for key in self._CHILD_CONFIG_KEYS
+        }
+
+    def _create_child_namespace(self, **overrides):
+        """Create args namespace for child processes with config overrides"""
+        config = {**self.common_config, **overrides}
+
+        namespace = argparse.Namespace()
+        for key, value in config.items():
+            setattr(namespace, key, value)
+        return namespace
+
+    @classmethod
+    def from_args(cls, auv_name, vehicle_dir, mount_dir, calibration_dir, args):  # noqa: PLR0913
+        """Factory method to create Processor from argparse namespace"""
+        config = {}
+        for key, default_value in cls._CONFIG_SCHEMA.items():
+            # Handle special cases for args that might not exist or have different names
+            if key == "add_seconds":
+                config[key] = getattr(args, "add_seconds", default_value)
+            else:
+                config[key] = getattr(args, key, default_value)
+
+        instance = cls(auv_name, vehicle_dir, mount_dir, calibration_dir, config)
+        instance.args = args  # Keep reference for compatibility
+        instance.commandline = " ".join(sys.argv)  # Set commandline attribute
+        instance.logger.setLevel(instance._log_levels[args.verbose])  # Set logger level
+        return instance
 
     def mission_list(self, start_year: int, end_year: int) -> dict:
         """Return a dictionary of source directories keyed by mission name."""
@@ -103,11 +258,11 @@ class Processor:
         else:
             find_cmd = f'find {safe_vehicle_dir} -regex "{REGEX}"'
         self.logger.debug("Executing %s", find_cmd)
-        if self.args.last_n_days:
+        if self.config.get("last_n_days"):
             self.logger.info(
-                "Will be looking back %d days for new missions...", self.args.last_n_days
+                "Will be looking back %d days for new missions...", self.config["last_n_days"]
             )
-            find_cmd += f" -mtime -{self.args.last_n_days}"
+            find_cmd += f" -mtime -{self.config['last_n_days']}"
         self.logger.info("Finding missions from %s to %s", start_year, end_year)
         # Can be time consuming - use to discover missions
         lines = subprocess.getoutput(f"{find_cmd} | sort").split("\n")  # noqa: S605
@@ -128,20 +283,139 @@ class Processor:
                 self.logger.warning("Cannot parse year from %s", mission)
         return missions
 
+    def _parse_datetime_string(self, datetime_str: str) -> datetime | None:
+        """Parse datetime string in YYYYMMDDTHHMMSS format."""
+        try:
+            return datetime.strptime(datetime_str, "%Y%m%dT%H%M%S").replace(tzinfo=UTC)
+        except ValueError:
+            return None
+
+    def _normalize_datetime_dir(self, dir_datetime_str: str) -> str:
+        """Normalize datetime directory name to YYYYMMDDTHHMMSS format."""
+        if "T" not in dir_datetime_str:
+            return ""
+
+        PARTIAL_DATETIME_LEN = 13  # YYYYMMDDTHHNN format
+        SHORT_DATETIME_LEN = 11  # YYYYMMDDTHH format
+
+        if len(dir_datetime_str) == PARTIAL_DATETIME_LEN:
+            return dir_datetime_str + "00"  # Add seconds
+        if len(dir_datetime_str) == SHORT_DATETIME_LEN:
+            return dir_datetime_str + "0000"  # Add minutes and seconds
+        return dir_datetime_str
+
+    def _find_log_files_in_datetime_dir(
+        self, datetime_dir: Path, start_dt: datetime, end_dt: datetime
+    ) -> list:
+        """Find log files in a datetime directory if it's in range."""
+        log_files = []
+
+        # Normalize and parse directory datetime
+        normalized_str = self._normalize_datetime_dir(datetime_dir.name)
+        if not normalized_str:
+            return log_files
+
+        dir_dt = self._parse_datetime_string(normalized_str)
+        if not dir_dt:
+            return log_files
+
+        # Check if directory datetime is in range
+        if start_dt <= dir_dt <= end_dt:
+            # Look for main log file (*.nc4 file)
+            nc4_files = list(datetime_dir.glob("*.nc4"))
+            if nc4_files:
+                relative_path = str(nc4_files[0].relative_to(Path(self.vehicle_dir)))
+                log_files.append(relative_path)
+                self.logger.debug("Found log file: %s", relative_path)
+
+        return log_files
+
+    def _should_process_auv_dir(self, auv_dir: Path, auv_name: str) -> bool:
+        """Check if an AUV directory should be processed based on auv_name filter."""
+        if auv_name and auv_dir.name.lower() != auv_name.lower():
+            return False
+
+        missionlogs_dir = auv_dir / "missionlogs"
+        return missionlogs_dir.exists()
+
+    def log_file_list(self, start_datetime: str, end_datetime: str, auv_name: str = None) -> list:
+        """Return a list of LRAUV log files within the specified datetime range.
+
+        Args:
+            start_datetime: Start datetime in YYYYMMDDTHHMMSS format
+            end_datetime: End datetime in YYYYMMDDTHHMMSS format
+            auv_name: Optional AUV name to filter results (e.g., 'brizo', 'ahi')
+
+        Returns:
+            List of log file paths relative to base_path
+        """
+        log_files = []
+        vehicle_dir = Path(self.vehicle_dir).resolve()
+
+        # Parse datetime strings
+        start_dt = self._parse_datetime_string(start_datetime)
+        end_dt = self._parse_datetime_string(end_datetime)
+
+        if not start_dt or not end_dt:
+            self.logger.exception("Invalid datetime format. Use YYYYMMDDTHHMMSS")
+            return log_files
+
+        if auv_name:
+            self.logger.info(
+                "Finding log files from %s to %s for AUV: %s",
+                start_datetime,
+                end_datetime,
+                auv_name,
+            )
+        else:
+            self.logger.info(
+                "Finding log files from %s to %s for all AUVs",
+                start_datetime,
+                end_datetime,
+            )
+
+        # Search through each AUV directory
+        for auv_dir in vehicle_dir.glob("*/"):
+            if not self._should_process_auv_dir(auv_dir, auv_name):
+                continue
+
+            missionlogs_dir = auv_dir / "missionlogs"
+
+            # Search through years
+            for year_dir in sorted(missionlogs_dir.glob("*/")):
+                try:
+                    year = int(year_dir.name)
+                    # Skip if year is clearly outside our range
+                    if year < start_dt.year or year > end_dt.year:
+                        continue
+                except ValueError:
+                    continue
+
+                # Search through date range directories and datetime directories
+                for date_range_dir in year_dir.glob("*/"):
+                    for datetime_dir in date_range_dir.glob("*/"):
+                        files_found = self._find_log_files_in_datetime_dir(
+                            datetime_dir, start_dt, end_dt
+                        )
+                        log_files.extend(files_found)
+
+        self.logger.info("Found %d log files in date range", len(log_files))
+        return log_files
+
     def get_mission_dir(self, mission: str) -> str:
         """Return the mission directory."""
         if not Path(self.vehicle_dir).exists():
             self.logger.error("%s does not exist.", self.vehicle_dir)
             self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
-        if self.vehicle.lower() == "dorado" or self.vehicle == "Dorado389":
-            if self.args.local:
+        if self.auv_name.lower() == "dorado" or self.auv_name == "Dorado389":
+            if self.config.get("local"):
                 path = Path(self.vehicle_dir, mission)
             else:
                 year = mission.split(".")[0]
                 yearyd = "".join(mission.split(".")[:2])
                 path = Path(self.vehicle_dir, year, yearyd, mission)
-        elif self.vehicle.lower() == "i2map":
+        elif self.auv_name.lower() == "i2map":
             year = int(mission.split(".")[0])
             # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
             # but use the mission_list() method to find the mission dir instead
@@ -152,8 +426,8 @@ class Processor:
                 self.logger.error("Cannot find %s in %s", mission, self.vehicle_dir)
                 error_message = f"Cannot find {mission} in {self.vehicle_dir}"
                 raise FileNotFoundError(error_message)
-        elif self.vehicle == "Dorado389":
-            # The Dorado389 vehicle is a special case used for testing locally and in CI
+        elif self.auv_name == "Dorado389":
+            # The Dorado389 auv_name is a special case used for testing locally and in CI
             path = self.vehicle_dir
         if not Path(path).exists():
             self.logger.error("%s does not exist.", path)
@@ -163,29 +437,29 @@ class Processor:
 
     def download_process(self, mission: str, src_dir: str) -> None:
         self.logger.info("Download and processing steps for %s", mission)
-        auv_netcdf = AUV_NetCDF()
-        auv_netcdf.args = argparse.Namespace()
-        auv_netcdf.args.base_path = self.args.base_path
-        auv_netcdf.args.local = self.args.local
-        auv_netcdf.args.noinput = self.args.noinput
-        auv_netcdf.args.clobber = self.args.clobber
-        auv_netcdf.args.noreprocess = self.args.noreprocess
-        auv_netcdf.args.auv_name = self.vehicle
-        auv_netcdf.args.mission = mission
-        auv_netcdf.args.use_portal = self.args.use_portal
-        auv_netcdf.args.add_seconds = self.args.add_seconds
+        auv_netcdf = AUV_NetCDF(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=str(self.config["base_path"]),
+            local=self.config["local"],
+            noinput=self.config["noinput"],
+            clobber=self.config["clobber"],
+            noreprocess=self.config["noreprocess"],
+            use_portal=self.config["use_portal"],
+            add_seconds=self.config["add_seconds"],
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
         auv_netcdf.set_portal()
-        auv_netcdf.args.verbose = self.args.verbose
-        auv_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        auv_netcdf.logger.setLevel(self._log_levels[self.config["verbose"]])
         auv_netcdf.logger.addHandler(self.log_handler)
-        auv_netcdf.commandline = self.commandline
         auv_netcdf.download_process_logs(src_dir=src_dir)
         auv_netcdf.logger.removeHandler(self.log_handler)
 
         # Run lopcToNetCDF.py - mimic log message from logs2netcdfs.py
         lopc_bin = Path(
-            self.args.base_path,
-            self.vehicle,
+            self.config["base_path"],
+            self.auv_name,
             MISSIONLOGS,
             mission,
             "lopc.bin",
@@ -193,30 +467,29 @@ class Processor:
         try:
             file_size = Path(lopc_bin).stat().st_size
         except FileNotFoundError:
-            if "lopc" in EXPECTED_SENSORS[self.vehicle]:
+            if "lopc" in EXPECTED_SENSORS[self.auv_name]:
                 self.logger.warning("No lopc.bin file for %s", mission)
             return
         self.logger.info("Processing file %s (%d bytes)", lopc_bin, file_size)
         lopc_processor = LOPC_Processor()
-        lopc_processor.args = argparse.Namespace()
-        lopc_processor.args.bin_fileName = lopc_bin
-        lopc_processor.args.netCDF_fileName = os.path.join(  # noqa: PTH118 This is an arg, keep it a string
-            self.args.base_path,
-            self.vehicle,
-            MISSIONNETCDFS,
-            mission,
-            "lopc.nc",
+        lopc_processor.args = self._create_child_namespace(
+            bin_fileName=lopc_bin,
+            netCDF_fileName=os.path.join(  # noqa: PTH118 This is an arg, keep it a string
+                self.config["base_path"],
+                self.auv_name,
+                MISSIONNETCDFS,
+                mission,
+                "lopc.nc",
+            ),
+            text_fileName="",
+            trans_AIcrit=0.4,
+            LargeCopepod_AIcrit=0.6,
+            LargeCopepod_ESDmin=1100.0,
+            LargeCopepod_ESDmax=1700.0,
+            debugLevel=0,
+            force=self.config["clobber"],
         )
-        lopc_processor.args.text_fileName = ""
-        lopc_processor.args.trans_AIcrit = 0.4
-        lopc_processor.args.LargeCopepod_AIcrit = 0.6
-        lopc_processor.args.LargeCopepod_ESDmin = 1100.0
-        lopc_processor.args.LargeCopepod_ESDmax = 1700.0
-        lopc_processor.args.verbose = self.args.verbose
-        lopc_processor.args.debugLevel = 0
-        lopc_processor.args.force = self.args.clobber
-        lopc_processor.args.noinput = self.args.noinput
-        lopc_processor.logger.setLevel(self._log_levels[self.args.verbose])
+        lopc_processor.logger.setLevel(self._log_levels[self.config["verbose"]])
         lopc_processor.logger.addHandler(self.log_handler)
         try:
             lopc_processor.main()
@@ -226,21 +499,20 @@ class Processor:
 
     def calibrate(self, mission: str) -> None:
         self.logger.info("Calibration steps for %s", mission)
-        cal_netcdf = Calibrate_NetCDF()
-        cal_netcdf.args = argparse.Namespace()
-        cal_netcdf.args.base_path = self.args.base_path
-        cal_netcdf.args.local = self.args.local
-        cal_netcdf.args.noinput = self.args.noinput
-        cal_netcdf.args.clobber = self.args.clobber
-        cal_netcdf.args.noreprocess = self.args.noreprocess
-        cal_netcdf.args.auv_name = self.vehicle
-        cal_netcdf.args.mission = mission
-        cal_netcdf.args.plot = None
-        cal_netcdf.calibration_dir = self.calibration_dir
-        cal_netcdf.args.verbose = self.args.verbose
-        cal_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+        cal_netcdf = Calibrate_NetCDF(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=self.config["base_path"],
+            calibration_dir=self.calibration_dir,
+            plot=None,
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+            local=self.config["local"],
+            noinput=self.config["noinput"],
+            clobber=self.config["clobber"],
+            noreprocess=self.config["noreprocess"],
+        )
         cal_netcdf.logger.addHandler(self.log_handler)
-        cal_netcdf.commandline = self.commandline
         try:
             netcdf_dir = cal_netcdf.process_logs()
             cal_netcdf.write_netcdf(netcdf_dir)
@@ -248,21 +520,25 @@ class Processor:
             cal_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
         cal_netcdf.logger.removeHandler(self.log_handler)
 
-    def align(self, mission: str) -> None:
-        self.logger.info("Alignment steps for %s", mission)
-        align_netcdf = Align_NetCDF()
-        align_netcdf.args = argparse.Namespace()
-        align_netcdf.args.base_path = self.args.base_path
-        align_netcdf.args.auv_name = self.vehicle
-        align_netcdf.args.mission = mission
-        align_netcdf.args.plot = None
-        align_netcdf.args.verbose = self.args.verbose
-        align_netcdf.logger.setLevel(self._log_levels[self.args.verbose])
+    def align(self, mission: str = "", log_file: str = "") -> None:
+        self.logger.info("Alignment steps for %s", mission or log_file)
+        align_netcdf = Align_NetCDF(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=self.config["base_path"],
+            log_file=log_file,
+            plot=None,
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
         align_netcdf.logger.addHandler(self.log_handler)
-        align_netcdf.commandline = self.commandline
         try:
-            netcdf_dir = align_netcdf.process_cal()
-            align_netcdf.write_netcdf(netcdf_dir)
+            if log_file:
+                netcdf_dir = align_netcdf.process_combined()
+                align_netcdf.write_combined_netcdf(netcdf_dir)
+            else:
+                netcdf_dir = align_netcdf.process_cal()
+                align_netcdf.write_combined_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
             align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
             error_message = f"{mission} {e}"
@@ -270,37 +546,42 @@ class Processor:
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 
-    def resample(self, mission: str) -> None:
+    def resample(self, mission: str = "", log_file: str = "") -> None:
         self.logger.info("Resampling steps for %s", mission)
-        resamp = Resampler()
-        resamp.args = argparse.Namespace()
-        resamp.args.auv_name = self.vehicle
-        resamp.args.mission = mission
-        resamp.args.plot = None
-        resamp.args.freq = self.args.freq
-        resamp.args.mf_width = self.args.mf_width
-        resamp.args.flash_threshold = self.args.flash_threshold
-        resamp.commandline = self.commandline
-        resamp.args.verbose = self.args.verbose
-        resamp.logger.setLevel(self._log_levels[self.args.verbose])
-        resamp.logger.addHandler(self.log_handler)
-        file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc"
-        nc_file = Path(
-            self.args.base_path,
-            resamp.args.auv_name,
-            MISSIONNETCDFS,
-            resamp.args.mission,
-            file_name,
+        resamp = Resampler(
+            auv_name=self.auv_name,
+            mission=mission,
+            log_file=log_file,
+            freq=self.config["freq"],
+            mf_width=self.config["mf_width"],
+            flash_threshold=self.config["flash_threshold"],
+            verbose=self.config["verbose"],
+            plot=None,
+            commandline=self.commandline,
         )
-        if self.args.flash_threshold and self.args.resample:
+        resamp.logger.setLevel(self._log_levels[self.config["verbose"]])
+        resamp.logger.addHandler(self.log_handler)
+        file_name = f"{resamp.auv_name}_{resamp.mission}_align.nc"
+        if resamp.log_file:
+            netcdfs_dir = Path(BASE_LRAUV_PATH, Path(resamp.log_file).parent)
+            nc_file = Path(netcdfs_dir, f"{Path(resamp.log_file).stem}_align.nc")
+        else:
+            nc_file = Path(
+                self.config["base_path"],
+                resamp.auv_name,
+                MISSIONNETCDFS,
+                resamp.mission,
+                file_name,
+            )
+        if self.config["flash_threshold"] and self.config["resample"]:
             self.logger.info(
                 "Executing only resample step to produce netCDF file with flash_threshold = %s",
-                f"{self.args.flash_threshold:.0e}",
+                f"{self.config['flash_threshold']:.0e}",
             )
             dap_file_str = os.path.join(  # noqa: PTH118
                 AUVCTD_OPENDAP_BASE.replace("opendap/", ""),
                 "surveys",
-                resamp.args.mission.split(".")[0],
+                resamp.mission.split(".")[0],
                 "netcdf",
                 file_name,
             )
@@ -316,112 +597,164 @@ class Processor:
             subprocess.run([wget_path, dap_file_str, "-O", nc_file_str], check=True)  # noqa: S603
         try:
             resamp.resample_mission(nc_file)
-        except FileNotFoundError as e:
-            self.logger.error("%s %s", mission, e)  # noqa: TRY400
+        except (FileNotFoundError, InvalidAlignFile) as e:
+            self.logger.error("%s %s", nc_file, e)  # noqa: TRY400
         finally:
             resamp.logger.removeHandler(self.log_handler)
 
-    def archive(self, mission: str, add_logger_handlers: bool = True) -> None:  # noqa: FBT001, FBT002
-        arch = Archiver(add_logger_handlers)
-        arch.args = argparse.Namespace()
-        arch.args.auv_name = self.vehicle
-        arch.args.mission = mission
-        arch.commandline = self.commandline
-        arch.args.create_products = self.args.create_products
-        arch.args.archive_only_products = self.args.archive_only_products
-        arch.args.clobber = self.args.clobber
-        arch.args.resample = self.args.resample
-        arch.args.flash_threshold = self.args.flash_threshold
-        arch.args.verbose = self.args.verbose
-        arch.logger.setLevel(self._log_levels[self.args.verbose])
-        if add_logger_handlers:
-            self.logger.info("Archiving steps for %s", mission)
-            arch.logger.addHandler(self.log_handler)
-        file_name_base = f"{arch.args.auv_name}_{arch.args.mission}"
-        nc_file_base = Path(
-            BASE_PATH,
-            arch.args.auv_name,
-            MISSIONNETCDFS,
-            arch.args.mission,
-            file_name_base,
+    def archive(
+        self,
+        mission: str = None,
+        log_file: Path = None,
+        add_logger_handlers: bool = True,  # noqa: FBT001, FBT002
+    ) -> None:
+        """Archiving steps for mission or log_file.
+
+        If mission is provided, archive the processed data for Dorado class vehicles.
+        If log_file is provided, archive the processed data for LRAUV class vehicles."""
+        arch = Archiver(
+            add_handlers=add_logger_handlers,
+            auv_name=self.auv_name,
+            mission=mission,
+            clobber=self.config["clobber"],
+            resample=self.config["resample"],
+            flash_threshold=self.config["flash_threshold"],
+            archive_only_products=self.config["archive_only_products"],
+            create_products=self.config["create_products"],
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
         )
-        self.logger.info("nc_file_base = %s, BASE_PATH = %s", nc_file_base, BASE_PATH)
-        if str(BASE_PATH).startswith(("/home/runner/", "/root")):
-            arch.logger.info(
-                "Not archiving %s %s to AUVCTD as it's likely CI testing",
-                arch.args.auv_name,
-                arch.args.mission,
+        arch.mount_dir = self.mount_dir
+        arch.logger.setLevel(self._log_levels[self.config["verbose"]])
+        if add_logger_handlers:
+            arch.logger.addHandler(self.log_handler)
+        if mission:
+            # Dorado class vehicle archiving
+            self.logger.info("Archiving steps for %s", mission)
+            file_name_base = f"{arch.auv_name}_{arch.mission}"
+            nc_file_base = Path(
+                BASE_PATH,
+                arch.auv_name,
+                MISSIONNETCDFS,
+                arch.mission,
+                file_name_base,
             )
+            self.logger.info("nc_file_base = %s, BASE_PATH = %s", nc_file_base, BASE_PATH)
+            if str(BASE_PATH).startswith(("/home/runner/", "/root")):
+                arch.logger.info(
+                    "Not archiving %s %s to AUVCTD as it's likely CI testing",
+                    arch.auv_name,
+                    arch.mission,
+                )
+            else:
+                arch.copy_to_AUVTCD(nc_file_base, self.config["freq"])
+        elif log_file:
+            # LRAUV class vehicle archiving
+            self.logger.info("Archiving steps for %s", log_file)
+            arch.copy_to_LRAUV(log_file, freq=self.config["freq"])
         else:
-            arch.copy_to_AUVTCD(nc_file_base, self.args.freq)
+            arch.logger.error("Either mission or log_file must be provided for archiving.")
         arch.logger.removeHandler(self.log_handler)
 
     def create_products(self, mission: str) -> None:
-        cp = CreateProducts()
-        cp.args = argparse.Namespace()
-        cp.args.base_path = self.args.base_path
-        cp.args.auv_name = self.vehicle
-        cp.args.mission = mission
-        cp.args.local = self.args.local
-        cp.args.start_esecs = None
-        cp.args.verbose = self.args.verbose
-        cp.logger.setLevel(self._log_levels[self.args.verbose])
+        cp = CreateProducts(
+            auv_name=self.auv_name,
+            mission=mission,
+            base_path=str(self.config["base_path"]),
+            start_esecs=None,
+            local=self.config["local"],
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
+        cp.logger.setLevel(self._log_levels[self.config["verbose"]])
         cp.logger.addHandler(self.log_handler)
 
         # cp.plot_biolume()
         # cp.plot_2column()
-        if "dorado" in cp.args.auv_name.lower():
+        if "dorado" in cp.auv_name.lower():
             cp.gulper_odv()
         cp.logger.removeHandler(self.log_handler)
 
     def email(self, mission: str) -> None:
         self.logger.info("Sending notification email for %s", mission)
         email = Emailer()
-        email.args = argparse.Namespace()
-        email.args.auv_name = self.vehicle
-        email.args.mission = mission
+        email.args = self._create_child_namespace(auv_name=self.auv_name, mission=mission)
         email.commandline = self.commandline
-        email.args.clobber = self.args.clobber
-        email.args.verbose = self.args.verbose
-        email.logger.setLevel(self._log_levels[self.args.verbose])
+        email.logger.setLevel(self._log_levels[self.config["verbose"]])
         email.logger.addHandler(self.log_handler)
 
-    def cleanup(self, mission: str) -> None:
-        self.logger.info(
-            "Removing %s files from %s and %s",
-            mission,
-            MISSIONNETCDFS,
-            MISSIONLOGS,
-        )
-        try:
-            shutil.rmtree(
-                Path(self.args.base_path, self.vehicle, MISSIONLOGS, mission),
+    def _remove_empty_parents(self, path: Path, stop_at: Path) -> None:
+        """Remove empty parent directories up to stop_at path."""
+        parent = path.parent
+        while parent != stop_at:
+            try:
+                ds_store = parent / ".DS_Store"
+                if ds_store.exists():
+                    ds_store.unlink()  # Remove .DS_Store file so that the directory is empty
+                if parent.exists() and not any(parent.iterdir()):
+                    self.logger.debug("Removing empty directory: %s", parent)
+                    parent.rmdir()
+                    parent = parent.parent
+                else:
+                    break
+            except OSError as e:
+                self.logger.debug("Could not remove directory %s: %s", parent, e)
+                break
+
+    def cleanup(self, mission: str = None, log_file: str = None) -> None:
+        if mission:
+            self.logger.info(
+                "Removing mission %s files from %s and %s",
+                mission,
+                MISSIONNETCDFS,
+                MISSIONLOGS,
             )
-            shutil.rmtree(
-                Path(self.args.base_path, self.vehicle, MISSIONNETCDFS, mission),
-            )
-            self.logger.info("Done removing %s work files", mission)
-        except FileNotFoundError as e:
-            self.logger.info("File not found: %s", e)
+            try:
+                shutil.rmtree(
+                    Path(self.config["base_path"], self.auv_name, MISSIONLOGS, mission),
+                )
+                shutil.rmtree(
+                    Path(self.config["base_path"], self.auv_name, MISSIONNETCDFS, mission),
+                )
+                self.logger.info("Done removing %s work files", mission)
+            except FileNotFoundError as e:
+                self.logger.info("File not found: %s", e)
+        elif log_file:
+            self.logger.info("Removing work files from local directory for %s", log_file)
+            try:
+                log_path = Path(BASE_LRAUV_PATH, log_file).resolve()
+                for item in log_path.parent.iterdir():
+                    if item.is_file():
+                        self.logger.debug("Removing file %s", item)
+                        item.unlink()
+                    elif item.is_dir():
+                        self.logger.debug("Removing directory %s", item)
+                        shutil.rmtree(item)
+                self._remove_empty_parents(log_path, Path(BASE_LRAUV_PATH))
+                self.logger.info("Done removing work files for %s", log_file)
+            except FileNotFoundError as e:
+                self.logger.info("File not found: %s", e)
+        else:
+            self.logger.error("Either mission or log_file must be provided for cleanup.")
 
     def process_mission(self, mission: str, src_dir: str = "") -> None:  # noqa: C901, PLR0912, PLR0915
         netcdfs_dir = Path(
-            self.args.base_path,
-            self.vehicle,
+            self.config["base_path"],
+            self.auv_name,
             MISSIONNETCDFS,
             mission,
         )
-        if self.args.clobber and (
-            self.args.noinput
+        if self.config["clobber"] and (
+            self.config["noinput"]
             or input("Do you want to remove all work files? [y/N] ").lower() == "y"
         ):
             self.cleanup(mission)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
-            Path(netcdfs_dir, f"{self.vehicle}_{mission}_{LOG_NAME}"),
+            Path(netcdfs_dir, f"{self.auv_name}_{mission}_{LOG_NAME}"),
             mode="w+",
         )
-        self.log_handler.setLevel(self._log_levels[self.args.verbose])
+        self.log_handler.setLevel(self._log_levels[self.config["verbose"]])
         self.log_handler.setFormatter(AUV_NetCDF._formatter)
         self.logger.info(
             "=====================================================================================================================",
@@ -430,12 +763,12 @@ class Processor:
         self.logger.info("commandline = %s", self.commandline)
         try:
             program = ""
-            if self.vehicle.lower() == "dorado":
+            if self.auv_name.lower() == "dorado":
                 program = dorado_info[mission]["program"]
                 self.logger.info(
                     'dorado_info[mission]["comment"] = %s', dorado_info[mission]["comment"]
                 )
-            elif self.vehicle.lower() == "i2map":
+            elif self.auv_name.lower() == "i2map":
                 program = "i2map"
             if program == TEST:
                 error_message = (
@@ -457,30 +790,30 @@ class Processor:
         except KeyError:
             error_message = f"{mission} not in dorado_info"
             raise MissingDoradoInfo(error_message) from None
-        if self.args.download_process:
+        if self.config["download_process"]:
             self.download_process(mission, src_dir)
-        elif self.args.calibrate:
+        elif self.config["calibrate"]:
             self.calibrate(mission)
-        elif self.args.align:
+        elif self.config["align"]:
             self.align(mission)
-        elif self.args.resample:
+        elif self.config["resample"]:
             self.resample(mission)
-        elif self.args.resample and self.args.archive:
+        elif self.config["resample"] and self.config["archive"]:
             self.resample(mission)
             self.archive(mission, add_logger_handlers=False)
-        elif self.args.create_products and self.args.archive:
+        elif self.config["create_products"] and self.config["archive"]:
             self.create_products(mission)
             self.archive(mission, add_logger_handlers=False)
-        elif self.args.create_products:
+        elif self.config["create_products"]:
             self.create_products(mission)
-        elif self.args.archive:
+        elif self.config["archive"]:
             self.archive(mission)
-        elif self.args.email_to:
+        elif self.config["email_to"]:
             self.email(mission)
-        elif self.args.cleanup:
+        elif self.config["cleanup"]:
             self.cleanup(mission)
         else:
-            if not self.args.skip_download_process:
+            if not self.config["skip_download_process"]:
                 self.download_process(mission, src_dir)
             self.calibrate(mission)
             self.align(mission)
@@ -504,12 +837,12 @@ class Processor:
         except (TestMission, FailedMission) as e:
             self.logger.info(str(e))
         finally:
-            if self.args.download_process:
+            if self.config["download_process"]:
                 self.logger.info("Not archiving %s as --download_process is set", mission)
             else:
                 # Still need to archive the mission, especially the processing.log file
                 self.archive(mission)
-            if not self.args.no_cleanup:
+            if not self.config["no_cleanup"]:
                 self.cleanup(mission)
             self.logger.info(
                 "Mission %s took %.1f seconds to process",
@@ -543,17 +876,17 @@ class Processor:
             if hasattr(self, "log_handler"):
                 # If no log_handler then process_mission() failed, likely due to missing mount
                 # Always archive the mission, especially the processing.log file
-                if self.vehicle == "Dorado389" and mission == "2011.256.02":
+                if self.auv_name == "Dorado389" and mission == "2011.256.02":
                     self.logger.info(
                         "Not archiving %s %s as it's likely CI testing",
-                        self.vehicle,
+                        self.auv_name,
                         mission,
                     )
-                if self.args.download_process:
+                if self.config["download_process"]:
                     self.logger.info("Not archiving %s as --download_process is set", mission)
                 else:
                     self.archive(mission)
-                if not self.args.no_cleanup:
+                if not self.config["no_cleanup"]:
                     self.cleanup(mission)
                 self.logger.info(
                     "Mission %s took %.1f seconds to process",
@@ -562,34 +895,34 @@ class Processor:
                 )
                 self.logger.removeHandler(self.log_handler)
 
-    def process_missions(self, start_year: int) -> None:
-        if not self.args.start_year:
-            self.args.start_year = start_year
-        if self.args.mission:
+    def process_missions(self, start_year: int = None) -> None:
+        if not self.config.get("start_year"):
+            self.config["start_year"] = start_year
+        if self.config.get("mission"):
             # mission is string like: 2021.062.01 and is assumed to exist
             self.process_mission_exception_wrapper(
-                self.args.mission,
-                src_dir=self.get_mission_dir(self.args.mission),
+                self.config["mission"],
+                src_dir=self.get_mission_dir(self.config["mission"]),
             )
-        elif self.args.start_year and self.args.end_year:
+        elif self.config.get("start_year") and self.config.get("end_year"):
             missions = self.mission_list(
-                start_year=self.args.start_year,
-                end_year=self.args.end_year,
+                start_year=self.config["start_year"],
+                end_year=self.config["end_year"],
             )
-            if self.args.start_year == self.args.end_year:
+            if self.config["start_year"] == self.config["end_year"]:
                 # Subselect missions by year day, has effect if --start_yd & --end_yd
                 # are specified and --start_year & --end_year are the same
                 missions = {
                     mission: missions[mission]
                     for mission in missions
                     if (
-                        int(mission.split(".")[1]) >= self.args.start_yd
-                        and int(mission.split(".")[1]) <= self.args.end_yd
+                        int(mission.split(".")[1]) >= self.config["start_yd"]
+                        and int(mission.split(".")[1]) <= self.config["end_yd"]
                     )
                 }
 
             # https://pythonspeed.com/articles/python-multiprocessing/ - Swimming with sharks!
-            ncores = self.args.num_cores if self.args.num_cores else multiprocessing.cpu_count()
+            ncores = self.config.get("num_cores") or multiprocessing.cpu_count()
             missions = dict(sorted(missions.items()))
             if ncores > 1:
                 self.logger.info(
@@ -621,6 +954,103 @@ class Processor:
                         mission,
                         src_dir=self.get_mission_dir(mission),
                     )
+
+    # ====================== LRAUV data specific processing ======================
+    # The command line arument --log_file distinguishes LRAUV data from Dorado data.
+    # Dorado class data uses --mission instead.  Also, start and end specifications
+    # are different for LRAUV data: --start and --end instead of --start_year,
+    # --start_yd, --end_year, and --end_yd. If --start and --end are spcified then
+    # --auv_name is required to look up the individual log files to process.
+
+    def extract(self, log_file: str) -> None:
+        self.logger.info("Extracting log file: %s", log_file)
+        extract = Extract(
+            log_file=log_file,
+            plot_time=False,
+            filter_monotonic_time=True,
+            verbose=self.config["verbose"],
+            commandline=self.commandline,
+        )
+        extract.logger.setLevel(self._log_levels[self.config["verbose"]])
+        extract.logger.addHandler(self.log_handler)
+
+        url = os.path.join(BASE_LRAUV_WEB, log_file)  # noqa: PTH118
+        output_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        extract.logger.info("Downloading %s", url)
+        input_file = extract.download_with_pooch(url, output_dir)
+        return extract.extract_groups_to_files_netcdf4(input_file)
+
+    def combine(self, log_file: str) -> None:
+        self.logger.info("Combining netCDF files for log file: %s", log_file)
+        self.logger.info(
+            "Equivalent to the calibrate step for Dorado class vehicles. "
+            "Adds nudge positions and more layers of quality control."
+        )
+        combine = Combine_NetCDF(
+            log_file=log_file,
+            verbose=self.config["verbose"],
+            plot=None,
+            commandline=self.commandline,
+        )
+        combine.logger.setLevel(self._log_levels[self.config["verbose"]])
+        combine.logger.addHandler(self.log_handler)
+
+        combine.combine_groups()
+        combine.write_netcdf()
+
+    @log_file_processor
+    def process_log_file(self, log_file: str) -> None:
+        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+        Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
+        self.log_handler = logging.FileHandler(
+            Path(netcdfs_dir, f"{Path(log_file).stem}_processing.log"), mode="w+"
+        )
+        self.log_handler.setLevel(self._log_levels[self.config["verbose"]])
+        self.log_handler.setFormatter(AUV_NetCDF._formatter)
+        self.logger.info(
+            "=====================================================================================================================",
+        )
+        self.logger.addHandler(self.log_handler)
+        self.logger.info("commandline = %s", self.commandline)
+
+        netcdfs_dir = self.extract(log_file)
+        self.combine(log_file=log_file)
+        self.align(log_file=log_file)
+        self.resample(log_file=log_file)
+        # self.create_products(log_file)
+        self.logger.info("Finished processing log file: %s", log_file)
+
+    def process_log_files(self) -> None:
+        if self.config.get("log_file"):
+            # log_file is string like:
+            # brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
+            self.auv_name = self.config["log_file"].split("/")[0].lower()
+            self.process_log_file(self.config["log_file"])
+        elif self.config.get("start") and self.config.get("end"):
+            # Process multiple log files within datetime range
+            log_files = self.log_file_list(
+                self.config["start"], self.config["end"], self.config.get("auv_name")
+            )
+            if not log_files:
+                self.logger.warning(
+                    "No log files found in datetime range %s to %s",
+                    self.config["start"],
+                    self.config["end"],
+                )
+                return
+
+            self.logger.info("Processing %d log files in datetime range", len(log_files))
+            for log_file in log_files:
+                # Extract AUV name from path
+                self.auv_name = log_file.split("/")[0].lower()
+                self.logger.info("Processing log file: %s", log_file)
+                try:
+                    self.process_log_file(log_file)
+                except (InvalidCalFile, InvalidCombinedFile) as e:
+                    self.logger.warning("%s", e)
+        else:
+            self.logger.error("Must provide either --log_file or both --start and --end arguments")
+            return
 
     def process_command_line(self):
         parser = argparse.ArgumentParser(
@@ -742,7 +1172,29 @@ class Processor:
         parser.add_argument(
             "--mission",
             action="store",
-            help="Process only this mission",
+            help="For Doado class data - process only this mission",
+        )
+        parser.add_argument(
+            "--log_file",
+            action="store",
+            help="For LRAUV class data - process only this log file",
+        )
+        parser.add_argument(
+            "--start",
+            action="store",
+            help="For LRAUV class data - start processing from this datetime "
+            "(YYYYMMDDTHHMMSS format)",
+        )
+        parser.add_argument(
+            "--end",
+            action="store",
+            help="For LRAUV class data - end processing at this datetime (YYYYMMDDTHHMMSS format)",
+        )
+        parser.add_argument(
+            "--auv_name",
+            action="store",
+            help="For LRAUV class data - restrict log file search to this AUV name "
+            "(e.g., brizo, ahi). If not specified, all AUVs will be searched.",
         )
         parser.add_argument(
             "--freq",
@@ -833,15 +1285,27 @@ class Processor:
 
         self.logger.setLevel(self._log_levels[self.args.verbose])
         self.commandline = " ".join(sys.argv)
+        return self.args
 
 
 if __name__ == "__main__":
-    VEHICLE = "i2map"
+    AUV_NAME = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://thalassa.shore.mbari.org/M3"
 
-    # Initialize for i2MAP processing, meant to be subclassed for other vehicles
-    proc = Processor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
-    proc.process_command_line()
-    proc.process_missions()
+    # Parse command line and initialize with config pattern
+    temp_proc = Processor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    args = temp_proc.process_command_line()
+
+    # Create configured processor instance
+    proc = Processor.from_args(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR, args)
+
+    # Process based on arguments
+    if args.log_file:
+        proc.process_log_files()
+    elif args.start and args.end:
+        # Process LRAUV log files in datetime range
+        proc.process_log_files()
+    else:
+        proc.process_missions(2020)

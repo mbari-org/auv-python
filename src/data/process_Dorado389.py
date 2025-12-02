@@ -17,12 +17,16 @@ class DoradoProcessor(Processor):
 
 
 if __name__ == "__main__":
-    VEHICLE = "Dorado389"
+    AUV_NAME = "Dorado389"
     VEHICLE_DIR = "/Volumes/AUVCTD/missionlogs"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"
     MOUNT_DIR = "smb://atlas.shore.mbari.org/AUVCTD"
     START_YEAR = 2011
 
-    proc = DoradoProcessor(VEHICLE, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
-    proc.process_command_line()
+    # Parse command line and initialize with config pattern
+    temp_proc = DoradoProcessor(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR)
+    args = temp_proc.process_command_line()
+
+    # Create configured processor instance
+    proc = DoradoProcessor.from_args(AUV_NAME, VEHICLE_DIR, MOUNT_DIR, CALIBRATION_DIR, args)
     proc.process_missions(START_YEAR)

@@ -7,7 +7,7 @@ Create "quick look" plots and other products from processed data.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
-import argparse
+import argparse  # noqa: I001
 import contextlib
 import logging
 import os
@@ -22,10 +22,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
 import xarray as xr
+
+from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
-from logs2netcdfs import BASE_PATH, MISSIONNETCDFS, AUV_NetCDF
+from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
 from resample import AUVCTD_OPENDAP_BASE, FREQ
 from scipy.interpolate import griddata
+
+# Define BASE_PATH for backward compatibility
+BASE_PATH = DEFAULT_BASE_PATH
 
 MISSIONODVS = "missionodvs"
 MISSIONIMAGES = "missionimages"
@@ -37,6 +42,35 @@ class CreateProducts:
     _handler.setFormatter(AUV_NetCDF._formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
+
+    def __init__(  # noqa: PLR0913
+        self,
+        auv_name: str = None,
+        mission: str = None,
+        base_path: str = str(BASE_PATH),
+        start_esecs: float = None,
+        local: bool = False,  # noqa: FBT001, FBT002
+        verbose: int = 0,
+        commandline: str = "",
+    ):
+        """Initialize CreateProducts with explicit parameters.
+
+        Args:
+            auv_name: Name of the AUV vehicle
+            mission: Mission identifier
+            base_path: Base path for output files
+            start_esecs: Start epoch seconds for processing
+            local: Local processing flag
+            verbose: Verbosity level (0-2)
+            commandline: Command line string for tracking
+        """
+        self.auv_name = auv_name
+        self.mission = mission
+        self.base_path = base_path
+        self.start_esecs = start_esecs
+        self.local = local
+        self.verbose = verbose
+        self.commandline = commandline
 
     # Column name format required by ODV - will be tab delimited
     ODV_COLUMN_NAMES = [  # noqa: RUF012
@@ -90,18 +124,18 @@ class CreateProducts:
     def _open_ds(self):
         local_nc = Path(
             BASE_PATH,
-            self.args.auv_name,
+            self.auv_name,
             MISSIONNETCDFS,
-            self.args.mission,
-            f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
+            self.mission,
+            f"{self.auv_name}_{self.mission}_{FREQ}.nc",
         )
         # Requires mission to have been processed and archived to AUVCTD
         dap_url = os.path.join(  # noqa: PTH118
             AUVCTD_OPENDAP_BASE,
             "surveys",
-            self.args.mission.split(".")[0],
+            self.mission.split(".")[0],
             "netcdf",
-            f"{self.args.auv_name}_{self.args.mission}_{FREQ}.nc",
+            f"{self.auv_name}_{self.mission}_{FREQ}.nc",
         )
         try:
             self.ds = xr.open_dataset(dap_url)
@@ -349,13 +383,13 @@ class CreateProducts:
                 col = 1
 
         # Save plot to file
-        images_dir = Path(BASE_PATH, self.args.auv_name, MISSIONIMAGES)
+        images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES)
         Path(images_dir).mkdir(parents=True, exist_ok=True)
 
         plt.savefig(
             Path(
                 images_dir,
-                f"{self.args.auv_name}_{self.args.mission}_{FREQ}_2column.png",
+                f"{self.auv_name}_{self.mission}_{FREQ}_2column.png",
             ),
         )
 
@@ -385,29 +419,29 @@ class CreateProducts:
 
         gulper = Gulper()
         gulper.args = argparse.Namespace()
-        gulper.args.base_path = self.args.base_path
-        gulper.args.auv_name = self.args.auv_name
-        gulper.args.mission = self.args.mission
-        gulper.args.local = self.args.local
-        gulper.args.verbose = self.args.verbose
-        gulper.args.start_esecs = self.args.start_esecs
-        gulper.logger.setLevel(self._log_levels[self.args.verbose])
+        gulper.args.base_path = self.base_path
+        gulper.args.auv_name = self.auv_name
+        gulper.args.mission = self.mission
+        gulper.args.local = self.local
+        gulper.args.verbose = self.verbose
+        gulper.args.start_esecs = self.start_esecs
+        gulper.logger.setLevel(self._log_levels[self.verbose])
         gulper.logger.addHandler(self._handler)
 
         gulper_times = gulper.parse_gulpers()
         if not gulper_times:
-            self.logger.info("No gulper times found for %s", self.args.mission)
+            self.logger.info("No gulper times found for %s", self.mission)
             return
         odv_dir = Path(
             BASE_PATH,
-            self.args.auv_name,
+            self.auv_name,
             MISSIONODVS,
-            self.args.mission,
+            self.mission,
         )
         Path(odv_dir).mkdir(parents=True, exist_ok=True)
         gulper_odv_filename = Path(
             odv_dir,
-            f"{self.args.auv_name}_{self.args.mission}_{FREQ}_Gulper.txt",
+            f"{self.auv_name}_{self.mission}_{FREQ}_Gulper.txt",
         )
         self._open_ds()
 
@@ -431,7 +465,7 @@ class CreateProducts:
                 )
                 for count, name in enumerate(odv_column_names):
                     if name == "Cruise":
-                        f.write(f"{self.args.auv_name}_{self.args.mission}_{FREQ}")
+                        f.write(f"{self.auv_name}_{self.mission}_{FREQ}")
                     elif name == "Station":
                         f.write(f"{int(gulper_data['profile_number'].to_numpy().mean()):d}")
                     elif name == "Type":
@@ -524,53 +558,21 @@ class CreateProducts:
         )
 
     def process_command_line(self):
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        """Process command line arguments using shared parser infrastructure."""
+        # Use shared parser with create_products-specific additions
+        parser = get_standard_dorado_parser(
             description=__doc__,
         )
-        (
-            parser.add_argument(
-                "--base_path",
-                action="store",
-                default=BASE_PATH,
-                help=f"Base directory for missionlogs and missionnetcdfs, default: {BASE_PATH}",
-            ),
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            default="dorado",
-            help="dorado (default), i2map",
-        )
-        (
-            parser.add_argument(
-                "--mission",
-                action="store",
-                help="Mission directory, e.g.: 2020.064.10",
-            ),
-        )
+
+        # Add create_products-specific arguments
         parser.add_argument(
             "--start_esecs",
             help="Start time of mission in epoch seconds, optional for gulper time lookup",
             type=float,
         )
-        parser.add_argument("--local", help="Read local files", action="store_true")
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
-        )
+
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
 
 

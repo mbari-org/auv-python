@@ -9,7 +9,7 @@ all of the available metadata from associated .cfg and .xml files.
 __author__ = "Mike McCann"
 __copyright__ = "Copyright 2020, Monterey Bay Aquarium Research Institute"
 
-import argparse
+import argparse  # noqa: I001
 import asyncio
 import concurrent
 import logging
@@ -17,16 +17,20 @@ import struct
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 
 import aiofiles
+import coards
 import numpy as np
 import requests
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
-from AUV import AUV, monotonic_increasing_time_indices
 from netCDF4 import Dataset
+
+from utils import monotonic_increasing_time_indices
+from common_args import get_standard_dorado_parser
 from readauvlog import log_record
 
 LOG_FILES = (
@@ -57,7 +61,7 @@ class CustomException(Exception):
     pass
 
 
-class AUV_NetCDF(AUV):
+class AUV_NetCDF:
     logger = logging.getLogger(__name__)
     _handler = logging.StreamHandler()
     _formatter = logging.Formatter(
@@ -67,6 +71,68 @@ class AUV_NetCDF(AUV):
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
+
+    def __init__(  # noqa: PLR0913
+        self,
+        auv_name: str = None,
+        mission: str = None,
+        vehicle_dir: str = None,
+        base_path: str = str(BASE_PATH),
+        start: str = None,
+        end: str = None,
+        preview: bool = False,  # noqa: FBT001, FBT002
+        verbose: int = 0,
+        title: str = None,
+        summary: str = None,
+        add_seconds: float = None,
+        local: bool = False,  # noqa: FBT001, FBT002
+        noinput: bool = False,  # noqa: FBT001, FBT002
+        clobber: bool = False,  # noqa: FBT001, FBT002
+        noreprocess: bool = False,  # noqa: FBT001, FBT002
+        use_portal: bool = False,  # noqa: FBT001, FBT002
+        portal: str = None,
+        commandline: str = "",
+    ):
+        """Initialize AUV_NetCDF with explicit parameters.
+
+        Args:
+            auv_name: Name of the AUV vehicle
+            mission: Mission identifier
+            vehicle_dir: Directory containing vehicle mission logs
+            base_path: Base path for output files
+            start: Start datetime for filtering (LRAUV)
+            end: End datetime for filtering (LRAUV)
+            preview: Preview mode flag
+            verbose: Verbosity level (0-2)
+            title: Custom title for netCDF metadata
+            summary: Custom summary for netCDF metadata
+            add_seconds: Seconds to add for time correction
+            local: Process local mission without standard directory structure
+            noinput: Don't prompt for user input
+            clobber: Overwrite existing files
+            noreprocess: Don't reprocess existing files
+            use_portal: Use portal for data download
+            portal: Portal base URL
+            commandline: Command line string for tracking
+        """
+        self.auv_name = auv_name
+        self.mission = mission
+        self.vehicle_dir = vehicle_dir
+        self.base_path = base_path
+        self.start = start
+        self.end = end
+        self.preview = preview
+        self.verbose = verbose
+        self.title = title
+        self.summary = summary
+        self.add_seconds = add_seconds
+        self.local = local
+        self.noinput = noinput
+        self.clobber = clobber
+        self.noreprocess = noreprocess
+        self.use_portal = use_portal
+        self.portal = portal
+        self.commandline = commandline
 
     def read(self, file: Path) -> list[log_record]:
         """Reads and parses an AUV log and returns a list of `log_records`"""
@@ -347,8 +413,8 @@ class AUV_NetCDF(AUV):
             return {d["vehicle"] for d in resp.json()}
 
     def _deployments_between(self):
-        start = f"{self.args.start}T000000Z"
-        end = f"{self.args.end}T235959Z"
+        start = f"{self.start}T000000Z"
+        end = f"{self.end}T235959Z"
         url = f"{self.deployments_url}?from={start}&to={end}"
         self.logger.debug("Getting missions from %s", url)
         with requests.get(url, timeout=TIMEOUT) as resp:
@@ -359,15 +425,15 @@ class AUV_NetCDF(AUV):
                 error_message = f"No missions from {url}"
                 raise LookupError(error_message)
             for item in resp.json():
-                if self.args.preview:
-                    self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
+                if self.preview:
+                    self.logger.setLevel(self._log_levels[max(1, self.verbose)])
                     self.logger.info("%s %s", item["vehicle"], item["name"])
                 else:
-                    if self.args.auv_name and item["vehicle"].upper() != self.args.auv_name.upper():
+                    if self.auv_name and item["vehicle"].upper() != self.auv_name.upper():
                         self.logger.debug(
                             "%s != %s",
                             item["vehicle"],
-                            self.args.auv_name,
+                            self.auv_name,
                         )
                         continue
                     try:
@@ -388,8 +454,8 @@ class AUV_NetCDF(AUV):
                         self.download_process_logs(item["vehicle"], item["name"])
 
     def _files_from_mission(self, name=None, vehicle=None):
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
+        name = name or self.mission
+        vehicle = vehicle or self.auv_name
         files_url = f"{self.portal_base}/files/list/{name}/{vehicle}"
         self.logger.debug("Getting files list from %s", files_url)
         with requests.get(files_url, timeout=TIMEOUT) as resp:
@@ -419,7 +485,7 @@ class AUV_NetCDF(AUV):
                         async for chunk in resp.content.iter_chunked(1024):
                             await handle.write(chunk)
                             handle.write(chunk)
-                        if self.args.verbose > 1:
+                        if self.verbose > 1:
                             print(  # noqa: T201
                                 f"{Path(local_filename).name}(done) ",
                                 end="",
@@ -430,8 +496,8 @@ class AUV_NetCDF(AUV):
             self.logger.exception()
 
     async def _download_files(self, logs_dir, name=None, vehicle=None):
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
+        name = name or self.mission
+        vehicle = vehicle or self.auv_name
         tasks = []
         async with ClientSession(timeout=TIMEOUT) as session:
             for ffm in self._files_from_mission(name, vehicle):
@@ -579,9 +645,9 @@ class AUV_NetCDF(AUV):
 
     def write_variables(self, log_data, netcdf_filename):
         log_data = self._correct_dup_short_names(log_data)
-        if self.args.mission == "2025.316.02" and self.args.add_seconds:
+        if self.mission == "2025.316.02" and self.add_seconds:
             # So far only this mission is known to suffer from GPS Week Rollover bug
-            log_data = self.correct_times(log_data, self.args.add_seconds)
+            log_data = self.correct_times(log_data, self.add_seconds)
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         for variable in log_data:
             self.logger.debug(
@@ -690,6 +756,27 @@ class AUV_NetCDF(AUV):
         self.nc_file.close()
         self.logger.info("Wrote (without bad values) %s", netcdf_filename)
 
+    def add_global_metadata(self):
+        iso_now = datetime.now(UTC).isoformat() + "Z"
+
+        self.nc_file.netcdf_version = "4"
+        self.nc_file.Conventions = "CF-1.6"
+        self.nc_file.date_created = iso_now
+        self.nc_file.date_update = iso_now
+        self.nc_file.date_modified = iso_now
+        self.nc_file.featureType = "trajectory"
+
+        self.nc_file.comment = ""
+
+        self.nc_file.time_coverage_start = (
+            coards.from_udunits(self.time[0], self.time.units).isoformat() + "Z"
+        )
+        self.nc_file.time_coverage_end = (
+            coards.from_udunits(self.time[-1], self.time.units).isoformat() + "Z"
+        )
+
+        self.nc_file.distribution_statement = "Any use requires prior approval from MBARI"
+
     def _process_log_file(self, log_filename, netcdf_filename, src_dir=None):
         log_data = self.read(log_filename)
         if Path(netcdf_filename).exists():
@@ -700,19 +787,19 @@ class AUV_NetCDF(AUV):
 
         # Add the global metadata, overriding with command line options provided
         self.add_global_metadata()
-        vehicle = self.args.auv_name
+        vehicle = self.auv_name
         self.nc_file.title = f"Original AUV {vehicle} data converted from {log_filename}"
-        if hasattr(self.args, "title") and self.args.title:
-            self.nc_file.title = self.args.title
+        if self.title:
+            self.nc_file.title = self.title
         if src_dir:
             # The source attribute might make more sense for the location of
             # the source data, but the summary field is shown in STOQS metadata
             self.nc_file.summary = SUMMARY_SOURCE.format(src_dir)
-        if hasattr(self.args, "summary") and self.args.summary:
-            self.nc_file.summary = self.args.summary
-        if self.args.add_seconds:
+        if self.summary:
+            self.nc_file.summary = self.summary
+        if self.add_seconds:
             self.nc_file.summary += (
-                f". Corrected timeTag variables by adding {self.args.add_seconds} seconds. "
+                f". Corrected timeTag variables by adding {self.add_seconds} seconds"
             )
         monotonic = monotonic_increasing_time_indices(self.nc_file["time"][:])
         if (~monotonic).any():
@@ -729,15 +816,15 @@ class AUV_NetCDF(AUV):
         """Return the mission directory. This method is nearly identical to the
         one in the Processor class, but it is used here to be explicit and to
         avoid the need to import the Processor class."""
-        if not Path(self.args.vehicle_dir).exists():
-            self.logger.error("%s does not exist.", self.args.vehicle_dir)
+        if not Path(self.vehicle_dir).exists():
+            self.logger.error("%s does not exist.", self.vehicle_dir)
             self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
-        if self.args.auv_name.lower() == "dorado":
+        if self.auv_name.lower() == "dorado":
             year = mission.split(".")[0]
             yearyd = "".join(mission.split(".")[:2])
-            path = Path(self.args.vehicle_dir, year, yearyd, mission)
-        elif self.args.auv_name.lower() == "i2map":
+            path = Path(self.vehicle_dir, year, yearyd, mission)
+        elif self.auv_name.lower() == "i2map":
             year = int(mission.split(".")[0])
             # Could construct the YYYY/MM/YYYYMMDD path on M3/Master
             # but use the mission_list() method to find the mission dir instead
@@ -745,12 +832,12 @@ class AUV_NetCDF(AUV):
             if mission in missions:
                 path = missions[mission]
             else:
-                self.logger.error("Cannot find %s in %s", mission, self.args.vehicle_dir)
-                error_message = f"Cannot find {mission} in {self.args.vehicle_dir}"
+                self.logger.error("Cannot find %s in %s", mission, self.vehicle_dir)
+                error_message = f"Cannot find {mission} in {self.vehicle_dir}"
                 raise FileNotFoundError(error_message)
-        elif self.args.auv_name == "Dorado389":
+        elif self.auv_name == "Dorado389":
             # The Dorado389 vehicle is a special case used for testing locally and in CI
-            path = self.args.vehicle_dir
+            path = self.vehicle_dir
         if not Path(path).exists():
             self.logger.error("%s does not exist.", path)
             error_message = f"{path} does not exist."
@@ -763,33 +850,33 @@ class AUV_NetCDF(AUV):
         name: str = "",
         src_dir: Path = Path(),
     ) -> None:
-        name = name or self.args.mission
-        vehicle = vehicle or self.args.auv_name
-        logs_dir = Path(self.args.base_path, vehicle, MISSIONLOGS, name)
+        name = name or self.mission
+        vehicle = vehicle or self.auv_name
+        logs_dir = Path(self.base_path, vehicle, MISSIONLOGS, name)
 
         if src_dir:
             self.logger.info("src_dir = %s", src_dir)
 
-        if not self.args.local:
+        if not self.local:
             # As of 20 July 2023 this returns 404, which is distracting
             # self.logger.debug(
             #   f"Unique vehicle names: {self._unique_vehicle_names()} seconds"
             # )
             yes_no = "Y"
             if Path(logs_dir, "vehicle.cfg").exists():
-                if self.args.noinput:
-                    if self.args.clobber:
+                if self.noinput:
+                    if self.clobber:
                         self.logger.info("Clobbering existing %s files", logs_dir)
                     else:
                         self.logger.info("%s exists", logs_dir)
                         yes_no = "N"
-                        if self.args.noreprocess:
+                        if self.noreprocess:
                             self.logger.info("Not reprocessing %s", logs_dir)
                             return
                 else:
                     yes_no = input(f"Directory {logs_dir} exists. Re-download? [Y/n]: ") or "Y"
             if yes_no.upper().startswith("Y"):
-                if self.args.use_portal:
+                if self.use_portal:
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
                 elif src_dir:
                     safe_src_dir = Path(src_dir).resolve()
@@ -809,7 +896,7 @@ class AUV_NetCDF(AUV):
                     self._portal_download(logs_dir, name=name, vehicle=vehicle)
 
         self.logger.info("Processing mission: %s %s", vehicle, name)
-        netcdfs_dir = Path(self.args.base_path, vehicle, MISSIONNETCDFS, name)
+        netcdfs_dir = Path(self.base_path, vehicle, MISSIONNETCDFS, name)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         p_start = time.time()
         for log in LOG_FILES:
@@ -839,7 +926,7 @@ class AUV_NetCDF(AUV):
         self.logger.info("Time to process: %.2f seconds", time.time() - p_start)
 
     def update(self):
-        self.logger.setLevel(self._log_levels[max(1, self.args.verbose)])
+        self.logger.setLevel(self._log_levels[max(1, self.verbose)])
         url = "http://portal.shore.mbari.org:8080/auvdata/v1/deployments/update"
         auv_netcdf.logger.info("Sending an 'update' request: %s", url)
         resp = requests.post(url, timeout=TIMEOUT)
@@ -855,47 +942,24 @@ class AUV_NetCDF(AUV):
     def set_portal(self) -> None:
         self.portal_base = PORTAL_BASE
         self.deployments_url = Path(self.portal_base, "deployments")
-        if hasattr(self.args, "portal") and self.args.portal:
-            self.portal_base = self.args.portal
-            self.deployments_url = Path(self.args.portal, "deployments")
+        if self.portal:
+            self.portal_base = self.portal
+            self.deployments_url = Path(self.portal, "deployments")
 
     def process_command_line(self):
+        """Process command line arguments using shared parser infrastructure."""
         examples = "Examples:" + "\n\n"
         examples += "  Write to local missionnetcdfs direcory:\n"
         examples += "    " + sys.argv[0] + " --mission 2020.064.10\n"
         examples += "    " + sys.argv[0] + " --auv_name i2map --mission 2020.055.01\n"
 
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
+        # Use shared parser with logs2netcdfs-specific additions
+        parser = get_standard_dorado_parser(
             description=__doc__,
             epilog=examples,
         )
 
-        parser.add_argument(
-            "--base_path",
-            action="store",
-            default=BASE_PATH,
-            help="Base directory for missionlogs and missionnetcdfs, default: auv_data",
-        )
-        parser.add_argument(
-            "--auv_name",
-            action="store",
-            help=(
-                "Dorado389, i2map, or multibeam. Will be saved in "
-                "directory with this name no matter its portal entry"
-            ),
-        )
-        parser.add_argument(
-            "--mission",
-            action="store",
-            help="Mission directory, e.g.: 2020.064.10",
-        )
-        parser.add_argument(
-            "--local",
-            action="store_true",
-            help="Specify if files are local in the MISSION directory",
-        )
-
+        # Add logs2netcdfs-specific arguments
         parser.add_argument(
             "--title",
             action="store",
@@ -905,22 +969,6 @@ class AUV_NetCDF(AUV):
             "--summary",
             action="store",
             help="Additional information about the dataset",
-        )
-
-        parser.add_argument(
-            "--noinput",
-            action="store_true",
-            help="Execute without asking for a response, e.g.  to not ask to re-download file",
-        )
-        parser.add_argument(
-            "--clobber",
-            action="store_true",
-            help="Use with --noinput to overwrite existing downloaded log files",
-        )
-        parser.add_argument(
-            "--noreprocess",
-            action="store_true",
-            help="Use with --noinput to not re-process existing downloaded log files",
         )
         parser.add_argument(
             "--start",
@@ -950,45 +998,41 @@ class AUV_NetCDF(AUV):
             " http://stoqs.mbari.org:8080/auvdata/v1",
         )
         parser.add_argument(
-            "--use_portal",
-            action="store_true",
-            help=(
-                "Download data using portal (much faster than copy over"
-                " remote connection), otherwise copy from mount point"
-            ),
-        )
-        parser.add_argument(
             "--vehicle_dir",
             action="store",
             help="Directory for the vehicle's mission logs, e.g.: /Volumes/AUVCTD/missionlogs",
         )
-        parser.add_argument(
-            # To use for mission 2025.316.02 which suffered from the GPS week rollover bug:
-            # 1024 * 7 * 24 * 3600 = 619315200 seconds to add to timeTag variables in the log_data
-            "--add_seconds",
-            type=int,
-            default=0,
-            help="Seconds to add to timeTag in log data",
-        )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            type=int,
-            choices=range(3),
-            action="store",
-            default=0,
-            const=1,
-            nargs="?",
-            help="verbosity level: "
-            + ", ".join(
-                [f"{i}: {v}" for i, v in enumerate(("WARN", "INFO", "DEBUG"))],
-            ),
+
+        args = parser.parse_args()
+
+        # Reinitialize with parsed arguments
+        self.__init__(
+            auv_name=args.auv_name,
+            mission=args.mission,
+            vehicle_dir=args.vehicle_dir,
+            base_path=args.base_path,
+            start=args.start,
+            end=args.end,
+            preview=args.preview,
+            verbose=args.verbose,
+            title=args.title,
+            summary=args.summary,
+            add_seconds=args.add_seconds,
+            local=args.local,
+            noinput=args.noinput,
+            clobber=args.clobber,
+            noreprocess=args.noreprocess,
+            use_portal=args.use_portal,
+            portal=args.portal,
+            commandline=" ".join(sys.argv),
         )
 
-        self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.args.verbose])
+        # Keep args for backward compatibility with any code that expects it
+        self.args = args
+        self.update_attr = args.update  # Special case for update flag
+
+        self.logger.setLevel(self._log_levels[self.verbose])
         self.set_portal()
-        self.commandline = " ".join(sys.argv)
 
 
 if __name__ == "__main__":
@@ -996,18 +1040,18 @@ if __name__ == "__main__":
     auv_netcdf.process_command_line()
 
     p_start = time.time()
-    if auv_netcdf.args.update:
+    if auv_netcdf.update_attr:
         auv_netcdf.update()
-    elif auv_netcdf.args.auv_name and auv_netcdf.args.mission:
-        if auv_netcdf.args.vehicle_dir:
-            path = auv_netcdf.get_mission_dir(auv_netcdf.args.mission)
+    elif auv_netcdf.auv_name and auv_netcdf.mission:
+        if auv_netcdf.vehicle_dir:
+            path = auv_netcdf.get_mission_dir(auv_netcdf.mission)
             auv_netcdf.download_process_logs(src_dir=path)
         else:
             raise argparse.ArgumentError(
                 None,
                 "Must provide --vehicle_dir with --auv_name & --mission",
             )
-    elif auv_netcdf.args.start and auv_netcdf.args.end:
+    elif auv_netcdf.start and auv_netcdf.end:
         auv_netcdf._deployments_between()
     else:
         raise argparse.ArgumentError(

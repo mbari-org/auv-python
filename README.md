@@ -59,8 +59,9 @@ print out the usage information for each of the processing scripts:
     uv run src/data/archive.py --help  
     uv run src/data/process_i2map.py --help  
     uv run src/data/process_dorado.py --help  
+    uv run src/data/process_lrauv.py --help  
 
-See [WORKFLOW.md](WORKFLOW.md) for more details on the data processing workflow.
+See [DORADO_WORKFLOW.md](DORADO_WORKFLOW.md) and [LRAUV_WORKFLOW.md](LRAUV_WORKFLOW.md) for more details on the data processing workflows.
 
 ### Jupyter Notebooks ###
 To run the Jupyter Notebooks, start Jupyter Lab at the command line with:
@@ -103,11 +104,11 @@ First time use with Docker on a server using a service account:
 * git clone git&#xFEFF;@github.com:mbari-org/auv-python.git
 * cd auv-python
 * Create a .env file in `/opt/auv-python` with the following contents:   
-    `M3_VOL=<mount_location>`   
-    `AUVCTD_VOL=<mount_location>`   
-    `CALIBRATION_VOL=<mount_location>`   
-    `WORK_VOL=<auv-python_home>/data`   
-
+    `M3_VOL=<mount_location>`
+    `AUVCTD_VOL=<mount_location>`
+    `CALIBRATION_VOL=<mount_location>`
+    `WORK_VOL=<auv-python_home>/data`
+    `HOST_NAME=<name_of_host>`
 After installation and when logging into the server again mission data can be processed thusly:
 * Setting up environment and printing help message:   
     `sudo -u docker_user -i`  
@@ -118,6 +119,10 @@ After installation and when logging into the server again mission data can be pr
     `docker compose run --rm auvpython src/data/process_i2map.py --help`   
 * To actually process a mission and have the processed data copied to the archive use the `-v` and `--clobber` options, e.g.:   
     `docker compose run --rm auvpython src/data/process_dorado.py --mission 2025.139.04 -v --clobber --noinput`   
+* To process LRAUV data for a specific vehicle and time range:   
+    `docker compose run --rm auvpython src/data/process_lrauv.py --auv_name tethys --start 20250401T000000 --end 20250502T000000 -v --noinput`   
+* To process a specific LRAUV log file:   
+    `docker compose run --rm auvpython src/data/process_lrauv.py --log_file tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4 -v --noinput`   
 
 
 --
