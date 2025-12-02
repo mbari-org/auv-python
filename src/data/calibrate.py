@@ -1724,7 +1724,7 @@ class Calibrate_NetCDF:
         lon_fix = self.combined_nc["gps_longitude"]
         lat_fix = self.combined_nc["gps_latitude"]
 
-        # Use the shared function from AUV module
+        # Use the shared function from utils
         lon_nudged, lat_nudged, segment_count, segment_minsum = nudge_positions(
             nav_longitude=lon,
             nav_latitude=lat,
