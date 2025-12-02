@@ -39,117 +39,78 @@ GROUP = "Group"  # A literal in the filename to use for identifying group .nc fi
 
 SCI_PARMS = {
     "/": [
-        {
-            "name": "concentration_of_colored_dissolved_organic_matter_in_sea_water",
-            "rename": "colored_dissolved_organic_matter",
-        },
-        {"name": "longitude", "rename": "longitude"},
-        {"name": "latitude", "rename": "latitude"},
-        {"name": "depth", "rename": "depth"},
-        {"name": "time", "rename": "time"},
+        {"name": "longitude"},
+        {"name": "latitude"},
+        {"name": "depth"},
+        {"name": "time"},
     ],
-    "Aanderaa_O2": [{"name": "mass_concentration_of_oxygen_in_sea_water", "rename": "oxygen"}],
+    "Aanderaa_O2": [{"name": "mass_concentration_of_oxygen_in_sea_water"}],
     "CTD_NeilBrown": [
-        {"name": "sea_water_salinity", "rename": "salinity"},
-        {"name": "sea_water_temperature", "rename": "temperature"},
+        {"name": "sea_water_salinity"},
+        {"name": "sea_water_temperature"},
     ],
     "CTD_Seabird": [
-        {"name": "sea_water_salinity", "rename": "salinity"},
-        {"name": "sea_water_temperature", "rename": "temperature"},
-        {
-            "name": "mass_concentration_of_oxygen_in_sea_water",
-            "rename": "mass_concentration_of_oxygen_in_sea_water",
-        },
+        {"name": "sea_water_salinity"},
+        {"name": "sea_water_temperature"},
+        {"name": "mass_concentration_of_oxygen_in_sea_water"},
     ],
-    "ISUS": [{"name": "mole_concentration_of_nitrate_in_sea_water", "rename": "nitrate"}],
-    "PAR_Licor": [{"name": "downwelling_photosynthetic_photon_flux_in_sea_water", "rename": "PAR"}],
+    "ISUS": [{"name": "mole_concentration_of_nitrate_in_sea_water"}],
+    "PAR_Licor": [{"name": "downwelling_photosynthetic_photon_flux_in_sea_water"}],
     "WetLabsBB2FL": [
-        {"name": "mass_concentration_of_chlorophyll_in_sea_water", "rename": "chlorophyll"},
-        {"name": "OutputChl", "rename": "chl"},
-        {"name": "Output470", "rename": "bbp470"},
-        {"name": "Output650", "rename": "bbp650"},
-        {"name": "VolumeScatCoeff117deg470nm", "rename": "volumescatcoeff117deg470nm"},
-        {"name": "VolumeScatCoeff117deg650nm", "rename": "volumescatcoeff117deg650nm"},
-        {
-            "name": "ParticulateBackscatteringCoeff470nm",
-            "rename": "particulatebackscatteringcoeff470nm",
-        },
-        {
-            "name": "ParticulateBackscatteringCoeff650nm",
-            "rename": "particulatebackscatteringcoeff650nm",
-        },
+        {"name": "mass_concentration_of_chlorophyll_in_sea_water"},
+        {"name": "OutputChl"},
+        {"name": "Output470"},
+        {"name": "Output650"},
+        {"name": "VolumeScatCoeff117deg470nm"},
+        {"name": "VolumeScatCoeff117deg650nm"},
+        {"name": "ParticulateBackscatteringCoeff470nm"},
+        {"name": "ParticulateBackscatteringCoeff650nm"},
     ],
     "WetLabsSeaOWL_UV_A": [
-        {
-            "name": "concentration_of_chromophoric_dissolved_organic_matter_in_sea_water",
-            "rename": "chromophoric_dissolved_organic_matter",
-        },
-        {"name": "mass_concentration_of_chlorophyll_in_sea_water", "rename": "chlorophyll"},
-        {"name": "BackscatteringCoeff700nm", "rename": "BackscatteringCoeff700nm"},
-        {"name": "VolumeScatCoeff117deg700nm", "rename": "VolumeScatCoeff117deg700nm"},
-        {
-            "name": "mass_concentration_of_petroleum_hydrocarbons_in_sea_water",
-            "rename": "petroleum_hydrocarbons",
-        },
+        {"name": "concentration_of_chromophoric_dissolved_organic_matter_in_sea_water"},
+        {"name": "mass_concentration_of_chlorophyll_in_sea_water"},
+        {"name": "BackscatteringCoeff700nm"},
+        {"name": "VolumeScatCoeff117deg700nm"},
+        {"name": "mass_concentration_of_petroleum_hydrocarbons_in_sea_water"},
     ],
     "WetLabsUBAT": [
-        {"name": "average_bioluminescence", "rename": "average_bioluminescence"},
-        {"name": "flow_rate", "rename": "ubat_flow_rate"},
-        {"name": "digitized_raw_ad_counts", "rename": "digitized_raw_ad_counts"},
+        {"name": "average_bioluminescence"},
+        {"name": "flow_rate"},
+        {"name": "digitized_raw_ad_counts"},
     ],
 }
 
 ENG_PARMS = {
     "BPC1": [
-        {"name": "platform_battery_charge", "rename": "health_platform_battery_charge"},
-        {"name": "platform_battery_voltage", "rename": "health_platform_average_voltage"},
+        {"name": "platform_battery_charge"},
+        {"name": "platform_battery_voltage"},
     ],
-    "BuoyancyServo": [
-        {"name": "platform_buoyancy_position", "rename": "control_inputs_buoyancy_position"}
-    ],
+    "BuoyancyServo": [{"name": "platform_buoyancy_position"}],
     "DeadReckonUsingMultipleVelocitySources": [
-        {
-            "name": "fix_residual_percent_distance_traveled",
-            "rename": (
-                "fix_residual_percent_distance_traveled_DeadReckonUsingMultipleVelocitySources"
-            ),
-        },
-        {"name": "longitude", "rename": "pose_longitude_DeadReckonUsingMultipleVelocitySources"},
-        {"name": "latitude", "rename": "pose_latitude_DeadReckonUsingMultipleVelocitySources"},
-        {"name": "depth", "rename": "pose_depth_DeadReckonUsingMultipleVelocitySources"},
+        {"name": "fix_residual_percent_distance_traveled"},
+        {"name": "longitude"},
+        {"name": "latitude"},
+        {"name": "depth"},
     ],
     "DeadReckonUsingSpeedCalculator": [
-        {
-            "name": "fix_residual_percent_distance_traveled",
-            "rename": "fix_residual_percent_distance_traveled_DeadReckonUsingSpeedCalculator",
-        },
-        {"name": "longitude", "rename": "pose_longitude_DeadReckonUsingSpeedCalculator"},
-        {"name": "latitude", "rename": "pose_latitude_DeadReckonUsingSpeedCalculator"},
-        {"name": "depth", "rename": "pose_depth_DeadReckonUsingSpeedCalculator"},
+        {"name": "fix_residual_percent_distance_traveled"},
+        {"name": "longitude"},
+        {"name": "latitude"},
+        {"name": "depth"},
     ],
-    "ElevatorServo": [
-        {"name": "platform_elevator_angle", "rename": "control_inputs_elevator_angle"}
-    ],
-    "MassServo": [{"name": "platform_mass_position", "rename": "control_inputs_mass_position"}],
+    "ElevatorServo": [{"name": "platform_elevator_angle"}],
+    "MassServo": [{"name": "platform_mass_position"}],
     "NAL9602": [
-        {"name": "time_fix", "rename": "fix_time"},
-        {"name": "latitude_fix", "rename": "fix_latitude"},
-        {"name": "longitude_fix", "rename": "fix_longitude"},
+        {"name": "time_fix"},
+        {"name": "latitude_fix"},
+        {"name": "longitude_fix"},
     ],
-    "Onboard": [{"name": "platform_average_current", "rename": "health_platform_average_current"}],
-    "RudderServo": [{"name": "platform_rudder_angle", "rename": "control_inputs_rudder_angle"}],
-    "ThrusterServo": [
-        {
-            "name": "platform_propeller_rotation_rate",
-            "rename": "control_inputs_propeller_rotation_rate",
-        }
-    ],
+    "Onboard": [{"name": "platform_average_current"}],
+    "RudderServo": [{"name": "platform_rudder_angle"}],
+    "ThrusterServo": [{"name": "platform_propeller_rotation_rate"}],
     "CurrentEstimator": [
-        {
-            "name": "current_direction_navigation_frame",
-            "rename": "current_direction_navigation_frame",
-        },
-        {"name": "current_speed_navigation_frame", "rename": "current_speed_navigation_frame"},
+        {"name": "current_direction_navigation_frame"},
+        {"name": "current_speed_navigation_frame"},
     ],
 }
 
@@ -191,16 +152,6 @@ class Extract:
         self.filter_monotonic_time = filter_monotonic_time
         self.verbose = verbose
         self.commandline = commandline
-
-    def show_variable_mapping(self):
-        """Show the variable mapping."""
-        for group, parms in sorted(SCIENG_PARMS.items()):
-            print(f"Group: {group}")  # noqa: T201
-            for parm in parms:
-                name = parm.get("name", "N/A")
-                rename = parm.get("rename", "N/A")
-                print(f"  {name} -> {rename}")  # noqa: T201
-            print()  # noqa: T201
 
     def download_with_pooch(self, url, local_dir, known_hash=None):
         """Download using pooch with caching and verification."""
@@ -1197,13 +1148,6 @@ class Extract:
                 "d1235ead55023bea05e9841465d54a45dfab007a283320322e28b84438fb8a85"
             ),
         )
-        (
-            parser.add_argument(
-                "--show_variable_mapping",
-                action="store_true",
-                help="Show the variable mapping: Group/variable_names -> their_renames",
-            ),
-        )
         parser.add_argument(
             "--plot_time",
             action="store",
@@ -1229,8 +1173,4 @@ class Extract:
 if __name__ == "__main__":
     extract = Extract()
     extract.process_command_line()
-    if extract.args.show_variable_mapping:
-        extract.show_variable_mapping()
-        sys.exit(0)
-    else:
-        extract.extract_groups_to_files_netcdf4(extract.args.log_file)
+    extract.extract_groups_to_files_netcdf4(extract.args.log_file)
