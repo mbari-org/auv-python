@@ -203,7 +203,7 @@ class Align_NetCDF:
             metadata["comment"] = (
                 f"MBARI Dorado-class AUV data produced from calibrated data"
                 f" with execution of '{self.commandline}' at {iso_now} on"
-                f" host {gethostname()}. Software available at"
+                f" host {actual_hostname}. Software available at"
                 f" 'https://github.com/mbari-org/auv-python'"
             )
         elif log_file:
@@ -214,7 +214,7 @@ class Align_NetCDF:
             metadata["comment"] = (
                 f"MBARI LRAUV-class AUV data produced from logged data"
                 f" with execution of '{self.commandline}' at {iso_now} on"
-                f" host {gethostname()}. Software available at"
+                f" host {actual_hostname}. Software available at"
                 f" 'https://github.com/mbari-org/auv-python'"
             )
         if matches:
