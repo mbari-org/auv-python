@@ -336,6 +336,10 @@ class Resampler:
             f". Processing log file: {BASE_LRAUV_WEB}/"
             f"{self.log_file.replace('.nc4', '_processing.log')}"
         )
+        # Remove mention of original sampling intervals from summary
+        self.metadata["summary"] = self.metadata["summary"].replace(
+            " with measurements at original sampling intervals", ""
+        )
 
         # Preserve comment from align.nc if available, otherwise use default
         if "comment" in self.ds.attrs:
