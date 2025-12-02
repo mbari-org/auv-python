@@ -1,8 +1,10 @@
 # Env variables required in .env, e.g. for Mac:
 # M3_VOL=/Volumes/M3
 # AUVCTD_VOL=/Volumes/AUVCTD
+# LRAUV_VOL=/Volumes/LRAUV
 # CALIBRATION_VOL=/Volumes/DMO
 # WORK_VOL=/opt/docker_auv-python_vols/data
+# HOST_NAME=MBARI2597.shhore.mbari.org
 
 # Required in shell environment:
 # export DOCKER_USER_ID=$(id -u)
@@ -21,3 +23,5 @@ services:
       - ${AUVCTD_VOL}:/Volumes/AUVCTD:z
       - ${LRAUV_VOL}:/Volumes/LRAUV:z
       - ${CALIBRATION_VOL}:/Volumes/DMO:z
+    env_file:
+      - .env
