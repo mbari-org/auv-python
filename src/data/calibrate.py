@@ -3297,7 +3297,7 @@ class Calibrate_NetCDF:
     def write_netcdf(self, netcdfs_dir: Path) -> None:
         """Write calibrated netCDF file using instance attributes."""
         self.combined_nc.attrs = self.global_metadata()
-        out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_cal.nc")
+        out_fn = Path(netcdfs_dir, f"{self.auv_name}_{self.mission}_cal.nc4")
         self.logger.info("Writing calibrated instrument data to %s", out_fn)
         if Path(out_fn).exists():
             Path(out_fn).unlink()
