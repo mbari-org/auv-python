@@ -1,6 +1,7 @@
 # noqa: INP001
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -313,3 +314,104 @@ def test_align_60hz_time_coordinate_matching():
     # doesn't have _60hz suffix. The actual coordinate binding happens in align.py
     # by reading the variable's coordinate, not by name matching.
     assert timevar == "wetlabsubat_time"  # noqa: S101
+
+
+def test_wetlabsubat_proxy_processing_with_realistic_coordinates(tmp_path):
+    """Test add_wetlabsubat_proxies with realistic LRAUV coordinate variable names.
+
+    Real LRAUV data has instrument-prefixed coordinates like:
+    - parlicor_latitude, parlicor_longitude
+    - massservo_latitude, massservo_longitude
+    - nudged_latitude, nudged_longitude
+    - onboard_latitude, onboard_longitude
+    - wetlabsubat_latitude, wetlabsubat_longitude
+
+    But NOT navigation_latitude/navigation_longitude (which exist in Dorado data).
+    This test ensures the coordinate lookup doesn't fail when navigation_* are missing.
+    """
+    from resample import Resampler
+
+    # Create time arrays
+    time_vals = pd.date_range("2025-06-08 02:00:00", periods=3600, freq="1s")  # 1 hour
+    time_60hz_vals = pd.date_range("2025-06-08 02:00:00", periods=3600 * 60, freq="16666667ns")
+
+    # Create a mock dataset with realistic LRAUV structure
+    # Key: NO navigation_latitude/navigation_longitude variables
+    ds = xr.Dataset(
+        {
+            # UBAT 60Hz raw data (after expansion from 2D to 1D)
+            "wetlabsubat_digitized_raw_ad_counts": (
+                ["wetlabsubat_time_60hz"],
+                np.random.randint(200, 800, len(time_60hz_vals)),
+            ),
+            # Regular 1Hz variables
+            "wetlabsubat_flow_rate": (
+                ["wetlabsubat_time"],
+                np.full(len(time_vals), 350.0),
+            ),
+            "wetlabsbb2fl_fluorescence": (
+                ["wetlabsbb2fl_time"],
+                np.random.uniform(0, 5, len(time_vals)),
+            ),
+            # Realistic coordinate variables - instrument-prefixed, NO navigation_*
+            "nudged_latitude": (["nudged_time"], np.full(len(time_vals), 36.8)),
+            "nudged_longitude": (["nudged_time"], np.full(len(time_vals), -122.0)),
+            "onboard_latitude": (["onboard_time"], np.full(len(time_vals), 36.8)),
+            "onboard_longitude": (["onboard_time"], np.full(len(time_vals), -122.0)),
+            "wetlabsubat_latitude": (
+                ["wetlabsubat_time"],
+                np.full(len(time_vals), 36.8),
+            ),
+            "wetlabsubat_longitude": (
+                ["wetlabsubat_time"],
+                np.full(len(time_vals), -122.0),
+            ),
+        },
+        coords={
+            "wetlabsubat_time": time_vals.to_numpy(),
+            "wetlabsubat_time_60hz": time_60hz_vals.to_numpy(),
+            "wetlabsbb2fl_time": time_vals.to_numpy(),
+            "nudged_time": time_vals.to_numpy(),
+            "onboard_time": time_vals.to_numpy(),
+        },
+    )
+
+    # Add attributes
+    ds["wetlabsubat_digitized_raw_ad_counts"].attrs = {
+        "long_name": "Digitized raw AD counts",
+        "units": "counts",
+    }
+    ds["nudged_latitude"].attrs = {"standard_name": "latitude", "units": "degrees_north"}
+    ds["nudged_longitude"].attrs = {"standard_name": "longitude", "units": "degrees_east"}
+
+    # Create Resampler instance
+    resampler = Resampler(
+        auv_name="pontus",
+        log_file=None,
+        freq="1S",
+        verbose=0,
+    )
+
+    # Set the dataset
+    resampler.ds = ds
+    resampler.df_r = pd.DataFrame(index=time_vals)
+
+    # Create mock resampled_nc (would normally be created by resample_variable)
+    resampler.resampled_nc = xr.Dataset(coords={"time": time_vals.to_numpy()})
+    resampler.resampled_nc["wetlabsbb2fl_fluorescence"] = (
+        ["time"],
+        np.random.uniform(0, 5, len(time_vals)),
+    )
+
+    # This should NOT raise KeyError for navigation_latitude/navigation_longitude
+    # The method should find nudged_latitude/longitude or another available coordinate
+    try:
+        resampler.add_wetlabsubat_proxies(freq="1S")
+        # If we get here, the coordinate lookup worked
+        assert True  # noqa: S101
+    except KeyError as e:
+        if "navigation_latitude" in str(e) or "navigation_longitude" in str(e):
+            pytest.fail(
+                f"Coordinate lookup failed - should find alternative to navigation_* variables: {e}"
+            )
+        raise
