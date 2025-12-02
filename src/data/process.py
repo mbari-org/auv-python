@@ -780,12 +780,14 @@ class Processor:
                     f"{FAILED} program specified in dorado_info.py. Not processing {mission}"
                 )
                 raise FailedMission(error_message)
+            # Try to get actual host name, fall back to container name
+            actual_hostname = os.getenv("HOST_NAME", gethostname())
             self.logger.info(
                 "Processing %s mission %s by user %s on host %s",
                 program,
                 mission,
                 getuser(),
-                gethostname(),
+                actual_hostname,
             )
         except KeyError:
             error_message = f"{mission} not in dorado_info"

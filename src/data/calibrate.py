@@ -655,6 +655,8 @@ class Calibrate_NetCDF:
         if "pytest" in sys.modules:
             self.logger.debug("Skipping dynamic metadata generation (running under pytest)")
             return {}
+        # Try to get actual host name, fall back to container name
+        actual_hostname = os.getenv("HOST_NAME", gethostname())
 
         iso_now = datetime.now(tz=UTC).isoformat() + "Z"
 
@@ -705,7 +707,7 @@ class Calibrate_NetCDF:
         metadata["comment"] = (
             f"MBARI Dorado-class AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"
-            f" host {gethostname()}. Software available at"
+            f" host {actual_hostname}. Software available at"
             f" 'https://github.com/mbari-org/auv-python'"
         )
 

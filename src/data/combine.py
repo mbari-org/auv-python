@@ -40,6 +40,7 @@ __copyright__ = "Copyright 2025, Monterey Bay Aquarium Research Institute"
 
 import json  # noqa: I001
 import logging
+import os
 import sys
 import time
 from datetime import UTC
@@ -122,6 +123,9 @@ class Combine_NetCDF:
         """
         from datetime import datetime
 
+        # Try to get actual host name, fall back to container name
+        actual_hostname = os.getenv("HOST_NAME", gethostname())
+
         iso_now = datetime.now(tz=UTC).isoformat() + "Z"
 
         metadata = {}
@@ -175,7 +179,7 @@ class Combine_NetCDF:
         metadata["comment"] = (
             f"MBARI Long Range AUV data produced from original data"
             f" with execution of '{self.commandline}'' at {iso_now} on"
-            f" host {gethostname()}. Software available at"
+            f" host {actual_hostname}. Software available at"
             f" 'https://github.com/mbari-org/auv-python'"
         )
 

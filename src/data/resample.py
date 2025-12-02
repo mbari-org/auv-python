@@ -10,6 +10,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2021, Monterey Bay Aquarium Research Institute"
 
 import logging  # noqa: I001
+import os
 import re
 import sys
 import time
@@ -105,6 +106,8 @@ class Resampler:
         # Skip dynamic metadata during testing to ensure reproducible results
         if "pytest" in sys.modules:
             return {}
+        # Try to get actual host name, fall back to container name
+        actual_hostname = os.getenv("HOST_NAME", gethostname())
         repo = git.Repo(search_parent_directories=True)
         try:
             gitcommit = repo.head.object.hexsha
@@ -166,7 +169,7 @@ class Resampler:
         self.metadata["source"] = (
             f"MBARI Dorado-class AUV data produced from {from_data}"
             f" with execution of '{self.commandline}' at {iso_now} on"
-            f" host {gethostname()} using git commit {gitcommit} from"
+            f" host {actual_hostname} using git commit {gitcommit} from"
             f" software at 'https://github.com/mbari-org/auv-python'"
         )
         self.metadata["summary"] = (
@@ -332,6 +335,10 @@ class Resampler:
         self.metadata["summary"] += (
             f". Processing log file: {BASE_LRAUV_WEB}/"
             f"{self.log_file.replace('.nc4', '_processing.log')}"
+        )
+        # Remove mention of original sampling intervals from summary
+        self.metadata["summary"] = self.metadata["summary"].replace(
+            " with measurements at original sampling intervals", ""
         )
 
         # Preserve comment from align.nc if available, otherwise use default
