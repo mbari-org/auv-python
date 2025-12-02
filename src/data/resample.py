@@ -333,7 +333,7 @@ class Resampler:
             f"point median filter."
         )
         self.metadata["summary"] += (
-            f". Processing log file: {BASE_LRAUV_WEB}/"
+            f" Processing log file: {BASE_LRAUV_WEB}"
             f"{self.log_file.replace('.nc4', '_processing.log')}"
         )
         # Remove mention of original sampling intervals from summary

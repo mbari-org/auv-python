@@ -1014,6 +1014,14 @@ class Processor:
         )
         self.logger.addHandler(self.log_handler)
         self.logger.info("commandline = %s", self.commandline)
+        # Try to get actual host name, fall back to container name
+        actual_hostname = os.getenv("HOST_NAME", gethostname())
+        self.logger.info(
+            "Processing log_file %s by user %s on host %s",
+            log_file,
+            getuser(),
+            actual_hostname,
+        )
 
         netcdfs_dir = self.extract(log_file)
         self.combine(log_file=log_file)
