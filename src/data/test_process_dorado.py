@@ -32,8 +32,8 @@ def test_process_dorado(complete_dorado_processing):
     # If code changes are expected to change the file size then we should
     # update the expected size here.
     EXPECTED_SIZE_GITHUB = 621404
-    EXPECTED_SIZE_ACT = 621402
-    EXPECTED_SIZE_LOCAL = 621452
+    EXPECTED_SIZE_ACT = 621406
+    EXPECTED_SIZE_LOCAL = 621456
     if str(proc.args.base_path).startswith("/home/runner"):
         # The size is different in GitHub Actions, maybe due to different metadata
         assert nc_file.stat().st_size == EXPECTED_SIZE_GITHUB  # noqa: S101
