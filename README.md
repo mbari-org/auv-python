@@ -106,6 +106,7 @@ First time use with Docker on a server using a service account:
 * Create a .env file in `/opt/auv-python` with the following contents:   
     `M3_VOL=<mount_location>`
     `AUVCTD_VOL=<mount_location>`
+    `LRAUV_VOL=<mount_location>`
     `CALIBRATION_VOL=<mount_location>`
     `WORK_VOL=<auv-python_home>/data`
     `HOST_NAME=<name_of_host>`

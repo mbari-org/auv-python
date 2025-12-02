@@ -19,4 +19,5 @@ services:
       - ${WORK_VOL}:/data
       - ${M3_VOL}:/Volumes/M3:z
       - ${AUVCTD_VOL}:/Volumes/AUVCTD:z
+      - ${LRAUV_VOL}:/Volumes/LRAUV:z
       - ${CALIBRATION_VOL}:/Volumes/DMO:z
