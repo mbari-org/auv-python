@@ -39,7 +39,6 @@ GROUP = "Group"  # A literal in the filename to use for identifying group .nc fi
 
 SCI_PARMS = {
     "/": [
-        {"name": "concentration_of_colored_dissolved_organic_matter_in_sea_water"},
         {"name": "longitude"},
         {"name": "latitude"},
         {"name": "depth"},
