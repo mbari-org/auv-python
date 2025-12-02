@@ -347,7 +347,7 @@ class Processor:
             auv_name: Optional AUV name to filter results (e.g., 'brizo', 'ahi')
 
         Returns:
-            List of log file paths relative to base_path
+            Sorted list of log file paths relative to base_path
         """
         log_files = []
         vehicle_dir = Path(self.vehicle_dir).resolve()
@@ -400,7 +400,7 @@ class Processor:
                         log_files.extend(files_found)
 
         self.logger.info("Found %d log files in date range", len(log_files))
-        return log_files
+        return sorted(log_files)
 
     def get_mission_dir(self, mission: str) -> str:
         """Return the mission directory."""
