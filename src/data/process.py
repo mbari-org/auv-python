@@ -308,6 +308,8 @@ class Processor:
         self, datetime_dir: Path, start_dt: datetime, end_dt: datetime
     ) -> list:
         """Find log files in a datetime directory if it's in range."""
+        import re
+
         log_files = []
 
         # Normalize and parse directory datetime
@@ -321,12 +323,15 @@ class Processor:
 
         # Check if directory datetime is in range
         if start_dt <= dir_dt <= end_dt:
-            # Look for main log file (*.nc4 file)
-            nc4_files = list(datetime_dir.glob("*.nc4"))
-            if nc4_files:
-                relative_path = str(nc4_files[0].relative_to(Path(self.vehicle_dir)))
-                log_files.append(relative_path)
-                self.logger.debug("Found log file: %s", relative_path)
+            # Look for main log file (*.nc4 file) but exclude _combined.nc4 and _align.nc4
+            # Pattern matches: YYYYMMDDHHMMSS_YYYYMMDDHHMMSS.nc4
+            # Example: 202506072219_202506072336.nc4
+            log_pattern = re.compile(r"^\d{12}_\d{12}\.nc4$")
+            for nc4_file in datetime_dir.glob("*.nc4"):
+                if log_pattern.match(nc4_file.name):
+                    relative_path = str(nc4_file.relative_to(Path(self.vehicle_dir)))
+                    log_files.append(relative_path)
+                    self.logger.debug("Found log file: %s", relative_path)
 
         return log_files
 
