@@ -934,7 +934,7 @@ class Combine_NetCDF:
     def write_netcdf(self) -> None:
         """Write combined netCDF file using instance attributes."""
         netcdfs_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
-        out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined.nc")
+        out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined.nc4")
 
         self.combined_nc.attrs = self.global_metadata()
         self.logger.info("Writing combined group data to %s", out_fn)
@@ -945,7 +945,7 @@ class Combine_NetCDF:
             "Data variables written: %s",
             ", ".join(sorted(self.combined_nc.variables)),
         )
-        self.logger.info("Wrote combined (_combined.nc) netCDF file: %s", out_fn)
+        self.logger.info("Wrote combined (_combined.nc4) netCDF file: %s", out_fn)
 
         return netcdfs_dir
 
