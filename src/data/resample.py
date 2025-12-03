@@ -1717,6 +1717,11 @@ class Resampler:
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items(),
         ):
+            # Omit LRAUV "instruments" whose coordinates are confusing
+            # to have in the final resampled file
+            if instr in ("deadreckonusingmultiplevelocitysources", "nal9602", "nudged"):
+                self.logger.info("Skipping resampling for instrument %s", instr)
+                continue
             if icount == 0:
                 self.df_o = pd.DataFrame()  # original dataframe
                 self.df_r = pd.DataFrame()  # resampled dataframe
