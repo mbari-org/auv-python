@@ -630,6 +630,12 @@ class Resampler:
         self.resampled_nc["profile_number"].attrs["coordinates"] = "time depth latitude longitude"
         self.resampled_nc["profile_number"].attrs = {
             "long_name": "Profile number",
+            "comment": (
+                f"Sequential profile counter identifying individual vertical casts. "
+                f"Profiles are detected from depth vertices using scipy.signal.find_peaks "
+                f"with prominence={depth_threshold}m threshold. Increments when vehicle "
+                f"transitions between upcast and downcast with sufficient vertical displacement."
+            ),
         }
 
     def set_proxy_parameters(self, mission_start: datetime) -> tuple[float, float]:
@@ -1711,6 +1717,11 @@ class Resampler:
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items(),
         ):
+            # Omit LRAUV "instruments" whose coordinates are confusing
+            # to have in the final resampled file
+            if instr in ("deadreckonusingmultiplevelocitysources", "nal9602", "nudged"):
+                self.logger.info("Skipping resampling for instrument %s", instr)
+                continue
             if icount == 0:
                 self.df_o = pd.DataFrame()  # original dataframe
                 self.df_r = pd.DataFrame()  # resampled dataframe

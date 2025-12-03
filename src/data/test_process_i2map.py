@@ -30,9 +30,9 @@ def test_process_i2map(complete_i2map_processing):
     # but it will alert us if a code change unexpectedly changes the file size.
     # If code changes are expected to change the file size then we should
     # update the expected size here.
-    EXPECTED_SIZE_GITHUB = 52686
-    EXPECTED_SIZE_ACT = 52656
-    EXPECTED_SIZE_LOCAL = 52786
+    EXPECTED_SIZE_GITHUB = 52994
+    EXPECTED_SIZE_ACT = 52964
+    EXPECTED_SIZE_LOCAL = 53094
     if str(proc.args.base_path).startswith("/home/runner"):
         # The size is different in GitHub Actions, maybe due to different metadata
         assert nc_file.stat().st_size == EXPECTED_SIZE_GITHUB  # noqa: S101
