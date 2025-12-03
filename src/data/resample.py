@@ -630,6 +630,12 @@ class Resampler:
         self.resampled_nc["profile_number"].attrs["coordinates"] = "time depth latitude longitude"
         self.resampled_nc["profile_number"].attrs = {
             "long_name": "Profile number",
+            "comment": (
+                f"Sequential profile counter identifying individual vertical casts. "
+                f"Profiles are detected from depth vertices using scipy.signal.find_peaks "
+                f"with prominence={depth_threshold}m threshold. Increments when vehicle "
+                f"transitions between upcast and downcast with sufficient vertical displacement."
+            ),
         }
 
     def set_proxy_parameters(self, mission_start: datetime) -> tuple[float, float]:
