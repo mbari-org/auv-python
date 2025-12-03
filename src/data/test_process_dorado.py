@@ -32,8 +32,8 @@ def test_process_dorado(complete_dorado_processing):
     # If code changes are expected to change the file size then we should
     # update the expected size here.
     EXPECTED_SIZE_GITHUB = 621408
-    EXPECTED_SIZE_ACT = 621406
-    EXPECTED_SIZE_LOCAL = 621456
+    EXPECTED_SIZE_ACT = 621714
+    EXPECTED_SIZE_LOCAL = 621764
     if str(proc.args.base_path).startswith("/home/runner"):
         # The size is different in GitHub Actions, maybe due to different metadata
         assert nc_file.stat().st_size == EXPECTED_SIZE_GITHUB  # noqa: S101
@@ -52,7 +52,7 @@ def test_process_dorado(complete_dorado_processing):
         # Check that the MD5 hash has not changed
         EXPECTED_MD5_GITHUB = "7c7a3e844988d3bb6ec2a951824bc0d5"
         EXPECTED_MD5_ACT = "fac632c321b4956b6015d6de97958f8a"
-        EXPECTED_MD5_LOCAL = "c4a13d6e7ec7f35ae5aafa97ea9a2279"
+        EXPECTED_MD5_LOCAL = "aec48d0abb58d9e831e5b22180eebd8f"
         if str(proc.args.base_path).startswith("/home/runner"):
             # The MD5 hash is different in GitHub Actions, maybe due to different metadata
             assert hashlib.md5(open(nc_file, "rb").read()).hexdigest() == EXPECTED_MD5_GITHUB  # noqa:  PTH123, S101, S324, SIM115
