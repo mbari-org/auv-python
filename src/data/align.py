@@ -428,9 +428,9 @@ class Align_NetCDF:
         return netcdfs_dir
 
     def process_combined(self) -> Path:  # noqa: C901, PLR0912, PLR0915
-        """Process combined LRAUV data from *_combined.nc files created by combine.py"""
+        """Process combined LRAUV data from *_combined.nc4 files created by combine.py"""
         netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-        src_file = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined.nc")
+        src_file = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined.nc4")
 
         self.combined_nc = xr.open_dataset(src_file)
         self.logger.info("Processing %s", src_file)

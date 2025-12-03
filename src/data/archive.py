@@ -108,7 +108,7 @@ class Archiver:
                 )
                 ftypes = (ft_ending,)
             else:
-                ftypes = (f"{freq}.nc", "cal.nc", "align.nc")
+                ftypes = (f"{freq}.nc", "cal.nc4", "align.nc4")
             for ftype in ftypes:
                 src_file = Path(f"{nc_file_base}_{ftype}")
                 dst_file = Path(surveynetcdfs_dir, src_file.name)
