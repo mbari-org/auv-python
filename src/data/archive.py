@@ -233,7 +233,7 @@ class Archiver:
                     "%-75s exists, but is not being archived because --clobber is not specified.",
                     src_file.name,
                 )
-        for ftype in (f"{freq}.nc", "combined.nc", "align.nc"):
+        for ftype in (f"{freq}.nc", "combined.nc4", "align.nc4"):
             src_file = Path(src_dir, f"{Path(log_file).stem}_{ftype}")
             dst_file = Path(dst_dir, src_file.name)
             if self.clobber:
