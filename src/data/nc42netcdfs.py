@@ -345,7 +345,8 @@ class Extract:
 
         if overlap_equal and len(lat_time) == len(lon_time):
             self.logger.info(
-                "Dead Reckoned timing: latitude_time and longitude_time are properly synchronized"
+                "Dead Reckoned timing: original latitude_time and longitude_time "
+                "are properly synchronized"
             )
             return
 
@@ -502,8 +503,6 @@ class Extract:
         plot_time_coord_name: str | None,
     ) -> dict:
         """Process filtering for a single time coordinate."""
-        from scipy.signal import medfilt
-
         time_var = src_group.variables[time_coord_name]
         original_time_data = time_var[:]
         self.logger.info("Time coordinate %s: %d points", time_coord_name, len(original_time_data))
@@ -523,27 +522,23 @@ class Extract:
         # First filter out values that fall outside of reasonable bounds
         valid_indices = self._filter_valid_time_indices(original_time_data)
 
-        # Despike to remove single point outliers before getting monotonic indices
-        time_data = medfilt(original_time_data[valid_indices], kernel_size=3)
+        # Get the valid time subset
+        valid_time_data = original_time_data[valid_indices]
 
-        # Store valid indices and despiked data for plotting
-        if plot_data is not None:
-            plot_data["valid_indices"] = valid_indices
-            plot_data["valid_data"] = original_time_data[valid_indices]
-            plot_data["despiked"] = time_data.copy()
-
-        # Now apply monotonic filtering to the valid subset
-        mono_indices_in_filtered = self._get_monotonic_indices(time_data)
+        # Apply monotonic filtering to the valid subset
+        mono_indices_in_filtered = self._get_monotonic_indices(valid_time_data)
 
         # Convert monotonic indices back to original array indices
         # mono_indices_in_filtered are indices into the valid_indices subset
         # We need to map them back to indices in the original time array
         final_indices = [valid_indices[i] for i in mono_indices_in_filtered]
 
-        # Generate plot if requested for this variable
+        # Store data for plotting if requested
         if plot_data is not None:
+            plot_data["valid_indices"] = valid_indices
+            plot_data["valid_data"] = valid_time_data
             plot_data["final_indices"] = mono_indices_in_filtered
-            plot_data["final_data"] = time_data[mono_indices_in_filtered]
+            plot_data["final_data"] = valid_time_data[mono_indices_in_filtered]
             self._plot_time_filtering(plot_data)
 
         return self._create_time_filter_result(
@@ -641,12 +636,11 @@ class Extract:
         original = plot_data["original"]
         valid_indices = plot_data["valid_indices"]
         valid_data = plot_data["valid_data"]
-        despiked = plot_data["despiked"]
         final_indices = plot_data["final_indices"]
         final_data = plot_data["final_data"]
 
         # Create figure with subplots
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 9), sharex=True)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 
         # Plot 1: Original data
         ax1.plot(original, "b-", label="Original", alpha=0.7)
@@ -672,40 +666,26 @@ class Extract:
             bbox={"boxstyle": "round", "facecolor": "wheat"},
         )
 
-        # Plot 3: After despiking
-        ax3.plot(despiked, "g-", label="After Median Filter (3-point)", alpha=0.7)
+        # Plot 3: Final After Monotonic filtered data
+        ax3.plot(final_indices, final_data, "r.-", label="After Monotonic Filter", alpha=0.7)
+        ax3.set_xlabel("Index")
         ax3.set_ylabel("Time Value")
         ax3.legend()
         ax3.grid(visible=True, alpha=0.3)
-        ax3.text(
-            0.02,
-            0.60,
-            f"Points removed: {len(valid_data) - len(despiked)}\n",
-            transform=ax3.transAxes,
-            verticalalignment="top",
-            bbox={"boxstyle": "round", "facecolor": "wheat"},
-        )
-
-        # Plot 4: Final After Monotonic filtered data
-        ax4.plot(final_indices, final_data, "r.-", label="After Monotonic Filter", alpha=0.7)
-        ax4.set_xlabel("Index")
-        ax4.set_ylabel("Time Value")
-        ax4.legend()
-        ax4.grid(visible=True, alpha=0.3)
 
         # Add statistics text
         stats_text = (
-            f"Points removed: {len(despiked) - len(final_data)}\n"
+            f"Points removed: {len(valid_data) - len(final_data)}\n"
             f"Original points: {len(original)}\n"
             f"After final filter: {len(final_data)}\n"
             f"Total removed: {len(original) - len(final_data)} "
             f"({100 * (len(original) - len(final_data)) / len(original):.1f}%)"
         )
-        ax4.text(
+        ax3.text(
             0.02,
             0.90,
             stats_text,
-            transform=ax4.transAxes,
+            transform=ax3.transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "wheat"},
         )
