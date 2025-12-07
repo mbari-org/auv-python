@@ -381,7 +381,7 @@ class Combine_NetCDF:
                     set_to_nan=True,
                 )
 
-    def _consolidate_group_time_coords(self, ds: xr.Dataset, group_name: str) -> dict:
+    def _cons_group_time_coords(self, ds: xr.Dataset, group_name: str) -> dict:  # noqa: C901
         """Analyze and consolidate time coordinates for a group.
 
         Returns:
@@ -391,8 +391,11 @@ class Combine_NetCDF:
                 - time_coord_mapping: dict mapping original dims to consolidated dims
                 - variable_time_coord_mapping: dict mapping variables to their time coords
         """
-        # Find all time variables in this group
-        time_vars = {var: ds[var] for var in ds.variables if var.lower().endswith("time")}
+        if group_name.lower() == "universals":
+            # Do not include the "time" record variable from universals group
+            time_vars = {var: ds[var] for var in ds.variables if var.lower().endswith("_time")}
+        else:
+            time_vars = {var: ds[var] for var in ds.variables if var.lower().endswith("time")}
 
         if not time_vars:
             return {
@@ -407,7 +410,7 @@ class Combine_NetCDF:
             time_name = list(time_vars.keys())[0]
             consolidated_name = f"{group_name}_time"
             self.logger.info(
-                "Group %s: Single time coordinate '%s' - using as '%s'",
+                "Group %s: Single time coordinate '%s' -> '%s'",
                 group_name,
                 time_name,
                 consolidated_name,
@@ -475,7 +478,7 @@ class Combine_NetCDF:
             time_coord_mapping = dict.fromkeys(time_vars, consolidated_name)
 
             self.logger.info(
-                "%-65s %s",
+                "%-77s %s",
                 f"Consoliding {len(time_vars)} coordinates to",
                 consolidated_name,
             )
@@ -512,15 +515,15 @@ class Combine_NetCDF:
     def _add_time_coordinates_to_combined(self, time_info: dict, ds: xr.Dataset) -> None:
         """Add time coordinates to the combined dataset."""
         if time_info["consolidated_time_name"]:
-            self._add_consolidated_time_coordinate(time_info)
+            self._add_cons_time_coord(time_info)
         else:
-            self._add_separate_time_coordinates(time_info, ds)
+            self._add_sep_time_coord(time_info, ds)
 
-    def _add_consolidated_time_coordinate(self, time_info: dict) -> None:
+    def _add_cons_time_coord(self, time_info: dict) -> None:
         """Add a consolidated time coordinate to the combined dataset."""
         time_name = time_info["consolidated_time_name"]
         self.logger.info(
-            "Adding consolidated time coordinate %-45s %s",
+            "Adding consolidated time coordinate %-44s %s",
             f"{time_name} as",
             time_name,
         )
@@ -531,7 +534,7 @@ class Combine_NetCDF:
         )
         self.combined_nc[time_name].attrs = time_info["consolidated_time_data"].attrs.copy()
 
-    def _add_separate_time_coordinates(self, time_info: dict, ds: xr.Dataset) -> None:
+    def _add_sep_time_coord(self, time_info: dict, ds: xr.Dataset) -> None:
         """Add separate time coordinates to the combined dataset."""
         for orig_time_var, new_time_var in time_info["time_coord_mapping"].items():
             self.logger.info(
@@ -603,7 +606,7 @@ class Combine_NetCDF:
         )
         self.combined_nc[var_name].coords[dim_name].attrs["standard_name"] = "time"
 
-    def _process_group_variables(self, ds: xr.Dataset, group_name: str, time_info: dict) -> None:
+    def _process_group_vars(self, ds: xr.Dataset, group_name: str, time_info: dict) -> None:
         """Process all data variables in a group."""
         for orig_var in ds.variables:
             if orig_var.lower().endswith("time"):
@@ -877,18 +880,19 @@ class Combine_NetCDF:
         self.combined_nc = xr.Dataset()
 
         for group_file in group_files:
+            self.logger.info("-" * 110)
             self.logger.info("Group file: %s", group_file.name)
             # Open group file without decoding to have np.allclose work properly
             with xr.open_dataset(group_file, decode_cf=False) as ds:
                 # Group name to prepend variable names is lowercase with underscores removed
                 group_name = group_file.stem.split(f"{GROUP}_")[1].replace("_", "").lower()
-                time_info = self._consolidate_group_time_coords(ds, group_name)
+                time_info = self._cons_group_time_coords(ds, group_name)
 
                 # Add time coordinate(s) to combined dataset
                 self._add_time_coordinates_to_combined(time_info, ds)
 
                 # Process all data variables in the group
-                self._process_group_variables(ds, group_name, time_info)
+                self._process_group_vars(ds, group_name, time_info)
 
                 # Add consolidation comment if applicable
                 self._add_consolidation_comment(time_info)

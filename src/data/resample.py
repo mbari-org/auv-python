@@ -365,6 +365,36 @@ class Resampler:
                 instr_vars[instr].append(variable)
         return instr_vars
 
+    def _get_pitch_corrected_instrument(self) -> str:
+        # Determine which instrument provides the pitch corrected depth
+        # For dorado/i2map missions, this is usually 'ctd1' or 'seabird25p'
+        # For LRAUV missions, this is usually 'ctdseabird' or 'ctdneilbrown'
+        if self.log_file:
+            pitch_corrected_instr = "ctdseabird"
+            if f"{pitch_corrected_instr}_depth" in self.ds:
+                return pitch_corrected_instr
+            pitch_corrected_instr += "_sea_water_temperature"
+            if f"{pitch_corrected_instr}_depth" in self.ds:
+                return pitch_corrected_instr
+            pitch_corrected_instr = "ctdneilbrown"
+            if f"{pitch_corrected_instr}_depth" in self.ds:
+                return pitch_corrected_instr
+        else:
+            pitch_corrected_instr = "ctd1"
+            if f"{pitch_corrected_instr}_depth" in self.ds:
+                return pitch_corrected_instr
+            pitch_corrected_instr = "seabird25p"
+            if f"{pitch_corrected_instr}_depth" in self.ds:
+                return pitch_corrected_instr
+
+        # If neither instrument found, log error and raise InvalidAlignFile exception.
+        self.logger.warning("No pitch corrected depth coordinate found")
+        self.logger.info(
+            "Cannot continue without a pitch corrected depth coordinate",
+        )
+        msg = f"A pitch corrected depth coordinate was not found in {self.ds.encoding['source']}"
+        raise InvalidAlignFile(msg) from None
+
     def resample_coordinates(self, instr: str, mf_width: int, freq: str) -> None:
         self.logger.info(
             "Resampling coordinates depth, latitude and longitude with"
@@ -372,23 +402,32 @@ class Resampler:
             freq,
             mf_width,
         )
-        # Original
-        try:
-            self.df_o[f"{instr}_depth"] = self.ds[f"{instr}_depth"].to_pandas()
-        except KeyError:
-            self.logger.warning(
-                "Variable %s_depth not found in %s align.nc file",
-                instr,
-                self.mission,
-            )
+        # Find depth coordinate for the instrument - lrauv ctd may have unique coordinates
+        # per variable. Check for shared depth coordinate first, dorado/i2map style, then
+        # check for instrument specific depth coordinate. If neither found, log error and
+        # raise InvalidAlignFile exception.
+        if f"{instr}_depth" in self.ds:
+            depth_coord = f"{instr}_depth"
+        elif f"{instr}_sea_water_temperature_depth" in self.ds:
+            depth_coord = f"{instr}_sea_water_temperature_depth"
+        elif "ctdneilbrown_depth" in self.ds:
+            depth_coord = "ctdneilbrown_depth"
+        else:
+            self.logger.warning("No depth coordinate found for instrument %s", instr)
             self.logger.info(
                 "Cannot continue without a pitch corrected depth coordinate",
             )
             if self.log_file:
-                msg = f"A CTD depth was not found in {self.ds.encoding['source']}"
+                msg = (
+                    f"A depth coordinate was not found for instrument {instr} in "
+                    f"{self.ds.encoding['source']}"
+                )
             else:
                 msg = f"{instr}_depth not found in {self.auv_name}_{self.mission}_align.nc4"
             raise InvalidAlignFile(msg) from None
+
+        # Original
+        self.df_o[f"{instr}_depth"] = self.ds[depth_coord].to_pandas()
         try:
             self.df_o[f"{instr}_latitude"] = self.ds[f"{instr}_latitude"].to_pandas()
             self.df_o[f"{instr}_longitude"] = self.ds[f"{instr}_longitude"].to_pandas()
@@ -399,6 +438,7 @@ class Resampler:
             )
             self.logger.warning(msg)
             raise InvalidAlignFile(msg) from None
+
         # Median Filtered - back & forward filling nan values at ends
         self.df_o[f"{instr}_depth_mf"] = (
             self.ds[f"{instr}_depth"]
@@ -450,36 +490,46 @@ class Resampler:
         )
         return aggregator
 
-    def save_coordinates(
+    def save_coordinates(  # noqa: PLR0913
         self,
         instr: str,
+        pitch_corrected_instr: str,
         mf_width: int,
         freq: str,
         aggregator: str,
     ) -> None:
-        in_fn = self.ds.encoding["source"].split("/")[-1]
         self.df_r["depth"].index.rename("time", inplace=True)  # noqa: PD002
         self.resampled_nc["depth"] = self.df_r["depth"].to_xarray()
-        self.df_r["latitude"].index.rename("time", inplace=True)  # noqa: PD002
-        self.resampled_nc["latitude"] = self.df_r["latitude"].to_xarray()
-        self.df_r["longitude"].index.rename("time", inplace=True)  # noqa: PD002
-        self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
-        self.resampled_nc["depth"].attrs = self.ds[f"{instr}_depth"].attrs
+        self.resampled_nc["depth"].attrs = {}
+        self.resampled_nc["depth"].attrs["units"] = "meters"
+        self.resampled_nc["depth"].attrs["long_name"] = "Depth"
         self.resampled_nc["depth"].attrs["standard_name"] = "depth"
-        self.resampled_nc["depth"].attrs["comment"] += (
-            f". {self.ds[f'{instr}_depth'].attrs['comment']}"
+        self.resampled_nc["depth"].attrs["comment"] = (
+            f"{self.ds[f'{pitch_corrected_instr}_depth'].attrs['comment']}"
             f" mean sampled at {self.freq} intervals following"
             f" {self.mf_width} point median filter."
         )
-        self.resampled_nc["latitude"].attrs = self.ds[f"{instr}_latitude"].attrs
-        self.resampled_nc["latitude"].attrs["comment"] += (
-            f" Variable {instr}_latitude from {in_fn}"
+
+        self.df_r["latitude"].index.rename("time", inplace=True)  # noqa: PD002
+        self.resampled_nc["latitude"] = self.df_r["latitude"].to_xarray()
+        self.resampled_nc["latitude"].attrs = {}
+        self.resampled_nc["latitude"].attrs["units"] = "degrees_north"
+        self.resampled_nc["latitude"].attrs["long_name"] = "Latitude"
+        self.resampled_nc["latitude"].attrs["standard_name"] = "latitude"
+        self.resampled_nc["latitude"].attrs["comment"] = (
+            f"{self.ds[f'{pitch_corrected_instr}_latitude'].attrs['comment']}"
             f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
-        self.resampled_nc["longitude"].attrs = self.ds[f"{instr}_longitude"].attrs
-        self.resampled_nc["longitude"].attrs["comment"] += (
-            f" Variable {instr}_longitude from {in_fn}"
+
+        self.df_r["longitude"].index.rename("time", inplace=True)  # noqa: PD002
+        self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
+        self.resampled_nc["longitude"].attrs = {}
+        self.resampled_nc["longitude"].attrs["units"] = "degrees_east"
+        self.resampled_nc["longitude"].attrs["long_name"] = "Longitude"
+        self.resampled_nc["longitude"].attrs["standard_name"] = "longitude"
+        self.resampled_nc["longitude"].attrs["comment"] = (
+            f"{self.ds[f'{pitch_corrected_instr}_longitude'].attrs['comment']}"
             f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
@@ -1755,21 +1805,17 @@ class Resampler:
                 # use 'ctddseabird', otherwise start with 'ctd1' and fall back to
                 # 'seabird25p' if needed for i2map missions. Early LRAUV missions
                 # had only CTD_NeilBrown instruments, later ones had CTD_Seabird.
-                pitch_corrected_instr = "ctdseabird" if self.log_file else "ctd1"
-                if f"{pitch_corrected_instr}_depth" not in self.ds:
-                    pitch_corrected_instr = "ctdneilbrown"
-                if f"{pitch_corrected_instr}_depth" not in self.ds:
-                    pitch_corrected_instr = "seabird25p"
-                    if pitch_corrected_instr in instrs_to_pad:
-                        # Use navigation if seabird25p failed to record
-                        # data all the way to the end of the mission
-                        pitch_corrected_instr = "navigation"
+                pitch_corrected_instr = self._get_pitch_corrected_instrument()
+                if pitch_corrected_instr in instrs_to_pad:
+                    # Use navigation if seabird25p failed to record
+                    # data all the way to the end of the mission
+                    pitch_corrected_instr = "navigation"
                 aggregator = self.resample_coordinates(
                     pitch_corrected_instr,
                     mf_width,
                     freq,
                 )
-                self.save_coordinates(instr, mf_width, freq, aggregator)
+                self.save_coordinates(instr, pitch_corrected_instr, mf_width, freq, aggregator)
                 if self.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
                 self.add_profile(depth_threshold=depth_threshold)

@@ -59,13 +59,16 @@
             // brizo 20250914T080941 has bad latitude and longitude values and lots of bad Universal latitude_time and longitude_time values
             //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
             //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--plot_time", "/longitude_time"]
-            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--plot_time", "/latitude_time"]
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--plot_universals"]
+            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--plot_time", "/latitude_time"]
             // brizo 20250916T230652 has several ESP Samples from stoqs_lrauv_sep2025
             //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--plot_time", "/longitude_time"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109_cleaned_by_quinn.nc4", "--plot_time", "/longitude_time"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109_cleaned_by_quinn_latlon.nc4", "--plot_time", "/longitude_time"]
             // Conflicting sizes for nudged_time and data - fixed by filtering GPS fixes to be monotonically increasing
-            "args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot_time", "/longitude_time"]
+            //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot_time", "/longitude_time"]
+            // Single spike in longitude_time
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--plot_time", "/NAL9602/longitude_fix_time"]
         },
         {
             "name": "2.0 - calibrate.py",
@@ -122,11 +125,11 @@
             "program": "${workspaceFolder}/src/data/combine.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
+            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--plot"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--plot"]
             //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4", "--plot"]
             // Conflicting sizes for nudged_time and data - fixed by filtering GPS fixes to be monotonically increasing
-            "args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot"]
+            //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot"]
 
         },
         {
@@ -149,8 +152,8 @@
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2008.289.03"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2024.317.01"],
-            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4"]
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2025.316.02"],
+            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4"]
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2025.316.02"],
         },
         {
             "name": "3.1 - align.py for LRAUV --log_file",
@@ -345,7 +348,7 @@
             // Lots bad time values in brizo 20250914T080941 due to memory corruption on the vehicle
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"]
             //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--clobber"]
-            //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--clobber", "--no_cleanup"]
+            "args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4", "--clobber", "--no_cleanup"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--no_cleanup"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4", "--no_cleanup", "--clobber"]
             // Has different universals time coodinates for longitude/latitude and depth
@@ -360,7 +363,7 @@
             // Fails with ValueError: different number of dimensions on data and dims: 2 vs 1 for wetlabsubat_digitized_raw_ad_counts variable
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250604_20250616/20250608T020852/202506080209_202506081934.nc4", "--no_cleanup", "--clobber"]
             // Full month of June 2025 for Pontus with WetLabsUBAT Group data
-            "args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
+            //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
             //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250702T000000", "--noinput", "--num_cores", "1", "--no_cleanup", "--clobber"]
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250707T043011/slate.nc4", "--no_cleanup"]
         },

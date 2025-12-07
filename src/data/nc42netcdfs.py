@@ -134,6 +134,7 @@ class Extract:
         self,
         log_file: str = None,
         plot_time: str = None,
+        plot_universals: bool = False,  # noqa: FBT001, FBT002
         filter_monotonic_time: bool = True,  # noqa: FBT001, FBT002
         verbose: int = 0,
         commandline: str = "",
@@ -143,15 +144,18 @@ class Extract:
         Args:
             log_file: Log file path for processing
             plot_time: Optional plot time specification (e.g., /latitude_time)
+            plot_universals: Plot longitude, latitude, depth time filtering for root group
             filter_monotonic_time: Filter out non-monotonic time values
             verbose: Verbosity level (0-2)
             commandline: Command line string for tracking
         """
         self.log_file = log_file
         self.plot_time = plot_time
+        self.plot_universals = plot_universals
         self.filter_monotonic_time = filter_monotonic_time
         self.verbose = verbose
         self.commandline = commandline
+        self.universals_plot_data = {}  # Store plot data for universals
 
     def download_with_pooch(self, url, local_dir, known_hash=None):
         """Download using pooch with caching and verification."""
@@ -310,9 +314,15 @@ class Extract:
             )
             time_filters[time_coord_name] = time_filter
 
-        # Align latitude and longitude in root group if needed
+        # For root group, apply intersection of valid indices before monotonic filtering
         if group_name == "/":
+            time_filters = self._apply_universals_intersection(
+                log_file, src_group, time_filters, vars_to_extract
+            )
             time_filters = self._align_root_group_coordinates(time_filters, vars_to_extract)
+            # Plot universals if requested
+            if self.plot_universals:
+                self._plot_universals_filtering()
 
         return time_filters
 
@@ -345,7 +355,8 @@ class Extract:
 
         if overlap_equal and len(lat_time) == len(lon_time):
             self.logger.info(
-                "Dead Reckoned timing: latitude_time and longitude_time are properly synchronized"
+                "Dead Reckoned timing: original latitude_time and longitude_time "
+                "are properly synchronized"
             )
             return
 
@@ -501,9 +512,25 @@ class Extract:
         plot_group_name: str | None,
         plot_time_coord_name: str | None,
     ) -> dict:
-        """Process filtering for a single time coordinate."""
-        from scipy.signal import medfilt
+        """Process filtering for a single time coordinate.
 
+        Applies a pipeline of filtering steps to clean time coordinate data:
+        1. Range-based outlier removal (using filename time bounds ±10 min)
+        2. Single-point spike detection (removes anomalous forward-then-back jumps)
+        3. Monotonic filtering (ensures strictly increasing time values)
+        4. Universal coordinates intersection (applied separately for lon/lat/depth/time)
+
+        Args:
+            log_file: Name of the log file being processed
+            group_name: NetCDF group name
+            src_group: NetCDF group object containing the time coordinate
+            time_coord_name: Name of the time coordinate variable
+            plot_group_name: Group name for plotting (if requested)
+            plot_time_coord_name: Time coordinate name for plotting (if requested)
+
+        Returns:
+            Dictionary with filtering results including indices and metadata
+        """
         time_var = src_group.variables[time_coord_name]
         original_time_data = time_var[:]
         self.logger.info("Time coordinate %s: %d points", time_coord_name, len(original_time_data))
@@ -523,32 +550,120 @@ class Extract:
         # First filter out values that fall outside of reasonable bounds
         valid_indices = self._filter_valid_time_indices(original_time_data)
 
-        # Despike to remove single point outliers before getting monotonic indices
-        time_data = medfilt(original_time_data[valid_indices], kernel_size=3)
+        # Remove single-point time spikes
+        spike_removed_indices = self._remove_time_spikes(original_time_data, valid_indices)
 
-        # Store valid indices and despiked data for plotting
-        if plot_data is not None:
-            plot_data["valid_indices"] = valid_indices
-            plot_data["valid_data"] = original_time_data[valid_indices]
-            plot_data["despiked"] = time_data.copy()
+        # Get the valid time subset
+        valid_time_data = original_time_data[spike_removed_indices]
 
-        # Now apply monotonic filtering to the valid subset
-        mono_indices_in_filtered = self._get_monotonic_indices(time_data)
+        # Apply monotonic filtering
+        mono_indices_in_filtered = self._get_monotonic_indices(valid_time_data)
 
         # Convert monotonic indices back to original array indices
-        # mono_indices_in_filtered are indices into the valid_indices subset
-        # We need to map them back to indices in the original time array
-        final_indices = [valid_indices[i] for i in mono_indices_in_filtered]
+        final_indices = [spike_removed_indices[i] for i in mono_indices_in_filtered]
 
-        # Generate plot if requested for this variable
+        # Store data for plotting if requested (do this before early return)
         if plot_data is not None:
+            outlier_removed_data = original_time_data[valid_indices]
+            plot_data["outlier_indices"] = valid_indices
+            plot_data["outlier_data"] = outlier_removed_data
+            plot_data["spike_indices"] = spike_removed_indices
+            plot_data["spike_data"] = valid_time_data
             plot_data["final_indices"] = mono_indices_in_filtered
-            plot_data["final_data"] = time_data[mono_indices_in_filtered]
+            plot_data["final_data"] = valid_time_data[mono_indices_in_filtered]
             self._plot_time_filtering(plot_data)
+
+        # For root group universals, store data for intersection step
+        is_universal_coord = group_name == "/" and time_coord_name in [
+            "longitude_time",
+            "latitude_time",
+            "depth_time",
+            "time_time",
+        ]
+
+        if is_universal_coord:
+            # Store intermediate data for intersection step
+            if self.plot_universals:
+                outlier_removed_data = original_time_data[valid_indices]
+                spike_removed_data = original_time_data[spike_removed_indices]
+                self.universals_plot_data[time_coord_name] = {
+                    "original": original_time_data.copy(),
+                    "outlier_indices": valid_indices.copy(),
+                    "outlier_data": outlier_removed_data.copy(),
+                    "spike_indices": spike_removed_indices.copy(),
+                    "spike_data": spike_removed_data.copy(),
+                    "mono_indices": final_indices.copy(),
+                    "mono_data": valid_time_data[mono_indices_in_filtered].copy(),
+                    "log_file": log_file,
+                }
+            # Return with monotonic-filtered indices - intersection happens later
+            return {
+                "indices": final_indices,
+                "filtered": len(final_indices) < len(original_time_data),
+                "comment": "Pre-intersection state",
+                "mono_indices": final_indices,  # Store for intersection
+                "original_time_data": original_time_data,  # Store for reprocessing
+            }
 
         return self._create_time_filter_result(
             final_indices, len(original_time_data), time_coord_name
         )
+
+    def _apply_universals_intersection(
+        self,
+        log_file: str,
+        src_group: netCDF4.Group,
+        time_filters: dict,
+        vars_to_extract: list[str],
+    ) -> dict:
+        """Apply intersection of monotonic-filtered indices for longitude, latitude, and depth.
+
+        After outlier removal and monotonic filtering, we intersect the indices so that only
+        time points that exist in all three coordinates are kept.
+        """
+        # Identify which universal coordinates are present
+        universal_coords = ["longitude_time", "latitude_time", "depth_time", "time_time"]
+        present_coords = [tc for tc in universal_coords if tc in time_filters]
+
+        if len(present_coords) < 2:  # noqa: PLR2004
+            # Need at least 2 coordinates to do intersection
+            self.logger.info("Less than 2 universal coordinates found, skipping intersection")
+            return time_filters
+
+        # Get monotonic-filtered indices for each coordinate
+        mono_indices_sets = {}
+        for time_coord in present_coords:
+            mono_indices_sets[time_coord] = set(time_filters[time_coord]["mono_indices"])
+
+        # Compute intersection of all monotonic indices
+        intersected_indices = set.intersection(*mono_indices_sets.values())
+        intersected_indices_list = sorted(intersected_indices)
+
+        self.logger.info(
+            "Intersection of universal coordinates (after monotonic filtering): %s",
+            ", ".join(f"{tc}: {len(mono_indices_sets[tc])} points" for tc in present_coords),
+        )
+        self.logger.info("After intersection: %d common points", len(intersected_indices_list))
+
+        # Update each coordinate with intersected indices
+        for time_coord in present_coords:
+            original_time_data = time_filters[time_coord]["original_time_data"]
+
+            # Update the filter with final indices
+            time_filters[time_coord] = self._create_time_filter_result(
+                intersected_indices_list, len(original_time_data), time_coord
+            )
+
+            # Update plot data if collecting for universals
+            if self.plot_universals and time_coord in self.universals_plot_data:
+                self.universals_plot_data[time_coord]["final_indices"] = (
+                    intersected_indices_list.copy()
+                )
+                self.universals_plot_data[time_coord]["final_data"] = original_time_data[
+                    intersected_indices_list
+                ].copy()
+
+        return time_filters
 
     def _is_time_variable(self, var_name: str, var) -> bool:
         """Check if a variable is a time coordinate variable."""
@@ -569,24 +684,40 @@ class Extract:
         """Filter out wildly invalid time values before monotonic filtering.
 
         Returns indices of time values that are reasonable Unix epoch timestamps.
-        Uses numpy for efficient vectorized operations.
+        Uses time bounds from log file name.
         """
-        # LRAUV data bounds: September 2012 to current + 5 years buffer
-        lrauv_start_date = datetime(2012, 9, 1, tzinfo=UTC)
-        current_date = datetime.now(UTC)
-        future_buffer_date = current_date.replace(year=current_date.year + 5)
+        # Parse filename like: 202509140809_202509150109.nc4
+        # Format: YYYYMMDDHHMM_YYYYMMDDHHMM
+        import re
+        from datetime import timedelta
+        from pathlib import Path
 
-        MIN_UNIX_TIME = int(lrauv_start_date.timestamp())  # September 1, 2012 UTC
-        MAX_UNIX_TIME = int(future_buffer_date.timestamp())  # Current + 5 years buffer
+        filename = Path(self.log_file).stem
+        match = re.search(r"(\d{12})_(\d{12})", filename)
+
+        start_str = match.group(1)
+        end_str = match.group(2)
+
+        # Parse YYYYMMDDHHMM format
+        start_time = datetime.strptime(start_str, "%Y%m%d%H%M").replace(tzinfo=UTC)
+        end_time = datetime.strptime(end_str, "%Y%m%d%H%M").replace(tzinfo=UTC)
+
+        # Add 10-minute buffer before and after
+        MIN_UNIX_TIME = int((start_time - timedelta(minutes=10)).timestamp())
+        MAX_UNIX_TIME = int((end_time + timedelta(minutes=10)).timestamp())
+
+        self.logger.debug(
+            "Using time bounds from log file: %s to %s",
+            (start_time - timedelta(minutes=10)).isoformat(),
+            (end_time + timedelta(minutes=10)).isoformat(),
+        )
 
         # Convert to numpy array for efficient operations
         time_array = np.asarray(time_data)
 
-        # Create boolean masks for valid conditions
+        # Basic validity checks
         is_finite = np.isfinite(time_array)
         is_in_range = (time_array >= MIN_UNIX_TIME) & (time_array <= MAX_UNIX_TIME)
-
-        # Combine all conditions - all must be True for valid indices
         valid_mask = is_finite & is_in_range
 
         # Get indices where all conditions are met
@@ -609,6 +740,88 @@ class Extract:
 
         return valid_indices
 
+    def _remove_time_spikes(self, time_data, indices: list[int]) -> list[int]:
+        """Remove single-point time spikes from a list of indices.
+
+        A spike is detected when a time value jumps significantly forward or backward
+        and then returns close to the expected progression within the next few points.
+
+        Args:
+            time_data: Original time data array
+            indices: List of indices that have passed other filters
+
+        Returns:
+            List of indices with spikes removed
+        """
+        MIN_POINTS_FOR_SPIKE_DETECTION = 3
+        if len(indices) < MIN_POINTS_FOR_SPIKE_DETECTION:
+            return indices
+
+        # Get time values at the filtered indices
+        time_values = time_data[indices]
+
+        # Calculate time differences between consecutive points
+        time_diffs = np.diff(time_values)
+
+        # Calculate median and MAD of time differences for robust statistics
+        median_diff = np.median(time_diffs)
+        abs_deviations = np.abs(time_diffs - median_diff)
+        mad = np.median(abs_deviations)
+
+        if mad == 0:
+            # All differences are identical, no spikes to remove
+            return indices
+
+        # Use modified z-score to identify anomalous jumps
+        # A spike threshold of 10 is quite conservative
+        SPIKE_THRESHOLD = 10.0
+        modified_z_scores = 0.6745 * abs_deviations / mad
+
+        # Find potential spike points where jump is anomalous
+        spike_candidates = np.where(modified_z_scores > SPIKE_THRESHOLD)[0]
+
+        if len(spike_candidates) == 0:
+            return indices
+
+        # Check each candidate to see if it's a single-point spike
+        indices_to_remove = set()
+
+        for spike_idx in spike_candidates:
+            # spike_idx is the index in time_diffs array
+            # The spike affects index spike_idx+1 in the indices array
+            point_idx = spike_idx + 1
+
+            # Check if this is a single-point spike by looking at the next difference
+            if point_idx < len(time_diffs):
+                # If the next jump is in the opposite direction and also large,
+                # this is likely a spike
+                current_jump = time_diffs[spike_idx]
+                next_jump = time_diffs[point_idx]
+
+                # Spike pattern: large jump in one direction, then large jump back
+                if current_jump * next_jump < 0:  # Opposite signs
+                    next_z_score = 0.6745 * abs(next_jump - median_diff) / mad
+                    if next_z_score > SPIKE_THRESHOLD / 2:  # Less strict for return jump
+                        indices_to_remove.add(point_idx)
+                        self.logger.debug(
+                            "Detected time spike at index %d: %.2f -> %.2f -> %.2f",
+                            indices[point_idx],
+                            time_values[point_idx - 1] if point_idx > 0 else 0,
+                            time_values[point_idx],
+                            time_values[point_idx + 1] if point_idx < len(time_values) - 1 else 0,
+                        )
+
+        if indices_to_remove:
+            filtered_indices = [idx for i, idx in enumerate(indices) if i not in indices_to_remove]
+            self.logger.info(
+                "Removed %d time spike(s) from %d points",
+                len(indices_to_remove),
+                len(indices),
+            )
+            return filtered_indices
+
+        return indices
+
     def _get_monotonic_indices(self, time_data) -> list[int]:
         """Get indices for monotonic time values from time data array."""
         mono_indices = []
@@ -629,6 +842,193 @@ class Extract:
 
         return mono_indices
 
+    def _plot_universals_filtering(self):
+        """Plot longitude, latitude, and depth time coordinate filtering for root group."""
+        if not MATPLOTLIB_AVAILABLE:
+            self.logger.error("Matplotlib not available. Install with: uv add matplotlib")
+            return
+
+        if not self.universals_plot_data:
+            self.logger.warning("No universals plot data collected")
+            return
+
+        import matplotlib.pyplot as plt
+
+        # Determine which coordinates are available
+        coords = []
+        coord_names = []
+        for coord in ["longitude", "latitude", "depth", "time"]:
+            time_coord = f"{coord}_time"
+            if time_coord in self.universals_plot_data:
+                coords.append(coord)
+                coord_names.append(time_coord)
+
+        if not coords:
+            self.logger.warning("No universal coordinates found for plotting")
+            return
+
+        n_coords = len(coords)
+        fig, axes = plt.subplots(n_coords, 5, figsize=(22, 2.5 * n_coords), sharex="col")
+
+        # Handle case of single coordinate
+        if n_coords == 1:
+            axes = axes.reshape(1, -1)
+
+        log_file_name = self.universals_plot_data[coord_names[0]]["log_file"]
+        fig.suptitle(
+            f"Universal Coordinates Time Filtering\nFile: {log_file_name}",
+            fontsize=14,
+            fontweight="bold",
+        )
+
+        for i, (coord, time_coord) in enumerate(zip(coords, coord_names, strict=True)):
+            data = self.universals_plot_data[time_coord]
+            original = data["original"]
+            outlier_indices = data["outlier_indices"]
+            outlier_data = data["outlier_data"]
+            spike_indices = data["spike_indices"]
+            spike_data = data["spike_data"]
+            mono_indices = data["mono_indices"]
+            mono_data = data["mono_data"]
+            final_indices = data["final_indices"]
+            final_data = data["final_data"]
+
+            self._plot_universals_row(
+                axes[i],
+                coord,
+                original,
+                outlier_indices,
+                outlier_data,
+                spike_indices,
+                spike_data,
+                mono_indices,
+                mono_data,
+                final_indices,
+                final_data,
+                is_first_row=(i == 0),
+            )
+
+        # Set x-label only on bottom row
+        for j in range(5):
+            axes[-1, j].set_xlabel("Index")
+
+        plt.tight_layout()
+        plt.show()
+
+        self.logger.info("Universals time filtering plot displayed")
+
+    def _plot_universals_row(  # noqa: PLR0913
+        self,
+        axes_row,
+        coord: str,
+        original,
+        outlier_indices,
+        outlier_data,
+        spike_indices,
+        spike_data,
+        mono_indices,
+        mono_data,
+        final_indices,
+        final_data,
+        is_first_row: bool,  # noqa: FBT001
+    ):
+        """Plot a single row of the universals filtering plot."""
+        # Column 1: Original data
+        axes_row[0].plot(original, "b-", alpha=0.7)
+        axes_row[0].set_ylabel(f"{coord}_time\n(Unix seconds)")
+        if is_first_row:
+            axes_row[0].set_title("Original")
+        axes_row[0].grid(visible=True, alpha=0.3)
+        axes_row[0].text(
+            0.02,
+            0.95,
+            f"Points: {len(original)}",
+            transform=axes_row[0].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightblue", "alpha": 0.8},
+        )
+
+        # Column 2: After outlier removal
+        axes_row[1].plot(
+            outlier_indices, outlier_data, "m.-", alpha=0.7, markersize=2, label="Data"
+        )
+
+        # Highlight spikes that will be removed
+        spike_indices_set = set(spike_indices)
+        removed_spike_indices = [idx for idx in outlier_indices if idx not in spike_indices_set]
+        if removed_spike_indices:
+            removed_spike_values = [original[idx] for idx in removed_spike_indices]
+            axes_row[1].plot(
+                removed_spike_indices,
+                removed_spike_values,
+                "rs",
+                markersize=8,
+                markerfacecolor="none",
+                markeredgewidth=1.5,
+                label=f"Spikes to remove ({len(removed_spike_indices)})",
+            )
+
+        if is_first_row:
+            axes_row[1].set_title("After Outlier Removal")
+            axes_row[1].legend(loc="upper right", fontsize=8)
+        axes_row[1].grid(visible=True, alpha=0.3)
+        removed_outliers = len(original) - len(outlier_data)
+        axes_row[1].text(
+            0.02,
+            0.95,
+            f"Points: {len(outlier_data)}\nRemoved: {removed_outliers}",
+            transform=axes_row[1].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "plum", "alpha": 0.8},
+        )
+
+        # Column 3: After spike removal
+        axes_row[2].plot(spike_indices, spike_data, "c.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[2].set_title("After Spike Removal")
+        axes_row[2].grid(visible=True, alpha=0.3)
+        removed_spikes = len(outlier_data) - len(spike_data)
+        axes_row[2].text(
+            0.02,
+            0.95,
+            f"Points: {len(spike_data)}\nRemoved: {removed_spikes}",
+            transform=axes_row[2].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "cyan", "alpha": 0.8},
+        )
+
+        # Column 4: After monotonic removal
+        axes_row[3].plot(mono_indices, mono_data, "g.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[3].set_title("After Monotonic Removal")
+        axes_row[3].grid(visible=True, alpha=0.3)
+        removed_monotonic = len(spike_data) - len(mono_data)
+        axes_row[3].text(
+            0.02,
+            0.95,
+            f"Points: {len(mono_data)}\nRemoved: {removed_monotonic}",
+            transform=axes_row[3].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightgreen", "alpha": 0.8},
+        )
+
+        # Column 5: After intersection
+        axes_row[4].plot(final_indices, final_data, "r.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[4].set_title("After Intersection")
+        axes_row[4].grid(visible=True, alpha=0.3)
+        removed_intersection = len(mono_data) - len(final_data)
+        total_removed = len(original) - len(final_data)
+        axes_row[4].text(
+            0.02,
+            0.95,
+            f"Points: {len(final_data)}\nRemoved: {removed_intersection}\n"
+            f"Total removed: {total_removed} ({100 * total_removed / len(original):.1f}%)",
+            transform=axes_row[4].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightcoral", "alpha": 0.8},
+        )
+
     def _plot_time_filtering(self, plot_data: dict):
         """Plot before and after time coordinate filtering."""
         if not MATPLOTLIB_AVAILABLE:
@@ -639,14 +1039,15 @@ class Extract:
         import matplotlib.pyplot as plt  # noqa: F401
 
         original = plot_data["original"]
-        valid_indices = plot_data["valid_indices"]
-        valid_data = plot_data["valid_data"]
-        despiked = plot_data["despiked"]
+        outlier_indices = plot_data["outlier_indices"]
+        outlier_data = plot_data["outlier_data"]
+        spike_indices = plot_data["spike_indices"]
+        spike_data = plot_data["spike_data"]
         final_indices = plot_data["final_indices"]
         final_data = plot_data["final_data"]
 
         # Create figure with subplots
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 9), sharex=True)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
 
         # Plot 1: Original data
         ax1.plot(original, "b-", label="Original", alpha=0.7)
@@ -658,32 +1059,48 @@ class Extract:
         ax1.legend()
         ax1.grid(visible=True, alpha=0.3)
 
-        # Plot 2: After valid Values filtering
-        ax2.plot(valid_indices, valid_data, "m.-", label="After Valid Values Filter", alpha=0.7)
+        # Plot 2: After outlier removal
+        ax2.plot(outlier_indices, outlier_data, "m.-", label="After Outlier Removal", alpha=0.7)
+
+        # Highlight spikes that will be removed (points in outlier_indices but not in spike_indices)
+        spike_indices_set = set(spike_indices)
+        removed_spike_indices = [idx for idx in outlier_indices if idx not in spike_indices_set]
+        if removed_spike_indices:
+            removed_spike_values = [original[idx] for idx in removed_spike_indices]
+            ax2.plot(
+                removed_spike_indices,
+                removed_spike_values,
+                "rs",
+                markersize=10,
+                markerfacecolor="none",
+                markeredgewidth=2,
+                label=f"Spikes to remove ({len(removed_spike_indices)})",
+            )
+
         ax2.set_ylabel("Time Value")
         ax2.legend()
         ax2.grid(visible=True, alpha=0.3)
         ax2.text(
             0.02,
             0.60,
-            f"Points removed: {len(original) - len(valid_data)}\n",
+            f"Points removed: {len(original) - len(outlier_data)}\n",
             transform=ax2.transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "wheat"},
         )
 
-        # Plot 3: After despiking
-        ax3.plot(despiked, "g-", label="After Median Filter (3-point)", alpha=0.7)
+        # Plot 3: After spike removal
+        ax3.plot(spike_indices, spike_data, "c.-", label="After Spike Removal", alpha=0.7)
         ax3.set_ylabel("Time Value")
         ax3.legend()
         ax3.grid(visible=True, alpha=0.3)
         ax3.text(
             0.02,
             0.60,
-            f"Points removed: {len(valid_data) - len(despiked)}\n",
+            f"Points removed: {len(outlier_data) - len(spike_data)}\n",
             transform=ax3.transAxes,
             verticalalignment="top",
-            bbox={"boxstyle": "round", "facecolor": "wheat"},
+            bbox={"boxstyle": "round", "facecolor": "lightcyan"},
         )
 
         # Plot 4: Final After Monotonic filtered data
@@ -695,7 +1112,7 @@ class Extract:
 
         # Add statistics text
         stats_text = (
-            f"Points removed: {len(despiked) - len(final_data)}\n"
+            f"Points removed: {len(spike_data) - len(final_data)}\n"
             f"Original points: {len(original)}\n"
             f"After final filter: {len(final_data)}\n"
             f"Total removed: {len(original) - len(final_data)} "
@@ -1110,6 +1527,12 @@ class Extract:
             + " --log_file brizo/missionlogs/2025/20250909_20250915/20250914T080941/"
             + "202509140809_202509150109.nc4 --plot_time /latitude_time\n"
         )
+        examples += (
+            "    "
+            + sys.argv[0]
+            + " --log_file brizo/missionlogs/2025/20250909_20250915/20250914T080941/"
+            + "202509140809_202509150109.nc4 --plot_universals\n"
+        )
 
         # Use shared parser with nc42netcdfs-specific additions
         parser = get_standard_lrauv_parser(
@@ -1158,12 +1581,22 @@ class Extract:
                 "Format for <VARIABLE_NAME> is /Group/variable_name."
             ),
         )
+        parser.add_argument(
+            "--plot_universals",
+            action="store_true",
+            help=(
+                "Plot time filtering for longitude, latitude, and depth coordinates "
+                "in the root (/) group. Shows original, after outlier removal, after "
+                "intersection, and after non-monotonic removal in 4-column layout."
+            ),
+        )
 
         self.args = parser.parse_args()
 
         # Set instance attributes from parsed arguments
         self.log_file = self.args.log_file
         self.plot_time = self.args.plot_time
+        self.plot_universals = self.args.plot_universals
         self.filter_monotonic_time = self.args.filter_monotonic_time
         self.verbose = self.args.verbose
         self.commandline = " ".join(sys.argv)
