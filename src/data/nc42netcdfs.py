@@ -134,6 +134,7 @@ class Extract:
         self,
         log_file: str = None,
         plot_time: str = None,
+        plot_universals: bool = False,  # noqa: FBT001, FBT002
         filter_monotonic_time: bool = True,  # noqa: FBT001, FBT002
         verbose: int = 0,
         commandline: str = "",
@@ -143,15 +144,18 @@ class Extract:
         Args:
             log_file: Log file path for processing
             plot_time: Optional plot time specification (e.g., /latitude_time)
+            plot_universals: Plot longitude, latitude, depth time filtering for root group
             filter_monotonic_time: Filter out non-monotonic time values
             verbose: Verbosity level (0-2)
             commandline: Command line string for tracking
         """
         self.log_file = log_file
         self.plot_time = plot_time
+        self.plot_universals = plot_universals
         self.filter_monotonic_time = filter_monotonic_time
         self.verbose = verbose
         self.commandline = commandline
+        self.universals_plot_data = {}  # Store plot data for universals
 
     def download_with_pooch(self, url, local_dir, known_hash=None):
         """Download using pooch with caching and verification."""
@@ -310,9 +314,15 @@ class Extract:
             )
             time_filters[time_coord_name] = time_filter
 
-        # Align latitude and longitude in root group if needed
+        # For root group, apply intersection of valid indices before monotonic filtering
         if group_name == "/":
+            time_filters = self._apply_universals_intersection(
+                log_file, src_group, time_filters, vars_to_extract
+            )
             time_filters = self._align_root_group_coordinates(time_filters, vars_to_extract)
+            # Plot universals if requested
+            if self.plot_universals:
+                self._plot_universals_filtering()
 
         return time_filters
 
@@ -525,13 +535,39 @@ class Extract:
         # Get the valid time subset
         valid_time_data = original_time_data[valid_indices]
 
-        # Apply monotonic filtering to the valid subset
+        # Apply monotonic filtering
         mono_indices_in_filtered = self._get_monotonic_indices(valid_time_data)
 
         # Convert monotonic indices back to original array indices
-        # mono_indices_in_filtered are indices into the valid_indices subset
-        # We need to map them back to indices in the original time array
         final_indices = [valid_indices[i] for i in mono_indices_in_filtered]
+
+        # For root group universals, store data for intersection step
+        is_universal_coord = group_name == "/" and time_coord_name in [
+            "longitude_time",
+            "latitude_time",
+            "depth_time",
+            "time_time",
+        ]
+
+        if is_universal_coord:
+            # Store intermediate data for intersection step
+            if self.plot_universals:
+                self.universals_plot_data[time_coord_name] = {
+                    "original": original_time_data.copy(),
+                    "valid_indices": valid_indices.copy(),
+                    "valid_data": valid_time_data.copy(),
+                    "mono_indices": final_indices.copy(),
+                    "mono_data": valid_time_data[mono_indices_in_filtered].copy(),
+                    "log_file": log_file,
+                }
+            # Return with monotonic-filtered indices - intersection happens later
+            return {
+                "indices": final_indices,
+                "filtered": len(final_indices) < len(original_time_data),
+                "comment": "Pre-intersection state",
+                "mono_indices": final_indices,  # Store for intersection
+                "original_time_data": original_time_data,  # Store for reprocessing
+            }
 
         # Store data for plotting if requested
         if plot_data is not None:
@@ -544,6 +580,62 @@ class Extract:
         return self._create_time_filter_result(
             final_indices, len(original_time_data), time_coord_name
         )
+
+    def _apply_universals_intersection(
+        self,
+        log_file: str,
+        src_group: netCDF4.Group,
+        time_filters: dict,
+        vars_to_extract: list[str],
+    ) -> dict:
+        """Apply intersection of monotonic-filtered indices for longitude, latitude, and depth.
+
+        After outlier removal and monotonic filtering, we intersect the indices so that only
+        time points that exist in all three coordinates are kept.
+        """
+        # Identify which universal coordinates are present
+        universal_coords = ["longitude_time", "latitude_time", "depth_time", "time_time"]
+        present_coords = [tc for tc in universal_coords if tc in time_filters]
+
+        if len(present_coords) < 2:  # noqa: PLR2004
+            # Need at least 2 coordinates to do intersection
+            self.logger.info("Less than 2 universal coordinates found, skipping intersection")
+            return time_filters
+
+        # Get monotonic-filtered indices for each coordinate
+        mono_indices_sets = {}
+        for time_coord in present_coords:
+            mono_indices_sets[time_coord] = set(time_filters[time_coord]["mono_indices"])
+
+        # Compute intersection of all monotonic indices
+        intersected_indices = set.intersection(*mono_indices_sets.values())
+        intersected_indices_list = sorted(intersected_indices)
+
+        self.logger.info(
+            "Intersection of universal coordinates (after monotonic filtering): %s",
+            ", ".join(f"{tc}: {len(mono_indices_sets[tc])} points" for tc in present_coords),
+        )
+        self.logger.info("After intersection: %d common points", len(intersected_indices_list))
+
+        # Update each coordinate with intersected indices
+        for time_coord in present_coords:
+            original_time_data = time_filters[time_coord]["original_time_data"]
+
+            # Update the filter with final indices
+            time_filters[time_coord] = self._create_time_filter_result(
+                intersected_indices_list, len(original_time_data), time_coord
+            )
+
+            # Update plot data if collecting for universals
+            if self.plot_universals and time_coord in self.universals_plot_data:
+                self.universals_plot_data[time_coord]["final_indices"] = (
+                    intersected_indices_list.copy()
+                )
+                self.universals_plot_data[time_coord]["final_data"] = original_time_data[
+                    intersected_indices_list
+                ].copy()
+
+        return time_filters
 
     def _is_time_variable(self, var_name: str, var) -> bool:
         """Check if a variable is a time coordinate variable."""
@@ -564,24 +656,40 @@ class Extract:
         """Filter out wildly invalid time values before monotonic filtering.
 
         Returns indices of time values that are reasonable Unix epoch timestamps.
-        Uses numpy for efficient vectorized operations.
+        Uses time bounds from log file name.
         """
-        # LRAUV data bounds: September 2012 to current + 5 years buffer
-        lrauv_start_date = datetime(2012, 9, 1, tzinfo=UTC)
-        current_date = datetime.now(UTC)
-        future_buffer_date = current_date.replace(year=current_date.year + 5)
+        # Parse filename like: 202509140809_202509150109.nc4
+        # Format: YYYYMMDDHHMM_YYYYMMDDHHMM
+        import re
+        from datetime import timedelta
+        from pathlib import Path
 
-        MIN_UNIX_TIME = int(lrauv_start_date.timestamp())  # September 1, 2012 UTC
-        MAX_UNIX_TIME = int(future_buffer_date.timestamp())  # Current + 5 years buffer
+        filename = Path(self.log_file).stem
+        match = re.search(r"(\d{12})_(\d{12})", filename)
+
+        start_str = match.group(1)
+        end_str = match.group(2)
+
+        # Parse YYYYMMDDHHMM format
+        start_time = datetime.strptime(start_str, "%Y%m%d%H%M").replace(tzinfo=UTC)
+        end_time = datetime.strptime(end_str, "%Y%m%d%H%M").replace(tzinfo=UTC)
+
+        # Add 10-minute buffer before and after
+        MIN_UNIX_TIME = int((start_time - timedelta(minutes=10)).timestamp())
+        MAX_UNIX_TIME = int((end_time + timedelta(minutes=10)).timestamp())
+
+        self.logger.debug(
+            "Using time bounds from log file: %s to %s",
+            (start_time - timedelta(minutes=10)).isoformat(),
+            (end_time + timedelta(minutes=10)).isoformat(),
+        )
 
         # Convert to numpy array for efficient operations
         time_array = np.asarray(time_data)
 
-        # Create boolean masks for valid conditions
+        # Basic validity checks
         is_finite = np.isfinite(time_array)
         is_in_range = (time_array >= MIN_UNIX_TIME) & (time_array <= MAX_UNIX_TIME)
-
-        # Combine all conditions - all must be True for valid indices
         valid_mask = is_finite & is_in_range
 
         # Get indices where all conditions are met
@@ -623,6 +731,153 @@ class Extract:
                     )
 
         return mono_indices
+
+    def _plot_universals_filtering(self):
+        """Plot longitude, latitude, and depth time coordinate filtering for root group."""
+        if not MATPLOTLIB_AVAILABLE:
+            self.logger.error("Matplotlib not available. Install with: uv add matplotlib")
+            return
+
+        if not self.universals_plot_data:
+            self.logger.warning("No universals plot data collected")
+            return
+
+        import matplotlib.pyplot as plt
+
+        # Determine which coordinates are available
+        coords = []
+        coord_names = []
+        for coord in ["longitude", "latitude", "depth", "time"]:
+            time_coord = f"{coord}_time"
+            if time_coord in self.universals_plot_data:
+                coords.append(coord)
+                coord_names.append(time_coord)
+
+        if not coords:
+            self.logger.warning("No universal coordinates found for plotting")
+            return
+
+        n_coords = len(coords)
+        fig, axes = plt.subplots(n_coords, 4, figsize=(18, 2.5 * n_coords), sharex="col")
+
+        # Handle case of single coordinate
+        if n_coords == 1:
+            axes = axes.reshape(1, -1)
+
+        log_file_name = self.universals_plot_data[coord_names[0]]["log_file"]
+        fig.suptitle(
+            f"Universal Coordinates Time Filtering\nFile: {log_file_name}",
+            fontsize=14,
+            fontweight="bold",
+        )
+
+        for i, (coord, time_coord) in enumerate(zip(coords, coord_names, strict=True)):
+            data = self.universals_plot_data[time_coord]
+            original = data["original"]
+            valid_indices = data["valid_indices"]
+            valid_data = data["valid_data"]
+            mono_indices = data["mono_indices"]
+            mono_data = data["mono_data"]
+            final_indices = data["final_indices"]
+            final_data = data["final_data"]
+
+            self._plot_universals_row(
+                axes[i],
+                coord,
+                original,
+                valid_indices,
+                valid_data,
+                mono_indices,
+                mono_data,
+                final_indices,
+                final_data,
+                is_first_row=(i == 0),
+            )
+
+        # Set x-label only on bottom row
+        for j in range(4):
+            axes[-1, j].set_xlabel("Index")
+
+        plt.tight_layout()
+        plt.show()
+
+        self.logger.info("Universals time filtering plot displayed")
+
+    def _plot_universals_row(  # noqa: PLR0913
+        self,
+        axes_row,
+        coord: str,
+        original,
+        valid_indices,
+        valid_data,
+        mono_indices,
+        mono_data,
+        final_indices,
+        final_data,
+        is_first_row: bool,  # noqa: FBT001
+    ):
+        """Plot a single row of the universals filtering plot."""
+        # Column 1: Original data
+        axes_row[0].plot(original, "b-", alpha=0.7)
+        axes_row[0].set_ylabel(f"{coord}_time\n(Unix seconds)")
+        if is_first_row:
+            axes_row[0].set_title("Original")
+        axes_row[0].grid(visible=True, alpha=0.3)
+        axes_row[0].text(
+            0.02,
+            0.95,
+            f"Points: {len(original)}",
+            transform=axes_row[0].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightblue", "alpha": 0.8},
+        )
+
+        # Column 2: After outlier removal
+        axes_row[1].plot(valid_indices, valid_data, "m.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[1].set_title("After Outlier Removal")
+        axes_row[1].grid(visible=True, alpha=0.3)
+        removed_outliers = len(original) - len(valid_data)
+        axes_row[1].text(
+            0.02,
+            0.95,
+            f"Points: {len(valid_data)}\nRemoved: {removed_outliers}",
+            transform=axes_row[1].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "plum", "alpha": 0.8},
+        )
+
+        # Column 3: After monotonic removal
+        axes_row[2].plot(mono_indices, mono_data, "g.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[2].set_title("After Monotonic Removal")
+        axes_row[2].grid(visible=True, alpha=0.3)
+        removed_monotonic = len(valid_data) - len(mono_data)
+        axes_row[2].text(
+            0.02,
+            0.95,
+            f"Points: {len(mono_data)}\nRemoved: {removed_monotonic}",
+            transform=axes_row[2].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightgreen", "alpha": 0.8},
+        )
+
+        # Column 4: After intersection
+        axes_row[3].plot(final_indices, final_data, "r.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[3].set_title("After Intersection")
+        axes_row[3].grid(visible=True, alpha=0.3)
+        removed_intersection = len(mono_data) - len(final_data)
+        total_removed = len(original) - len(final_data)
+        axes_row[3].text(
+            0.02,
+            0.95,
+            f"Points: {len(final_data)}\nRemoved: {removed_intersection}\n"
+            f"Total removed: {total_removed} ({100 * total_removed / len(original):.1f}%)",
+            transform=axes_row[3].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightcoral", "alpha": 0.8},
+        )
 
     def _plot_time_filtering(self, plot_data: dict):
         """Plot before and after time coordinate filtering."""
@@ -1090,6 +1345,12 @@ class Extract:
             + " --log_file brizo/missionlogs/2025/20250909_20250915/20250914T080941/"
             + "202509140809_202509150109.nc4 --plot_time /latitude_time\n"
         )
+        examples += (
+            "    "
+            + sys.argv[0]
+            + " --log_file brizo/missionlogs/2025/20250909_20250915/20250914T080941/"
+            + "202509140809_202509150109.nc4 --plot_universals\n"
+        )
 
         # Use shared parser with nc42netcdfs-specific additions
         parser = get_standard_lrauv_parser(
@@ -1138,12 +1399,22 @@ class Extract:
                 "Format for <VARIABLE_NAME> is /Group/variable_name."
             ),
         )
+        parser.add_argument(
+            "--plot_universals",
+            action="store_true",
+            help=(
+                "Plot time filtering for longitude, latitude, and depth coordinates "
+                "in the root (/) group. Shows original, after outlier removal, after "
+                "intersection, and after non-monotonic removal in 4-column layout."
+            ),
+        )
 
         self.args = parser.parse_args()
 
         # Set instance attributes from parsed arguments
         self.log_file = self.args.log_file
         self.plot_time = self.args.plot_time
+        self.plot_universals = self.args.plot_universals
         self.filter_monotonic_time = self.args.filter_monotonic_time
         self.verbose = self.args.verbose
         self.commandline = " ".join(sys.argv)
