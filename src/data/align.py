@@ -564,52 +564,9 @@ class Align_NetCDF:
             var_time = self.combined_nc[variable].get_index(timevar).view(np.int64).tolist()
 
             # Calculate sampling rate
-            sample_rate = np.round(
-                1.0 / (np.mean(np.diff(self.combined_nc[timevar])) / np.timedelta64(1, "s")),
-                decimals=2,
+            sample_rate = 1.0 / (
+                np.mean(np.diff(self.combined_nc[timevar])) / np.timedelta64(1, "s")
             )
-
-            # Create interpolated coordinate variables for this group
-            coord_names = ["depth", "latitude", "longitude"]
-            coord_interps = [depth_interp, lat_interp, lon_interp]
-            coord_sources = [nav_coords["depth"], nav_coords["latitude"], nav_coords["longitude"]]
-
-            for coord_name, coord_interp, coord_source in zip(
-                coord_names, coord_interps, coord_sources, strict=True
-            ):
-                coord_var_name = f"{group_name}_{coord_name}"
-
-                self.aligned_nc[coord_var_name] = xr.DataArray(
-                    coord_interp(var_time).astype(np.float64).tolist(),
-                    dims={timevar},
-                    coords=[self.combined_nc[variable].get_index(timevar)],
-                    name=coord_var_name,
-                )
-
-                # Copy attributes from source coordinate
-                if coord_source in self.combined_nc:
-                    self.aligned_nc[coord_var_name].attrs = self.combined_nc[coord_source].attrs
-
-                # Update attributes
-                self.aligned_nc[coord_var_name].attrs["long_name"] = coord_name.title()
-                self.aligned_nc[coord_var_name].attrs["instrument_sample_rate_hz"] = sample_rate
-
-                if coord_name in ["longitude", "latitude", "depth"]:
-                    self.aligned_nc[coord_var_name].attrs["comment"] = (
-                        self.aligned_nc[coord_var_name].attrs.get("comment", "")
-                        + f". Variable {coord_source} from {src_file} file linearly"
-                        f" interpolated onto {group_name} time values."
-                    )
-
-            # Update spatial temporal bounds for global metadata
-            if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC) < pd.to_datetime(
-                self.min_time
-            ):
-                self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC)
-            if pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
-                UTC
-            ) > pd.to_datetime(self.max_time):
-                self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(UTC)
 
             time_coord = variable_time_coord_mapping.get(variable)
             depth_coord = (
@@ -639,7 +596,10 @@ class Align_NetCDF:
             )
             self.aligned_nc[depth_coord].attrs["long_name"] = "Depth"
             self.aligned_nc[depth_coord].attrs["comment"] = "depth from Group_Universals.nc"
-            self.aligned_nc[depth_coord].attrs["instrument_sample_rate_hz"] = sample_rate
+            TINY_SAMPLE_RATE = 10e-2
+            self.aligned_nc[depth_coord].attrs["instrument_sample_rate_hz"] = (
+                f"{sample_rate:.2f}" if sample_rate > TINY_SAMPLE_RATE else f"{sample_rate:.6f}"
+            )
 
             self.aligned_nc[lat_coord] = xr.DataArray(
                 lat_interp(var_time).astype(np.float64).tolist(),
@@ -649,7 +609,7 @@ class Align_NetCDF:
             )
             self.aligned_nc[lat_coord].attrs = self.combined_nc["nudged_latitude"].attrs
             self.aligned_nc[lat_coord].attrs["comment"] += (
-                f". Variable nudged_latitude from {src_file} file linearly"
+                f". Variable nudged_latitude linearly"
                 f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[lat_coord].attrs["long_name"] = "Latitude"
@@ -663,13 +623,22 @@ class Align_NetCDF:
             )
             self.aligned_nc[lon_coord].attrs = self.combined_nc["nudged_longitude"].attrs
             self.aligned_nc[lon_coord].attrs["comment"] += (
-                f". Variable nudged_longitude from {src_file} file linearly"
+                f". Variable nudged_longitude linearly"
                 f" interpolated onto {variable.split('_')[0]} time values."
             )
             self.aligned_nc[lon_coord].attrs["long_name"] = "Longitude"
             self.aligned_nc[lon_coord].attrs["instrument_sample_rate_hz"] = sample_rate
 
-            # Update bounds using the interpolated coordinates
+            # Update spatial temporal bounds for global metadata
+            if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC) < pd.to_datetime(
+                self.min_time
+            ):
+                self.min_time = pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC)
+            if pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(
+                UTC
+            ) > pd.to_datetime(self.max_time):
+                self.max_time = pd.to_datetime(self.aligned_nc[timevar][-1].values).tz_localize(UTC)
+
             if self.aligned_nc[depth_coord].min() < self.min_depth:
                 self.min_depth = self.aligned_nc[depth_coord].min().to_numpy()
             if self.aligned_nc[depth_coord].max() > self.max_depth:
@@ -703,8 +672,14 @@ class Align_NetCDF:
             else:
                 self.logger.info("Skipping setting coordinates attribute for %s", variable)
 
-            self.logger.info("%s: instrument_sample_rate_hz = %.2f", variable, sample_rate)
-            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = sample_rate
+            self.logger.info(
+                "%s: instrument_sample_rate_hz = %s",
+                variable,
+                f"{sample_rate:.2f}" if sample_rate > TINY_SAMPLE_RATE else f"{sample_rate:.6f}",
+            )
+            self.aligned_nc[variable].attrs["instrument_sample_rate_hz"] = (
+                f"{sample_rate:.2f}" if sample_rate > TINY_SAMPLE_RATE else f"{sample_rate:.6f}"
+            )
 
         return netcdfs_dir
 
