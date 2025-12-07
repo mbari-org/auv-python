@@ -512,7 +512,25 @@ class Extract:
         plot_group_name: str | None,
         plot_time_coord_name: str | None,
     ) -> dict:
-        """Process filtering for a single time coordinate."""
+        """Process filtering for a single time coordinate.
+
+        Applies a pipeline of filtering steps to clean time coordinate data:
+        1. Range-based outlier removal (using filename time bounds ±10 min)
+        2. Single-point spike detection (removes anomalous forward-then-back jumps)
+        3. Monotonic filtering (ensures strictly increasing time values)
+        4. Universal coordinates intersection (applied separately for lon/lat/depth/time)
+
+        Args:
+            log_file: Name of the log file being processed
+            group_name: NetCDF group name
+            src_group: NetCDF group object containing the time coordinate
+            time_coord_name: Name of the time coordinate variable
+            plot_group_name: Group name for plotting (if requested)
+            plot_time_coord_name: Time coordinate name for plotting (if requested)
+
+        Returns:
+            Dictionary with filtering results including indices and metadata
+        """
         time_var = src_group.variables[time_coord_name]
         original_time_data = time_var[:]
         self.logger.info("Time coordinate %s: %d points", time_coord_name, len(original_time_data))
@@ -532,14 +550,28 @@ class Extract:
         # First filter out values that fall outside of reasonable bounds
         valid_indices = self._filter_valid_time_indices(original_time_data)
 
+        # Remove single-point time spikes
+        spike_removed_indices = self._remove_time_spikes(original_time_data, valid_indices)
+
         # Get the valid time subset
-        valid_time_data = original_time_data[valid_indices]
+        valid_time_data = original_time_data[spike_removed_indices]
 
         # Apply monotonic filtering
         mono_indices_in_filtered = self._get_monotonic_indices(valid_time_data)
 
         # Convert monotonic indices back to original array indices
-        final_indices = [valid_indices[i] for i in mono_indices_in_filtered]
+        final_indices = [spike_removed_indices[i] for i in mono_indices_in_filtered]
+
+        # Store data for plotting if requested (do this before early return)
+        if plot_data is not None:
+            outlier_removed_data = original_time_data[valid_indices]
+            plot_data["outlier_indices"] = valid_indices
+            plot_data["outlier_data"] = outlier_removed_data
+            plot_data["spike_indices"] = spike_removed_indices
+            plot_data["spike_data"] = valid_time_data
+            plot_data["final_indices"] = mono_indices_in_filtered
+            plot_data["final_data"] = valid_time_data[mono_indices_in_filtered]
+            self._plot_time_filtering(plot_data)
 
         # For root group universals, store data for intersection step
         is_universal_coord = group_name == "/" and time_coord_name in [
@@ -552,10 +584,14 @@ class Extract:
         if is_universal_coord:
             # Store intermediate data for intersection step
             if self.plot_universals:
+                outlier_removed_data = original_time_data[valid_indices]
+                spike_removed_data = original_time_data[spike_removed_indices]
                 self.universals_plot_data[time_coord_name] = {
                     "original": original_time_data.copy(),
-                    "valid_indices": valid_indices.copy(),
-                    "valid_data": valid_time_data.copy(),
+                    "outlier_indices": valid_indices.copy(),
+                    "outlier_data": outlier_removed_data.copy(),
+                    "spike_indices": spike_removed_indices.copy(),
+                    "spike_data": spike_removed_data.copy(),
                     "mono_indices": final_indices.copy(),
                     "mono_data": valid_time_data[mono_indices_in_filtered].copy(),
                     "log_file": log_file,
@@ -568,14 +604,6 @@ class Extract:
                 "mono_indices": final_indices,  # Store for intersection
                 "original_time_data": original_time_data,  # Store for reprocessing
             }
-
-        # Store data for plotting if requested
-        if plot_data is not None:
-            plot_data["valid_indices"] = valid_indices
-            plot_data["valid_data"] = valid_time_data
-            plot_data["final_indices"] = mono_indices_in_filtered
-            plot_data["final_data"] = valid_time_data[mono_indices_in_filtered]
-            self._plot_time_filtering(plot_data)
 
         return self._create_time_filter_result(
             final_indices, len(original_time_data), time_coord_name
@@ -712,6 +740,88 @@ class Extract:
 
         return valid_indices
 
+    def _remove_time_spikes(self, time_data, indices: list[int]) -> list[int]:
+        """Remove single-point time spikes from a list of indices.
+
+        A spike is detected when a time value jumps significantly forward or backward
+        and then returns close to the expected progression within the next few points.
+
+        Args:
+            time_data: Original time data array
+            indices: List of indices that have passed other filters
+
+        Returns:
+            List of indices with spikes removed
+        """
+        MIN_POINTS_FOR_SPIKE_DETECTION = 3
+        if len(indices) < MIN_POINTS_FOR_SPIKE_DETECTION:
+            return indices
+
+        # Get time values at the filtered indices
+        time_values = time_data[indices]
+
+        # Calculate time differences between consecutive points
+        time_diffs = np.diff(time_values)
+
+        # Calculate median and MAD of time differences for robust statistics
+        median_diff = np.median(time_diffs)
+        abs_deviations = np.abs(time_diffs - median_diff)
+        mad = np.median(abs_deviations)
+
+        if mad == 0:
+            # All differences are identical, no spikes to remove
+            return indices
+
+        # Use modified z-score to identify anomalous jumps
+        # A spike threshold of 10 is quite conservative
+        SPIKE_THRESHOLD = 10.0
+        modified_z_scores = 0.6745 * abs_deviations / mad
+
+        # Find potential spike points where jump is anomalous
+        spike_candidates = np.where(modified_z_scores > SPIKE_THRESHOLD)[0]
+
+        if len(spike_candidates) == 0:
+            return indices
+
+        # Check each candidate to see if it's a single-point spike
+        indices_to_remove = set()
+
+        for spike_idx in spike_candidates:
+            # spike_idx is the index in time_diffs array
+            # The spike affects index spike_idx+1 in the indices array
+            point_idx = spike_idx + 1
+
+            # Check if this is a single-point spike by looking at the next difference
+            if point_idx < len(time_diffs):
+                # If the next jump is in the opposite direction and also large,
+                # this is likely a spike
+                current_jump = time_diffs[spike_idx]
+                next_jump = time_diffs[point_idx]
+
+                # Spike pattern: large jump in one direction, then large jump back
+                if current_jump * next_jump < 0:  # Opposite signs
+                    next_z_score = 0.6745 * abs(next_jump - median_diff) / mad
+                    if next_z_score > SPIKE_THRESHOLD / 2:  # Less strict for return jump
+                        indices_to_remove.add(point_idx)
+                        self.logger.debug(
+                            "Detected time spike at index %d: %.2f -> %.2f -> %.2f",
+                            indices[point_idx],
+                            time_values[point_idx - 1] if point_idx > 0 else 0,
+                            time_values[point_idx],
+                            time_values[point_idx + 1] if point_idx < len(time_values) - 1 else 0,
+                        )
+
+        if indices_to_remove:
+            filtered_indices = [idx for i, idx in enumerate(indices) if i not in indices_to_remove]
+            self.logger.info(
+                "Removed %d time spike(s) from %d points",
+                len(indices_to_remove),
+                len(indices),
+            )
+            return filtered_indices
+
+        return indices
+
     def _get_monotonic_indices(self, time_data) -> list[int]:
         """Get indices for monotonic time values from time data array."""
         mono_indices = []
@@ -758,7 +868,7 @@ class Extract:
             return
 
         n_coords = len(coords)
-        fig, axes = plt.subplots(n_coords, 4, figsize=(18, 2.5 * n_coords), sharex="col")
+        fig, axes = plt.subplots(n_coords, 5, figsize=(22, 2.5 * n_coords), sharex="col")
 
         # Handle case of single coordinate
         if n_coords == 1:
@@ -774,8 +884,10 @@ class Extract:
         for i, (coord, time_coord) in enumerate(zip(coords, coord_names, strict=True)):
             data = self.universals_plot_data[time_coord]
             original = data["original"]
-            valid_indices = data["valid_indices"]
-            valid_data = data["valid_data"]
+            outlier_indices = data["outlier_indices"]
+            outlier_data = data["outlier_data"]
+            spike_indices = data["spike_indices"]
+            spike_data = data["spike_data"]
             mono_indices = data["mono_indices"]
             mono_data = data["mono_data"]
             final_indices = data["final_indices"]
@@ -785,8 +897,10 @@ class Extract:
                 axes[i],
                 coord,
                 original,
-                valid_indices,
-                valid_data,
+                outlier_indices,
+                outlier_data,
+                spike_indices,
+                spike_data,
                 mono_indices,
                 mono_data,
                 final_indices,
@@ -795,7 +909,7 @@ class Extract:
             )
 
         # Set x-label only on bottom row
-        for j in range(4):
+        for j in range(5):
             axes[-1, j].set_xlabel("Index")
 
         plt.tight_layout()
@@ -808,8 +922,10 @@ class Extract:
         axes_row,
         coord: str,
         original,
-        valid_indices,
-        valid_data,
+        outlier_indices,
+        outlier_data,
+        spike_indices,
+        spike_data,
         mono_indices,
         mono_data,
         final_indices,
@@ -833,48 +949,82 @@ class Extract:
         )
 
         # Column 2: After outlier removal
-        axes_row[1].plot(valid_indices, valid_data, "m.-", alpha=0.7, markersize=2)
+        axes_row[1].plot(
+            outlier_indices, outlier_data, "m.-", alpha=0.7, markersize=2, label="Data"
+        )
+
+        # Highlight spikes that will be removed
+        spike_indices_set = set(spike_indices)
+        removed_spike_indices = [idx for idx in outlier_indices if idx not in spike_indices_set]
+        if removed_spike_indices:
+            removed_spike_values = [original[idx] for idx in removed_spike_indices]
+            axes_row[1].plot(
+                removed_spike_indices,
+                removed_spike_values,
+                "rs",
+                markersize=8,
+                markerfacecolor="none",
+                markeredgewidth=1.5,
+                label=f"Spikes to remove ({len(removed_spike_indices)})",
+            )
+
         if is_first_row:
             axes_row[1].set_title("After Outlier Removal")
+            axes_row[1].legend(loc="upper right", fontsize=8)
         axes_row[1].grid(visible=True, alpha=0.3)
-        removed_outliers = len(original) - len(valid_data)
+        removed_outliers = len(original) - len(outlier_data)
         axes_row[1].text(
             0.02,
             0.95,
-            f"Points: {len(valid_data)}\nRemoved: {removed_outliers}",
+            f"Points: {len(outlier_data)}\nRemoved: {removed_outliers}",
             transform=axes_row[1].transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "plum", "alpha": 0.8},
         )
 
-        # Column 3: After monotonic removal
-        axes_row[2].plot(mono_indices, mono_data, "g.-", alpha=0.7, markersize=2)
+        # Column 3: After spike removal
+        axes_row[2].plot(spike_indices, spike_data, "c.-", alpha=0.7, markersize=2)
         if is_first_row:
-            axes_row[2].set_title("After Monotonic Removal")
+            axes_row[2].set_title("After Spike Removal")
         axes_row[2].grid(visible=True, alpha=0.3)
-        removed_monotonic = len(valid_data) - len(mono_data)
+        removed_spikes = len(outlier_data) - len(spike_data)
         axes_row[2].text(
             0.02,
             0.95,
-            f"Points: {len(mono_data)}\nRemoved: {removed_monotonic}",
+            f"Points: {len(spike_data)}\nRemoved: {removed_spikes}",
             transform=axes_row[2].transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "cyan", "alpha": 0.8},
+        )
+
+        # Column 4: After monotonic removal
+        axes_row[3].plot(mono_indices, mono_data, "g.-", alpha=0.7, markersize=2)
+        if is_first_row:
+            axes_row[3].set_title("After Monotonic Removal")
+        axes_row[3].grid(visible=True, alpha=0.3)
+        removed_monotonic = len(spike_data) - len(mono_data)
+        axes_row[3].text(
+            0.02,
+            0.95,
+            f"Points: {len(mono_data)}\nRemoved: {removed_monotonic}",
+            transform=axes_row[3].transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "lightgreen", "alpha": 0.8},
         )
 
-        # Column 4: After intersection
-        axes_row[3].plot(final_indices, final_data, "r.-", alpha=0.7, markersize=2)
+        # Column 5: After intersection
+        axes_row[4].plot(final_indices, final_data, "r.-", alpha=0.7, markersize=2)
         if is_first_row:
-            axes_row[3].set_title("After Intersection")
-        axes_row[3].grid(visible=True, alpha=0.3)
+            axes_row[4].set_title("After Intersection")
+        axes_row[4].grid(visible=True, alpha=0.3)
         removed_intersection = len(mono_data) - len(final_data)
         total_removed = len(original) - len(final_data)
-        axes_row[3].text(
+        axes_row[4].text(
             0.02,
             0.95,
             f"Points: {len(final_data)}\nRemoved: {removed_intersection}\n"
             f"Total removed: {total_removed} ({100 * total_removed / len(original):.1f}%)",
-            transform=axes_row[3].transAxes,
+            transform=axes_row[4].transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "lightcoral", "alpha": 0.8},
         )
@@ -889,13 +1039,15 @@ class Extract:
         import matplotlib.pyplot as plt  # noqa: F401
 
         original = plot_data["original"]
-        valid_indices = plot_data["valid_indices"]
-        valid_data = plot_data["valid_data"]
+        outlier_indices = plot_data["outlier_indices"]
+        outlier_data = plot_data["outlier_data"]
+        spike_indices = plot_data["spike_indices"]
+        spike_data = plot_data["spike_data"]
         final_indices = plot_data["final_indices"]
         final_data = plot_data["final_data"]
 
         # Create figure with subplots
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
 
         # Plot 1: Original data
         ax1.plot(original, "b-", label="Original", alpha=0.7)
@@ -907,40 +1059,70 @@ class Extract:
         ax1.legend()
         ax1.grid(visible=True, alpha=0.3)
 
-        # Plot 2: After valid Values filtering
-        ax2.plot(valid_indices, valid_data, "m.-", label="After Valid Values Filter", alpha=0.7)
+        # Plot 2: After outlier removal
+        ax2.plot(outlier_indices, outlier_data, "m.-", label="After Outlier Removal", alpha=0.7)
+
+        # Highlight spikes that will be removed (points in outlier_indices but not in spike_indices)
+        spike_indices_set = set(spike_indices)
+        removed_spike_indices = [idx for idx in outlier_indices if idx not in spike_indices_set]
+        if removed_spike_indices:
+            removed_spike_values = [original[idx] for idx in removed_spike_indices]
+            ax2.plot(
+                removed_spike_indices,
+                removed_spike_values,
+                "rs",
+                markersize=10,
+                markerfacecolor="none",
+                markeredgewidth=2,
+                label=f"Spikes to remove ({len(removed_spike_indices)})",
+            )
+
         ax2.set_ylabel("Time Value")
         ax2.legend()
         ax2.grid(visible=True, alpha=0.3)
         ax2.text(
             0.02,
             0.60,
-            f"Points removed: {len(original) - len(valid_data)}\n",
+            f"Points removed: {len(original) - len(outlier_data)}\n",
             transform=ax2.transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "wheat"},
         )
 
-        # Plot 3: Final After Monotonic filtered data
-        ax3.plot(final_indices, final_data, "r.-", label="After Monotonic Filter", alpha=0.7)
-        ax3.set_xlabel("Index")
+        # Plot 3: After spike removal
+        ax3.plot(spike_indices, spike_data, "c.-", label="After Spike Removal", alpha=0.7)
         ax3.set_ylabel("Time Value")
         ax3.legend()
         ax3.grid(visible=True, alpha=0.3)
+        ax3.text(
+            0.02,
+            0.60,
+            f"Points removed: {len(outlier_data) - len(spike_data)}\n",
+            transform=ax3.transAxes,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "lightcyan"},
+        )
+
+        # Plot 4: Final After Monotonic filtered data
+        ax4.plot(final_indices, final_data, "r.-", label="After Monotonic Filter", alpha=0.7)
+        ax4.set_xlabel("Index")
+        ax4.set_ylabel("Time Value")
+        ax4.legend()
+        ax4.grid(visible=True, alpha=0.3)
 
         # Add statistics text
         stats_text = (
-            f"Points removed: {len(valid_data) - len(final_data)}\n"
+            f"Points removed: {len(spike_data) - len(final_data)}\n"
             f"Original points: {len(original)}\n"
             f"After final filter: {len(final_data)}\n"
             f"Total removed: {len(original) - len(final_data)} "
             f"({100 * (len(original) - len(final_data)) / len(original):.1f}%)"
         )
-        ax3.text(
+        ax4.text(
             0.02,
             0.90,
             stats_text,
-            transform=ax3.transAxes,
+            transform=ax4.transAxes,
             verticalalignment="top",
             bbox={"boxstyle": "round", "facecolor": "wheat"},
         )
