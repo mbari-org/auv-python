@@ -744,6 +744,7 @@ class Combine_NetCDF:
         """Perform initial QC on core coordinate variables for specific log files."""
         if self.log_file in (
             "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4",
+            "brizo/missionlogs/2025/20250909_20250915/20250913T080940/202509130809_202509140809.nc4",
         ):
             self.logger.info("Performing initial coordinate QC for %s", self.log_file)
             self._range_qc_combined_nc(

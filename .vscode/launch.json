@@ -134,7 +134,10 @@
             // Conflicting sizes for nudged_time and data - fixed by filtering GPS fixes to be monotonically increasing
             //"args": ["-v", "1", "--log_file", "tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4", "--plot"]
             // Fails in nudge_positions, maybe bad GPS data?
-            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250911T073640/202509110736_202509120809.nc4", "--plot"]
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250911T073640/202509110736_202509120809.nc4", "--plot"]
+            // Nudged coordinate is way out of reasonable range - segment 15
+            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250913T080940/202509130809_202509140809.nc4", "--plot"]
+
 
         },
         {
