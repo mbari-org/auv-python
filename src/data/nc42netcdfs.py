@@ -199,7 +199,7 @@ class Extract:
 
             # Extract all other groups
             all_groups = list(src_dataset.groups.keys())
-            for group_name in SCIENG_PARMS:
+            for group_name in sorted(SCIENG_PARMS):
                 if group_name == "/" or group_name not in all_groups:
                     if group_name != "/" and group_name not in all_groups:
                         self.logger.warning("Group %s not found in %s", group_name, input_file)
@@ -555,11 +555,44 @@ class Extract:
 
         # Get the valid time subset
         valid_time_data = original_time_data[spike_removed_indices]
+        self.logger.debug(
+            "Before monotonic: len(valid_time_data)=%d, len(spike_removed_indices)=%d, "
+            "type(spike_removed_indices)=%s",
+            len(valid_time_data),
+            len(spike_removed_indices),
+            type(spike_removed_indices).__name__,
+        )
+        self.logger.debug(
+            "valid_time_data shape/size: %s",
+            getattr(valid_time_data, "shape", len(valid_time_data)),
+        )
 
         # Apply monotonic filtering
         mono_indices_in_filtered = self._get_monotonic_indices(valid_time_data)
+        self.logger.debug(
+            "After monotonic: len(mono_indices)=%d, max(mono_indices)=%s, type(mono_indices)=%s",
+            len(mono_indices_in_filtered),
+            max(mono_indices_in_filtered) if len(mono_indices_in_filtered) > 0 else "N/A",
+            type(mono_indices_in_filtered).__name__,
+        )
 
         # Convert monotonic indices back to original array indices
+        if len(mono_indices_in_filtered) > 0 and max(mono_indices_in_filtered) >= len(
+            spike_removed_indices
+        ):
+            self.logger.error(
+                "BUG: monotonic indices out of range! max(mono_indices)=%d >= "
+                "len(spike_removed)=%d",
+                max(mono_indices_in_filtered),
+                len(spike_removed_indices),
+            )
+            self.logger.error("mono_indices_in_filtered: %s", mono_indices_in_filtered[:20])
+            self.logger.error("spike_removed_indices: %s", spike_removed_indices[:20])
+            # Clamp to valid range to prevent crash
+            mono_indices_in_filtered = [
+                i for i in mono_indices_in_filtered if i < len(spike_removed_indices)
+            ]
+
         final_indices = [spike_removed_indices[i] for i in mono_indices_in_filtered]
 
         # Store data for plotting if requested (do this before early return)
