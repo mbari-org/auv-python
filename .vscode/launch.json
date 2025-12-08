@@ -376,7 +376,11 @@
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250903_20250903/20250903T202626/202509032026_202509032030.nc4", "--no_cleanup"]
             // Fails in nudge_positions, maybe bad GPS data?
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250911T073640/202509110736_202509120809.nc4", "--no_cleanup"]
-            "args": ["-v", "1", "--auv_name", "brizo", "--start", "20250901T000000", "--end", "20251001T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
+            // Raises InvalidCombinedFile error
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250921T001456/202509210014_202509221430.nc4", "--no_cleanup"]
+            // A depth coordinate was not found for instrument navigation in
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250903_20250903/20250903T175939/202509031759_202509032026.nc4", "--no_cleanup"]
+            "args": ["-v", "1", "--auv_name", "brizo", "--start", "20250901T000000", "--end", "20251001T000000", "--no_cleanup"]
         },
 
     ]
