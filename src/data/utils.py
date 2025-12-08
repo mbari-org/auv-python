@@ -332,11 +332,11 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
             )
             logger.warning(
                 " max(abs(lon)) = %s",
-                np.max(np.abs(lon[segi] + lon_nudge)),
+                float(np.max(np.abs(lon[segi] + lon_nudge))),
             )
             logger.warning(
                 " max(abs(lat)) = %s",
-                np.max(np.abs(lat[segi] + lat_nudge)),
+                float(np.max(np.abs(lat[segi] + lat_nudge))),
             )
 
         lon_nudged_array = np.append(lon_nudged_array, lon[segi] + lon_nudge)
