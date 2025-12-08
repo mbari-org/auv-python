@@ -106,6 +106,10 @@ def log_file_processor(func):
             return func(self, log_file)
         except (TestMission, FailedMission, EOFError) as e:
             self.logger.info(str(e))
+        except Exception:
+            # Catch all other exceptions and log full traceback
+            self.logger.exception("Exception occurred while processing %s", log_file)
+            raise
         finally:
             if hasattr(self, "log_handler"):
                 # Cleanup and archiving logic
@@ -545,9 +549,14 @@ class Processor:
                 netcdf_dir = align_netcdf.process_cal()
                 align_netcdf.write_combined_netcdf(netcdf_dir)
         except (FileNotFoundError, EOFError) as e:
-            align_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
-            error_message = f"{mission} {e}"
+            align_netcdf.logger.error("%s %s", mission or log_file, e)  # noqa: TRY400
+            error_message = f"{mission or log_file} {e}"
             raise InvalidCalFile(error_message) from e
+        except Exception:
+            align_netcdf.logger.exception(
+                "Exception occurred during alignment of %s", mission or log_file
+            )
+            raise
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 
@@ -604,6 +613,11 @@ class Processor:
             resamp.resample_mission(nc_file)
         except (FileNotFoundError, InvalidAlignFile) as e:
             self.logger.error("%s %s", nc_file, e)  # noqa: TRY400
+        except Exception:
+            resamp.logger.exception(
+                "Exception occurred during resampling of %s", mission or log_file
+            )
+            raise
         finally:
             resamp.logger.removeHandler(self.log_handler)
 
@@ -981,11 +995,17 @@ class Processor:
         extract.logger.setLevel(self._log_levels[self.config["verbose"]])
         extract.logger.addHandler(self.log_handler)
 
-        url = os.path.join(BASE_LRAUV_WEB, log_file)  # noqa: PTH118
-        output_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
-        extract.logger.info("Downloading %s", url)
-        input_file = extract.download_with_pooch(url, output_dir)
-        return extract.extract_groups_to_files_netcdf4(input_file)
+        try:
+            url = os.path.join(BASE_LRAUV_WEB, log_file)  # noqa: PTH118
+            output_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
+            extract.logger.info("Downloading %s", url)
+            input_file = extract.download_with_pooch(url, output_dir)
+            return extract.extract_groups_to_files_netcdf4(input_file)
+        except Exception:
+            extract.logger.exception("Exception occurred during extraction of %s", log_file)
+            raise
+        finally:
+            extract.logger.removeHandler(self.log_handler)
 
     def combine(self, log_file: str) -> None:
         self.logger.info("Combining netCDF files for log file: %s", log_file)
@@ -1002,8 +1022,14 @@ class Processor:
         combine.logger.setLevel(self._log_levels[self.config["verbose"]])
         combine.logger.addHandler(self.log_handler)
 
-        combine.combine_groups()
-        combine.write_netcdf()
+        try:
+            combine.combine_groups()
+            combine.write_netcdf()
+        except Exception:
+            combine.logger.exception("Exception occurred during combine of %s", log_file)
+            raise
+        finally:
+            combine.logger.removeHandler(self.log_handler)
 
     @log_file_processor
     def process_log_file(self, log_file: str) -> None:
