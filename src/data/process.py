@@ -106,6 +106,8 @@ def log_file_processor(func):
             return func(self, log_file)
         except (TestMission, FailedMission, EOFError) as e:
             self.logger.info(str(e))
+        except (FileNotFoundError, InvalidCalFile, InvalidCombinedFile, InvalidAlignFile) as e:
+            self.logger.warning(str(e))
         except Exception:
             # Catch all other exceptions and log full traceback
             self.logger.exception("Exception occurred while processing %s", log_file)
@@ -525,9 +527,8 @@ class Processor:
         try:
             netcdf_dir = cal_netcdf.process_logs()
             cal_netcdf.write_netcdf(netcdf_dir)
-        except (FileNotFoundError, EOFError) as e:
-            cal_netcdf.logger.error("%s %s", mission, e)  # noqa: TRY400
-        cal_netcdf.logger.removeHandler(self.log_handler)
+        finally:
+            cal_netcdf.logger.removeHandler(self.log_handler)
 
     def align(self, mission: str = "", log_file: str = "") -> None:
         self.logger.info("Alignment steps for %s", mission or log_file)
@@ -548,15 +549,6 @@ class Processor:
             else:
                 netcdf_dir = align_netcdf.process_cal()
                 align_netcdf.write_combined_netcdf(netcdf_dir)
-        except (FileNotFoundError, EOFError) as e:
-            align_netcdf.logger.error("%s %s", mission or log_file, e)  # noqa: TRY400
-            error_message = f"{mission or log_file} {e}"
-            raise InvalidCalFile(error_message) from e
-        except Exception:
-            align_netcdf.logger.exception(
-                "Exception occurred during alignment of %s", mission or log_file
-            )
-            raise
         finally:
             align_netcdf.logger.removeHandler(self.log_handler)
 
@@ -611,13 +603,6 @@ class Processor:
             subprocess.run([wget_path, dap_file_str, "-O", nc_file_str], check=True)  # noqa: S603
         try:
             resamp.resample_align_file(nc_file)
-        except (FileNotFoundError, InvalidAlignFile) as e:
-            self.logger.error("%s %s", nc_file, e)  # noqa: TRY400
-        except Exception:
-            resamp.logger.exception(
-                "Exception occurred during resampling of %s", mission or log_file
-            )
-            raise
         finally:
             resamp.logger.removeHandler(self.log_handler)
 
@@ -1001,9 +986,6 @@ class Processor:
             extract.logger.info("Downloading %s", url)
             input_file = extract.download_with_pooch(url, output_dir)
             return extract.extract_groups_to_files_netcdf4(input_file)
-        except Exception:
-            extract.logger.exception("Exception occurred during extraction of %s", log_file)
-            raise
         finally:
             extract.logger.removeHandler(self.log_handler)
 
@@ -1025,9 +1007,6 @@ class Processor:
         try:
             combine.combine_groups()
             combine.write_netcdf()
-        except Exception:
-            combine.logger.exception("Exception occurred during combine of %s", log_file)
-            raise
         finally:
             combine.logger.removeHandler(self.log_handler)
 

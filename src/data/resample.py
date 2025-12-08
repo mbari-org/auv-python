@@ -1807,7 +1807,7 @@ class Resampler:
                 # 'seabird25p' if needed for i2map missions. Early LRAUV missions
                 # had only CTD_NeilBrown instruments, later ones had CTD_Seabird.
                 pitch_corrected_instr = self._get_pitch_corrected_instrument()
-                if pitch_corrected_instr in instrs_to_pad:
+                if pitch_corrected_instr == "seabird25p" and pitch_corrected_instr in instrs_to_pad:
                     # Use navigation if seabird25p failed to record
                     # data all the way to the end of the mission
                     pitch_corrected_instr = "navigation"
