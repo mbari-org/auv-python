@@ -1769,7 +1769,7 @@ class Resampler:
         )
         return mission_start, mission_end, instrs_to_pad
 
-    def resample_mission(  # noqa: C901, PLR0912, PLR0915, PLR0913
+    def resample_align_file(  # noqa: C901, PLR0912, PLR0915, PLR0913
         self,
         nc_file: str,  # align.nc file
         mf_width: int = MF_WIDTH,
@@ -1785,6 +1785,7 @@ class Resampler:
         self.ds = xr.open_dataset(nc_file)
         mission_start, mission_end, instrs_to_pad = self.get_mission_start_end(nc_file)
         last_instr = ""
+        pitch_corrected_instr = ""
         for icount, (instr, variables) in enumerate(
             self.instruments_variables(nc_file).items(),
         ):
@@ -1897,6 +1898,14 @@ class Resampler:
                     if self.plot:
                         self.plot_variable(instr, variable, freq, plot_seconds)
 
+        if not pitch_corrected_instr:
+            self.logger.warning(
+                "No pitch corrected CTD instrument found for resampling in file %s"
+                " - no output file created",
+                nc_file,
+            )
+            return
+
         # Call vehicle-specific metadata method which will call _build_global_metadata()
         if self.auv_name.lower() == "dorado":
             self.resampled_nc.attrs = self.dorado_global_metadata()
@@ -1990,7 +1999,7 @@ if __name__ == "__main__":
     p_start = time.time()
     # Everything that Resampler needs should be in the self described nc_file
     # whether it is Dorado/i2MAP or LRAUV
-    resamp.resample_mission(
+    resamp.resample_align_file(
         nc_file,
         mf_width=resamp.args.mf_width,
         freq=resamp.args.freq,

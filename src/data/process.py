@@ -610,7 +610,7 @@ class Processor:
                 raise ValueError(error_message)
             subprocess.run([wget_path, dap_file_str, "-O", nc_file_str], check=True)  # noqa: S603
         try:
-            resamp.resample_mission(nc_file)
+            resamp.resample_align_file(nc_file)
         except (FileNotFoundError, InvalidAlignFile) as e:
             self.logger.error("%s %s", nc_file, e)  # noqa: TRY400
         except Exception:
