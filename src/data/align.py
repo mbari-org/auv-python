@@ -568,66 +568,67 @@ class Align_NetCDF:
                 np.mean(np.diff(self.combined_nc[timevar])) / np.timedelta64(1, "s")
             )
 
-            time_coord = variable_time_coord_mapping.get(variable)
-            depth_coord = (
-                time_coord[:-5] + "_depth"
-                if time_coord and time_coord.endswith("_time")
-                else f"{group_name}_depth"
-            )
-            lat_coord = (
-                time_coord[:-5] + "_latitude"
-                if time_coord and time_coord.endswith("_time")
-                else f"{group_name}_latitude"
-            )
-            lon_coord = (
-                time_coord[:-5] + "_longitude"
-                if time_coord and time_coord.endswith("_time")
-                else f"{group_name}_longitude"
-            )
+            # Determine coordinate variable names based on group
+            depth_coord = f"{group_name}_depth"
+            lat_coord = f"{group_name}_latitude"
+            lon_coord = f"{group_name}_longitude"
 
-            # Add interpolated depth, latitude, and longitude variables
-            if depth_coord in self.combined_nc:
-                self.aligned_nc[depth_coord].attrs = self.combined_nc[depth_coord].attrs
-            self.aligned_nc[depth_coord] = xr.DataArray(
-                depth_interp(var_time).astype(np.float64).tolist(),
-                dims={timevar},
-                coords=[self.combined_nc[variable].get_index(timevar)],
-                name=depth_coord,
-            )
-            self.aligned_nc[depth_coord].attrs["long_name"] = "Depth"
-            self.aligned_nc[depth_coord].attrs["comment"] = "depth from Group_Universals.nc"
             TINY_SAMPLE_RATE = 10e-2
-            self.aligned_nc[depth_coord].attrs["instrument_sample_rate_hz"] = (
+            sample_rate_str = (
                 f"{sample_rate:.2f}" if sample_rate > TINY_SAMPLE_RATE else f"{sample_rate:.6f}"
             )
 
-            self.aligned_nc[lat_coord] = xr.DataArray(
-                lat_interp(var_time).astype(np.float64).tolist(),
-                dims={timevar},
-                coords=[self.combined_nc[variable].get_index(timevar)],
-                name=lat_coord,
-            )
-            self.aligned_nc[lat_coord].attrs = self.combined_nc["nudged_latitude"].attrs
-            self.aligned_nc[lat_coord].attrs["comment"] += (
-                f". Variable nudged_latitude linearly"
-                f" interpolated onto {variable.split('_')[0]} time values."
-            )
-            self.aligned_nc[lat_coord].attrs["long_name"] = "Latitude"
-            self.aligned_nc[lat_coord].attrs["instrument_sample_rate_hz"] = sample_rate
+            # Create depth coordinate - only if not already created for this group
+            if depth_coord not in self.aligned_nc:
+                self.aligned_nc[depth_coord] = xr.DataArray(
+                    depth_interp(var_time).astype(np.float64).tolist(),
+                    dims={timevar},
+                    coords=[self.combined_nc[variable].get_index(timevar)],
+                    name=depth_coord,
+                )
+                # Copy attributes from combined_nc if they exist - ensusre proper standard_name
+                if depth_coord in self.combined_nc:
+                    self.aligned_nc[depth_coord].attrs = self.combined_nc[depth_coord].attrs.copy()
+                self.aligned_nc[depth_coord].attrs["long_name"] = "Depth"
+                self.aligned_nc[depth_coord].attrs["standard_name"] = "depth"
+                self.aligned_nc[depth_coord].attrs["comment"] = "depth from Group_Universals.nc"
+                self.aligned_nc[depth_coord].attrs["instrument_sample_rate_hz"] = sample_rate_str
 
-            self.aligned_nc[lon_coord] = xr.DataArray(
-                lon_interp(var_time).astype(np.float64).tolist(),
-                dims={timevar},
-                coords=[self.combined_nc[variable].get_index(timevar)],
-                name=lon_coord,
-            )
-            self.aligned_nc[lon_coord].attrs = self.combined_nc["nudged_longitude"].attrs
-            self.aligned_nc[lon_coord].attrs["comment"] += (
-                f". Variable nudged_longitude linearly"
-                f" interpolated onto {variable.split('_')[0]} time values."
-            )
-            self.aligned_nc[lon_coord].attrs["long_name"] = "Longitude"
-            self.aligned_nc[lon_coord].attrs["instrument_sample_rate_hz"] = sample_rate
+            # Create latitude coordinate - only if not already created for this group
+            if lat_coord not in self.aligned_nc:
+                self.aligned_nc[lat_coord] = xr.DataArray(
+                    lat_interp(var_time).astype(np.float64).tolist(),
+                    dims={timevar},
+                    coords=[self.combined_nc[variable].get_index(timevar)],
+                    name=lat_coord,
+                )
+                self.aligned_nc[lat_coord].attrs = self.combined_nc["nudged_latitude"].attrs.copy()
+                self.aligned_nc[lat_coord].attrs["comment"] += (
+                    f". Variable nudged_latitude linearly"
+                    f" interpolated onto {group_name} time values."
+                )
+                # Ensure proper standard_name
+                self.aligned_nc[lat_coord].attrs["long_name"] = "Latitude"
+                self.aligned_nc[lat_coord].attrs["standard_name"] = "latitude"
+                self.aligned_nc[lat_coord].attrs["instrument_sample_rate_hz"] = sample_rate_str
+
+            # Create longitude coordinate - only if not already created for this group
+            if lon_coord not in self.aligned_nc:
+                self.aligned_nc[lon_coord] = xr.DataArray(
+                    lon_interp(var_time).astype(np.float64).tolist(),
+                    dims={timevar},
+                    coords=[self.combined_nc[variable].get_index(timevar)],
+                    name=lon_coord,
+                )
+                self.aligned_nc[lon_coord].attrs = self.combined_nc["nudged_longitude"].attrs.copy()
+                self.aligned_nc[lon_coord].attrs["comment"] += (
+                    f". Variable nudged_longitude linearly"
+                    f" interpolated onto {group_name} time values."
+                )
+                # Ensure proper standard_name
+                self.aligned_nc[lon_coord].attrs["long_name"] = "Longitude"
+                self.aligned_nc[lon_coord].attrs["standard_name"] = "longitude"
+                self.aligned_nc[lon_coord].attrs["instrument_sample_rate_hz"] = sample_rate_str
 
             # Update spatial temporal bounds for global metadata
             if pd.to_datetime(self.aligned_nc[timevar][0].values).tz_localize(UTC) < pd.to_datetime(
@@ -661,13 +662,13 @@ class Align_NetCDF:
             )
             self.aligned_nc[variable].attrs = self.combined_nc[variable].attrs
             if (
-                time_coord in self.aligned_nc
+                timevar in self.aligned_nc
                 and depth_coord in self.aligned_nc
                 and lat_coord in self.aligned_nc
                 and lon_coord in self.aligned_nc
             ):
                 self.aligned_nc[variable].attrs["coordinates"] = (
-                    f"{time_coord} {depth_coord} {lat_coord} {lon_coord}"
+                    f"{timevar} {depth_coord} {lat_coord} {lon_coord}"
                 )
             else:
                 self.logger.info("Skipping setting coordinates attribute for %s", variable)
