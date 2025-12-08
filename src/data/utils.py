@@ -213,8 +213,17 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
         end_sec_diff = float(lat_fix.cf["T"].data[i + 1] - lat.cf["T"].data[segi[-1]]) / 1.0e9
 
-        end_lon_diff = float(lon_fix[i + 1]) - float(lon[segi[-1]])
-        end_lat_diff = float(lat_fix[i + 1]) - float(lat[segi[-1]])
+        try:
+            end_lon_diff = float(lon_fix[i + 1]) - float(lon[segi[-1]])
+            end_lat_diff = float(lat_fix[i + 1]) - float(lat[segi[-1]])
+        except IndexError as e:
+            logger.warning("IndexError computing end_lon_diff/end_lat_diff: %s", e)
+            logger.info(
+                "Setting end_lon_diff and end_lat_diff to 0 - error likely due "
+                "filtering out bad GPS time data in nc42netdefs.py"
+            )
+            end_lat_diff = 0
+            end_lon_diff = 0
 
         # Compute approximate horizontal drift rate as a sanity check
         try:
