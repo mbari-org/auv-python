@@ -1220,7 +1220,8 @@ class Resampler:
             nighttime_bg_biolume = (
                 pd.Series(s_min_bg, index=nighttime_ubat_raw.index).resample("1s").mean()
             )
-            nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow) * 1000
+            # wetlabsubat_flow_rate is in l/s, so no * 1000 needed here
+            nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow)
             pseudo_fluorescence = nighttime_bg_biolume_perliter / proxy_ratio_adinos
             self.df_r["wetlabsubat_proxy_adinos"] = (
                 np.minimum(fluo, pseudo_fluorescence) / proxy_cal_factor
@@ -1302,8 +1303,8 @@ class Resampler:
             nighttime_data = (
                 self.ds["wetlabsubat_digitized_raw_ad_counts"]
                 .where(
-                    (self.ds["wetlabsubat_time_60hz"] > sunset)
-                    & (self.ds["wetlabsubat_time_60hz"] < sunrise),
+                    (self.ds["wetlabsubat_digitized_raw_ad_counts_time_60hz"] > sunset)
+                    & (self.ds["wetlabsubat_digitized_raw_ad_counts_time_60hz"] < sunrise),
                 )
                 .to_pandas()
                 .dropna()
