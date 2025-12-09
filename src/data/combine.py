@@ -693,6 +693,9 @@ class Combine_NetCDF:
 
         Replaces the 2D array with a 1D 60Hz time series, analogous to how
         Dorado biolume_raw is stored with a time60hz coordinate.
+
+        If expansion cannot be performed (e.g., not 2D data), the 2D variable
+        is removed to avoid confusing downstream consumers.
         """
         ubat_var = "wetlabsubat_digitized_raw_ad_counts"
 
@@ -714,8 +717,18 @@ class Combine_NetCDF:
         time_dim = ubat_2d.dims[0]
         n_samples = ubat_2d.shape[1]
 
+        self.logger.info(
+            "UBAT data shape: %s, time dimension: %s with %d points",
+            ubat_2d.shape,
+            time_dim,
+            len(self.combined_nc[time_dim]),
+        )
+
         if "wetlabsubat_hv_step_calibration_coefficient" not in self.combined_nc:
-            self.logger.warning("No UBAT calibration coefficient found, skipping 60hz expansion")
+            self.logger.warning(
+                "No UBAT calibration coefficient found, removing 2D variable to avoid confusion"
+            )
+            del self.combined_nc[ubat_var]
             return
 
         # Get calibration coefficient and verify dimensions match
@@ -788,26 +801,24 @@ class Combine_NetCDF:
         # Remove the old 2D variable
         del self.combined_nc[ubat_var]
 
-        # Create new 60hz time coordinate with attributes
+        # Create new 60hz time coordinate name
         time_60hz_name = f"{time_dim}_60hz"
-        time_60hz_coord = xr.DataArray(
-            time_60hz,
-            dims=[time_60hz_name],
-            name=time_60hz_name,
-            attrs={
-                "units": "seconds since 1970-01-01T00:00:00Z",
-                "standard_name": "time",
-                "long_name": "Time at 60Hz sampling rate",
-            },
-        )
 
         # Create replacement 1D variable with 60hz time coordinate
+        # Pass the numpy array as the coordinate value, not a DataArray
         self.combined_nc[ubat_var] = xr.DataArray(
             data_60hz,
-            coords={time_60hz_name: time_60hz_coord},
+            coords={time_60hz_name: time_60hz},
             dims=[time_60hz_name],
             name=ubat_var,
         )
+
+        # Add attributes to the time coordinate
+        self.combined_nc[ubat_var].coords[time_60hz_name].attrs = {
+            "units": "seconds since 1970-01-01T00:00:00Z",
+            "standard_name": "time",
+            "long_name": "Time at 60Hz sampling rate",
+        }
 
         # Restore and update attributes
         self.combined_nc[ubat_var].attrs = original_attrs

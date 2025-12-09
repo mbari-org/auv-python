@@ -372,8 +372,10 @@
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250604_20250616/20250608T020852/202506080209_202506081934.nc4", "--no_cleanup", "--clobber"]
             // ValueError: Dimension mismatch: wetlabsubat_digitized_raw_ad_counts_time has 33154 elements but wetlabsubat_hv_step_calibration_coefficient_time has 33155 elements
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250626T041517/202506260415_202506261400.nc4", "--no_cleanup"]
+            // ValueError: coords is not dict-like, but it has 1 items, which does not match the 2 dimensions of the data
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250626T140000/202506261400_202506262031.nc4", "--no_cleanup"]
             // Full month of June 2025 for Pontus with WetLabsUBAT Group data
-            "args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--no_cleanup"]
+            //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--no_cleanup"]
             //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--noinput", "--num_cores", "1", "--no_cleanup", "--clobber"]
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250707T043011/slate.nc4", "--no_cleanup"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250903_20250903/20250903T202626/202509032026_202509032030.nc4", "--no_cleanup"]
