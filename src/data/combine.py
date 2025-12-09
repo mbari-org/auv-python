@@ -92,6 +92,7 @@ class Combine_NetCDF:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
     variable_time_coord_mapping: dict = {}
+    TIME_MATCH_TOLERANCE = 1e-6  # seconds tolerance for matching time values
 
     def __init__(
         self,
@@ -652,6 +653,41 @@ class Combine_NetCDF:
                 f"Consolidated time coordinate from: {mapping_info}"
             )
 
+    def _align_ubat_time_coordinates(self, ubat_2d, calib_coeff, time_dim, calib_time_dim):
+        """Align UBAT and calibration coefficient time coordinates by finding common times."""
+        ubat_time = self.combined_nc[time_dim].to_numpy()
+        calib_time = self.combined_nc[calib_time_dim].to_numpy()
+
+        # Find intersection of time values
+        common_indices_ubat = []
+        common_indices_calib = []
+
+        for i, t_ubat in enumerate(ubat_time):
+            # Find matching time in calib_time
+            matches = np.where(np.abs(calib_time - t_ubat) < self.TIME_MATCH_TOLERANCE)[0]
+            if len(matches) > 0:
+                common_indices_ubat.append(i)
+                common_indices_calib.append(matches[0])
+
+        if len(common_indices_ubat) == 0:
+            error_message = f"No common time values found between {time_dim} and {calib_time_dim}"
+            raise ValueError(error_message)
+
+        self.logger.info(
+            "Found %d common time values out of %d in %s and %d in %s",
+            len(common_indices_ubat),
+            len(ubat_time),
+            time_dim,
+            len(calib_time),
+            calib_time_dim,
+        )
+
+        # Subset both arrays to common times
+        ubat_2d_aligned = ubat_2d.isel({time_dim: common_indices_ubat})
+        calib_coeff_aligned = calib_coeff.isel({calib_time_dim: common_indices_calib})
+
+        return ubat_2d_aligned, calib_coeff_aligned
+
     def _expand_ubat_to_60hz(self) -> None:
         """Expand UBAT digitized_raw_ad_counts 2D array into 60hz time series.
 
@@ -682,22 +718,30 @@ class Combine_NetCDF:
         calib_coeff = self.combined_nc["wetlabsubat_hv_step_calibration_coefficient"]
         calib_time_dim = calib_coeff.dims[0]
 
-        # Verify the time dimensions are identical in length
-        if len(self.combined_nc[time_dim]) != len(self.combined_nc[calib_time_dim]):
-            error_message = (
-                f"Dimension mismatch: {time_dim} has {len(self.combined_nc[time_dim])} elements "
-                f"but {calib_time_dim} has {len(self.combined_nc[calib_time_dim])} elements"
-            )
-            raise ValueError(error_message)
+        # Handle dimension mismatch by finding common time values
+        ubat_time = self.combined_nc[time_dim].to_numpy()
+        calib_time = self.combined_nc[calib_time_dim].to_numpy()
 
-        # Verify the time coordinate values are identical
-        if not np.allclose(
-            self.combined_nc[time_dim].to_numpy(),
-            self.combined_nc[calib_time_dim].to_numpy(),
-            rtol=1e-9,
-        ):
+        if len(ubat_time) != len(calib_time):
+            self.logger.warning(
+                "Dimension mismatch: %s has %d elements but %s has %d elements - "
+                "finding common time values",
+                time_dim,
+                len(ubat_time),
+                calib_time_dim,
+                len(calib_time),
+            )
+            ubat_2d, calib_coeff = self._align_ubat_time_coordinates(
+                ubat_2d, calib_coeff, time_dim, calib_time_dim
+            )
+            ubat_time = ubat_2d.coords[time_dim].to_numpy()
+            calib_time = calib_coeff.coords[calib_time_dim].to_numpy()
+
+        # Verify the time coordinate values are now identical
+        if not np.allclose(ubat_time, calib_time, rtol=1e-9):
             error_message = (
-                f"Time coordinates {time_dim} and {calib_time_dim} have different values"
+                f"Time coordinates {time_dim} and {calib_time_dim} have different values "
+                "even after alignment"
             )
             raise ValueError(error_message)
 
@@ -705,7 +749,7 @@ class Combine_NetCDF:
             "Verified dimensions match: %s and %s both have %d elements",
             time_dim,
             calib_time_dim,
-            len(self.combined_nc[time_dim]),
+            len(ubat_time),
         )
 
         # Multiply raw 60 hz values by the calibration coefficient
@@ -713,8 +757,8 @@ class Combine_NetCDF:
         # This multiplies each row of ubat_2d by the corresponding coefficient
         ubat_2d_calibrated = ubat_2d * calib_coeff.to_numpy()[:, np.newaxis]
 
-        # Get the time coordinate
-        time_coord = self.combined_nc[time_dim]
+        # Get the time coordinate (use ubat_2d's time coordinate after alignment)
+        time_coord = ubat_2d.coords[time_dim]
         n_times = len(time_coord)
 
         # Save original attributes before removing
