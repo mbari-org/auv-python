@@ -77,6 +77,8 @@ SCI_PARMS = {
         {"name": "average_bioluminescence"},
         {"name": "flow_rate"},
         {"name": "digitized_raw_ad_counts"},
+        {"name": "hv_step_calibration_coefficient"},
+        {"name": "flowrateCalibCoeff"},
     ],
 }
 

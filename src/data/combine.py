@@ -678,6 +678,41 @@ class Combine_NetCDF:
         time_dim = ubat_2d.dims[0]
         n_samples = ubat_2d.shape[1]
 
+        # Get calibration coefficient and verify dimensions match
+        calib_coeff = self.combined_nc["wetlabsubat_hv_step_calibration_coefficient"]
+        calib_time_dim = calib_coeff.dims[0]
+
+        # Verify the time dimensions are identical in length
+        if len(self.combined_nc[time_dim]) != len(self.combined_nc[calib_time_dim]):
+            error_message = (
+                f"Dimension mismatch: {time_dim} has {len(self.combined_nc[time_dim])} elements "
+                f"but {calib_time_dim} has {len(self.combined_nc[calib_time_dim])} elements"
+            )
+            raise ValueError(error_message)
+
+        # Verify the time coordinate values are identical
+        if not np.allclose(
+            self.combined_nc[time_dim].to_numpy(),
+            self.combined_nc[calib_time_dim].to_numpy(),
+            rtol=1e-9,
+        ):
+            error_message = (
+                f"Time coordinates {time_dim} and {calib_time_dim} have different values"
+            )
+            raise ValueError(error_message)
+
+        self.logger.info(
+            "Verified dimensions match: %s and %s both have %d elements",
+            time_dim,
+            calib_time_dim,
+            len(self.combined_nc[time_dim]),
+        )
+
+        # Multiply raw 60 hz values by the calibration coefficient
+        # Broadcasting: calib_coeff is (m,) and ubat_2d is (m, 60)
+        # This multiplies each row of ubat_2d by the corresponding coefficient
+        ubat_2d_calibrated = ubat_2d * calib_coeff.to_numpy()[:, np.newaxis]
+
         # Get the time coordinate
         time_coord = self.combined_nc[time_dim]
         n_times = len(time_coord)
@@ -699,7 +734,7 @@ class Combine_NetCDF:
 
         # Flatten the arrays
         time_60hz = np.concatenate(time_60hz_list)
-        data_60hz = ubat_2d.to_numpy().flatten()
+        data_60hz = ubat_2d_calibrated.to_numpy().flatten()
 
         # Remove the old 2D variable
         del self.combined_nc[ubat_var]
