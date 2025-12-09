@@ -522,7 +522,7 @@ class Align_NetCDF:
         # Process group-based variables (skip coordinate variables)
         for variable in self.combined_nc:
             # Skip time coordinate variables
-            if variable.endswith("_time"):
+            if variable.endswith(("_time", "_time_60hz")):
                 continue
 
             # Skip the navigation coordinate variables themselves
@@ -551,6 +551,7 @@ class Align_NetCDF:
             # Extract group name from time coordinate
             if timevar.endswith("_time_60hz"):
                 group_name = timevar[:-10]  # Remove "_time_60hz" (10 chars)
+                group_name += "_60hz"
             elif timevar.endswith("_time"):
                 group_name = timevar[:-5]  # Remove "_time"
             else:
@@ -563,9 +564,11 @@ class Align_NetCDF:
             # Get the time index for this variable
             var_time = self.combined_nc[variable].get_index(timevar).view(np.int64).tolist()
 
-            # Calculate sampling rate
+            # Calculate sampling rate using a small sample of time differences
+            SAMPLE_RATE_SAMPLE = 10
             sample_rate = 1.0 / (
-                np.mean(np.diff(self.combined_nc[timevar])) / np.timedelta64(1, "s")
+                np.mean(np.diff(self.combined_nc[timevar][:SAMPLE_RATE_SAMPLE]))
+                / np.timedelta64(1, "s")
             )
 
             # Determine coordinate variable names based on group
