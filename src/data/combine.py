@@ -714,6 +714,10 @@ class Combine_NetCDF:
         time_dim = ubat_2d.dims[0]
         n_samples = ubat_2d.shape[1]
 
+        if "wetlabsubat_hv_step_calibration_coefficient" not in self.combined_nc:
+            self.logger.warning("No UBAT calibration coefficient found, skipping 60hz expansion")
+            return
+
         # Get calibration coefficient and verify dimensions match
         calib_coeff = self.combined_nc["wetlabsubat_hv_step_calibration_coefficient"]
         calib_time_dim = calib_coeff.dims[0]
