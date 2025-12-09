@@ -722,7 +722,8 @@ class Combine_NetCDF:
 
         # Calculate 60hz time offsets (assuming samples span 1 second)
         # Each sample is 1/60th of a second apart
-        sample_offsets = np.arange(n_samples) / 60.0
+        # Subtract 0.5 seconds because 60Hz data are logged at the end of the 1-second period
+        sample_offsets = np.arange(n_samples) / 60.0 - 0.5
 
         # Create 60hz time series by adding offsets to each 1Hz time
         time_60hz_list = []
