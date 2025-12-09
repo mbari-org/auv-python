@@ -227,6 +227,10 @@ def test_ubat_60hz_expansion(tmp_path):
                 ["wetlabsubat_time", "sample"],
                 np.random.randint(0, 1000, (len(time_vals), 60)),
             ),
+            "wetlabsubat_hv_step_calibration_coefficient": (
+                ["wetlabsubat_time"],
+                np.ones(len(time_vals)) * 1.5,  # Example calibration coefficient
+            ),
         },
         coords={"wetlabsubat_time": time_seconds},
     )
@@ -235,6 +239,10 @@ def test_ubat_60hz_expansion(tmp_path):
     combine.combined_nc["wetlabsubat_digitized_raw_ad_counts"].attrs = {
         "long_name": "Digitized raw AD counts",
         "comment": "Test UBAT data",
+    }
+    combine.combined_nc["wetlabsubat_hv_step_calibration_coefficient"].attrs = {
+        "long_name": "HV step calibration coefficient",
+        "comment": "Test calibration coefficient",
     }
 
     # Call the expansion method
