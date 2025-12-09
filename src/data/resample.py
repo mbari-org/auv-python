@@ -1006,6 +1006,10 @@ class Resampler:
         # s_ubat_raw includes daytime data - see below for nighttime data
         s_ubat_raw = self.ds["wetlabsubat_digitized_raw_ad_counts"].to_pandas().dropna()
 
+        if s_ubat_raw.empty:
+            self.logger.info("No wetlabsubat_digitized_raw_ad_counts data to compute proxies")
+            return pd.Series(dtype="float64"), [], []
+
         # Compute background biolumenesence envelope
         self.logger.debug("Applying rolling min filter")
         min_bg_unsmoothed = s_ubat_raw.rolling(
@@ -1220,7 +1224,8 @@ class Resampler:
             nighttime_bg_biolume = (
                 pd.Series(s_min_bg, index=nighttime_ubat_raw.index).resample("1s").mean()
             )
-            nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow) * 1000
+            # wetlabsubat_flow_rate is in l/s, so no * 1000 needed here
+            nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow)
             pseudo_fluorescence = nighttime_bg_biolume_perliter / proxy_ratio_adinos
             self.df_r["wetlabsubat_proxy_adinos"] = (
                 np.minimum(fluo, pseudo_fluorescence) / proxy_cal_factor
@@ -1299,11 +1304,11 @@ class Resampler:
                 sunset,
                 sunrise,
             )
+            time_coord_name = self.ds["wetlabsubat_digitized_raw_ad_counts"].dims[0]
             nighttime_data = (
                 self.ds["wetlabsubat_digitized_raw_ad_counts"]
                 .where(
-                    (self.ds["wetlabsubat_time_60hz"] > sunset)
-                    & (self.ds["wetlabsubat_time_60hz"] < sunrise),
+                    (self.ds[time_coord_name] > sunset) & (self.ds[time_coord_name] < sunrise),
                 )
                 .to_pandas()
                 .dropna()

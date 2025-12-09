@@ -92,6 +92,7 @@ class Combine_NetCDF:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
     variable_time_coord_mapping: dict = {}
+    TIME_MATCH_TOLERANCE = 1e-6  # seconds tolerance for matching time values
 
     def __init__(
         self,
@@ -652,11 +653,49 @@ class Combine_NetCDF:
                 f"Consolidated time coordinate from: {mapping_info}"
             )
 
+    def _align_ubat_time_coordinates(self, ubat_2d, calib_coeff, time_dim, calib_time_dim):
+        """Align UBAT and calibration coefficient time coordinates by finding common times."""
+        ubat_time = self.combined_nc[time_dim].to_numpy()
+        calib_time = self.combined_nc[calib_time_dim].to_numpy()
+
+        # Find intersection of time values
+        common_indices_ubat = []
+        common_indices_calib = []
+
+        for i, t_ubat in enumerate(ubat_time):
+            # Find matching time in calib_time
+            matches = np.where(np.abs(calib_time - t_ubat) < self.TIME_MATCH_TOLERANCE)[0]
+            if len(matches) > 0:
+                common_indices_ubat.append(i)
+                common_indices_calib.append(matches[0])
+
+        if len(common_indices_ubat) == 0:
+            error_message = f"No common time values found between {time_dim} and {calib_time_dim}"
+            raise ValueError(error_message)
+
+        self.logger.info(
+            "Found %d common time values out of %d in %s and %d in %s",
+            len(common_indices_ubat),
+            len(ubat_time),
+            time_dim,
+            len(calib_time),
+            calib_time_dim,
+        )
+
+        # Subset both arrays to common times
+        ubat_2d_aligned = ubat_2d.isel({time_dim: common_indices_ubat})
+        calib_coeff_aligned = calib_coeff.isel({calib_time_dim: common_indices_calib})
+
+        return ubat_2d_aligned, calib_coeff_aligned
+
     def _expand_ubat_to_60hz(self) -> None:
         """Expand UBAT digitized_raw_ad_counts 2D array into 60hz time series.
 
         Replaces the 2D array with a 1D 60Hz time series, analogous to how
         Dorado biolume_raw is stored with a time60hz coordinate.
+
+        If expansion cannot be performed (e.g., not 2D data), the 2D variable
+        is removed to avoid confusing downstream consumers.
         """
         ubat_var = "wetlabsubat_digitized_raw_ad_counts"
 
@@ -678,8 +717,65 @@ class Combine_NetCDF:
         time_dim = ubat_2d.dims[0]
         n_samples = ubat_2d.shape[1]
 
-        # Get the time coordinate
-        time_coord = self.combined_nc[time_dim]
+        self.logger.info(
+            "UBAT data shape: %s, time dimension: %s with %d points",
+            ubat_2d.shape,
+            time_dim,
+            len(self.combined_nc[time_dim]),
+        )
+
+        if "wetlabsubat_hv_step_calibration_coefficient" not in self.combined_nc:
+            self.logger.warning(
+                "No UBAT calibration coefficient found, removing 2D variable to avoid confusion"
+            )
+            del self.combined_nc[ubat_var]
+            return
+
+        # Get calibration coefficient and verify dimensions match
+        calib_coeff = self.combined_nc["wetlabsubat_hv_step_calibration_coefficient"]
+        calib_time_dim = calib_coeff.dims[0]
+
+        # Handle dimension mismatch by finding common time values
+        ubat_time = self.combined_nc[time_dim].to_numpy()
+        calib_time = self.combined_nc[calib_time_dim].to_numpy()
+
+        if len(ubat_time) != len(calib_time):
+            self.logger.warning(
+                "Dimension mismatch: %s has %d elements but %s has %d elements - "
+                "finding common time values",
+                time_dim,
+                len(ubat_time),
+                calib_time_dim,
+                len(calib_time),
+            )
+            ubat_2d, calib_coeff = self._align_ubat_time_coordinates(
+                ubat_2d, calib_coeff, time_dim, calib_time_dim
+            )
+            ubat_time = ubat_2d.coords[time_dim].to_numpy()
+            calib_time = calib_coeff.coords[calib_time_dim].to_numpy()
+
+        # Verify the time coordinate values are now identical
+        if not np.allclose(ubat_time, calib_time, rtol=1e-9):
+            error_message = (
+                f"Time coordinates {time_dim} and {calib_time_dim} have different values "
+                "even after alignment"
+            )
+            raise ValueError(error_message)
+
+        self.logger.info(
+            "Verified dimensions match: %s and %s both have %d elements",
+            time_dim,
+            calib_time_dim,
+            len(ubat_time),
+        )
+
+        # Multiply raw 60 hz values by the calibration coefficient
+        # Broadcasting: calib_coeff is (m,) and ubat_2d is (m, 60)
+        # This multiplies each row of ubat_2d by the corresponding coefficient
+        ubat_2d_calibrated = ubat_2d * calib_coeff.to_numpy()[:, np.newaxis]
+
+        # Get the time coordinate (use ubat_2d's time coordinate after alignment)
+        time_coord = ubat_2d.coords[time_dim]
         n_times = len(time_coord)
 
         # Save original attributes before removing
@@ -687,7 +783,8 @@ class Combine_NetCDF:
 
         # Calculate 60hz time offsets (assuming samples span 1 second)
         # Each sample is 1/60th of a second apart
-        sample_offsets = np.arange(n_samples) / 60.0
+        # Subtract 0.5 seconds because 60Hz data are logged at the end of the 1-second period
+        sample_offsets = np.arange(n_samples) / 60.0 - 0.5
 
         # Create 60hz time series by adding offsets to each 1Hz time
         time_60hz_list = []
@@ -699,31 +796,29 @@ class Combine_NetCDF:
 
         # Flatten the arrays
         time_60hz = np.concatenate(time_60hz_list)
-        data_60hz = ubat_2d.to_numpy().flatten()
+        data_60hz = ubat_2d_calibrated.to_numpy().flatten()
 
         # Remove the old 2D variable
         del self.combined_nc[ubat_var]
 
-        # Create new 60hz time coordinate with attributes
+        # Create new 60hz time coordinate name
         time_60hz_name = f"{time_dim}_60hz"
-        time_60hz_coord = xr.DataArray(
-            time_60hz,
-            dims=[time_60hz_name],
-            name=time_60hz_name,
-            attrs={
-                "units": "seconds since 1970-01-01T00:00:00Z",
-                "standard_name": "time",
-                "long_name": "Time at 60Hz sampling rate",
-            },
-        )
 
         # Create replacement 1D variable with 60hz time coordinate
+        # Pass the numpy array as the coordinate value, not a DataArray
         self.combined_nc[ubat_var] = xr.DataArray(
             data_60hz,
-            coords={time_60hz_name: time_60hz_coord},
+            coords={time_60hz_name: time_60hz},
             dims=[time_60hz_name],
             name=ubat_var,
         )
+
+        # Add attributes to the time coordinate
+        self.combined_nc[ubat_var].coords[time_60hz_name].attrs = {
+            "units": "seconds since 1970-01-01T00:00:00Z",
+            "standard_name": "time",
+            "long_name": "Time at 60Hz sampling rate",
+        }
 
         # Restore and update attributes
         self.combined_nc[ubat_var].attrs = original_attrs
@@ -744,6 +839,7 @@ class Combine_NetCDF:
         """Perform initial QC on core coordinate variables for specific log files."""
         if self.log_file in (
             "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4",
+            "brizo/missionlogs/2025/20250909_20250915/20250913T080940/202509130809_202509140809.nc4",
         ):
             self.logger.info("Performing initial coordinate QC for %s", self.log_file)
             self._range_qc_combined_nc(
