@@ -868,60 +868,80 @@ class Combine_NetCDF:
             )
 
     def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:
-        """Add nudged longitude and latitude variables to the combined dataset."""
+        """Add nudged longitude and latitude variables to the combined dataset.
+
+        If GPS fixes are available, positions are nudged to GPS. Otherwise,
+        dead-reckoned positions are used with appropriate warnings in metadata.
+        """
         self._initial_coordinate_qc()
 
         # Check if GPS fix variables exist
-        if (
-            "nal9602_longitude_fix" not in self.combined_nc
-            or "nal9602_latitude_fix" not in self.combined_nc
-        ):
+        has_gps = (
+            "nal9602_longitude_fix" in self.combined_nc
+            and "nal9602_latitude_fix" in self.combined_nc
+        )
+
+        if not has_gps:
             self.logger.warning(
                 "No GPS fix variables found in combined dataset - "
-                "skipping nudged coordinate creation"
+                "using uncorrected dead-reckoned positions for nudged coordinates"
             )
-            return
+            # Use dead-reckoned positions directly
+            nudged_longitude = self.combined_nc["universals_longitude"].to_numpy()
+            nudged_latitude = self.combined_nc["universals_latitude"].to_numpy()
+            segment_count = 0
+            gps_corrected = False
+        else:
+            # Ensure GPS fixes have monotonically increasing timestamps
+            gps_lon = self.combined_nc["nal9602_longitude_fix"]
+            gps_lat = self.combined_nc["nal9602_latitude_fix"]
+            gps_time_coord = gps_lon.coords[gps_lon.dims[0]]
 
-        # Ensure GPS fixes have monotonically increasing timestamps
-        gps_lon = self.combined_nc["nal9602_longitude_fix"]
-        gps_lat = self.combined_nc["nal9602_latitude_fix"]
-        gps_time_coord = gps_lon.coords[gps_lon.dims[0]]
+            # Convert to pandas index which handles datetime comparisons properly
+            gps_time_index = gps_time_coord.to_index()
+            gps_monotonic = monotonic_increasing_time_indices(gps_time_index)
+            if not np.all(gps_monotonic):
+                monotonic_count = np.sum(gps_monotonic)
+                self.logger.warning(
+                    "Filtered GPS fixes from %d to %d to ensure monotonically "
+                    "increasing timestamps",
+                    len(gps_lon),
+                    monotonic_count,
+                )
+                gps_lon = gps_lon.isel({gps_lon.dims[0]: gps_monotonic})
+                gps_lat = gps_lat.isel({gps_lat.dims[0]: gps_monotonic})
 
-        # Convert to pandas index which handles datetime comparisons properly
-        gps_time_index = gps_time_coord.to_index()
-        gps_monotonic = monotonic_increasing_time_indices(gps_time_index)
-        if not np.all(gps_monotonic):
-            monotonic_count = np.sum(gps_monotonic)
+            try:
+                nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
+                    nav_longitude=self.combined_nc["universals_longitude"],
+                    nav_latitude=self.combined_nc["universals_latitude"],
+                    gps_longitude=gps_lon,
+                    gps_latitude=gps_lat,
+                    logger=self.logger,
+                    auv_name="",
+                    mission="",
+                    log_file=self.log_file,
+                    max_sec_diff_at_end=max_sec_diff_at_end,
+                    create_plots=self.plot,
+                )
+                gps_corrected = True
+            except ValueError:
+                self.logger.exception("Nudging positions failed - using uncorrected positions")
+                nudged_longitude = self.combined_nc["universals_longitude"].to_numpy()
+                nudged_latitude = self.combined_nc["universals_latitude"].to_numpy()
+                segment_count = 0
+                gps_corrected = False
+
+        if gps_corrected:
+            self.logger.info(
+                "nudge_positions created %d segments with segment_minsum = %f",
+                segment_count,
+                segment_minsum,
+            )
+        else:
             self.logger.warning(
-                "Filtered GPS fixes from %d to %d to ensure monotonically increasing timestamps",
-                len(gps_lon),
-                monotonic_count,
+                "Nudged coordinates are uncorrected dead-reckoned positions - use with caution"
             )
-            gps_lon = gps_lon.isel({gps_lon.dims[0]: gps_monotonic})
-            gps_lat = gps_lat.isel({gps_lat.dims[0]: gps_monotonic})
-
-        try:
-            nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
-                nav_longitude=self.combined_nc["universals_longitude"],
-                nav_latitude=self.combined_nc["universals_latitude"],
-                gps_longitude=gps_lon,
-                gps_latitude=gps_lat,
-                logger=self.logger,
-                auv_name="",
-                mission="",
-                log_file=self.log_file,
-                max_sec_diff_at_end=max_sec_diff_at_end,
-                create_plots=self.plot,
-            )
-        except ValueError as e:
-            self.logger.error("Nudging positions failed: %s", e)  # noqa: TRY400
-            return
-
-        self.logger.info(
-            "nudge_positions created %d segments with segment_minsum = %f",
-            segment_count,
-            segment_minsum,
-        )
 
         # Calculate total underwater time and store for metadata
         time_coord = self.combined_nc[self.variable_time_coord_mapping["universals_longitude"]]
@@ -930,6 +950,20 @@ class Combine_NetCDF:
         total_seconds = float(time_diff / np.timedelta64(1, "s"))
         self.nudge_segment_count = segment_count
         self.nudge_total_minutes = total_seconds / 60.0
+
+        # Create comment based on whether GPS correction was applied
+        if gps_corrected:
+            lon_comment = (
+                f"Dead reckoned positions from {segment_count} underwater segments "
+                f"nudged to GPS positions"
+            )
+            lat_comment = lon_comment
+        else:
+            lon_comment = (
+                "WARNING: Uncorrected dead-reckoned positions. No GPS fixes available. "
+                "These positions have not been adjusted for drift and should be used with caution."
+            )
+            lat_comment = lon_comment
 
         self.combined_nc["nudged_longitude"] = xr.DataArray(
             nudged_longitude,
@@ -945,10 +979,8 @@ class Combine_NetCDF:
             "long_name": "Nudged Longitude",
             "standard_name": "longitude",
             "units": "degrees_east",
-            "comment": (
-                f"Dead reckoned positions from {segment_count} underwater segments "
-                f"nudged to GPS positions"
-            ),
+            "comment": lon_comment,
+            "gps_corrected": "true" if gps_corrected else "false",
         }
         self.combined_nc["nudged_latitude"] = xr.DataArray(
             nudged_latitude,
@@ -962,10 +994,8 @@ class Combine_NetCDF:
             "long_name": "Nudged Latitude",
             "standard_name": "latitude",
             "units": "degrees_north",
-            "comment": (
-                f"Dead reckoned positions from {segment_count} underwater segments "
-                f"nudged to GPS positions"
-            ),
+            "comment": lat_comment,
+            "gps_corrected": "true" if gps_corrected else "false",
         }
 
     def combine_groups(self) -> None:
@@ -975,7 +1005,7 @@ class Combine_NetCDF:
         self.summary_fields = set()
         self.combined_nc = xr.Dataset()
 
-        for group_file in group_files:
+        for group_file in sorted(group_files):
             self.logger.info("-" * 110)
             self.logger.info("Group file: %s", group_file.name)
             # Open group file without decoding to have np.allclose work properly
