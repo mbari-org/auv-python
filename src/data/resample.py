@@ -370,25 +370,19 @@ class Resampler:
         # For dorado/i2map missions, this is usually 'ctd1' or 'seabird25p'
         # For LRAUV missions, this is usually 'ctdseabird' or 'ctdneilbrown'
         if self.log_file:
-            pitch_corrected_instr = "ctdseabird"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
-            pitch_corrected_instr += "_sea_water_temperature"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
-            pitch_corrected_instr = "ctdneilbrown"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
+            candidates = ["ctdseabird", "ctdseabird_sea_water_temperature", "ctdneilbrown"]
         else:
-            pitch_corrected_instr = "ctd1"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
-            pitch_corrected_instr = "seabird25p"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
+            candidates = ["ctd1", "seabird25p"]
 
-        # If neither instrument found, log error and raise InvalidAlignFile exception.
-        self.logger.warning("No pitch corrected depth coordinate found")
+        for instr in candidates:
+            if f"{instr}_depth" in self.ds:
+                return instr
+
+        # If no instrument found, log error and raise InvalidAlignFile exception.
+        self.logger.warning(
+            "No pitch corrected depth coordinate found. Searched for: %s",
+            ", ".join(candidates),
+        )
         self.logger.info(
             "Cannot continue without a pitch corrected depth coordinate",
         )
@@ -1116,11 +1110,11 @@ class Resampler:
                 flow = flow.replace(0.0, 350.0)
 
         # Compute flashes per liter - pandas.Series.divide() will match indexes
-        # Units: flashes per liter = (flashes per second / mL/s) * 1000 mL/L
         self.logger.info(
             "Computing flashes per liter: wetlabsubat_nbflash_high, wetlabsubat_nbflash_low"
         )
-        self.df_r["wetlabsubat_nbflash_high"] = nbflash_high_counts.divide(flow) * 1000
+        # No need to multiply by 1000 as flow is already in l/s
+        self.df_r["wetlabsubat_nbflash_high"] = nbflash_high_counts.divide(flow)
         self.df_r["wetlabsubat_nbflash_high"].attrs["long_name"] = (
             "High intensity flashes (copepods proxy)"
         )
@@ -1129,7 +1123,8 @@ class Resampler:
             f"{zero_note} - {flash_threshold_note}"
         )
 
-        self.df_r["wetlabsubat_nbflash_low"] = nbflash_low_counts.divide(flow) * 1000
+        # No need to multiply by 1000 as flow is already in l/s
+        self.df_r["wetlabsubat_nbflash_low"] = nbflash_low_counts.divide(flow)
         self.df_r["wetlabsubat_nbflash_low"].attrs["long_name"] = (
             "Low intensity flashes (Larvacean proxy)"
         )
@@ -1161,7 +1156,7 @@ class Resampler:
         self.df_r["wetlabsubat_intflash"].attrs["long_name"] = (
             "Flashes intensity (small jellies proxy)"
         )
-        self.df_r["wetlabsubat_intflash"].attrs["units"] = "counts"
+        self.df_r["wetlabsubat_intflash"].attrs["units"] = "photons/s"
         self.df_r["wetlabsubat_intflash"].attrs["comment"] = (
             f"intensity of flashes from {sample_rate} Hz "
             f"wetlabsubat_digitized_raw_ad_counts variable in {freq} intervals."
@@ -1175,11 +1170,12 @@ class Resampler:
         ).mean()
         bg_biolume = pd.Series(s_min_bg, index=s_ubat_raw.index).resample("1s").mean()
         self.logger.info("Saving Background bioluminescence (dinoflagellates proxy)")
-        self.df_r["wetlabsubat_bg_biolume"] = bg_biolume.divide(flow) * 1000
+        # No need to multiply by 1000 as flow is already in l/s
+        self.df_r["wetlabsubat_bg_biolume"] = bg_biolume.divide(flow)
         self.df_r["wetlabsubat_bg_biolume"].attrs["long_name"] = (
             "Background bioluminescence (dinoflagellates proxy)"
         )
-        self.df_r["wetlabsubat_bg_biolume"].attrs["units"] = "counts/liter"
+        self.df_r["wetlabsubat_bg_biolume"].attrs["units"] = "photons/liter"
         self.df_r["wetlabsubat_bg_biolume"].attrs["comment"] = zero_note
 
         fluo = None
@@ -1224,7 +1220,7 @@ class Resampler:
             nighttime_bg_biolume = (
                 pd.Series(s_min_bg, index=nighttime_ubat_raw.index).resample("1s").mean()
             )
-            # wetlabsubat_flow_rate is in l/s, so no * 1000 needed here
+            # No need to multiply by 1000 as flow is already in l/s
             nighttime_bg_biolume_perliter = nighttime_bg_biolume.divide(flow)
             pseudo_fluorescence = nighttime_bg_biolume_perliter / proxy_ratio_adinos
             self.df_r["wetlabsubat_proxy_adinos"] = (

@@ -243,7 +243,7 @@ class Archiver:
                 if src_file.exists():
                     shutil.copyfile(src_file, dst_file)
                     self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-            else:
+            elif src_file.exists():
                 self.logger.info(
                     "%-36s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
                     src_file.name,
