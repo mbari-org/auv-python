@@ -1328,9 +1328,9 @@ class Resampler:
 
     def correct_biolume_proxies(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
-        biolume_fluo: pd.Series,  # from add_biolume_proxies
-        biolume_sunsets: list[datetime],  # from add_biolume_proxies
-        biolume_sunrises: list[datetime],  # from add_biolume_proxies
+        biolume_fluo: pd.Series,  # from add_biolume_proxies or add_wetlabsubat_proxies
+        biolume_sunsets: list[datetime],  # from add_biolume_proxies or add_wetlabsubat_proxies
+        biolume_sunrises: list[datetime],  # from add_biolume_proxies or add_wetlabsubat_proxies
         depth_threshold: float,
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
@@ -1338,16 +1338,26 @@ class Resampler:
         corr_type: str = "pearson",  # "spearman" or "pearson"
         minutes_from_surface_threshold: int = 5,
     ) -> None:
+        # Determine which instrument prefix to use based on available variables
+        prefix = None
+        if "biolume_proxy_diatoms" in self.df_r:
+            prefix = "biolume"
+        elif "wetlabsubat_proxy_diatoms" in self.df_r:
+            prefix = "wetlabsubat"
+        else:
+            # No biolume or wetlabsubat proxies to correct
+            return
+
         variables = [
-            "biolume_proxy_diatoms",
-            "biolume_proxy_adinos",
-            "biolume_proxy_hdinos",
-            "biolume_bg_biolume",
+            f"{prefix}_proxy_diatoms",
+            f"{prefix}_proxy_adinos",
+            f"{prefix}_proxy_hdinos",
+            f"{prefix}_bg_biolume",
         ]
         try:
             df_p = self.df_r[variables].copy(deep=True)
         except KeyError:
-            # We didn't add biolum proxies this round...
+            # We didn't add biolume proxies this round...
             return
 
         # Save the attrs for later as the correction process will drop them
@@ -1355,8 +1365,8 @@ class Resampler:
         for var in variables:
             saved_attrs[var] = self.df_r[var].attrs
 
-        df_p["biolume_fluo"] = biolume_fluo
-        df_p["fluoBL_corr"] = np.full_like(df_p.biolume_fluo, np.nan)
+        df_p[f"{prefix}_fluo"] = biolume_fluo
+        df_p["fluoBL_corr"] = np.full_like(df_p[f"{prefix}_fluo"], np.nan)
 
         depth_series = self.resampled_nc["depth"].to_series()
         # df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
@@ -1397,7 +1407,7 @@ class Resampler:
         # new proxies are the "N" fields
         for new, old in zip(
             ["diatomsN", "adinosN", "hdinosN"],
-            ["biolume_proxy_diatoms", "biolume_proxy_adinos", "biolume_proxy_hdinos"],
+            [f"{prefix}_proxy_diatoms", f"{prefix}_proxy_adinos", f"{prefix}_proxy_hdinos"],
             strict=False,
         ):
             df_p[new] = np.full_like(df_p[old], np.nan)
@@ -1433,9 +1443,9 @@ class Resampler:
         df_p["has_sunevent"] = df_p["profile_number"].map(profile_intervals["has_sunevent"])
 
         # Set all the proxies to nan and then add in the valid values in the loop below
-        self.df_r["biolume_proxy_adinos"] = np.nan
-        self.df_r["biolume_proxy_diatoms"] = np.nan
-        self.df_r["biolume_proxy_hdinos"] = np.nan
+        self.df_r[f"{prefix}_proxy_adinos"] = np.nan
+        self.df_r[f"{prefix}_proxy_diatoms"] = np.nan
+        self.df_r[f"{prefix}_proxy_hdinos"] = np.nan
 
         # compute correlation per profil and then correct proxies
         profil = df_p.profile_number
@@ -1449,9 +1459,9 @@ class Resampler:
                     iprofil_,
                 )
                 target_indices = df_p.index[iprofil]
-                self.df_r.loc[target_indices, "biolume_proxy_adinos"] = np.nan
-                self.df_r.loc[target_indices, "biolume_proxy_diatoms"] = np.nan
-                self.df_r.loc[target_indices, "biolume_proxy_hdinos"] = np.nan
+                self.df_r.loc[target_indices, f"{prefix}_proxy_adinos"] = np.nan
+                self.df_r.loc[target_indices, f"{prefix}_proxy_diatoms"] = np.nan
+                self.df_r.loc[target_indices, f"{prefix}_proxy_hdinos"] = np.nan
                 continue
             # excludes surface, must be within 5 min of it
             ideep = iprofil & (df_p.depth > depth_threshold)
@@ -1471,13 +1481,14 @@ class Resampler:
             )
             if auv_profil.shape[0] > correction_threshold:
                 if (
-                    np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold)
+                    np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold)
                     < correction_threshold
                 ):
-                    if auv_profil.biolume_proxy_adinos.count() == 0:  # all proxies are NaN so skip
+                    # all proxies are NaN so skip
+                    if auv_profil[f"{prefix}_proxy_adinos"].count() == 0:
                         self.logger.info(
                             "Correcting proxies: valid adinos=%d < thresh=%d -- all NaN so skip",
-                            np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
+                            np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
                             correction_threshold,
                         )
                         continue
@@ -1486,11 +1497,11 @@ class Resampler:
                     self.logger.info(
                         "Correcting proxies: valid adinos=%d < thresh=%d"
                         " -- using fluoBL_corr=%.4f, total_size_adinos=%d, nans=%d",
-                        np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
+                        np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
                         correction_threshold,
                         fluoBL_corr,
-                        auv_profil.biolume_proxy_adinos.shape[0],
-                        auv_profil.biolume_proxy_adinos.isna().sum(),
+                        auv_profil[f"{prefix}_proxy_adinos"].shape[0],
+                        auv_profil[f"{prefix}_proxy_adinos"].isna().sum(),
                     )
                 else:
                     # correlation between fluo and bg_biolum computed on high
@@ -1498,25 +1509,25 @@ class Resampler:
                     idepth = (
                         auv_profil.depth
                         <= auv_profil.depth[
-                            auv_profil.biolume_proxy_adinos > adinos_threshold
+                            auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold
                         ].max()
                     )
                     auv_profil_idepth = auv_profil[
-                        ["biolume_fluo", "biolume_bg_biolume", "depth"]
+                        [f"{prefix}_fluo", f"{prefix}_bg_biolume", "depth"]
                     ].loc[idepth]
                     # pandas' corr ignores NaN
-                    fluoBL_corr = auv_profil_idepth.biolume_fluo.corr(
-                        auv_profil_idepth.biolume_bg_biolume, method=corr_type
+                    fluoBL_corr = auv_profil_idepth[f"{prefix}_fluo"].corr(
+                        auv_profil_idepth[f"{prefix}_bg_biolume"], method=corr_type
                     )
                     self.logger.info(
                         "Correcting proxies: valid adinos=%d > thresh=%d"
                         " -- using fluoBL_corr=%.4f, total_size_idepth=%d, nans=%d,"
                         " min_depth=%.4f, max_depth=%.4f",
-                        np.sum(auv_profil.biolume_proxy_adinos > adinos_threshold),
+                        np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
                         correction_threshold,
                         fluoBL_corr,
                         auv_profil_idepth.shape[0],
-                        auv_profil.biolume_proxy_adinos.isna().sum(),
+                        auv_profil[f"{prefix}_proxy_adinos"].isna().sum(),
                         auv_profil_idepth.depth.min(),
                         auv_profil_idepth.depth.max(),
                     )
@@ -1541,27 +1552,29 @@ class Resampler:
                 fluoBL_correctionfactor = max(fluoBL_correctionfactor, 0.0)
 
                 df_p.loc[iprofil, "adinosN"] = (
-                    df_p.biolume_proxy_adinos[iprofil] * fluoBL_correctionfactor
+                    df_p[f"{prefix}_proxy_adinos"][iprofil] * fluoBL_correctionfactor
                 )
 
                 # preserving adinos+diatoms
                 df_p.loc[iprofil, "diatomsN"] = (
-                    df_p.biolume_proxy_adinos[iprofil]
-                    + df_p.biolume_proxy_diatoms[iprofil]
+                    df_p[f"{prefix}_proxy_adinos"][iprofil]
+                    + df_p[f"{prefix}_proxy_diatoms"][iprofil]
                     - df_p.adinosN[iprofil]
                 )
 
                 # preserving adinos+hdinos
                 df_p.loc[iprofil, "hdinosN"] = (
-                    df_p.biolume_proxy_adinos[iprofil]
-                    + df_p.biolume_proxy_hdinos[iprofil]
+                    df_p[f"{prefix}_proxy_adinos"][iprofil]
+                    + df_p[f"{prefix}_proxy_hdinos"][iprofil]
                     - df_p.adinosN[iprofil]
                 )
 
                 target_indices = df_p.index[iprofil]
-                self.df_r.loc[target_indices, "biolume_proxy_adinos"] = df_p.adinosN.loc[iprofil]
-                self.df_r.loc[target_indices, "biolume_proxy_diatoms"] = df_p.diatomsN.loc[iprofil]
-                self.df_r.loc[target_indices, "biolume_proxy_hdinos"] = df_p.hdinosN.loc[iprofil]
+                self.df_r.loc[target_indices, f"{prefix}_proxy_adinos"] = df_p.adinosN.loc[iprofil]
+                self.df_r.loc[target_indices, f"{prefix}_proxy_diatoms"] = df_p.diatomsN.loc[
+                    iprofil
+                ]
+                self.df_r.loc[target_indices, f"{prefix}_proxy_hdinos"] = df_p.hdinosN.loc[iprofil]
             else:
                 self.logger.info(
                     "profile=%d skipped for proxy correction",
@@ -1571,7 +1584,11 @@ class Resampler:
         # Also add the fluo_bl_threshold value to the comment attribute
         for var in saved_attrs:
             self.df_r[var].attrs = saved_attrs[var]
-            if var in ["biolume_proxy_diatoms", "biolume_proxy_adinos", "biolume_proxy_hdinos"]:
+            if var in [
+                f"{prefix}_proxy_diatoms",
+                f"{prefix}_proxy_adinos",
+                f"{prefix}_proxy_hdinos",
+            ]:
                 self.df_r[var].attrs["comment"] += (
                     f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
                 )

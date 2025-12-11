@@ -373,7 +373,7 @@
             // Fails with ValueError: different number of dimensions on data and dims: 2 vs 1 for wetlabsubat_digitized_raw_ad_counts variable
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250604_20250616/20250608T020852/202506080209_202506081934.nc4", "--no_cleanup", "--clobber"]
             // ValueError: Dimension mismatch: wetlabsubat_digitized_raw_ad_counts_time has 33154 elements but wetlabsubat_hv_step_calibration_coefficient_time has 33155 elements
-            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250626T041517/202506260415_202506261400.nc4", "--no_cleanup"]
+            //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250626T041517/202506260415_202506261400.nc4", "--no_cleanup"]
             // ValueError: coords is not dict-like, but it has 1 items, which does not match the 2 dimensions of the data
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250626T140000/202506261400_202506262031.nc4", "--no_cleanup"]
             // Full month of June 2025 for Pontus with WetLabsUBAT Group data
@@ -393,6 +393,8 @@
             //"args": ["-v", "1", "--auv_name", "brizo", "--start", "20250901T000000", "--end", "20251001T000000", "--no_cleanup"]
             // No GPS data for a log_file that has an ESP Sample
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250920T070029/202509200700_202509201900.nc4", "--no_cleanup"]
+            // Has nighttime data for proxys to be computed
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240725_20240729/20240729T023020/202407290230_202407291556.nc4", "--no_cleanup"]
         },
 
     ]
