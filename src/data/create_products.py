@@ -572,8 +572,17 @@ class CreateProducts:
         )
 
         self.args = parser.parse_args()
-        self.logger.setLevel(self._log_levels[self.verbose])
         self.commandline = " ".join(sys.argv)
+
+        # Update instance attributes from parsed arguments
+        self.auv_name = self.args.auv_name
+        self.mission = self.args.mission
+        self.base_path = self.args.base_path
+        self.start_esecs = self.args.start_esecs
+        self.local = self.args.local
+        self.verbose = self.args.verbose
+
+        self.logger.setLevel(self._log_levels[self.args.verbose])
 
 
 if __name__ == "__main__":
