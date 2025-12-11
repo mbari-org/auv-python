@@ -370,25 +370,19 @@ class Resampler:
         # For dorado/i2map missions, this is usually 'ctd1' or 'seabird25p'
         # For LRAUV missions, this is usually 'ctdseabird' or 'ctdneilbrown'
         if self.log_file:
-            pitch_corrected_instr = "ctdseabird"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
-            pitch_corrected_instr += "_sea_water_temperature"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
-            pitch_corrected_instr = "ctdneilbrown"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
+            candidates = ["ctdseabird", "ctdseabird_sea_water_temperature", "ctdneilbrown"]
         else:
-            pitch_corrected_instr = "ctd1"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
-            pitch_corrected_instr = "seabird25p"
-            if f"{pitch_corrected_instr}_depth" in self.ds:
-                return pitch_corrected_instr
+            candidates = ["ctd1", "seabird25p"]
 
-        # If neither instrument found, log error and raise InvalidAlignFile exception.
-        self.logger.warning("No pitch corrected depth coordinate found")
+        for instr in candidates:
+            if f"{instr}_depth" in self.ds:
+                return instr
+
+        # If no instrument found, log error and raise InvalidAlignFile exception.
+        self.logger.warning(
+            "No pitch corrected depth coordinate found. Searched for: %s",
+            ", ".join(candidates),
+        )
         self.logger.info(
             "Cannot continue without a pitch corrected depth coordinate",
         )
