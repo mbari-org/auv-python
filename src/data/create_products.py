@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 import cmocean
+import gsw
 import matplotlib  # noqa: ICN001
 import matplotlib.pyplot as plt
 import numpy as np
@@ -109,6 +110,7 @@ class CreateProducts:
         "sea_water_temperature": "thermal",
         "sea_water_salinity": "haline",
         "sea_water_sigma_t": "dense",
+        "sea_water_density": "dense",
         "mass_concentration_of_chlorophyll_in_sea_water": "algae",
         "mass_concentration_of_oxygen_in_sea_water": "oxy",
         "downwelling_photosynthetic_photon_flux_in_sea_water": "solar",
@@ -142,6 +144,49 @@ class CreateProducts:
         except OSError:
             self.logger.debug("%s not available yet", dap_url)
             self.ds = xr.open_dataset(local_nc)
+
+    def _compute_density(self, best_ctd: str = "ctd1") -> None:
+        """Compute sigma-t density from temperature and salinity using EOS-80.
+
+        Args:
+            best_ctd: The CTD instrument to use for temperature and salinity
+        """
+        if "density" in self.ds:
+            self.logger.debug("density already exists in dataset")
+            return
+
+        temp_var = f"{best_ctd}_temperature"
+        sal_var = f"{best_ctd}_salinity"
+
+        if temp_var not in self.ds or sal_var not in self.ds:
+            self.logger.warning(
+                "Cannot compute density: %s or %s not in dataset",
+                temp_var,
+                sal_var,
+            )
+            return
+
+        # Get temperature, salinity, and pressure (approximated from depth)
+        temp = self.ds[temp_var].to_numpy()
+        sal = self.ds[sal_var].to_numpy()
+
+        # Compute sigma-t using gsw (uses EOS-80 formulation)
+        # sigma-t is density - 1000 kg/m³
+        density = gsw.density.sigma0(sal, temp)
+
+        # Add to dataset
+        self.ds["density"] = xr.DataArray(
+            density,
+            dims=self.ds[temp_var].dims,
+            coords=self.ds[temp_var].coords,
+            attrs={
+                "long_name": "Sigma-t (density anomaly)",
+                "standard_name": "sea_water_density",
+                "units": "kg/m^3",
+                "comment": f"Computed from {temp_var} and {sal_var} using gsw.density.sigma0",
+            },
+        )
+        self.logger.info("Computed density (sigma-t) from %s and %s", temp_var, sal_var)
 
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
@@ -242,9 +287,28 @@ class CreateProducts:
         scale: str = "linear",
         num_colors: int = 256,
     ):
+        # Handle both 1D and 2D axis arrays
+        curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
+
         var_to_plot = (
             np.log10(self.ds[var].to_numpy()) if scale == "log" else self.ds[var].to_numpy()
         )
+
+        # Check if variable has any valid (non-NaN) data
+        valid_data = var_to_plot[~np.isnan(var_to_plot)]
+        if len(valid_data) == 0:
+            self.logger.warning("%s has no valid data, skipping plot", var)
+            curr_ax.text(
+                0.5,
+                0.5,
+                f"No valid data for {var}",
+                ha="center",
+                va="center",
+                transform=curr_ax.transAxes,
+            )
+            curr_ax.set_ylabel("Depth (m)")
+            return
+
         scafac = max(idist) / max(iz)
         gridded_var = griddata(
             (distnav.to_numpy() / 1000.0 / scafac, self.ds.cf["depth"].to_numpy()),
@@ -265,8 +329,28 @@ class CreateProducts:
             # Likely a cmocean colormap
             cmap = getattr(cmocean.cm, color_map_name)
 
-        v2_5 = np.percentile(var_to_plot[~np.isnan(var_to_plot)], 2.5)
-        v97_5 = np.percentile(var_to_plot[~np.isnan(var_to_plot)], 97.5)
+        v2_5 = np.percentile(valid_data, 2.5)
+        v97_5 = np.percentile(valid_data, 97.5)
+
+        # Additional check: ensure percentiles are valid numbers
+        if np.isnan(v2_5) or np.isnan(v97_5) or v2_5 == v97_5:
+            self.logger.warning(
+                "%s has invalid range (v2.5=%.2f, v97.5=%.2f), skipping plot",
+                var,
+                v2_5,
+                v97_5,
+            )
+            curr_ax.text(
+                0.5,
+                0.5,
+                f"Invalid data range for {var}",
+                ha="center",
+                va="center",
+                transform=curr_ax.transAxes,
+            )
+            curr_ax.set_ylabel("Depth (m)")
+            return
+
         norm = matplotlib.colors.BoundaryNorm(
             np.linspace(v2_5, v97_5, num_colors),
             num_colors,
@@ -279,8 +363,8 @@ class CreateProducts:
             v2_5,
             v97_5,
         )
-        ax[row, col].set_ylim(max(iz), min(iz))
-        cntrf = ax[row, col].contourf(
+        curr_ax.set_ylim(max(iz), min(iz))
+        cntrf = curr_ax.contourf(
             idist / 1000.0,
             iz,
             gridded_var,
@@ -293,39 +377,42 @@ class CreateProducts:
         xb = np.append(
             profile_bottoms.get_index("dist").to_numpy(),
             [
-                ax[row, col].get_xlim()[1],
-                ax[row, col].get_xlim()[1],
-                ax[row, col].get_xlim()[0],
-                ax[row, col].get_xlim()[0],
+                curr_ax.get_xlim()[1],
+                curr_ax.get_xlim()[1],
+                curr_ax.get_xlim()[0],
+                curr_ax.get_xlim()[0],
             ],
         )
         yb = np.append(
             profile_bottoms.to_numpy(),
             [
                 profile_bottoms.to_numpy()[-1],
-                ax[row][col].get_ylim()[0],
-                ax[row, col].get_ylim()[0],
+                curr_ax.get_ylim()[0],
+                curr_ax.get_ylim()[0],
                 profile_bottoms.to_numpy()[0],
             ],
         )
-        ax[row][col].fill(list(reversed(xb)), list(reversed(yb)), "w")
+        curr_ax.fill(list(reversed(xb)), list(reversed(yb)), "w")
 
-        ax[row, col].set_ylabel("Depth (m)")
-        cb = fig.colorbar(cntrf, ax=ax[row, col])
+        curr_ax.set_ylabel("Depth (m)")
+        cb = fig.colorbar(cntrf, ax=curr_ax)
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
         cb.update_ticks()
         cb.ax.set_yticklabels([f"{x:.1f}" for x in cb.get_ticks()])
-        if scale == "log":
-            cb.set_label(
-                f"{self.ds[var].attrs['long_name']}\n[log10({self.ds[var].attrs['units']})]",
-                fontsize=7,
-            )
+
+        # Get long_name and units with fallbacks
+        long_name = self.ds[var].attrs.get("long_name", var)
+        units = self.ds[var].attrs.get("units", "")
+
+        if scale == "log" and units:
+            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
+        elif scale == "log":
+            cb.set_label(f"{long_name}\n[log10]", fontsize=7)
+        elif units:
+            cb.set_label(f"{long_name} [{units}]", fontsize=9)
         else:
-            cb.set_label(
-                f"{self.ds[var].attrs['long_name']} [{self.ds[var].attrs['units']}]",
-                fontsize=9,
-            )
+            cb.set_label(long_name, fontsize=9)
 
     def plot_2column(self) -> str:
         """Create 2column plot similar to plot_sections.m and stoqs/utils/Viz/plotting.py
@@ -338,21 +425,25 @@ class CreateProducts:
         scfac = max(idist) / max(iz)  # noqa: F841
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
-        fig.tight_layout()
+        fig.tight_layout(rect=[0, 0.03, 1, 0.96])
 
         best_ctd = self._get_best_ctd()
+
+        # Compute density (sigma-t) if not already present
+        self._compute_density(best_ctd)
+
         profile_bottoms = self._profile_bottoms(distnav)
         row = 0
         col = 1
         for var, scale in (
-            ("ctd1_oxygen_mll", "linear"),
             ("density", "linear"),
-            ("hs2_bb420", "linear"),
             (f"{best_ctd}_temperature", "linear"),
-            ("hs2_bb700", "linear"),
             (f"{best_ctd}_salinity", "linear"),
-            ("hs2_fl700", "linear"),
             ("isus_nitrate", "linear"),
+            ("ctd1_oxygen_mll", "linear"),
+            ("hs2_bbp420", "linear"),
+            ("hs2_bb700", "linear"),
+            ("hs2_fl700", "linear"),
             ("biolume_avg_biolume", "log"),
         ):
             self.logger.info("Plotting %s...", var)
@@ -375,6 +466,9 @@ class CreateProducts:
                 )
             if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
+            else:
+                # Add x-axis label only to bottom row
+                ax[row, col].set_xlabel("Distance (km)")
 
             if col == 1:
                 row += 1
@@ -382,19 +476,103 @@ class CreateProducts:
             else:
                 col = 1
 
+        # Add title to the figure
+        title = f"{self.auv_name} {self.mission}"
+        if "title" in self.ds.attrs:
+            title = self.ds.attrs["title"]
+        fig.suptitle(title, fontsize=12, fontweight="bold")
+
         # Save plot to file
-        images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES)
+        images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
         Path(images_dir).mkdir(parents=True, exist_ok=True)
 
-        plt.savefig(
-            Path(
-                images_dir,
-                f"{self.auv_name}_{self.mission}_{FREQ}_2column.png",
-            ),
+        output_file = Path(
+            images_dir,
+            f"{self.auv_name}_{self.mission}_{FREQ}_2column.png",
         )
+        plt.savefig(output_file, dpi=100, bbox_inches="tight")
+        plt.show()
+        plt.close(fig)
+
+        self.logger.info("Saved 2column plot to %s", output_file)
+        return str(output_file)
 
     def plot_biolume(self) -> str:
-        "Create biolume plot"
+        """Create bioluminescence plot showing raw signal and proxy variables"""
+        self._open_ds()
+
+        # Check if biolume variables exist
+        biolume_vars = [v for v in self.ds.variables if v.startswith("biolume_")]
+        if not biolume_vars:
+            self.logger.warning("No biolume variables found in dataset")
+            return None
+
+        idist, iz, distnav = self._grid_dims()
+        profile_bottoms = self._profile_bottoms(distnav)
+
+        # Create figure with subplots for biolume variables
+        num_plots = min(len(biolume_vars), 6)  # Limit to 6 most important variables
+        fig, ax = plt.subplots(nrows=num_plots, ncols=1, figsize=(18, 12))
+        if num_plots == 1:
+            ax = [ax]
+        fig.tight_layout(rect=[0, 0.03, 1, 0.96])
+
+        # Priority order for biolume variables to plot
+        priority_vars = [
+            "biolume_avg_biolume",
+            "biolume_bg_biolume",
+            "biolume_nbflash_high",
+            "biolume_nbflash_low",
+            "biolume_proxy_diatoms",
+            "biolume_proxy_adinos",
+        ]
+
+        vars_to_plot = []
+        for pvar in priority_vars:
+            if pvar in self.ds:
+                scale = "log" if "avg_biolume" in pvar or "bg_biolume" in pvar else "linear"
+                vars_to_plot.append((pvar, scale))
+            if len(vars_to_plot) >= num_plots:
+                break
+
+        for i, (var, scale) in enumerate(vars_to_plot):
+            self.logger.info("Plotting %s...", var)
+            self._plot_var(
+                var,
+                idist,
+                iz,
+                distnav,
+                fig,
+                ax,
+                i,
+                0,
+                profile_bottoms,
+                scale=scale,
+            )
+            if i != num_plots - 1:
+                ax[i].get_xaxis().set_visible(False)
+            else:
+                ax[i].set_xlabel("Distance (km)")
+
+        # Add title to the figure
+        title = f"{self.auv_name} {self.mission} - Bioluminescence"
+        if "title" in self.ds.attrs:
+            title = f"{self.ds.attrs['title']} - Bioluminescence"
+        fig.suptitle(title, fontsize=12, fontweight="bold")
+
+        # Save plot to file
+        images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
+        Path(images_dir).mkdir(parents=True, exist_ok=True)
+
+        output_file = Path(
+            images_dir,
+            f"{self.auv_name}_{self.mission}_{FREQ}_biolume.png",
+        )
+        plt.savefig(output_file, dpi=100, bbox_inches="tight")
+        plt.close(fig)
+
+        self.logger.info("Saved biolume plot to %s", output_file)
+        return str(output_file)
 
     def _get_best_ctd(self) -> str:
         """Determine best CTD to use for ODV lookup table based on metadata"""
