@@ -60,7 +60,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from getpass import getuser
 from pathlib import Path
 from socket import gethostname
@@ -1068,8 +1068,47 @@ class Processor:
                     self.process_log_file(log_file)
                 except (InvalidCalFile, InvalidCombinedFile) as e:
                     self.logger.warning("%s", e)
+        elif self.config.get("last_n_days"):
+            # Process log files from the last N days
+            end_dt = datetime.now(tz=UTC)
+            start_dt = end_dt - timedelta(days=self.config["last_n_days"])
+
+            # Format datetimes as YYYYMMDDTHHMMSS
+            start_str = start_dt.strftime("%Y%m%dT%H%M%S")
+            end_str = end_dt.strftime("%Y%m%dT%H%M%S")
+
+            self.logger.info(
+                "Processing log files from the last %d days (%s to %s)",
+                self.config["last_n_days"],
+                start_str,
+                end_str,
+            )
+
+            log_files = self.log_file_list(start_str, end_str, self.config.get("auv_name"))
+            if not log_files:
+                self.logger.warning(
+                    "No log files found in the last %d days",
+                    self.config["last_n_days"],
+                )
+                return
+
+            self.logger.info(
+                "Processing %d log files from the last %d days",
+                len(log_files),
+                self.config["last_n_days"],
+            )
+            for log_file in log_files:
+                # Extract AUV name from path
+                self.auv_name = log_file.split("/")[0].lower()
+                self.logger.info("Processing log file: %s", log_file)
+                try:
+                    self.process_log_file(log_file)
+                except (InvalidCalFile, InvalidCombinedFile) as e:
+                    self.logger.warning("%s", e)
         else:
-            self.logger.error("Must provide either --log_file or both --start and --end arguments")
+            self.logger.error(
+                "Must provide either --log_file, both --start and --end, or --last_n_days arguments"
+            )
             return
 
     def process_command_line(self):
