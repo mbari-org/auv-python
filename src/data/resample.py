@@ -1611,10 +1611,18 @@ class Resampler:
             proxy_cal_factor, proxy_ratio_adinos = self.set_proxy_parameters(
                 mission_start, self.auv_name
             )
-            self.add_wetlabsubat_proxies(
-                freq=freq,
-                proxy_cal_factor=proxy_cal_factor,
-                proxy_ratio_adinos=proxy_ratio_adinos,
+            wetlabsubat_fluo, wetlabsubat_sunsets, wetlabsubat_sunrises = (
+                self.add_wetlabsubat_proxies(
+                    freq=freq,
+                    proxy_cal_factor=proxy_cal_factor,
+                    proxy_ratio_adinos=proxy_ratio_adinos,
+                )
+            )
+            self.correct_biolume_proxies(
+                wetlabsubat_fluo,
+                wetlabsubat_sunsets,
+                wetlabsubat_sunrises,
+                depth_threshold,
             )
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
