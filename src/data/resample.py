@@ -1175,7 +1175,7 @@ class Resampler:
         self.df_r["wetlabsubat_bg_biolume"].attrs["long_name"] = (
             "Background bioluminescence (dinoflagellates proxy)"
         )
-        self.df_r["wetlabsubat_bg_biolume"].attrs["units"] = "counts/liter"
+        self.df_r["wetlabsubat_bg_biolume"].attrs["units"] = "photons/liter"
         self.df_r["wetlabsubat_bg_biolume"].attrs["comment"] = zero_note
 
         fluo = None
