@@ -21,6 +21,7 @@ import gsw
 import matplotlib  # noqa: ICN001
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pyproj
 import xarray as xr
 
@@ -180,7 +181,7 @@ class CreateProducts:
             dims=self.ds[temp_var].dims,
             coords=self.ds[temp_var].coords,
             attrs={
-                "long_name": "Sigma-t (density anomaly)",
+                "long_name": "Sigma-t",
                 "standard_name": "sea_water_density",
                 "units": "kg/m^3",
                 "comment": f"Computed from {temp_var} and {sal_var} using gsw.density.sigma0",
@@ -245,8 +246,9 @@ class CreateProducts:
             distnav.to_numpy().max(),
             3 * self.ds["profile_number"].to_numpy()[-1],
         )
-        # Vertical gridded to .5 m
-        iz = np.arange(2.0, self.ds.cf["depth"].max(), 0.5)
+        # Vertical gridded to .5 m, rounded down to nearest 50m
+        max_depth = np.floor(self.ds.cf["depth"].max() / 50) * 50
+        iz = np.arange(2.0, max_depth, 0.5)
         if not iz.any():
             self.logger.warning(
                 "Gridding vertical for a surface only mission: {self.ds.cf['depth'].max() =}",
@@ -273,7 +275,104 @@ class CreateProducts:
         window = int(len(distnav) * window_frac)
         return depth_dist.rolling(dist=window).max()
 
-    def _plot_var(  # noqa: PLR0913
+    def _plot_track_map(
+        self, map_ax: matplotlib.axes.Axes, reference_ax: matplotlib.axes.Axes
+    ) -> None:
+        """Plot AUV track map on left side with title and times on right.
+
+        Args:
+            map_ax: The axes object to plot the map on
+            reference_ax: The axes below to align with (for left edge)
+        """
+        # Get lat/lon data
+        lons = self.ds.cf["longitude"].to_numpy()
+        lats = self.ds.cf["latitude"].to_numpy()
+
+        # Get time data for start/end
+        times = self.ds.cf["time"].to_numpy()
+        start_time = pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M:%S")
+        end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S")
+
+        # Get title from netCDF attributes
+        title = self.ds.attrs.get("title", f"{self.auv_name} {self.mission}")
+
+        # Get the position of the reference axes below to align with
+        ref_pos = reference_ax.get_position()
+
+        # Store original position
+        pos = map_ax.get_position()
+
+        # Make the plot square by using equal aspect (do this first)
+        map_ax.set_aspect("equal", adjustable="datalim")
+
+        # Plot the track with depth coloring
+        depths = self.ds.cf["depth"].to_numpy()
+        map_ax.scatter(
+            lons,
+            lats,
+            c=depths,
+            cmap="viridis_r",  # Reversed so shallow is yellow, deep is dark
+            s=1,
+            alpha=0.6,
+        )
+
+        # Add start and end markers
+        map_ax.plot(lons[0], lats[0], "go", markersize=8, label="Start", zorder=5)
+        map_ax.plot(lons[-1], lats[-1], "r^", markersize=8, label="End", zorder=5)
+
+        # Set fixed axis limits for Monterey Bay area
+        map_ax.set_xlim([-122.41, -121.77])
+        map_ax.set_ylim([36.5, 37.0])
+
+        # Now position map aligned with left edge of reference, 50% width
+        # Use a square aspect ratio based on the y-dimension
+        map_height = pos.height
+        aspect_ratio = (37.0 - 36.5) / (122.41 - 121.77)  # data aspect ratio
+        map_width = map_height / aspect_ratio * 0.7  # scale to fit nicely
+
+        map_ax.set_position([ref_pos.x0, pos.y0, map_width, map_height])
+
+        # Remove axes, labels, and ticks but keep the border
+        map_ax.set_xticks([])
+        map_ax.set_yticks([])
+        map_ax.set_xlabel("")
+        map_ax.set_ylabel("")
+
+        # Add a border around the map
+        for spine in map_ax.spines.values():
+            spine.set_edgecolor("black")
+            spine.set_linewidth(1)
+
+        # Add legend
+        map_ax.legend(loc="upper right", fontsize=7, framealpha=0.9)
+
+        # Add text on the right side with title and times
+        # Wrap title for better formatting
+        import textwrap
+
+        wrapped_title = textwrap.fill(title, width=40)
+
+        text_content = f"{wrapped_title}\n\nStart: {start_time}\nEnd:   {end_time}"
+
+        # Get updated position after aspect adjustment
+        updated_pos = map_ax.get_position()
+
+        # Position text in figure coordinates, to the right of the map
+        text_x = updated_pos.x0 + updated_pos.width + 0.01
+        text_y = updated_pos.y0 + updated_pos.height * 0.5
+
+        map_ax.figure.text(
+            text_x,
+            text_y,
+            text_content,
+            fontsize=11,
+            fontweight="bold",
+            family="sans-serif",
+            verticalalignment="center",
+            horizontalalignment="left",
+        )
+
+    def _plot_var(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         var: str,
         idist: np.array,
@@ -286,29 +385,55 @@ class CreateProducts:
         profile_bottoms: xr.DataArray,
         scale: str = "linear",
         num_colors: int = 256,
+        best_ctd: str = "ctd1",
     ):
         # Handle both 1D and 2D axis arrays
         curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
 
-        var_to_plot = (
-            np.log10(self.ds[var].to_numpy()) if scale == "log" else self.ds[var].to_numpy()
-        )
+        # Check if variable exists and has valid data
+        no_data = False
+        if var not in self.ds:
+            self.logger.warning("%s not in dataset", var)
+            no_data = True
+        else:
+            var_to_plot = (
+                np.log10(self.ds[var].to_numpy()) if scale == "log" else self.ds[var].to_numpy()
+            )
+            valid_data = var_to_plot[~np.isnan(var_to_plot)]
+            if len(valid_data) == 0:
+                self.logger.warning("%s has no valid data", var)
+                no_data = True
 
-        # Check if variable has any valid (non-NaN) data
-        valid_data = var_to_plot[~np.isnan(var_to_plot)]
-        if len(valid_data) == 0:
-            self.logger.warning("%s has no valid data, skipping plot", var)
+        # If no data, set up minimal axes and return early
+        if no_data:
+            curr_ax.set_xlim([min(idist) / 1000.0, max(idist) / 1000.0])
+            curr_ax.set_ylim([max(iz), min(iz)])
+
+            # Only show y-label on left column or top of right column
+            if col == 0 or (col == 1 and row == 0):
+                curr_ax.set_ylabel("Depth (m)")
+            else:
+                curr_ax.set_ylabel("")
+
+            # Set y-axis ticks at 0, 50, 100, 150, etc.
+            y_min = max(iz)
+            y_ticks = np.arange(0, int(y_min) + 50, 50)
+            curr_ax.set_yticks(y_ticks)
+
+            # Add "No Data" text
             curr_ax.text(
                 0.5,
                 0.5,
-                f"No valid data for {var}",
+                "No Data",
                 ha="center",
                 va="center",
+                fontsize=14,
+                fontweight="bold",
                 transform=curr_ax.transAxes,
             )
-            curr_ax.set_ylabel("Depth (m)")
             return
 
+        # Normal plotting path - we have valid data
         scafac = max(idist) / max(iz)
         gridded_var = griddata(
             (distnav.to_numpy() / 1000.0 / scafac, self.ds.cf["depth"].to_numpy()),
@@ -317,6 +442,7 @@ class CreateProducts:
             method="linear",
             rescale=True,
         )
+
         color_map_name = "cividis"
         with contextlib.suppress(KeyError):
             color_map_name = self.cmocean_lookup.get(
@@ -332,23 +458,40 @@ class CreateProducts:
         v2_5 = np.percentile(valid_data, 2.5)
         v97_5 = np.percentile(valid_data, 97.5)
 
-        # Additional check: ensure percentiles are valid numbers
+        # Check for invalid percentiles
         if np.isnan(v2_5) or np.isnan(v97_5) or v2_5 == v97_5:
             self.logger.warning(
-                "%s has invalid range (v2.5=%.2f, v97.5=%.2f), skipping plot",
+                "%s has invalid range (v2.5=%.2f, v97.5=%.2f)",
                 var,
                 v2_5,
                 v97_5,
             )
+            # Set up minimal axes and return early
+            curr_ax.set_xlim([min(idist) / 1000.0, max(idist) / 1000.0])
+            curr_ax.set_ylim([max(iz), min(iz)])
+
+            # Only show y-label on left column or top of right column
+            if col == 0 or (col == 1 and row == 0):
+                curr_ax.set_ylabel("Depth (m)")
+            else:
+                curr_ax.set_ylabel("")
+
+            # Set y-axis ticks at 0, 50, 100, 150, etc.
+            y_min = max(iz)
+            y_ticks = np.arange(0, int(y_min) + 50, 50)
+            curr_ax.set_yticks(y_ticks)
+
+            # Add "No Data" text
             curr_ax.text(
                 0.5,
                 0.5,
-                f"Invalid data range for {var}",
+                "No Data",
                 ha="center",
                 va="center",
+                fontsize=14,
+                fontweight="bold",
                 transform=curr_ax.transAxes,
             )
-            curr_ax.set_ylabel("Depth (m)")
             return
 
         norm = matplotlib.colors.BoundaryNorm(
@@ -394,7 +537,18 @@ class CreateProducts:
         )
         curr_ax.fill(list(reversed(xb)), list(reversed(yb)), "w")
 
-        curr_ax.set_ylabel("Depth (m)")
+        # Only show y-label on left column or top of right column
+        if col == 0 or (col == 1 and row == 0):
+            curr_ax.set_ylabel("Depth (m)")
+        else:
+            curr_ax.set_ylabel("")
+
+        # Set y-axis ticks at 0, 50, 100, 150, etc.
+        y_min, y_max = curr_ax.get_ylim()
+        # Since y-axis is inverted (max at bottom), y_min is the deeper value
+        y_ticks = np.arange(0, int(y_min) + 50, 50)
+        curr_ax.set_yticks(y_ticks)
+
         cb = fig.colorbar(cntrf, ax=curr_ax)
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
@@ -425,16 +579,19 @@ class CreateProducts:
         scfac = max(idist) / max(iz)  # noqa: F841
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
-        fig.tight_layout(rect=[0, 0.03, 1, 0.96])
+        plt.subplots_adjust(hspace=0.15, wspace=0.1, left=0.05, right=0.98, top=0.96, bottom=0.03)
 
         best_ctd = self._get_best_ctd()
 
         # Compute density (sigma-t) if not already present
         self._compute_density(best_ctd)
 
+        # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
+        self._plot_track_map(ax[0, 0], ax[1, 0])
+
         profile_bottoms = self._profile_bottoms(distnav)
-        row = 0
-        col = 1
+        row = 1  # Start at row 1, col 0 (below the map)
+        col = 0
         for var, scale in (
             ("density", "linear"),
             (f"{best_ctd}_temperature", "linear"),
@@ -442,45 +599,41 @@ class CreateProducts:
             ("isus_nitrate", "linear"),
             ("ctd1_oxygen_mll", "linear"),
             ("hs2_bbp420", "linear"),
-            ("hs2_bb700", "linear"),
+            ("hs2_bbp700", "linear"),
             ("hs2_fl700", "linear"),
-            ("biolume_avg_biolume", "log"),
+            ("biolume_avg_biolume", "linear"),
         ):
             self.logger.info("Plotting %s...", var)
             if var not in self.ds:
-                self.logger.warning("%s not in dataset", var)
-                ax[row, col].get_xaxis().set_visible(False)
-                ax[row, col].get_yaxis().set_visible(False)
-            else:
-                self._plot_var(
-                    var,
-                    idist,
-                    iz,
-                    distnav,
-                    fig,
-                    ax,
-                    row,
-                    col,
-                    profile_bottoms,
-                    scale=scale,
-                )
+                self.logger.warning("%s not in dataset, plotting with no data", var)
+
+            self._plot_var(
+                var,
+                idist,
+                iz,
+                distnav,
+                fig,
+                ax,
+                row,
+                col,
+                profile_bottoms,
+                scale=scale,
+                best_ctd=best_ctd,
+            )
             if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
             else:
                 # Add x-axis label only to bottom row
                 ax[row, col].set_xlabel("Distance (km)")
 
-            if col == 1:
-                row += 1
-                col = 0
-            else:
+            # Column-major order: fill down first column, then second column
+            if row == 4 and col == 0:  # noqa: PLR2004
+                # Finished first column, move to top of second column
+                row = 0
                 col = 1
-
-        # Add title to the figure
-        title = f"{self.auv_name} {self.mission}"
-        if "title" in self.ds.attrs:
-            title = self.ds.attrs["title"]
-        fig.suptitle(title, fontsize=12, fontweight="bold")
+            else:
+                # Move down in current column
+                row += 1
 
         # Save plot to file
         images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
