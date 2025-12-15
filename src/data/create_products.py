@@ -659,7 +659,7 @@ class CreateProducts:
         scfac = max(idist) / max(iz)  # noqa: F841
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
-        plt.subplots_adjust(hspace=0.15, wspace=0.1, left=0.05, right=0.98, top=0.96, bottom=0.06)
+        plt.subplots_adjust(hspace=0.15, wspace=0.01, left=0.05, right=1.01, top=0.96, bottom=0.06)
 
         best_ctd = self._get_best_ctd()
 
@@ -747,7 +747,7 @@ class CreateProducts:
         fig, ax = plt.subplots(nrows=num_plots, ncols=1, figsize=(18, 12))
         if num_plots == 1:
             ax = [ax]
-        fig.tight_layout(rect=[0, 0.06, 1, 0.96])
+        fig.tight_layout(rect=[0, 0.06, 0.99, 0.96])
 
         # Priority order for biolume variables to plot
         priority_vars = [
