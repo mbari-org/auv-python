@@ -431,6 +431,38 @@ class CreateProducts:
                 fontweight="bold",
                 transform=curr_ax.transAxes,
             )
+
+            # Add a fake colorbar to maintain layout consistency
+            # Create a dummy mappable with a simple gray colormap
+            dummy_data = np.array([[0, 1]])
+            dummy_im = curr_ax.imshow(
+                dummy_data,
+                cmap="gray",
+                aspect="auto",
+                visible=False,
+            )
+            cb = fig.colorbar(dummy_im, ax=curr_ax)
+
+            # Hide the colorbar ticks and tick labels but keep the label visible
+            cb.set_ticks([])
+            cb.ax.set_facecolor("white")
+            cb.outline.set_visible(False)
+
+            # Get variable name for the label
+            if var in self.ds:
+                long_name = self.ds[var].attrs.get("long_name", var)
+                units = self.ds[var].attrs.get("units", "")
+            else:
+                # Extract readable name from variable string (e.g., "isus_nitrate" -> "Nitrate")
+                long_name = var.split("_")[-1].capitalize()
+                units = ""
+
+            # Add label to the colorbar area
+            if units:
+                cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            else:
+                cb.set_label(long_name, fontsize=9)
+
             return
 
         # Normal plotting path - we have valid data
