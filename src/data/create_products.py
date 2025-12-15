@@ -130,10 +130,10 @@ class CreateProducts:
     # Fallback colormap lookup by variable name
     variable_colormap_lookup = {  # noqa: RUF012
         "nitrate": "matter",
-        "hs2_bbp420": "matter",
-        "hs2_bbp700": "matter",
-        "hs2_bbp470": "matter",
-        "hs2_bbp676": "matter",
+        "hs2_bbp420": "Blues",
+        "hs2_bbp700": "Reds",
+        "hs2_bbp470": "Blues",
+        "hs2_bbp676": "Reds",
         "hs2_fl700": "algae",
         "hs2_fl676": "algae",
         "ecopuck_chla": "algae",
@@ -629,7 +629,28 @@ class CreateProducts:
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
         cb.update_ticks()
-        cb.ax.set_yticklabels([f"{x:.1f}" for x in cb.get_ticks()])
+
+        # Use scientific notation with offset for hs2 variables
+        if var.startswith("hs2_"):
+            # Calculate the order of magnitude
+            tick_values = cb.get_ticks()
+            max_abs = max(abs(tick_values.min()), abs(tick_values.max()))
+            if max_abs > 0:
+                order = int(np.floor(np.log10(max_abs)))
+                scale = 10**order
+                # Set clean tick labels
+                cb.ax.set_yticklabels([f"{x / scale:.2f}" for x in tick_values])
+                # Add offset text
+                cb.ax.text(
+                    1.5,
+                    1.05,
+                    f"10$^{{{order}}}$",
+                    transform=cb.ax.transAxes,
+                    fontsize=9,
+                    verticalalignment="bottom",
+                )
+        else:
+            cb.ax.set_yticklabels([f"{x:.1f}" for x in cb.get_ticks()])
 
         # Get long_name and units with fallbacks
         long_name = self.ds[var].attrs.get("long_name", var)
