@@ -452,7 +452,7 @@ class CreateProducts:
         # Default
         return "cividis"
 
-    def _plot_track_map(
+    def _plot_track_map(  # noqa: PLR0915
         self, map_ax: matplotlib.axes.Axes, reference_ax: matplotlib.axes.Axes
     ) -> None:
         """Plot AUV track map on left side with title and times on right.
@@ -488,13 +488,13 @@ class CreateProducts:
         # Make the plot square by using equal aspect (do this first)
         map_ax.set_aspect("equal", adjustable="datalim")
 
-        # Plot the track with depth coloring in Web Mercator coordinates
-        depths = self.ds.cf["depth"].to_numpy()
-        map_ax.scatter(
+        # Plot the track with profile_number coloring in Web Mercator coordinates
+        profile_numbers = self.ds["profile_number"].to_numpy()
+        scatter = map_ax.scatter(
             x_merc,
             y_merc,
-            c=depths,
-            cmap="viridis_r",  # Reversed so shallow is yellow, deep is dark
+            c=profile_numbers,
+            cmap="jet",
             s=1,
             alpha=0.6,
         )
@@ -527,6 +527,22 @@ class CreateProducts:
 
         map_ax.set_position([ref_pos.x0, pos.y0, map_width, map_height])
 
+        # Add colorbar for profile numbers - create manually positioned axes
+        # to avoid affecting map position
+        # Position colorbar to the right of the map
+        cbar_width = 0.01
+        cbar_pad = 0.005
+        cbar_ax = map_ax.figure.add_axes(
+            [ref_pos.x0 + map_width + cbar_pad, pos.y0, cbar_width, map_height]
+        )
+        cbar = map_ax.figure.colorbar(
+            scatter,
+            cax=cbar_ax,
+            orientation="vertical",
+        )
+        cbar.set_label("Profile Number", fontsize=9)
+        cbar.ax.tick_params(labelsize=8)
+
         # Remove axes, labels, and ticks but keep the border
         map_ax.set_xticks([])
         map_ax.set_yticks([])
@@ -547,8 +563,9 @@ class CreateProducts:
         # Get updated position after aspect adjustment
         updated_pos = map_ax.get_position()
 
-        # Position text in figure coordinates, to the right of the map
-        text_x = updated_pos.x0 + updated_pos.width + 0.01
+        # Position text in figure coordinates, to the right of the colorbar
+        # Account for colorbar width, padding, and space for colorbar label
+        text_x = ref_pos.x0 + map_width + cbar_pad + cbar_width + 0.03
         text_y = updated_pos.y0 + updated_pos.height  # Align with top of map
 
         # Add title
@@ -635,6 +652,7 @@ class CreateProducts:
         num_colors: int = 256,
         gulper_locations: dict = None,
         bottom_depths: np.array = None,
+        best_ctd: str = None,
     ):
         # Handle both 1D and 2D axis arrays
         curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
@@ -841,7 +859,7 @@ class CreateProducts:
                 distnav.to_numpy() / 1000.0,
                 self.ds.cf["depth"].to_numpy(),
                 s=0.1,
-                c="black",
+                c="white",
                 alpha=0.1,
                 zorder=3,
             )
@@ -917,6 +935,25 @@ class CreateProducts:
         else:
             cb.set_label(long_name, fontsize=9)
 
+        # Add CTD label for density, temperature, and salinity plots
+        if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
+            # Position above the plot area (outside y-axis limits)
+            # Since y-axis is inverted (depth), min(iz) is at top, so go even less (shallower)
+            y_pos = (
+                min(iz) - (max(iz) - min(iz)) * 0.025
+            )  # 2.5% above the top (half the whitespace)
+            x_pos = curr_ax.get_xlim()[0]  # Left edge of plot
+            curr_ax.text(
+                x_pos,
+                y_pos,
+                best_ctd,
+                fontsize=8,
+                fontweight="bold",
+                verticalalignment="bottom",
+                horizontalalignment="left",
+                clip_on=False,
+            )
+
     def plot_2column(self) -> str:
         """Create 2column plot similar to plot_sections.m and stoqs/utils/Viz/plotting.py
         Construct a 2D grid of distance and depth and for each parameter grid the data
@@ -978,6 +1015,7 @@ class CreateProducts:
                 scale=scale,
                 gulper_locations=gulper_locations,
                 bottom_depths=bottom_depths,
+                best_ctd=best_ctd,
             )
             if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
