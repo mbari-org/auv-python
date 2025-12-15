@@ -441,33 +441,86 @@ class CreateProducts:
             spine.set_edgecolor("black")
             spine.set_linewidth(1)
 
-        # Add legend
-        map_ax.legend(loc="upper right", fontsize=7, framealpha=0.9)
-
         # Add text on the right side with title and times
         # Wrap title for better formatting
         import textwrap
 
         wrapped_title = textwrap.fill(title, width=40)
 
-        text_content = f"{wrapped_title}\n\nStart: {start_time}\nEnd:   {end_time}"
-
         # Get updated position after aspect adjustment
         updated_pos = map_ax.get_position()
 
         # Position text in figure coordinates, to the right of the map
         text_x = updated_pos.x0 + updated_pos.width + 0.01
-        text_y = updated_pos.y0 + updated_pos.height * 0.5
+        text_y = updated_pos.y0 + updated_pos.height  # Align with top of map
 
+        # Add title
         map_ax.figure.text(
             text_x,
             text_y,
-            text_content,
+            wrapped_title,
+            fontsize=11,
+            fontweight="bold",
+            family="sans-serif",
+            verticalalignment="top",
+            horizontalalignment="left",
+            color="black",
+        )
+
+        # Calculate approximate title height based on number of lines
+        # Each line is roughly 0.015 in figure coordinates at fontsize 11
+        num_title_lines = wrapped_title.count("\n") + 1
+        title_height_approx = num_title_lines * 0.02
+
+        # Position start/end text below the title with some spacing
+        start_end_y = text_y - title_height_approx - 0.03
+
+        # Add start marker and text
+        map_ax.figure.text(
+            text_x,
+            start_end_y,
+            "● ",
+            fontsize=14,
+            fontweight="bold",
+            family="sans-serif",
+            verticalalignment="center",
+            horizontalalignment="left",
+            color="green",
+        )
+        map_ax.figure.text(
+            text_x + 0.015,
+            start_end_y,
+            f"Start: {start_time}",
             fontsize=11,
             fontweight="bold",
             family="sans-serif",
             verticalalignment="center",
             horizontalalignment="left",
+            color="black",
+        )
+
+        # Add end marker and text
+        map_ax.figure.text(
+            text_x,
+            start_end_y - 0.025,
+            "▲ ",
+            fontsize=14,
+            fontweight="bold",
+            family="sans-serif",
+            verticalalignment="center",
+            horizontalalignment="left",
+            color="red",
+        )
+        map_ax.figure.text(
+            text_x + 0.015,
+            start_end_y - 0.025,
+            f"End  : {end_time}",
+            fontsize=11,
+            fontweight="bold",
+            family="sans-serif",
+            verticalalignment="center",
+            horizontalalignment="left",
+            color="black",
         )
 
     def _plot_var(  # noqa: C901, PLR0912, PLR0913, PLR0915
