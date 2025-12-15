@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import cmocean
+import contextily as ctx
 import gsw
 import matplotlib  # noqa: ICN001
 import matplotlib.pyplot as plt
@@ -367,6 +368,12 @@ class CreateProducts:
         lons = self.ds.cf["longitude"].to_numpy()
         lats = self.ds.cf["latitude"].to_numpy()
 
+        # Convert to Web Mercator for contextily
+        import pyproj
+
+        transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+        x_merc, y_merc = transformer.transform(lons, lats)
+
         # Get time data for start/end
         times = self.ds.cf["time"].to_numpy()
         start_time = pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M:%S")
@@ -384,11 +391,11 @@ class CreateProducts:
         # Make the plot square by using equal aspect (do this first)
         map_ax.set_aspect("equal", adjustable="datalim")
 
-        # Plot the track with depth coloring
+        # Plot the track with depth coloring in Web Mercator coordinates
         depths = self.ds.cf["depth"].to_numpy()
         map_ax.scatter(
-            lons,
-            lats,
+            x_merc,
+            y_merc,
             c=depths,
             cmap="viridis_r",  # Reversed so shallow is yellow, deep is dark
             s=1,
@@ -396,12 +403,24 @@ class CreateProducts:
         )
 
         # Add start and end markers
-        map_ax.plot(lons[0], lats[0], "go", markersize=8, label="Start", zorder=5)
-        map_ax.plot(lons[-1], lats[-1], "r^", markersize=8, label="End", zorder=5)
+        map_ax.plot(x_merc[0], y_merc[0], "go", markersize=8, label="Start", zorder=5)
+        map_ax.plot(x_merc[-1], y_merc[-1], "r^", markersize=8, label="End", zorder=5)
 
-        # Set fixed axis limits for Monterey Bay area
-        map_ax.set_xlim([-122.41, -121.77])
-        map_ax.set_ylim([36.5, 37.0])
+        # Set fixed axis limits for Monterey Bay area (in Web Mercator)
+        lon_bounds = [-122.41, -121.77]
+        lat_bounds = [36.5, 37.0]
+        x_bounds, y_bounds = transformer.transform(lon_bounds, lat_bounds)
+        map_ax.set_xlim(x_bounds)
+        map_ax.set_ylim(y_bounds)
+
+        # Add basemap
+        ctx.add_basemap(
+            map_ax,
+            crs="EPSG:3857",
+            source=ctx.providers.OpenStreetMap.Mapnik,
+            alpha=0.6,
+            zorder=0,
+        )
 
         # Now position map aligned with left edge of reference, 50% width
         # Use a square aspect ratio based on the y-dimension
