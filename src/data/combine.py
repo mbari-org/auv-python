@@ -317,7 +317,7 @@ class Combine_NetCDF:
             name=f"{sensor}_flow",
         )
         self.combined_nc["biolume_flow"].attrs = {
-            "long_name": "Bioluminesence pump flow rate",
+            "long_name": "Bioluminescence pump flow rate",
             "units": "mL/s",
             "coordinates": f"{sensor}_time {sensor}_depth",
             "comment": f"flow from {source}",
@@ -335,7 +335,7 @@ class Combine_NetCDF:
             name=f"{sensor}_avg_biolume",
         )
         self.combined_nc["biolume_avg_biolume"].attrs = {
-            "long_name": "Bioluminesence Average of 60Hz data",
+            "long_name": "Bioluminescence Average of 60Hz data",
             "units": "photons s^-1",
             "coordinates": f"{sensor}_{TIME} {sensor}_depth",
             "comment": f"avg_biolume from {source} {lag_info}",
