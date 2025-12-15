@@ -2332,6 +2332,7 @@ class Calibrate_NetCDF:
         oxygen_mll.attrs = {
             "long_name": "Dissolved Oxygen",
             "units": "ml/l",
+            "standard_name": "volume_fraction_of_oxygen_in_sea_water",
             "comment": mll_comment,
         }
 
@@ -2344,6 +2345,7 @@ class Calibrate_NetCDF:
         oxygen_umolkg.attrs = {
             "long_name": "Dissolved Oxygen",
             "units": "umol/kg",
+            "standard_name": "moles_of_oxygen_per_unit_mass_in_sea_water",
             "comment": umolkg_comment,
         }
         return oxygen_mll, oxygen_umolkg
@@ -2942,7 +2944,7 @@ class Calibrate_NetCDF:
             name=f"{sensor}_flow",
         )
         self.combined_nc["biolume_flow"].attrs = {
-            "long_name": "Bioluminesence pump flow rate",
+            "long_name": "Bioluminescence pump flow rate",
             "units": "mL/s",
             "coordinates": f"{sensor}_time {sensor}_depth",
             "comment": f"flow from {source}",
@@ -2960,7 +2962,7 @@ class Calibrate_NetCDF:
             name=f"{sensor}_avg_biolume",
         )
         self.combined_nc["biolume_avg_biolume"].attrs = {
-            "long_name": "Bioluminesence Average of 60Hz data",
+            "long_name": "Bioluminescence Average of 60Hz data",
             "units": "photons s^-1",
             "coordinates": f"{sensor}_{TIME} {sensor}_depth",
             "comment": f"avg_biolume from {source} {lag_info}",
