@@ -291,6 +291,40 @@ class CreateProducts:
         window = int(len(distnav) * window_frac)
         return depth_dist.rolling(dist=window).max()
 
+    def _get_gulper_locations(self, distnav: xr.DataArray) -> dict:
+        """Get gulper bottle locations in distance/depth space.
+
+        Returns:
+            Dictionary mapping bottle number to (distance_km, depth_m) tuple
+        """
+        gulper = Gulper()
+        gulper.args = argparse.Namespace()
+        gulper.args.base_path = self.base_path
+        gulper.args.auv_name = self.auv_name
+        gulper.args.mission = self.mission
+        gulper.args.local = self.local
+        gulper.args.verbose = 0  # Suppress gulper logging
+        gulper.args.start_esecs = self.start_esecs
+        gulper.logger.setLevel(logging.WARNING)
+
+        gulper_times = gulper.parse_gulpers()
+        if not gulper_times:
+            return {}
+
+        locations = {}
+        for bottle, esec in gulper_times.items():
+            # Find closest time index
+            time_ns = np.datetime64(int(esec * 1e9), "ns")
+            time_idx = np.abs(self.ds.cf["time"].to_numpy() - time_ns).argmin()
+
+            # Get distance and depth at that time
+            dist_km = distnav.to_numpy()[time_idx] / 1000.0
+            depth_m = self.ds.cf["depth"].to_numpy()[time_idx]
+
+            locations[bottle] = (dist_km, depth_m)
+
+        return locations
+
     def _get_colormap_name(self, var: str) -> str:
         """Get colormap name for a variable.
 
@@ -430,6 +464,7 @@ class CreateProducts:
         profile_bottoms: xr.DataArray,
         scale: str = "linear",
         num_colors: int = 256,
+        gulper_locations: dict = None,
     ):
         # Handle both 1D and 2D axis arrays
         curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
@@ -613,6 +648,32 @@ class CreateProducts:
         )
         curr_ax.fill(list(reversed(xb)), list(reversed(yb)), "w")
 
+        # Add measurement location dots for density plot
+        if var == "density":
+            curr_ax.scatter(
+                distnav.to_numpy() / 1000.0,
+                self.ds.cf["depth"].to_numpy(),
+                s=0.1,
+                c="black",
+                alpha=0.1,
+                zorder=3,
+            )
+
+        # Add gulper bottle locations
+        if gulper_locations:
+            for bottle, (dist, depth) in gulper_locations.items():
+                curr_ax.text(
+                    dist,
+                    depth - 5,
+                    str(bottle),
+                    fontsize=7,
+                    ha="center",
+                    va="top",
+                    color="black",
+                    fontweight="bold",
+                    zorder=5,
+                )
+
         # Only show y-label on left column or top of right column
         if col == 0 or (col == 1 and row == 0):
             curr_ax.set_ylabel("Depth (m)")
@@ -690,6 +751,9 @@ class CreateProducts:
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
         self._plot_track_map(ax[0, 0], ax[1, 0])
 
+        # Parse gulper locations
+        gulper_locations = self._get_gulper_locations(distnav)
+
         profile_bottoms = self._profile_bottoms(distnav)
         row = 1  # Start at row 1, col 0 (below the map)
         col = 0
@@ -719,6 +783,7 @@ class CreateProducts:
                 col,
                 profile_bottoms,
                 scale=scale,
+                gulper_locations=gulper_locations,
             )
             if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
