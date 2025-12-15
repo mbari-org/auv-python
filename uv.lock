@@ -193,6 +193,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pooch" },
     { name = "pyarrow" },
+    { name = "pygmt" },
     { name = "pyproj" },
     { name = "pysolar" },
     { name = "rolling" },
@@ -226,6 +227,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pooch", specifier = ">=1.8.2" },
     { name = "pyarrow", specifier = ">=20.0.0" },
+    { name = "pygmt", specifier = ">=0.17.0" },
     { name = "pyproj", specifier = ">=3.7.1" },
     { name = "pysolar", specifier = ">=0.13" },
     { name = "rolling", specifier = ">=0.5.0" },
@@ -1897,6 +1899,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/7c/2d/c3338d48ea6cc0feb8446d8e6937e1408088a72a39937982cc6111d17f84/pygments-2.19.1.tar.gz", hash = "sha256:61c16d2a8576dc0649d9f39e089b5f02bcd27fba10d8fb4dcc28173f7a45151f", size = 4968581, upload-time = "2025-01-06T17:26:30.443Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/0b/9fcc47d19c48b59121088dd6da2488a49d5f72dacf8262e2790a1d2c7d15/pygments-2.19.1-py3-none-any.whl", hash = "sha256:9ea1544ad55cecf4b8242fab6dd35a93bbce657034b0611ee383099054ab6d8c", size = 1225293, upload-time = "2025-01-06T17:26:25.553Z" },
+]
+
+[[package]]
+name = "pygmt"
+version = "0.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pandas" },
+    { name = "xarray" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c0/6e/a973f55dbe085713a0f705561fc4214593e11a2e4d25248f6502511bec7b/pygmt-0.17.0.tar.gz", hash = "sha256:06d7581bc35641db318c418aba02163bc519ba267a5a60b5cc419eee40390503", size = 228512, upload-time = "2025-10-02T22:51:40.781Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/e5/e249f42f47ca6ac7f88cad10d539334b04d77a76dc9d11b58b6a72b8b702/pygmt-0.17.0-py3-none-any.whl", hash = "sha256:846f93aef999be8f9d6de806e1aeebddc70ed59c33757c16bbb236678d0f3b6c", size = 320982, upload-time = "2025-10-02T22:51:39.077Z" },
 ]
 
 [[package]]

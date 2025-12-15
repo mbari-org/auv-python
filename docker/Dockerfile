@@ -17,7 +17,12 @@ RUN apt-get update \
         curl \
         build-essential \
         git \
-        rsync
+        rsync \
+        # GMT6 dependencies
+        gmt \
+        gmt-dcw \
+        gmt-gshhg \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $PYSETUP_PATH
 
