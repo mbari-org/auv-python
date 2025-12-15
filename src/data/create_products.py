@@ -131,9 +131,9 @@ class CreateProducts:
     # Fallback colormap lookup by variable name
     variable_colormap_lookup = {  # noqa: RUF012
         "nitrate": "matter",
-        "hs2_bbp420": "Blues",
+        "hs2_bbp420": "BuPu",
         "hs2_bbp700": "Reds",
-        "hs2_bbp470": "Blues",
+        "hs2_bbp470": "BuPu",
         "hs2_bbp676": "Reds",
         "hs2_fl700": "algae",
         "hs2_fl676": "algae",
