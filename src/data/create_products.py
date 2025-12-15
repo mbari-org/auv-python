@@ -8,7 +8,6 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
 import argparse  # noqa: I001
-import contextlib
 import logging
 import os
 import re
@@ -74,6 +73,9 @@ class CreateProducts:
         self.verbose = verbose
         self.commandline = commandline
 
+    # Maximum length for long_name before using variable name instead
+    MAX_LONG_NAME_LENGTH = 40
+
     # Column name format required by ODV - will be tab delimited
     ODV_COLUMN_NAMES = [  # noqa: RUF012
         "Cruise",
@@ -122,6 +124,20 @@ class CreateProducts:
         "eastward_sea_water_velocity": "balance",
         "northward_wind": "balance",
         "eastward_wind": "balance",
+        "volume_fraction_of_oxygen_in_sea_water": "oxy",
+        "moles_of_oxygen_per_unit_mass_in_sea_water": "oxy",
+    }
+    # Fallback colormap lookup by variable name
+    variable_colormap_lookup = {  # noqa: RUF012
+        "nitrate": "matter",
+        "hs2_bbp420": "matter",
+        "hs2_bbp700": "matter",
+        "hs2_bbp470": "matter",
+        "hs2_bbp676": "matter",
+        "hs2_fl700": "algae",
+        "hs2_fl676": "algae",
+        "ecopuck_chla": "algae",
+        "biolume_avg_biolume": "cividis",
     }
 
     def _open_ds(self):
@@ -275,6 +291,35 @@ class CreateProducts:
         window = int(len(distnav) * window_frac)
         return depth_dist.rolling(dist=window).max()
 
+    def _get_colormap_name(self, var: str) -> str:
+        """Get colormap name for a variable.
+
+        Tries in order:
+        1. Lookup by standard_name attribute
+        2. Lookup by matching variable name parts
+        3. Default to 'cividis'
+
+        Args:
+            var: Variable name
+
+        Returns:
+            Colormap name
+        """
+        # Try standard_name first
+        if var in self.ds and "standard_name" in self.ds[var].attrs:
+            standard_name = self.ds[var].attrs["standard_name"]
+            if standard_name in self.cmocean_lookup:
+                return self.cmocean_lookup[standard_name]
+
+        # Fallback: try matching variable name parts
+        var_lower = var.lower()
+        for key, colormap in self.variable_colormap_lookup.items():
+            if key in var_lower:
+                return colormap
+
+        # Default
+        return "cividis"
+
     def _plot_track_map(
         self, map_ax: matplotlib.axes.Axes, reference_ax: matplotlib.axes.Axes
     ) -> None:
@@ -385,7 +430,6 @@ class CreateProducts:
         profile_bottoms: xr.DataArray,
         scale: str = "linear",
         num_colors: int = 256,
-        best_ctd: str = "ctd1",
     ):
         # Handle both 1D and 2D axis arrays
         curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
@@ -399,7 +443,8 @@ class CreateProducts:
             var_to_plot = (
                 np.log10(self.ds[var].to_numpy()) if scale == "log" else self.ds[var].to_numpy()
             )
-            valid_data = var_to_plot[~np.isnan(var_to_plot)]
+            # Filter out both NaN and infinite values (e.g., log10(0) = -inf)
+            valid_data = var_to_plot[~np.isnan(var_to_plot) & ~np.isinf(var_to_plot)]
             if len(valid_data) == 0:
                 self.logger.warning("%s has no valid data", var)
                 no_data = True
@@ -457,6 +502,10 @@ class CreateProducts:
                 long_name = var.split("_")[-1].capitalize()
                 units = ""
 
+            # Use variable name if long_name is too long
+            if len(long_name) > self.MAX_LONG_NAME_LENGTH:
+                long_name = var
+
             # Add label to the colorbar area
             if units:
                 cb.set_label(f"{long_name} [{units}]", fontsize=9)
@@ -475,12 +524,7 @@ class CreateProducts:
             rescale=True,
         )
 
-        color_map_name = "cividis"
-        with contextlib.suppress(KeyError):
-            color_map_name = self.cmocean_lookup.get(
-                self.ds[var].attrs["standard_name"],
-                "cividis",
-            )
+        color_map_name = self._get_colormap_name(var)
         try:
             cmap = plt.get_cmap(color_map_name)
         except ValueError:
@@ -591,6 +635,10 @@ class CreateProducts:
         long_name = self.ds[var].attrs.get("long_name", var)
         units = self.ds[var].attrs.get("units", "")
 
+        # Use variable name if long_name is too long
+        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
+            long_name = var
+
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
         elif scale == "log":
@@ -611,7 +659,7 @@ class CreateProducts:
         scfac = max(idist) / max(iz)  # noqa: F841
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
-        plt.subplots_adjust(hspace=0.15, wspace=0.1, left=0.05, right=0.98, top=0.96, bottom=0.03)
+        plt.subplots_adjust(hspace=0.15, wspace=0.1, left=0.05, right=0.98, top=0.96, bottom=0.06)
 
         best_ctd = self._get_best_ctd()
 
@@ -633,7 +681,7 @@ class CreateProducts:
             ("hs2_bbp420", "linear"),
             ("hs2_bbp700", "linear"),
             ("hs2_fl700", "linear"),
-            ("biolume_avg_biolume", "linear"),
+            ("biolume_avg_biolume", "log"),
         ):
             self.logger.info("Plotting %s...", var)
             if var not in self.ds:
@@ -650,13 +698,12 @@ class CreateProducts:
                 col,
                 profile_bottoms,
                 scale=scale,
-                best_ctd=best_ctd,
             )
             if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
             else:
                 # Add x-axis label only to bottom row
-                ax[row, col].set_xlabel("Distance (km)")
+                ax[row, col].set_xlabel("Distance along track (km)")
 
             # Column-major order: fill down first column, then second column
             if row == 4 and col == 0:  # noqa: PLR2004
@@ -700,7 +747,7 @@ class CreateProducts:
         fig, ax = plt.subplots(nrows=num_plots, ncols=1, figsize=(18, 12))
         if num_plots == 1:
             ax = [ax]
-        fig.tight_layout(rect=[0, 0.03, 1, 0.96])
+        fig.tight_layout(rect=[0, 0.06, 1, 0.96])
 
         # Priority order for biolume variables to plot
         priority_vars = [
@@ -737,7 +784,7 @@ class CreateProducts:
             if i != num_plots - 1:
                 ax[i].get_xaxis().set_visible(False)
             else:
-                ax[i].set_xlabel("Distance (km)")
+                ax[i].set_xlabel("Distance along track (km)")
 
         # Add title to the figure
         title = f"{self.auv_name} {self.mission} - Bioluminescence"
