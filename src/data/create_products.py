@@ -22,6 +22,7 @@ import matplotlib  # noqa: ICN001
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pooch
 import pyproj
 import xarray as xr
 
@@ -30,6 +31,41 @@ from gulper import Gulper
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
 from resample import AUVCTD_OPENDAP_BASE, FREQ
 from scipy.interpolate import griddata
+
+# Optional import for bathymetry data
+# Set GMT library path for macOS systems with MacPorts or Homebrew installations
+if sys.platform == "darwin":
+    # Try common installation paths, including MacPorts GMT6 subdirectory structure
+    gmt_search_paths = [
+        "/opt/local/lib/gmt6/lib",  # MacPorts GMT6
+        "/opt/local/lib",  # MacPorts older versions
+        "/opt/homebrew/lib",  # Homebrew ARM
+        "/usr/local/lib",  # Homebrew Intel
+    ]
+    for gmt_path in gmt_search_paths:
+        gmt_path_obj = Path(gmt_path)
+        if gmt_path_obj.exists() and any(gmt_path_obj.glob("libgmt.*")):
+            os.environ.setdefault("GMT_LIBRARY_PATH", gmt_path)
+            break
+
+try:
+    import pygmt
+
+    PYGMT_AVAILABLE = True
+
+    # Download Monterey Bay bathymetry grid using pooch for local caching
+    MONTEREY_BAY_GRID_URL = "https://stoqs.mbari.org/terrain/Monterey25.grd"
+    MONTEREY_BAY_GRID = pooch.retrieve(
+        url=MONTEREY_BAY_GRID_URL,
+        known_hash=None,  # Could add SHA256 hash for verification
+        fname="Monterey25.grd",
+        path=pooch.os_cache("auv-python"),
+        progressbar=False,
+    )
+except Exception:  # noqa: BLE001
+    # Any failure (ImportError, GMTCLibNotFoundError, etc.) - just continue without pygmt
+    PYGMT_AVAILABLE = False
+    MONTEREY_BAY_GRID = None
 
 # Define BASE_PATH for backward compatibility
 BASE_PATH = DEFAULT_BASE_PATH
@@ -273,6 +309,67 @@ class CreateProducts:
             iz = np.arange(0, self.ds.cf["depth"].max(), 0.05)
 
         return idist, iz, distnav
+
+    def _get_bathymetry(self, lons: np.ndarray, lats: np.ndarray) -> np.ndarray:
+        """Get bathymetry depths at given lon/lat positions using pygmt.
+
+        Args:
+            lons: Array of longitude values
+            lats: Array of latitude values
+
+        Returns:
+            Array of bathymetry depths (positive down) in meters, or None if pygmt unavailable
+        """
+        if not PYGMT_AVAILABLE:
+            self.logger.debug("pygmt not available, cannot retrieve bathymetry")
+            return None
+
+        # Use local Monterey Bay grid if available and coordinates are in range
+        # Otherwise fall back to global grids
+        points = pd.DataFrame({"lon": lons, "lat": lats})
+
+        # Check if coordinates are within Monterey Bay region
+        MB_LON_RANGE = (-122.5, -121.5)
+        MB_LAT_RANGE = (36.0, 37.5)
+        in_mb_region = (
+            (lons >= MB_LON_RANGE[0]).all()
+            and (lons <= MB_LON_RANGE[1]).all()
+            and (lats >= MB_LAT_RANGE[0]).all()
+            and (lats <= MB_LAT_RANGE[1]).all()
+        )
+
+        if in_mb_region and MONTEREY_BAY_GRID:
+            self.logger.info("Using local Monterey Bay bathymetry grid")
+            result = pygmt.grdtrack(
+                points=points,
+                grid=MONTEREY_BAY_GRID,
+                newcolname="depth",
+            )
+            # Convert to positive depths (meters below sea surface)
+            bathymetry = -result["depth"].to_numpy()
+            self.logger.info(
+                "Retrieved bathymetry data from Monterey Bay grid (min: %.1f m, max: %.1f m)",
+                bathymetry.min(),
+                bathymetry.max(),
+            )
+            return bathymetry
+
+        # Fall back to global grids
+        # Try GEBCO first (higher resolution), fall back to ETOPO1
+        result = pygmt.grdtrack(
+            points=points,
+            grid="@earth_relief_15s",  # 15 arc-second resolution (~450m)
+            newcolname="depth",
+        )
+
+        # Convert to positive depths (meters below sea surface)
+        bathymetry = -result["depth"].to_numpy()
+        self.logger.info(
+            "Retrieved bathymetry data using pygmt (min: %.1f m, max: %.1f m)",
+            bathymetry.min(),
+            bathymetry.max(),
+        )
+        return bathymetry
 
     def _profile_bottoms(
         self,
@@ -537,6 +634,7 @@ class CreateProducts:
         scale: str = "linear",
         num_colors: int = 256,
         gulper_locations: dict = None,
+        bottom_depths: np.array = None,
     ):
         # Handle both 1D and 2D axis arrays
         curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
@@ -699,6 +797,7 @@ class CreateProducts:
             extend="both",
             levels=np.linspace(v2_5, v97_5, num_colors),
         )
+
         # Blank out the countoured data below the bottom of the profiles
         xb = np.append(
             profile_bottoms.get_index("dist").to_numpy(),
@@ -719,6 +818,22 @@ class CreateProducts:
             ],
         )
         curr_ax.fill(list(reversed(xb)), list(reversed(yb)), "w")
+
+        # Add bathymetry as grey filled contour if available
+        if bottom_depths is not None:
+            # Pair bottom_depths with distance along track
+            dist_km = distnav.to_numpy() / 1000.0
+            # Create polygon for seafloor: from left to right along bottom,
+            # then back along axis bottom
+            xb_bathy = np.append(
+                dist_km,
+                [curr_ax.get_xlim()[1], curr_ax.get_xlim()[1], curr_ax.get_xlim()[0], dist_km[0]],
+            )
+            yb_bathy = np.append(
+                bottom_depths,
+                [bottom_depths[-1], curr_ax.get_ylim()[0], curr_ax.get_ylim()[0], bottom_depths[0]],
+            )
+            curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8)
 
         # Add measurement location dots for density plot
         if var == "density":
@@ -827,6 +942,12 @@ class CreateProducts:
         gulper_locations = self._get_gulper_locations(distnav)
 
         profile_bottoms = self._profile_bottoms(distnav)
+
+        bottom_depths = self._get_bathymetry(
+            self.ds.cf["longitude"].to_numpy(),
+            self.ds.cf["latitude"].to_numpy(),
+        )
+
         row = 1  # Start at row 1, col 0 (below the map)
         col = 0
         for var, scale in (
@@ -856,6 +977,7 @@ class CreateProducts:
                 profile_bottoms,
                 scale=scale,
                 gulper_locations=gulper_locations,
+                bottom_depths=bottom_depths,
             )
             if row != 4:  # noqa: PLR2004
                 ax[row, col].get_xaxis().set_visible(False)
@@ -1021,6 +1143,27 @@ class CreateProducts:
             odv_column_names[24] = "bbp676 [m^{-1}]"
 
         best_ctd = self._get_best_ctd()
+
+        # Get bathymetry data for all gulper locations if available
+        bathymetry_dict = {}
+        if PYGMT_AVAILABLE:
+            gulper_lons = []
+            gulper_lats = []
+            for esec in gulper_times.values():
+                gulper_data = self.ds.sel(
+                    time=slice(
+                        np.datetime64(int((esec - sec_bnds) * 1e9), "ns"),
+                        np.datetime64(int((esec + sec_bnds) * 1e9), "ns"),
+                    ),
+                )
+                gulper_lons.append(gulper_data.cf["longitude"].to_numpy().mean())
+                gulper_lats.append(gulper_data.cf["latitude"].to_numpy().mean())
+
+            bathymetry = self._get_bathymetry(np.array(gulper_lons), np.array(gulper_lats))
+            if bathymetry is not None:
+                for i, bottle in enumerate(gulper_times.keys()):
+                    bathymetry_dict[bottle] = bathymetry[i]
+
         with gulper_odv_filename.open("w") as f:
             f.write("\t".join(odv_column_names) + "\n")
             for bottle, esec in gulper_times.items():
@@ -1056,9 +1199,11 @@ class CreateProducts:
                     elif name == "Lat (degrees_north)":
                         f.write(f"{gulper_data.cf['latitude'].to_numpy().mean():8.5f}")
                     elif name == "Bot. Depth [m]":
-                        f.write(
-                            f"{float(1000):8.1f}",
-                        )  # TODO: add proper bottom depth values
+                        # Use pygmt bathymetry if available, otherwise default to 1000m
+                        if bottle in bathymetry_dict:
+                            f.write(f"{bathymetry_dict[bottle]:8.1f}")
+                        else:
+                            f.write(f"{float(1000):8.1f}")
                     elif name == "Bottle Number [count]":
                         f.write(f"{bottle}")
                     elif name == "QF":
