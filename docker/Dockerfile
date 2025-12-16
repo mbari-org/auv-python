@@ -20,6 +20,7 @@ RUN apt-get update \
         rsync \
         # GMT6 dependencies
         gmt \
+        libgmt-dev \
         gmt-dcw \
         gmt-gshhg \
     && rm -rf /var/lib/apt/lists/*
