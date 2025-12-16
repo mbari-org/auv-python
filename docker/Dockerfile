@@ -23,6 +23,16 @@ RUN apt-get update \
         libgmt-dev \
         gmt-dcw \
         gmt-gshhg \
+        # Contextily/rasterio dependencies
+        gdal-bin \
+        libgdal-dev \
+        libproj-dev \
+        proj-bin \
+        proj-data \
+        # Image processing libraries
+        libjpeg-dev \
+        libpng-dev \
+        libtiff-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $PYSETUP_PATH
