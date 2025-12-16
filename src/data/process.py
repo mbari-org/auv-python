@@ -673,8 +673,8 @@ class Processor:
         cp.logger.setLevel(self._log_levels[self.config["verbose"]])
         cp.logger.addHandler(self.log_handler)
 
-        # cp.plot_biolume()
-        # cp.plot_2column()
+        cp.plot_biolume()
+        cp.plot_2column()
         if "dorado" in cp.auv_name.lower():
             cp.gulper_odv()
         cp.logger.removeHandler(self.log_handler)
