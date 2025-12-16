@@ -4,7 +4,8 @@
 # LRAUV_VOL=/Volumes/LRAUV
 # CALIBRATION_VOL=/Volumes/DMO
 # WORK_VOL=/opt/docker_auv-python_vols/data
-# HOST_NAME=MBARI2597.shhore.mbari.org
+# HOST_NAME=MBARI2597.shore.mbari.org
+# GMT_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/
 
 # Required in shell environment:
 # export DOCKER_USER_ID=$(id -u)

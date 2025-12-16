@@ -110,6 +110,7 @@ First time use with Docker on a server using a service account:
     `CALIBRATION_VOL=<mount_location>`
     `WORK_VOL=<auv-python_home>/data`
     `HOST_NAME=<name_of_host>`
+    `GMT_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/`
 After installation and when logging into the server again mission data can be processed thusly:
 * Setting up environment and printing help message:   
     `sudo -u docker_user -i`  
