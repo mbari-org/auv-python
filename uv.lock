@@ -227,7 +227,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pooch", specifier = ">=1.8.2" },
     { name = "pyarrow", specifier = ">=20.0.0" },
-    { name = "pygmt", specifier = ">=0.17.0" },
+    { name = "pygmt", specifier = "==0.16" },
     { name = "pyproj", specifier = ">=3.7.1" },
     { name = "pysolar", specifier = ">=0.13" },
     { name = "rolling", specifier = ">=0.5.0" },
@@ -1903,7 +1903,7 @@ wheels = [
 
 [[package]]
 name = "pygmt"
-version = "0.17.0"
+version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -1911,9 +1911,9 @@ dependencies = [
     { name = "pandas" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/6e/a973f55dbe085713a0f705561fc4214593e11a2e4d25248f6502511bec7b/pygmt-0.17.0.tar.gz", hash = "sha256:06d7581bc35641db318c418aba02163bc519ba267a5a60b5cc419eee40390503", size = 228512, upload-time = "2025-10-02T22:51:40.781Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/a2/05d13c4814aef83d6fe3c19d03215d44a260090e85bbb724c1b9902ca20d/pygmt-0.16.0.tar.gz", hash = "sha256:5921db8cd71d0da5d60afee36eaba496c953797e38b53b32583ed4ae61fab640", size = 217717, upload-time = "2025-06-18T12:32:07.724Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/e5/e249f42f47ca6ac7f88cad10d539334b04d77a76dc9d11b58b6a72b8b702/pygmt-0.17.0-py3-none-any.whl", hash = "sha256:846f93aef999be8f9d6de806e1aeebddc70ed59c33757c16bbb236678d0f3b6c", size = 320982, upload-time = "2025-10-02T22:51:39.077Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/f4/42f2bf9150380ba2aaa9afb90c7d454f212b5a73a9361dcf8282d429e139/pygmt-0.16.0-py3-none-any.whl", hash = "sha256:b7d88c8c89180dde33992d3d07aaacda245111feadfb19f61cea420e11a25f27", size = 301299, upload-time = "2025-06-18T12:32:05.727Z" },
 ]
 
 [[package]]
