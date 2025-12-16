@@ -321,7 +321,7 @@ class CreateProducts:
             Array of bathymetry depths (positive down) in meters, or None if pygmt unavailable
         """
         if not PYGMT_AVAILABLE:
-            self.logger.debug("pygmt not available, cannot retrieve bathymetry")
+            self.logger.warning("pygmt not available, will not be plotting bottom depths")
             return None
 
         # Use local Monterey Bay grid if available and coordinates are in range
@@ -1342,5 +1342,5 @@ if __name__ == "__main__":
     p_start = time.time()
     cp.plot_2column()
     cp.plot_biolume()
-    # cp.gulper_odv()
+    cp.gulper_odv()
     cp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
