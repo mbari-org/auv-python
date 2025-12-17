@@ -37,8 +37,10 @@ MF_WIDTH = 3
 FREQ = "1S"
 PLOT_SECONDS = 300
 AUVCTD_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/auvctd"
+LRAUV_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/lrauv"
 FLASH_THRESHOLD = 1.0e11
 DEPTH_THRESHOLD = 10.0  # meters
+MAX_INTERPOLATE_LIMIT = 3  # Maximum number of consecutive NaNs to fill during interpolation
 
 
 class InvalidAlignFile(Exception):
@@ -368,7 +370,11 @@ class Resampler:
     def _get_pitch_corrected_instrument(self) -> str:
         # Determine which instrument provides the pitch corrected depth
         # For dorado/i2map missions, this is usually 'ctd1' or 'seabird25p'
-        # For LRAUV missions, this is usually 'ctdseabird' or 'ctdneilbrown'
+        # For LRAUV missions, a reasonable parallel would be 'ctdseabird'
+        # or 'ctdneilbrown'. However, the ctdseabird samples at 1 hz, which
+        # is not fine enough for resampling to 1 second intervals without
+        # introducing NaNs. Therefore, we will do minimal interpolation
+        # (up to MAX_INTERPOLATE_LIMIT consecutive NaNs) after resampling.
         if self.log_file:
             candidates = ["ctdseabird", "ctdseabird_sea_water_temperature", "ctdneilbrown"]
         else:
@@ -458,6 +464,19 @@ class Resampler:
         )
         self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].bfill()
         self.df_o[f"{instr}_longitude_mf"] = self.df_o[f"{instr}_longitude_mf"].ffill()
+
+        # Log NaN counts before resampling
+        depth_nans_before = self.df_o[f"{instr}_depth_mf"].isna().sum()
+        lat_nans_before = self.df_o[f"{instr}_latitude_mf"].isna().sum()
+        lon_nans_before = self.df_o[f"{instr}_longitude_mf"].isna().sum()
+        self.logger.info(
+            "Before resampling - NaNs: depth=%d, latitude=%d, longitude=%d (out of %d points)",
+            depth_nans_before,
+            lat_nans_before,
+            lon_nans_before,
+            len(self.df_o[f"{instr}_depth_mf"]),
+        )
+
         # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
         aggregator = ".mean() aggregator"
         # This is the common depth for all the instruments - the instruments that
@@ -469,19 +488,47 @@ class Resampler:
             .shift(0.5, freq=freq.lower())
             .resample(freq.lower())
             .mean()
+            .interpolate("linear", limit=MAX_INTERPOLATE_LIMIT)
         )
         self.df_r["latitude"] = (
             self.df_o[f"{instr}_latitude_mf"]
             .shift(0.5, freq=freq.lower())
             .resample(freq.lower())
             .mean()
+            .interpolate("linear", limit=MAX_INTERPOLATE_LIMIT)
         )
         self.df_r["longitude"] = (
             self.df_o[f"{instr}_longitude_mf"]
             .shift(0.5, freq=freq.lower())
             .resample(freq.lower())
             .mean()
+            .interpolate("linear", limit=MAX_INTERPOLATE_LIMIT)
         )
+
+        # Log NaN counts after resampling
+        depth_nans_after = self.df_r["depth"].isna().sum()
+        lat_nans_after = self.df_r["latitude"].isna().sum()
+        lon_nans_after = self.df_r["longitude"].isna().sum()
+        self.logger.info(
+            "After resampling - NaNs: depth=%d, latitude=%d, longitude=%d (out of %d points)",
+            depth_nans_after,
+            lat_nans_after,
+            lon_nans_after,
+            len(self.df_r["depth"]),
+        )
+
+        # Report NaNs introduced by resampling
+        if (
+            depth_nans_after > depth_nans_before
+            or lat_nans_after > lat_nans_before
+            or lon_nans_after > lon_nans_before
+        ):
+            self.logger.warning(
+                "Resampling introduced NaNs: depth=%d, latitude=%d, longitude=%d",
+                depth_nans_after - depth_nans_before,
+                lat_nans_after - lat_nans_before,
+                lon_nans_after - lon_nans_before,
+            )
         return aggregator
 
     def save_coordinates(  # noqa: PLR0913

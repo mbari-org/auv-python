@@ -660,22 +660,46 @@ class Processor:
             arch.logger.error("Either mission or log_file must be provided for archiving.")
         arch.logger.removeHandler(self.log_handler)
 
-    def create_products(self, mission: str) -> None:
-        cp = CreateProducts(
-            auv_name=self.auv_name,
-            mission=mission,
-            base_path=str(self.config["base_path"]),
-            start_esecs=None,
-            local=self.config["local"],
-            verbose=self.config["verbose"],
-            commandline=self.commandline,
-        )
+    def create_products(self, mission: str = None, log_file: str = None) -> None:
+        """Create products from processed data.
+
+        Args:
+            mission: Mission identifier for Dorado class vehicles
+            log_file: Log file path for LRAUV class vehicles
+        """
+        if mission:
+            self.logger.info("Creating products for mission %s", mission)
+            cp = CreateProducts(
+                auv_name=self.auv_name,
+                mission=mission,
+                base_path=str(self.config["base_path"]),
+                start_esecs=None,
+                local=self.config["local"],
+                verbose=self.config["verbose"],
+                commandline=self.commandline,
+            )
+        elif log_file:
+            self.logger.info("Creating products for log file %s", log_file)
+            cp = CreateProducts(
+                auv_name=self.auv_name,
+                mission=None,
+                base_path=str(self.config["base_path"]),
+                start_esecs=None,
+                local=self.config["local"],
+                verbose=self.config["verbose"],
+                commandline=self.commandline,
+                log_file=log_file,
+            )
+        else:
+            self.logger.error("Either mission or log_file must be provided for create_products.")
+            return
+
         cp.logger.setLevel(self._log_levels[self.config["verbose"]])
         cp.logger.addHandler(self.log_handler)
 
         cp.plot_biolume()
         cp.plot_2column()
-        if "dorado" in cp.auv_name.lower():
+        if mission and "dorado" in cp.auv_name.lower():
             cp.gulper_odv()
         cp.logger.removeHandler(self.log_handler)
 
@@ -1037,7 +1061,7 @@ class Processor:
         self.combine(log_file=log_file)
         self.align(log_file=log_file)
         self.resample(log_file=log_file)
-        # self.create_products(log_file)
+        self.create_products(log_file=log_file)
         self.logger.info("Finished processing log file: %s", log_file)
 
     def process_log_files(self) -> None:
