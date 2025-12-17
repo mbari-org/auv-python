@@ -348,7 +348,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/data/process_Dorado389.py",
             "console": "integratedTerminal",
-            "args": ["-v", "1", "--noinput", "--no_cleanup", "--download", "--mission", "2011.256.02"]
+            // Mission used for testing: Execute to replace file at:
+            // https://dods.mbari.org/opendap/data/auvctd/surveys/2011/netcdf/Dorado389_2011.256.02_1S.nc.html
+            "args": ["-v", "1", "--noinput", "--no_cleanup", "--mission", "2011.256.02", "--clobber"]
         },
         {
             "name": "process_lrauv",
