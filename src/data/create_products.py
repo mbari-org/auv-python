@@ -1078,7 +1078,11 @@ class CreateProducts:
             # TODO: Implement _get_esp_locations(distnav)
             gulper_locations = {}
 
-        profile_bottoms = self._profile_bottoms(distnav)
+        try:
+            profile_bottoms = self._profile_bottoms(distnav)
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
+            profile_bottoms = None
 
         bottom_depths = self._get_bathymetry(
             self.ds.cf["longitude"].to_numpy(),
