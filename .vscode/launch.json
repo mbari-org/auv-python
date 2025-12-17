@@ -205,8 +205,9 @@
             //"args": ["--auv_name", "dorado", "--mission", "2023.123.00", "-v", "1"],
             //"args": ["-v", "2", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4"]
             //"args": ["--auv_name", "dorado", "--mission", "2025.316.02", "-v", "1"],
-            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250604_20250616/20250608T020852/202506080209_202506081934.nc4"],
+            //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250604_20250616/20250608T020852/202506080209_202506081934.nc4"],
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250414T205440/202504142054_202504150400.nc4"],
+            "args": ["--auv_name", "dorado", "--mission", "2022.201.00", "-v", "1"],
         },
         {
             "name": "5.0 - archive.py",
@@ -396,7 +397,11 @@
             // Has nighttime data for proxys to be computed
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240725_20240729/20240729T023020/202407290230_202407291556.nc4", "--no_cleanup"]
             // Testing for adding crontab entries for process_lrauv
-            "args": ["-v", "1", "--last_n_days", "30", "--no_cleanup"]
+            //"args": ["-v", "1", "--last_n_days", "30", "--no_cleanup"]
+            // Testing for making 2column plot work with process_lrauv from an MBTS log_file
+            //"args": ["-v", "1", "--log_file", "daphne/missionlogs/2025/20250721_20250723/20250721T211348/202507212114_202507222147.nc4", "--no_cleanup"]
+            // A log_file showing temperature not looking right in stoqs_lrauv_jul2024_t, as shared on Slack plankton-proxies
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--no_cleanup"]
         },
 
     ]
