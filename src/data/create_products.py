@@ -756,9 +756,12 @@ class CreateProducts:
             self.logger.warning("%s not in dataset", var)
             no_data = True
         else:
-            var_to_plot = (
-                np.log10(self.ds[var].to_numpy()) if scale == "log" else self.ds[var].to_numpy()
-            )
+            if scale == "log":
+                # Filter out zeros and negative values before log10 to avoid warnings
+                data = self.ds[var].to_numpy()
+                var_to_plot = np.where(data > 0, np.log10(data), np.nan)
+            else:
+                var_to_plot = self.ds[var].to_numpy()
             # Filter out both NaN and infinite values (e.g., log10(0) = -inf)
             valid_data = var_to_plot[~np.isnan(var_to_plot) & ~np.isinf(var_to_plot)]
             if len(valid_data) == 0:
@@ -997,7 +1000,8 @@ class CreateProducts:
             if max_abs > 0:
                 order = int(np.floor(np.log10(max_abs)))
                 scale = 10**order
-                # Set clean tick labels
+                # Set ticks explicitly before setting labels to avoid warning
+                cb.ax.set_yticks(tick_values)
                 cb.ax.set_yticklabels([f"{x / scale:.2f}" for x in tick_values])
                 # Add offset text
                 cb.ax.text(
@@ -1009,7 +1013,9 @@ class CreateProducts:
                     verticalalignment="bottom",
                 )
         else:
-            cb.ax.set_yticklabels([f"{x:.1f}" for x in cb.get_ticks()])
+            tick_values = cb.get_ticks()
+            cb.ax.set_yticks(tick_values)
+            cb.ax.set_yticklabels([f"{x:.1f}" for x in tick_values])
 
         # Get long_name and units with fallbacks
         long_name = self.ds[var].attrs.get("long_name", var)
