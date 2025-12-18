@@ -1516,7 +1516,7 @@ class Resampler:
                 # print(f'no corrections possible for {iprofil_=}')
                 continue
             auv_profil = df_p.loc[iprofil]
-            self.logger.info(
+            self.logger.debug(
                 "Processing profile=%d for proxy correction: total_points=%d > thresh=%d ?",
                 iprofil_,
                 auv_profil.shape[0],
@@ -1529,7 +1529,7 @@ class Resampler:
                 ):
                     # all proxies are NaN so skip
                     if auv_profil[f"{prefix}_proxy_adinos"].count() == 0:
-                        self.logger.info(
+                        self.logger.debug(
                             "Correcting proxies: valid adinos=%d < thresh=%d -- all NaN so skip",
                             np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
                             correction_threshold,
@@ -1537,7 +1537,7 @@ class Resampler:
                         continue
                     # no correction for low fluo & biolum values
                     fluoBL_corr = 1.0
-                    self.logger.info(
+                    self.logger.debug(
                         "Correcting proxies: valid adinos=%d < thresh=%d"
                         " -- using fluoBL_corr=%.4f, total_size_adinos=%d, nans=%d",
                         np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
@@ -1562,7 +1562,7 @@ class Resampler:
                     fluoBL_corr = auv_profil_idepth[f"{prefix}_fluo"].corr(
                         auv_profil_idepth[f"{prefix}_bg_biolume"], method=corr_type
                     )
-                    self.logger.info(
+                    self.logger.debug(
                         "Correcting proxies: valid adinos=%d > thresh=%d"
                         " -- using fluoBL_corr=%.4f, total_size_idepth=%d, nans=%d,"
                         " min_depth=%.4f, max_depth=%.4f",
@@ -1619,10 +1619,19 @@ class Resampler:
                 ]
                 self.df_r.loc[target_indices, f"{prefix}_proxy_hdinos"] = df_p.hdinosN.loc[iprofil]
             else:
-                self.logger.info(
+                self.logger.debug(
                     "profile=%d skipped for proxy correction",
                     iprofil_,
                 )
+
+        # Log summary of proxy correction process
+        profiles_processed = int(np.max(profil))
+        self.logger.info(
+            "Proxy correction complete: processed %d profiles with fluo_bl_threshold=%.4f",
+            profiles_processed,
+            fluo_bl_threshold,
+        )
+
         # Copy the attrs back to self.df_r[] as they were lost in the processing
         # Also add the fluo_bl_threshold value to the comment attribute
         for var in saved_attrs:
