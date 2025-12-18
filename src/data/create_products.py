@@ -29,6 +29,7 @@ import xarray as xr
 from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
+from nc42netcdfs import BASE_LRAUV_PATH
 from resample import AUVCTD_OPENDAP_BASE, FREQ, LRAUV_OPENDAP_BASE
 from scipy.interpolate import griddata
 
@@ -57,7 +58,7 @@ try:
     MONTEREY_BAY_GRID_URL = "https://stoqs.mbari.org/terrain/Monterey25.grd"
     MONTEREY_BAY_GRID = pooch.retrieve(
         url=MONTEREY_BAY_GRID_URL,
-        known_hash=None,  # Could add SHA256 hash for verification
+        known_hash="cef6a575ed9a311230201aa0c3e3075535a31e87fd8282c3dda94823bfd08484",
         fname="Monterey25.grd",
         path=pooch.os_cache("auv-python"),
         progressbar=False,
@@ -91,6 +92,7 @@ class CreateProducts:
         verbose: int = 0,
         commandline: str = "",
         log_file: str = None,
+        freq: str = FREQ,
     ):
         """Initialize CreateProducts with explicit parameters.
 
@@ -103,6 +105,7 @@ class CreateProducts:
             verbose: Verbosity level (0-2)
             commandline: Command line string for tracking
             log_file: Path to LRAUV log file (alternative to auv_name/mission)
+            freq: Resampling frequency (default: '1S')
         """
         self.auv_name = auv_name
         self.mission = mission
@@ -112,6 +115,7 @@ class CreateProducts:
         self.verbose = verbose
         self.commandline = commandline
         self.log_file = log_file
+        self.freq = freq
 
     # Maximum length for long_name before using variable name instead
     MAX_LONG_NAME_LENGTH = 40
@@ -184,7 +188,7 @@ class CreateProducts:
         if self._is_lrauv():
             # Open LRAUV resampled file - transform log_file to point to _1S.nc file
             # Convert from original .nc4 to resampled _1S.nc format
-            resampled_file = self.log_file.replace(".nc4", f"_{FREQ}.nc")
+            resampled_file = self.log_file.replace(".nc4", f"_{self.freq}.nc")
             log_path = Path(self.base_path, "lrauv_data", resampled_file)
             dap_url = os.path.join(LRAUV_OPENDAP_BASE, resampled_file)  # noqa: PTH118
             try:
@@ -200,14 +204,14 @@ class CreateProducts:
                 self.auv_name,
                 MISSIONNETCDFS,
                 self.mission,
-                f"{self.auv_name}_{self.mission}_{FREQ}.nc",
+                f"{self.auv_name}_{self.mission}_{self.freq}.nc",
             )
             dap_url = os.path.join(  # noqa: PTH118
                 AUVCTD_OPENDAP_BASE,
                 "surveys",
                 self.mission.split(".")[0],
                 "netcdf",
-                f"{self.auv_name}_{self.mission}_{FREQ}.nc",
+                f"{self.auv_name}_{self.mission}_{self.freq}.nc",
             )
             try:
                 self.logger.info("Opening local Dorado file: %s", local_nc)
@@ -358,10 +362,27 @@ class CreateProducts:
             },
         )
 
+        # Check for and remove NaN values in distnav
+        if np.isnan(distnav.to_numpy()).any():
+            nan_count = np.isnan(distnav.to_numpy()).sum()
+            self.logger.warning(
+                "distnav contains %d NaN values (%.1f%%), removing them",
+                nan_count,
+                100.0 * nan_count / len(distnav),
+            )
+            # Filter out NaN values and corresponding time coordinates
+            valid_mask = ~np.isnan(distnav.to_numpy())
+            distnav = xr.DataArray(
+                distnav.to_numpy()[valid_mask],
+                dims=("time",),
+                coords={"time": distnav.coords["time"].to_numpy()[valid_mask]},
+                attrs=distnav.attrs,
+            )
+
         # Horizontal gridded to 3x the number of profiles
         idist = np.linspace(
-            distnav.to_numpy().min(),
-            distnav.to_numpy().max(),
+            distnav.to_numpy()[0],
+            distnav.to_numpy()[-1],
             3 * self.ds["profile_number"].to_numpy()[-1],
         )
         # Vertical gridded to .5 m, rounded down to nearest 50m
@@ -1053,7 +1074,7 @@ class CreateProducts:
                 clip_on=False,
             )
 
-    def plot_2column(self) -> str:  # noqa: PLR0912
+    def plot_2column(self) -> str:  # noqa: PLR0912, PLR0915
         """Create 2column plot similar to plot_sections.m and stoqs/utils/Viz/plotting.py
         Construct a 2D grid of distance and depth and for each parameter grid the data
         to create a shaded plot in each subplot.
@@ -1095,10 +1116,14 @@ class CreateProducts:
             self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
             profile_bottoms = None
 
-        bottom_depths = self._get_bathymetry(
-            self.ds.cf["longitude"].to_numpy(),
-            self.ds.cf["latitude"].to_numpy(),
-        )
+        try:
+            bottom_depths = self._get_bathymetry(
+                self.ds.cf["longitude"].to_numpy(),
+                self.ds.cf["latitude"].to_numpy(),
+            )
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
+            bottom_depths = None
 
         row = 1  # Start at row 1, col 0 (below the map)
         col = 0
@@ -1143,17 +1168,16 @@ class CreateProducts:
 
         # Save plot to file
         if self._is_lrauv():
-            # Use log file name for output
-            log_name = Path(self.log_file).stem
-            images_dir = Path(
-                BASE_PATH, "lrauv_data", MISSIONIMAGES, Path(self.log_file).parent.name
+            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+            output_file = Path(
+                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_cmocean.png"
             )
-            Path(images_dir).mkdir(parents=True, exist_ok=True)
-            output_file = Path(images_dir, f"{log_name}_2column.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
-            output_file = Path(images_dir, f"{self.auv_name}_{self.mission}_{FREQ}_2column.png")
+            output_file = Path(
+                images_dir, f"{self.auv_name}_{self.mission}_{self.freq}_2column_cmocean.png"
+            )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.show()
         plt.close(fig)
@@ -1235,7 +1259,7 @@ class CreateProducts:
 
         output_file = Path(
             images_dir,
-            f"{self.auv_name}_{self.mission}_{FREQ}_biolume.png",
+            f"{self.auv_name}_{self.mission}_{self.freq}_biolume.png",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.close(fig)
@@ -1292,7 +1316,7 @@ class CreateProducts:
         Path(odv_dir).mkdir(parents=True, exist_ok=True)
         gulper_odv_filename = Path(
             odv_dir,
-            f"{self.auv_name}_{self.mission}_{FREQ}_Gulper.txt",
+            f"{self.auv_name}_{self.mission}_{self.freq}_Gulper.txt",
         )
         self._open_ds()
 
@@ -1337,7 +1361,7 @@ class CreateProducts:
                 )
                 for count, name in enumerate(odv_column_names):
                     if name == "Cruise":
-                        f.write(f"{self.auv_name}_{self.mission}_{FREQ}")
+                        f.write(f"{self.auv_name}_{self.mission}_{self.freq}")
                     elif name == "Station":
                         f.write(f"{int(gulper_data['profile_number'].to_numpy().mean()):d}")
                     elif name == "Type":
@@ -1449,6 +1473,7 @@ class CreateProducts:
             help="Path to LRAUV log file (alternative to --auv_name/--mission for LRAUV data)",
             type=str,
         )
+        # Note: --freq is already defined in get_standard_dorado_parser()
 
         self.args = parser.parse_args()
         self.commandline = " ".join(sys.argv)
@@ -1461,6 +1486,7 @@ class CreateProducts:
         self.local = self.args.local
         self.verbose = self.args.verbose
         self.log_file = getattr(self.args, "log_file", None)
+        self.freq = self.args.freq
 
         # Validate that either (auv_name and mission) or log_file is provided
         if self.log_file:
@@ -1480,5 +1506,6 @@ if __name__ == "__main__":
     p_start = time.time()
     cp.plot_2column()
     cp.plot_biolume()
-    cp.gulper_odv()
+    if cp.mission and cp.auv_name:
+        cp.gulper_odv()
     cp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
