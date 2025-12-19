@@ -584,7 +584,7 @@ class Resampler:
         self.resampled_nc["depth"].attrs["long_name"] = "Depth"
         self.resampled_nc["depth"].attrs["standard_name"] = "depth"
         self.resampled_nc["depth"].attrs["comment"] = (
-            f"{self.ds[f'{pitch_corrected_instr}_depth'].attrs['comment']}"
+            f"{self.ds[f'{pitch_corrected_instr}_depth'].attrs.get('comment', '')}"
             f" mean sampled at {self.freq} intervals following"
             f" {self.mf_width} point median filter."
         )
