@@ -395,7 +395,7 @@ class Resampler:
         msg = f"A pitch corrected depth coordinate was not found in {self.ds.encoding['source']}"
         raise InvalidAlignFile(msg) from None
 
-    def resample_coordinates(self, instr: str, mf_width: int, freq: str) -> None:
+    def resample_coordinates(self, instr: str, mf_width: int, freq: str) -> None:  # noqa: PLR0915
         self.logger.info(
             "Resampling coordinates depth, latitude and longitude with"
             " frequency %s following %d point median filter ",
@@ -478,11 +478,13 @@ class Resampler:
         )
 
         # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
-        aggregator = ".mean() aggregator"
         # This is the common depth for all the instruments - the instruments that
         # matter (ctds, hs2, biolume, lopc) are all in the nose of the vehicle
         # (at least in November 2020)
         # and we want to use the same pitch corrected depth for all of them.
+
+        # A string to describe the aggregation method used for resampling
+        aggregator = f'.mean().interpolate("linear", limit={MAX_INTERPOLATE_LIMIT}) aggregator'
         self.df_r["depth"] = (
             self.df_o[f"{instr}_depth_mf"]
             .shift(0.5, freq=freq.lower())
@@ -529,6 +531,29 @@ class Resampler:
                 lat_nans_after - lat_nans_before,
                 lon_nans_after - lon_nans_before,
             )
+
+        # Remove NaN values consistently across all coordinates
+        # If any coordinate has a NaN at an index, remove that index from all coordinates
+        initial_length = len(self.df_r)
+        self.df_r = self.df_r.dropna(subset=["depth", "latitude", "longitude"])
+        removed_count = initial_length - len(self.df_r)
+
+        if removed_count > 0:
+            self.logger.warning(
+                "Removed %d time points (%.1f%%) with NaN values in one or more coordinates",
+                removed_count,
+                100.0 * removed_count / initial_length,
+            )
+
+            self.logger.info(
+                "After NaN removal - remaining points: %d "
+                "(depth NaNs=%d, latitude NaNs=%d, longitude NaNs=%d)",
+                len(self.df_r),
+                self.df_r["depth"].isna().sum(),
+                self.df_r["latitude"].isna().sum(),
+                self.df_r["longitude"].isna().sum(),
+            )
+
         return aggregator
 
     def save_coordinates(  # noqa: PLR0913
@@ -539,6 +564,19 @@ class Resampler:
         freq: str,
         aggregator: str,
     ) -> None:
+        """Save resampled coordinate variables to the resampled netCDF dataset.
+
+        Converts depth, latitude, and longitude from pandas Series to xarray DataArrays
+        and adds them to the resampled_nc dataset with appropriate CF-compliant attributes
+        and metadata describing the processing history.
+
+        Args:
+            instr: Instrument name used for coordinate resampling
+            pitch_corrected_instr: Instrument providing pitch-corrected depth coordinate
+            mf_width: Median filter width applied before resampling
+            freq: Resampling frequency (e.g., '1S' for 1 second)
+            aggregator: Description of aggregation method used (e.g., '.mean() aggregator')
+        """
         self.df_r["depth"].index.rename("time", inplace=True)  # noqa: PD002
         self.resampled_nc["depth"] = self.df_r["depth"].to_xarray()
         self.resampled_nc["depth"].attrs = {}
