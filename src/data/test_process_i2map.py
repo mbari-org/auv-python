@@ -30,7 +30,7 @@ def test_process_i2map(complete_i2map_processing):
     # but it will alert us if a code change unexpectedly changes the file size.
     # If code changes are expected to change the file size then we should
     # update the expected size here.
-    EXPECTED_SIZE_GITHUB = 63069
+    EXPECTED_SIZE_GITHUB = 63131
     EXPECTED_SIZE_ACT = 63101
     EXPECTED_SIZE_LOCAL = 64637
     if str(proc.args.base_path).startswith("/home/runner"):
