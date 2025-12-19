@@ -188,8 +188,8 @@ class CreateProducts:
         if self._is_lrauv():
             # Open LRAUV resampled file - transform log_file to point to _1S.nc file
             # Convert from original .nc4 to resampled _1S.nc format
-            resampled_file = self.log_file.replace(".nc4", f"_{self.freq}.nc")
-            log_path = Path(self.base_path, "lrauv_data", resampled_file)
+            resampled_file = re.sub(r"\.nc4?$", f"_{self.freq}.nc", str(self.log_file))
+            log_path = Path(BASE_LRAUV_PATH, resampled_file)
             dap_url = os.path.join(LRAUV_OPENDAP_BASE, resampled_file)  # noqa: PTH118
             try:
                 self.logger.info("Opening local LRAUV resampled file: %s", log_path)
