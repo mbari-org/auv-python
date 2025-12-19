@@ -108,6 +108,12 @@ class Resampler:
         # Skip dynamic metadata during testing to ensure reproducible results
         if "pytest" in sys.modules:
             return {}
+        if self.resampled_nc.time.size == 0:
+            self.logger.warning(
+                "No time data available to build global metadata",
+            )
+            return {}
+
         # Try to get actual host name, fall back to container name
         actual_hostname = os.getenv("HOST_NAME", gethostname())
         repo = git.Repo(search_parent_directories=True)
@@ -724,6 +730,11 @@ class Resampler:
         return lat_var, lon_var
 
     def add_profile(self, depth_threshold: float) -> None:
+        if len(self.resampled_nc["depth"]) == 0:
+            self.logger.warning(
+                "No depth data available to compute profile numbers",
+            )
+            return
         # Find depth vertices value using scipy's find_peaks algorithm
         options = {"prominence": 10, "width": 30}
         peaks_pos, _ = signal.find_peaks(self.resampled_nc["depth"], **options)
