@@ -231,7 +231,8 @@
             "console": "integratedTerminal",
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2023.192.01", "--local"],
             //"args": ["-v", "2", "--auv_name", "dorado", "--mission", "2016.270.00"],
-            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.201.00"],
+            //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2022.201.00"],
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4"],
         },
         {
             "name": "7.0 - email.py",

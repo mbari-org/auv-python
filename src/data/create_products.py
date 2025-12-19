@@ -29,6 +29,7 @@ import xarray as xr
 from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
+from nc42netcdfs import BASE_LRAUV_PATH
 from resample import AUVCTD_OPENDAP_BASE, FREQ, LRAUV_OPENDAP_BASE
 from scipy.interpolate import griddata
 
@@ -57,7 +58,7 @@ try:
     MONTEREY_BAY_GRID_URL = "https://stoqs.mbari.org/terrain/Monterey25.grd"
     MONTEREY_BAY_GRID = pooch.retrieve(
         url=MONTEREY_BAY_GRID_URL,
-        known_hash=None,  # Could add SHA256 hash for verification
+        known_hash="cef6a575ed9a311230201aa0c3e3075535a31e87fd8282c3dda94823bfd08484",
         fname="Monterey25.grd",
         path=pooch.os_cache("auv-python"),
         progressbar=False,
@@ -91,6 +92,7 @@ class CreateProducts:
         verbose: int = 0,
         commandline: str = "",
         log_file: str = None,
+        freq: str = FREQ,
     ):
         """Initialize CreateProducts with explicit parameters.
 
@@ -103,6 +105,7 @@ class CreateProducts:
             verbose: Verbosity level (0-2)
             commandline: Command line string for tracking
             log_file: Path to LRAUV log file (alternative to auv_name/mission)
+            freq: Resampling frequency (default: '1S')
         """
         self.auv_name = auv_name
         self.mission = mission
@@ -112,6 +115,7 @@ class CreateProducts:
         self.verbose = verbose
         self.commandline = commandline
         self.log_file = log_file
+        self.freq = freq
 
     # Maximum length for long_name before using variable name instead
     MAX_LONG_NAME_LENGTH = 40
@@ -184,8 +188,8 @@ class CreateProducts:
         if self._is_lrauv():
             # Open LRAUV resampled file - transform log_file to point to _1S.nc file
             # Convert from original .nc4 to resampled _1S.nc format
-            resampled_file = self.log_file.replace(".nc4", f"_{FREQ}.nc")
-            log_path = Path(self.base_path, "lrauv_data", resampled_file)
+            resampled_file = re.sub(r"\.nc4?$", f"_{self.freq}.nc", str(self.log_file))
+            log_path = Path(BASE_LRAUV_PATH, resampled_file)
             dap_url = os.path.join(LRAUV_OPENDAP_BASE, resampled_file)  # noqa: PTH118
             try:
                 self.logger.info("Opening local LRAUV resampled file: %s", log_path)
@@ -200,14 +204,14 @@ class CreateProducts:
                 self.auv_name,
                 MISSIONNETCDFS,
                 self.mission,
-                f"{self.auv_name}_{self.mission}_{FREQ}.nc",
+                f"{self.auv_name}_{self.mission}_{self.freq}.nc",
             )
             dap_url = os.path.join(  # noqa: PTH118
                 AUVCTD_OPENDAP_BASE,
                 "surveys",
                 self.mission.split(".")[0],
                 "netcdf",
-                f"{self.auv_name}_{self.mission}_{FREQ}.nc",
+                f"{self.auv_name}_{self.mission}_{self.freq}.nc",
             )
             try:
                 self.logger.info("Opening local Dorado file: %s", local_nc)
@@ -228,6 +232,48 @@ class CreateProducts:
 
         temp_var = f"{best_ctd}_temperature"
         sal_var = f"{best_ctd}_salinity"
+
+        if temp_var not in self.ds or sal_var not in self.ds:
+            self.logger.warning(
+                "Cannot compute density: %s or %s not in dataset",
+                temp_var,
+                sal_var,
+            )
+            return
+
+        # Get temperature, salinity, and pressure (approximated from depth)
+        temp = self.ds[temp_var].to_numpy()
+        sal = self.ds[sal_var].to_numpy()
+
+        # Compute sigma-t using gsw (uses EOS-80 formulation)
+        # sigma-t is density - 1000 kg/m³
+        density = gsw.density.sigma0(sal, temp)
+
+        # Add to dataset
+        self.ds["density"] = xr.DataArray(
+            density,
+            dims=self.ds[temp_var].dims,
+            coords=self.ds[temp_var].coords,
+            attrs={
+                "long_name": "Sigma-t",
+                "standard_name": "sea_water_density",
+                "units": "kg/m^3",
+                "comment": f"Computed from {temp_var} and {sal_var} using gsw.density.sigma0",
+            },
+        )
+        self.logger.info("Computed density (sigma-t) from %s and %s", temp_var, sal_var)
+
+    def _compute_density_lrauv(self) -> None:
+        """Compute sigma-t density from temperature and salinity using EOS-80 for LRAUV data.
+
+        LRAUV uses variable names without instrument prefix: 'temperature' and 'salinity'.
+        """
+        if "density" in self.ds:
+            self.logger.debug("density already exists in dataset")
+            return
+
+        temp_var = "ctdseabird_sea_water_temperature"
+        sal_var = "ctdseabird_sea_water_salinity"
 
         if temp_var not in self.ds or sal_var not in self.ds:
             self.logger.warning(
@@ -297,14 +343,14 @@ class CreateProducts:
         """
         return [
             ("density", "linear"),
-            ("temperature", "linear"),
-            ("salinity", "linear"),
-            ("nitrate", "linear"),
-            ("oxygen", "linear"),
-            ("bbp470", "linear"),
-            ("bbp700", "linear"),
-            ("chlorophyll", "linear"),
-            ("biolume", "log"),
+            ("ctdseabird_sea_water_temperature", "linear"),
+            ("ctdseabird_sea_water_salinity", "linear"),
+            ("isus_mole_concentration_of_nitrate_in_sea_water_time", "linear"),
+            ("ctdseabird_sea_water_oxygen", "linear"),
+            ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
+            ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
+            ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
+            ("wetlabsubat_average_bioluminescence", "log"),
         ]
 
     def _grid_dims(self) -> tuple:
@@ -358,10 +404,28 @@ class CreateProducts:
             },
         )
 
+        # Check for and remove NaN values in distnav
+        if np.isnan(distnav.to_numpy()).any():
+            nan_count = np.isnan(distnav.to_numpy()).sum()
+            self.logger.warning(
+                "distnav contains %d NaN values, %.1f%% of %d, removing them",
+                nan_count,
+                100.0 * nan_count / len(distnav),
+                len(distnav),
+            )
+            # Filter out NaN values and corresponding time coordinates
+            valid_mask = ~np.isnan(distnav.to_numpy())
+            distnav = xr.DataArray(
+                distnav.to_numpy()[valid_mask],
+                dims=("time",),
+                coords={"time": distnav.coords["time"].to_numpy()[valid_mask]},
+                attrs=distnav.attrs,
+            )
+
         # Horizontal gridded to 3x the number of profiles
         idist = np.linspace(
-            distnav.to_numpy().min(),
-            distnav.to_numpy().max(),
+            distnav.to_numpy()[0],
+            distnav.to_numpy()[-1],
             3 * self.ds["profile_number"].to_numpy()[-1],
         )
         # Vertical gridded to .5 m, rounded down to nearest 50m
@@ -730,6 +794,90 @@ class CreateProducts:
             color="black",
         )
 
+    def _setup_no_data_axes(  # noqa: PLR0913
+        self,
+        curr_ax: matplotlib.axes.Axes,
+        idist: np.array,
+        iz: np.array,
+        fig: matplotlib.figure.Figure,
+        var: str,
+        row: int,
+        col: int,
+        text: str = "No Data",
+    ):
+        """Set up minimal axes for plots with no data.
+
+        Args:
+            curr_ax: The axes object to configure
+            idist: Distance array
+            iz: Depth array
+            fig: Figure object for colorbar
+            var: Variable name for colorbar label
+            row: Row index in subplot grid
+            col: Column index in subplot grid
+            text: Text to display in the center of the plot
+        """
+        curr_ax.set_xlim([min(idist) / 1000.0, max(idist) / 1000.0])
+        curr_ax.set_ylim([max(iz), min(iz)])
+
+        # Only show y-label on left column or top of right column
+        if col == 0 or (col == 1 and row == 0):
+            curr_ax.set_ylabel("Depth (m)")
+        else:
+            curr_ax.set_ylabel("")
+
+        # Set y-axis ticks at 0, 50, 100, 150, etc.
+        y_min = max(iz)
+        y_ticks = np.arange(0, int(y_min) + 50, 50)
+        curr_ax.set_yticks(y_ticks)
+
+        # Add text
+        curr_ax.text(
+            0.5,
+            0.5,
+            text,
+            ha="center",
+            va="center",
+            fontsize=14,
+            fontweight="bold",
+            transform=curr_ax.transAxes,
+        )
+
+        # Add a fake colorbar to maintain layout consistency
+        # Create a dummy mappable with a simple gray colormap
+        dummy_data = np.array([[0, 1]])
+        dummy_im = curr_ax.imshow(
+            dummy_data,
+            cmap="gray",
+            aspect="auto",
+            visible=False,
+        )
+        cb = fig.colorbar(dummy_im, ax=curr_ax)
+
+        # Hide the colorbar ticks and tick labels but keep the label visible
+        cb.set_ticks([])
+        cb.ax.set_facecolor("white")
+        cb.outline.set_visible(False)
+
+        # Get variable name for the label
+        if var in self.ds:
+            long_name = self.ds[var].attrs.get("long_name", var)
+            units = self.ds[var].attrs.get("units", "")
+        else:
+            # Extract readable name from variable string (e.g., "isus_nitrate" -> "Nitrate")
+            long_name = var.split("_")[-1].capitalize()
+            units = ""
+
+        # Use variable name if long_name is too long
+        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
+            long_name = var
+
+        # Add label to the colorbar area
+        if units:
+            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+        else:
+            cb.set_label(long_name, fontsize=9)
+
     def _plot_var(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         var: str,
@@ -770,79 +918,26 @@ class CreateProducts:
 
         # If no data, set up minimal axes and return early
         if no_data:
-            curr_ax.set_xlim([min(idist) / 1000.0, max(idist) / 1000.0])
-            curr_ax.set_ylim([max(iz), min(iz)])
-
-            # Only show y-label on left column or top of right column
-            if col == 0 or (col == 1 and row == 0):
-                curr_ax.set_ylabel("Depth (m)")
-            else:
-                curr_ax.set_ylabel("")
-
-            # Set y-axis ticks at 0, 50, 100, 150, etc.
-            y_min = max(iz)
-            y_ticks = np.arange(0, int(y_min) + 50, 50)
-            curr_ax.set_yticks(y_ticks)
-
-            # Add "No Data" text
-            curr_ax.text(
-                0.5,
-                0.5,
-                "No Data",
-                ha="center",
-                va="center",
-                fontsize=14,
-                fontweight="bold",
-                transform=curr_ax.transAxes,
-            )
-
-            # Add a fake colorbar to maintain layout consistency
-            # Create a dummy mappable with a simple gray colormap
-            dummy_data = np.array([[0, 1]])
-            dummy_im = curr_ax.imshow(
-                dummy_data,
-                cmap="gray",
-                aspect="auto",
-                visible=False,
-            )
-            cb = fig.colorbar(dummy_im, ax=curr_ax)
-
-            # Hide the colorbar ticks and tick labels but keep the label visible
-            cb.set_ticks([])
-            cb.ax.set_facecolor("white")
-            cb.outline.set_visible(False)
-
-            # Get variable name for the label
-            if var in self.ds:
-                long_name = self.ds[var].attrs.get("long_name", var)
-                units = self.ds[var].attrs.get("units", "")
-            else:
-                # Extract readable name from variable string (e.g., "isus_nitrate" -> "Nitrate")
-                long_name = var.split("_")[-1].capitalize()
-                units = ""
-
-            # Use variable name if long_name is too long
-            if len(long_name) > self.MAX_LONG_NAME_LENGTH:
-                long_name = var
-
-            # Add label to the colorbar area
-            if units:
-                cb.set_label(f"{long_name} [{units}]", fontsize=9)
-            else:
-                cb.set_label(long_name, fontsize=9)
-
+            self._setup_no_data_axes(curr_ax, idist, iz, fig, var, row, col)
             return
 
         # Normal plotting path - we have valid data
         scafac = max(idist) / max(iz)
-        gridded_var = griddata(
-            (distnav.to_numpy() / 1000.0 / scafac, self.ds.cf["depth"].to_numpy()),
-            var_to_plot,
-            ((idist / scafac / 1000.0)[None, :], iz[:, None]),
-            method="linear",
-            rescale=True,
-        )
-
+        try:
+            gridded_var = griddata(
+                (distnav.to_numpy() / 1000.0 / scafac, self.ds.cf["depth"].to_numpy()),
+                var_to_plot,
+                ((idist / scafac / 1000.0)[None, :], iz[:, None]),
+                method="linear",
+                rescale=True,
+            )
+        except ValueError as e:
+            self.logger.error("Error in griddata for %s: %s", var, e)  # noqa: TRY400
+            # Set up minimal axes and return early
+            self._setup_no_data_axes(
+                curr_ax, idist, iz, fig, var, row, col, text="Failed to Grid Data"
+            )
+            return
         color_map_name = self._get_colormap_name(var)
         try:
             cmap = plt.get_cmap(color_map_name)
@@ -862,30 +957,8 @@ class CreateProducts:
                 v97_5,
             )
             # Set up minimal axes and return early
-            curr_ax.set_xlim([min(idist) / 1000.0, max(idist) / 1000.0])
-            curr_ax.set_ylim([max(iz), min(iz)])
-
-            # Only show y-label on left column or top of right column
-            if col == 0 or (col == 1 and row == 0):
-                curr_ax.set_ylabel("Depth (m)")
-            else:
-                curr_ax.set_ylabel("")
-
-            # Set y-axis ticks at 0, 50, 100, 150, etc.
-            y_min = max(iz)
-            y_ticks = np.arange(0, int(y_min) + 50, 50)
-            curr_ax.set_yticks(y_ticks)
-
-            # Add "No Data" text
-            curr_ax.text(
-                0.5,
-                0.5,
-                "No Data",
-                ha="center",
-                va="center",
-                fontsize=14,
-                fontweight="bold",
-                transform=curr_ax.transAxes,
+            self._setup_no_data_axes(
+                curr_ax, idist, iz, fig, var, row, col, text="Invalid Data Range"
             )
             return
 
@@ -1053,7 +1126,7 @@ class CreateProducts:
                 clip_on=False,
             )
 
-    def plot_2column(self) -> str:  # noqa: PLR0912
+    def plot_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
         """Create 2column plot similar to plot_sections.m and stoqs/utils/Viz/plotting.py
         Construct a 2D grid of distance and depth and for each parameter grid the data
         to create a shaded plot in each subplot.
@@ -1071,10 +1144,15 @@ class CreateProducts:
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
         plt.subplots_adjust(hspace=0.15, wspace=0.01, left=0.05, right=1.01, top=0.96, bottom=0.06)
 
-        best_ctd = self._get_best_ctd()
-
         # Compute density (sigma-t) if not already present
-        self._compute_density(best_ctd)
+        best_ctd = None
+        if self._is_lrauv():
+            self.logger.info("LRAUV mission detected for 2column plot")
+            self._compute_density_lrauv()
+        else:
+            self.logger.info("Dorado mission detected for 2column plot")
+            best_ctd = self._get_best_ctd()
+            self._compute_density(best_ctd)
 
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
         self._plot_track_map(ax[0, 0], ax[1, 0])
@@ -1095,10 +1173,14 @@ class CreateProducts:
             self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
             profile_bottoms = None
 
-        bottom_depths = self._get_bathymetry(
-            self.ds.cf["longitude"].to_numpy(),
-            self.ds.cf["latitude"].to_numpy(),
-        )
+        try:
+            bottom_depths = self._get_bathymetry(
+                self.ds.cf["longitude"].to_numpy(),
+                self.ds.cf["latitude"].to_numpy(),
+            )
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
+            bottom_depths = None
 
         row = 1  # Start at row 1, col 0 (below the map)
         col = 0
@@ -1143,17 +1225,16 @@ class CreateProducts:
 
         # Save plot to file
         if self._is_lrauv():
-            # Use log file name for output
-            log_name = Path(self.log_file).stem
-            images_dir = Path(
-                BASE_PATH, "lrauv_data", MISSIONIMAGES, Path(self.log_file).parent.name
+            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+            output_file = Path(
+                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_cmocean.png"
             )
-            Path(images_dir).mkdir(parents=True, exist_ok=True)
-            output_file = Path(images_dir, f"{log_name}_2column.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
-            output_file = Path(images_dir, f"{self.auv_name}_{self.mission}_{FREQ}_2column.png")
+            output_file = Path(
+                images_dir, f"{self.auv_name}_{self.mission}_{self.freq}_2column_cmocean.png"
+            )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.show()
         plt.close(fig)
@@ -1235,7 +1316,7 @@ class CreateProducts:
 
         output_file = Path(
             images_dir,
-            f"{self.auv_name}_{self.mission}_{FREQ}_biolume.png",
+            f"{self.auv_name}_{self.mission}_{self.freq}_biolume.png",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.close(fig)
@@ -1292,7 +1373,7 @@ class CreateProducts:
         Path(odv_dir).mkdir(parents=True, exist_ok=True)
         gulper_odv_filename = Path(
             odv_dir,
-            f"{self.auv_name}_{self.mission}_{FREQ}_Gulper.txt",
+            f"{self.auv_name}_{self.mission}_{self.freq}_Gulper.txt",
         )
         self._open_ds()
 
@@ -1337,7 +1418,7 @@ class CreateProducts:
                 )
                 for count, name in enumerate(odv_column_names):
                     if name == "Cruise":
-                        f.write(f"{self.auv_name}_{self.mission}_{FREQ}")
+                        f.write(f"{self.auv_name}_{self.mission}_{self.freq}")
                     elif name == "Station":
                         f.write(f"{int(gulper_data['profile_number'].to_numpy().mean()):d}")
                     elif name == "Type":
@@ -1449,6 +1530,7 @@ class CreateProducts:
             help="Path to LRAUV log file (alternative to --auv_name/--mission for LRAUV data)",
             type=str,
         )
+        # Note: --freq is already defined in get_standard_dorado_parser()
 
         self.args = parser.parse_args()
         self.commandline = " ".join(sys.argv)
@@ -1461,6 +1543,7 @@ class CreateProducts:
         self.local = self.args.local
         self.verbose = self.args.verbose
         self.log_file = getattr(self.args, "log_file", None)
+        self.freq = self.args.freq
 
         # Validate that either (auv_name and mission) or log_file is provided
         if self.log_file:
@@ -1480,5 +1563,6 @@ if __name__ == "__main__":
     p_start = time.time()
     cp.plot_2column()
     cp.plot_biolume()
-    cp.gulper_odv()
+    if cp.mission and cp.auv_name:
+        cp.gulper_odv()
     cp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
