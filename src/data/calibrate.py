@@ -642,7 +642,7 @@ class Calibrate_NetCDF:
         self.clobber = clobber
         self.noreprocess = noreprocess
         self.nudge_segment_count = None
-        self.nudge_total_minutes = None
+        self.nudge_total_minutes = 0
         self.logger.setLevel(self._log_levels[verbose])
 
     def global_metadata(self):
