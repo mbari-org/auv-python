@@ -343,14 +343,14 @@ class CreateProducts:
         """
         return [
             ("density", "linear"),
-            ("temperature", "linear"),
-            ("salinity", "linear"),
-            ("nitrate", "linear"),
-            ("oxygen", "linear"),
-            ("bbp470", "linear"),
-            ("bbp700", "linear"),
-            ("chlorophyll", "linear"),
-            ("biolume", "log"),
+            ("ctdseabird_sea_water_temperature", "linear"),
+            ("ctdseabird_sea_water_salinity", "linear"),
+            ("isus_mole_concentration_of_nitrate_in_sea_water_time", "linear"),
+            ("ctdseabird_sea_water_oxygen", "linear"),
+            ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
+            ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
+            ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
+            ("wetlabsubat_average_bioluminescence", "log"),
         ]
 
     def _grid_dims(self) -> tuple:
