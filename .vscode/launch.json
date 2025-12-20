@@ -348,7 +348,9 @@
             // File "/src/data/calibrate.py", line 698, in global_metadata f"{self.nudge_total_minutes:.1f} minutes nudged toward GPS fixes."
             //"args": ["-v", "1", "--mission", "2003.191.00", "--noinput", "--no_cleanup" ],
             //   File "/src/data/resample.py", line 736,  IndexError: index -1 is out of bounds for axis 0 with size 0
-            "args": ["-v", "1", "--mission", "2006.338.11", "--noinput", "--no_cleanup" ],
+            // "args": ["-v", "1", "--mission", "2006.338.11", "--noinput", "--no_cleanup" ],
+            // File "/src/data/create_products.py", line 997, in _plot_var AttributeError: 'NoneType' object has no attribute 'get_index'
+            "args": ["-v", "1", "--mission", "2010.257.00", "--noinput", "--no_cleanup" ],
 
         },
         {

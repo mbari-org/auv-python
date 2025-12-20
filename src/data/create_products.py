@@ -992,26 +992,27 @@ class CreateProducts:
             levels=np.linspace(v2_5, v97_5, num_colors),
         )
 
-        # Blank out the countoured data below the bottom of the profiles
-        xb = np.append(
-            profile_bottoms.get_index("dist").to_numpy(),
-            [
-                curr_ax.get_xlim()[1],
-                curr_ax.get_xlim()[1],
-                curr_ax.get_xlim()[0],
-                curr_ax.get_xlim()[0],
-            ],
-        )
-        yb = np.append(
-            profile_bottoms.to_numpy(),
-            [
-                profile_bottoms.to_numpy()[-1],
-                curr_ax.get_ylim()[0],
-                curr_ax.get_ylim()[0],
-                profile_bottoms.to_numpy()[0],
-            ],
-        )
-        curr_ax.fill(list(reversed(xb)), list(reversed(yb)), "w")
+        if profile_bottoms is not None:
+            # Blank out the countoured data below the bottom of the profiles
+            xb = np.append(
+                profile_bottoms.get_index("dist").to_numpy(),
+                [
+                    curr_ax.get_xlim()[1],
+                    curr_ax.get_xlim()[1],
+                    curr_ax.get_xlim()[0],
+                    curr_ax.get_xlim()[0],
+                ],
+            )
+            yb = np.append(
+                profile_bottoms.to_numpy(),
+                [
+                    profile_bottoms.to_numpy()[-1],
+                    curr_ax.get_ylim()[0],
+                    curr_ax.get_ylim()[0],
+                    profile_bottoms.to_numpy()[0],
+                ],
+            )
+            curr_ax.fill(list(reversed(xb)), list(reversed(yb)), "w")
 
         # Add bathymetry as grey filled contour if available
         if bottom_depths is not None:
