@@ -503,35 +503,7 @@ class CreateProducts:
                 )
                 return bathymetry
 
-        # Fall back to global grids
-        # Try GEBCO first (higher resolution), fall back to ETOPO1
-        try:
-            self.logger.info("Retrieving bathymetry from GEBCO global grid")
-            result = pygmt.grdtrack(
-                points=points,
-                grid="@earth_relief_15s",  # 15 arc-second resolution (~450m)
-                newcolname="depth",
-            )
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning(
-                "Failed to retrieve bathymetry data: %s. Continuing without bathymetry.",
-                e,
-            )
-            return None
-        else:
-            if result["depth"].empty:
-                self.logger.warning(
-                    "No bathymetry data retrieved from GEBCO grid, continuing without bathymetry.",
-                )
-                return None
-            # Convert to positive depths (meters below sea surface)
-            bathymetry = -result["depth"].to_numpy()
-            self.logger.info(
-                "Retrieved bathymetry data using pygmt (min: %.1f m, max: %.1f m)",
-                bathymetry.min(),
-                bathymetry.max(),
-            )
-            return bathymetry
+        return None
 
     def _profile_bottoms(
         self,
