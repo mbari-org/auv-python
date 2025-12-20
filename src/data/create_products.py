@@ -506,6 +506,7 @@ class CreateProducts:
         # Fall back to global grids
         # Try GEBCO first (higher resolution), fall back to ETOPO1
         try:
+            self.logger.info("Retrieving bathymetry from GEBCO global grid")
             result = pygmt.grdtrack(
                 points=points,
                 grid="@earth_relief_15s",  # 15 arc-second resolution (~450m)
@@ -518,6 +519,11 @@ class CreateProducts:
             )
             return None
         else:
+            if result["depth"].empty:
+                self.logger.warning(
+                    "No bathymetry data retrieved from GEBCO grid, continuing without bathymetry.",
+                )
+                return None
             # Convert to positive depths (meters below sea surface)
             bathymetry = -result["depth"].to_numpy()
             self.logger.info(
