@@ -382,7 +382,7 @@ class CreateProducts:
                 "Cannot compute mean longitude for UTM zone calculation, "
                 "longitude data may be empty or contain NaNs",
             )
-            return None, None, None
+            return np.array([]), np.array([]), xr.DataArray()
         MAX_LONGITUDE_VALUES = 400
         n_subsample = 200 if len(self.ds.cf["longitude"].to_numpy()) > MAX_LONGITUDE_VALUES else 1
         lon_sub_intrp = np.interp(
@@ -1125,7 +1125,7 @@ class CreateProducts:
         self._open_ds()
 
         idist, iz, distnav = self._grid_dims()
-        if idist is None or iz is None or distnav is None:
+        if idist.size == 0 or iz.size == 0 or distnav.size == 0:
             self.logger.warning("Skipping plot_2column due to missing gridding dimensions")
             return None
 
