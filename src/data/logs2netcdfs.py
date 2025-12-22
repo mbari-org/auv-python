@@ -645,8 +645,13 @@ class AUV_NetCDF:
 
     def write_variables(self, log_data, netcdf_filename):
         log_data = self._correct_dup_short_names(log_data)
-        if self.mission == "2025.316.02" and self.add_seconds:
-            # So far only this mission is known to suffer from GPS Week Rollover bug
+        if self.mission == "2025.316.02":
+            # Hard code add_seconds value for mission 2025.316.02, don't rely on user input
+            self.add_seconds = 1024 * 7 * 24 * 3600
+            self.logger.info(
+                "Overriding add_seconds to 1024*7*24*3600 = %d for mission 2025.316.02",
+                self.add_seconds,
+            )
             log_data = self.correct_times(log_data, self.add_seconds)
         self.nc_file.createDimension(TIME, len(log_data[0].data))
         for variable in log_data:
