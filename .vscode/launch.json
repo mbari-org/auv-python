@@ -354,7 +354,9 @@
             // File "/src/data/create_products.py", line 806, ValueError: max() iterable argument is empty 
             //"args": ["-v", "1", "--mission", "2013.079.00", "--noinput", "--no_cleanup" ],
             // Add --add_seconds argument for 2025.316.02 mission when procss_missions is used
-            "args": ["-v", "1", "--noinput",  "--start_year", "2025", "--end_year", "2025", "--start_yd", "316", "--num_cores", "1", "--no_cleanup"]
+            //"args": ["-v", "1", "--noinput",  "--start_year", "2025", "--end_year", "2025", "--start_yd", "316", "--num_cores", "1", "--no_cleanup"]
+            // Do not write _1S.nc file if it has no time data
+            "args": ["-v", "1", "--mission", "2006.338.11", "--noinput", "--no_cleanup" ],
 
 
         },
