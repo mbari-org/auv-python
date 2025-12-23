@@ -377,7 +377,7 @@ class CreateProducts:
 
         try:
             utm_zone = int(31 + (self.ds.cf["longitude"].mean() // 6))
-        except ValueError:
+        except (KeyError, ValueError):
             self.logger.warning(
                 "Cannot compute mean longitude for UTM zone calculation, "
                 "longitude data may be empty or contain NaNs",
@@ -1157,7 +1157,7 @@ class CreateProducts:
 
         try:
             profile_bottoms = self._profile_bottoms(distnav)
-        except ValueError as e:  # noqa: BLE001
+        except (TypeError, ValueError) as e:
             self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
             profile_bottoms = None
 
@@ -1230,7 +1230,7 @@ class CreateProducts:
         self.logger.info("Saved 2column plot to %s", output_file)
         return str(output_file)
 
-    def plot_biolume(self) -> str:  # noqa: C901
+    def plot_biolume(self) -> str:  # noqa: C901, PLR0912
         """Create bioluminescence plot showing raw signal and proxy variables"""
         # Skip plotting in pytest environment - too many prerequisites for CI
         if "pytest" in sys.modules:
@@ -1249,8 +1249,11 @@ class CreateProducts:
         if idist is None or iz is None or distnav is None:
             self.logger.warning("Skipping plot_biolume due to missing gridding dimensions")
             return None
-
-        profile_bottoms = self._profile_bottoms(distnav)
+        try:
+            profile_bottoms = self._profile_bottoms(distnav)
+        except (TypeError, ValueError) as e:
+            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
+            profile_bottoms = None
 
         # Create figure with subplots for biolume variables
         num_plots = min(len(biolume_vars), 6)  # Limit to 6 most important variables

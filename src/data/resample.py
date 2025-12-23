@@ -2054,8 +2054,14 @@ class Resampler:
             # Append flash_threshold to output filename
             ft_ending = f"_ft{self.flash_threshold:.0E}.nc".replace("E+", "E")
             out_fn = out_fn.replace(".nc", ft_ending)
-        self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")
-        self.logger.info("Saved resampled mission to %s", out_fn)
+        if self.resampled_nc["time"].any():
+            self.resampled_nc.to_netcdf(path=out_fn, format="NETCDF4_CLASSIC")
+            self.logger.info("Saved resampled mission to %s", out_fn)
+        else:
+            self.logger.warning(
+                "No resampled time data available - not saving resampled file %s",
+                out_fn,
+            )
 
     def process_command_line(self):
         """Process command line arguments using shared parser infrastructure."""
