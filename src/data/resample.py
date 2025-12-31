@@ -658,8 +658,48 @@ class Resampler:
         sunrises = []
         nighttime_bl_raw = pd.Series(dtype="float64")
 
-        # Iterate over sunset and sunrise pairs
-        for i in range(0, len(ss_sr_times) - 1, 2):
+        if len(ss_sr_times) == 0:
+            self.logger.info("No sunset or sunrise found during this mission.")
+            return nighttime_bl_raw, sunsets, sunrises
+
+        # Determine if transitions are sunsets or sunrises by checking sun altitude signs
+        # If sun goes from positive to negative, it's a sunset
+        # If sun goes from negative to positive, it's a sunrise
+        is_sunset = [
+            sun_alts[idx] > 0 and sun_alts[idx + 1] < 0
+            for idx in sign_changes
+            if idx < len(sun_alts) - 1
+        ]
+
+        # Handle unpaired sunrise at the beginning (mission starts during nighttime)
+        start_idx = 0
+        if is_sunset and not is_sunset[0]:  # First transition is sunrise
+            # Mission started during nighttime, use mission start to this sunrise
+            sunrise = ss_sr_times[0] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
+            mission_start = self.ds[time_coord].to_numpy()[0]
+            sunsets.append(mission_start)
+            sunrises.append(sunrise)
+            self.logger.info(
+                "Mission started during nighttime. Extracting biolume_raw data from "
+                "mission start %s to sunrise %s",
+                mission_start,
+                sunrise,
+            )
+            nighttime_data = (
+                self.ds["biolume_raw"]
+                .where(
+                    (self.ds["biolume_time60hz"] >= mission_start)
+                    & (self.ds["biolume_time60hz"] < sunrise),
+                )
+                .to_pandas()
+                .dropna()
+            )
+            if not nighttime_data.empty:
+                nighttime_bl_raw = nighttime_data.copy()
+            start_idx = 1
+
+        # Process sunset-sunrise pairs
+        for i in range(start_idx, len(ss_sr_times) - 1, 2):
             sunset = ss_sr_times[i] + pd.to_timedelta(1, "h")  # 1 hour past sunset
             sunrise = ss_sr_times[i + 1] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
             sunsets.append(sunset)
@@ -688,8 +728,37 @@ class Resampler:
                 else pd.concat([nighttime_bl_raw, nighttime_data])  # if both DataFrames non empty
             )
 
-        if not sunsets or not sunrises:
-            self.logger.info("No sunset or sunrise found during this mission.")
+        # Handle unpaired sunset at the end (mission ends during nighttime)
+        if len(ss_sr_times) % 2 == 1 and (not is_sunset or is_sunset[-1]):
+            # Last transition is a sunset, mission ended during nighttime
+            sunset = ss_sr_times[-1] + pd.to_timedelta(1, "h")  # 1 hour past sunset
+            mission_end = self.ds[time_coord].to_numpy()[-1]
+            sunsets.append(sunset)
+            sunrises.append(mission_end)
+            self.logger.info(
+                "Mission ended during nighttime. Extracting biolume_raw data from "
+                "sunset %s to mission end %s",
+                sunset,
+                mission_end,
+            )
+            nighttime_data = (
+                self.ds["biolume_raw"]
+                .where(
+                    (self.ds["biolume_time60hz"] > sunset)
+                    & (self.ds["biolume_time60hz"] <= mission_end),
+                )
+                .to_pandas()
+                .dropna()
+            )
+            # This complication is needed because concat will not like an empty DataFrame
+            nighttime_bl_raw = (
+                nighttime_bl_raw.copy()
+                if nighttime_data.empty
+                else nighttime_data.copy()
+                if nighttime_bl_raw.empty
+                else pd.concat([nighttime_bl_raw, nighttime_data])  # if both DataFrames non empty
+            )
+
         return nighttime_bl_raw, sunsets, sunrises
 
     def _find_lat_lon_variables(self) -> tuple[str, str]:
@@ -1383,8 +1452,49 @@ class Resampler:
         sunrises = []
         nighttime_ubat_raw = pd.Series(dtype="float64")
 
-        # Iterate over sunset and sunrise pairs
-        for i in range(0, len(ss_sr_times) - 1, 2):
+        if len(ss_sr_times) == 0:
+            self.logger.info("No sunset or sunrise found during this mission.")
+            return nighttime_ubat_raw, sunsets, sunrises
+
+        # Determine if transitions are sunsets or sunrises by checking sun altitude signs
+        # If sun goes from positive to negative, it's a sunset
+        # If sun goes from negative to positive, it's a sunrise
+        is_sunset = [
+            sun_alts[idx] > 0 and sun_alts[idx + 1] < 0
+            for idx in sign_changes
+            if idx < len(sun_alts) - 1
+        ]
+
+        # Handle unpaired sunrise at the beginning (mission starts during nighttime)
+        start_idx = 0
+        time_coord_name = self.ds["wetlabsubat_digitized_raw_ad_counts"].dims[0]
+        if is_sunset and not is_sunset[0]:  # First transition is sunrise
+            # Mission started during nighttime, use mission start to this sunrise
+            sunrise = ss_sr_times[0] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
+            mission_start = self.ds[time_coord].to_numpy()[0]
+            sunsets.append(mission_start)
+            sunrises.append(sunrise)
+            self.logger.info(
+                "Mission started during nighttime. Extracting wetlabsubat_digitized_raw_ad_counts "
+                "data from mission start %s to sunrise %s",
+                mission_start,
+                sunrise,
+            )
+            nighttime_data = (
+                self.ds["wetlabsubat_digitized_raw_ad_counts"]
+                .where(
+                    (self.ds[time_coord_name] >= mission_start)
+                    & (self.ds[time_coord_name] < sunrise),
+                )
+                .to_pandas()
+                .dropna()
+            )
+            if not nighttime_data.empty:
+                nighttime_ubat_raw = nighttime_data.copy()
+            start_idx = 1
+
+        # Process sunset-sunrise pairs
+        for i in range(start_idx, len(ss_sr_times) - 1, 2):
             sunset = ss_sr_times[i] + pd.to_timedelta(1, "h")  # 1 hour past sunset
             sunrise = ss_sr_times[i + 1] - pd.to_timedelta(1, "h")  # 1 hour before sunrise
             sunsets.append(sunset)
@@ -1396,7 +1506,6 @@ class Resampler:
                 sunset,
                 sunrise,
             )
-            time_coord_name = self.ds["wetlabsubat_digitized_raw_ad_counts"].dims[0]
             nighttime_data = (
                 self.ds["wetlabsubat_digitized_raw_ad_counts"]
                 .where(
@@ -1414,8 +1523,36 @@ class Resampler:
                 else pd.concat([nighttime_ubat_raw, nighttime_data])  # if both DataFrames non empty
             )
 
-        if not sunsets or not sunrises:
-            self.logger.info("No sunset or sunrise found during this mission.")
+        # Handle unpaired sunset at the end (mission ends during nighttime)
+        if len(ss_sr_times) % 2 == 1 and (not is_sunset or is_sunset[-1]):
+            # Last transition is a sunset, mission ended during nighttime
+            sunset = ss_sr_times[-1] + pd.to_timedelta(1, "h")  # 1 hour past sunset
+            mission_end = self.ds[time_coord].to_numpy()[-1]
+            sunsets.append(sunset)
+            sunrises.append(mission_end)
+            self.logger.info(
+                "Mission ended during nighttime. Extracting wetlabsubat_digitized_raw_ad_counts "
+                "data from sunset %s to mission end %s",
+                sunset,
+                mission_end,
+            )
+            nighttime_data = (
+                self.ds["wetlabsubat_digitized_raw_ad_counts"]
+                .where(
+                    (self.ds[time_coord_name] > sunset) & (self.ds[time_coord_name] <= mission_end),
+                )
+                .to_pandas()
+                .dropna()
+            )
+            # This complication is needed because concat will not like an empty DataFrame
+            nighttime_ubat_raw = (
+                nighttime_ubat_raw.copy()
+                if nighttime_data.empty
+                else nighttime_data.copy()
+                if nighttime_ubat_raw.empty
+                else pd.concat([nighttime_ubat_raw, nighttime_data])  # if both DataFrames non empty
+            )
+
         return nighttime_ubat_raw, sunsets, sunrises
 
     def correct_biolume_proxies(  # noqa: C901, PLR0912, PLR0913, PLR0915
