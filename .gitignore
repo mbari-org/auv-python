@@ -87,3 +87,7 @@ target/
 
 # Mypy cache
 .mypy_cache/
+
+# Produced by notebooks/5.3-mpm-compare_auv_biolume.ipynb
+notebooks/merged_diamond_missions.parquet
+
