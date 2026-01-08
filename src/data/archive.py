@@ -248,6 +248,22 @@ class Archiver:
                     "%-36s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
                     src_file.name,
                 )
+        # Copy PNG product files created by create_products.py
+        self.logger.info("Archiving product files")
+        for src_file in src_dir.glob(f"{Path(log_file).stem}_*.png"):
+            dst_file = Path(dst_dir, src_file.name)
+            if self.clobber:
+                if dst_file.exists():
+                    self.logger.info("Removing %s", dst_file)
+                    dst_file.unlink()
+                if src_file.exists():
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+            elif src_file.exists():
+                self.logger.info(
+                    "%-36s exists, but is not being archived because --clobber is not specified.",
+                    src_file.name,
+                )
         # Copy the processing.log file last so that we get everything
         src_file = Path(src_dir, f"{Path(log_file).stem}_{LOG_NAME}")
         dst_file = Path(dst_dir, src_file.name)
