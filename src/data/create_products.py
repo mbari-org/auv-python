@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import pooch
 import pyproj
+import scipy
 import xarray as xr
 
 from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
@@ -916,7 +917,7 @@ class CreateProducts:
                 method="linear",
                 rescale=True,
             )
-        except ValueError as e:
+        except (ValueError, scipy.spatial._qhull.QhullError) as e:
             self.logger.error("Error in griddata for %s: %s", var, e)  # noqa: TRY400
             # Set up minimal axes and return early
             self._setup_no_data_axes(
