@@ -18,10 +18,10 @@ on the local file system's work directory is as follows:
     |   |   |   |   |   |                data identical to original in NetCDF4 format,
     |   |   |   |   |   |                but in more interoperable NetCDF3 format 
     |   |   |   |   |   |                - created by nc42netcdfs.py
-    │   │   │   │   │   ├── <_combined>     <- A single NetCDF3 .nc file containing all the
+    │   │   │   │   │   ├── <_combined>     <- A single NetCDF4 .nc4 file containing all the
     |   |   |   |   |   |                   varibles from the .nc files along with nudged
     |   |   |   |   |   |                   latitudes and longitudes - created by combine.py
-    │   │   │   │   │   ├── <_align> <- .nc file with all measurement variables
+    │   │   │   │   │   ├── <_align> <- .nc4 file with all measurement variables
     |   |   |   |   |   |               having associated coordinate variables
     |   |   |   |   |   |               at original instrument sampling rate
     |   |   |   |   |   |                - created by align.py
@@ -45,7 +45,8 @@ on the local file system's work directory is as follows:
         nudged coordinates are added as separate variables (nudged_longitude,
         nudged_latitude) with their own time dimension. For missions without
         GPS data, the combine step completes successfully but without nudged
-        coordinates.
+        coordinates. Since xarray writes time as int64 values the files are
+        saved with the .nc4 extension so that hyrax/opendap can serve them.
 
     align.py
         Interpolate nudged lat/lon variables to the original sampling
@@ -56,7 +57,8 @@ on the local file system's work directory is as follows:
         unserialize process. These are the best files to use for the highest
         temporal resolution of the data. Unlike the .nc4 files, align.py's
         output files use a naming convention rather than netCDF4 groups for
-        each instrument.
+        each instrument. Since xarray writes time as int64 values the files are
+        saved with the .nc4 extension so that hyrax/opendap can serve them.
 
     resample.py
         Produce a netCDF file with all of the instrument's record variables
