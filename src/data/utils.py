@@ -117,6 +117,8 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     max_sec_diff_at_end: int = 10,
     log_file: str = "",
     create_plots: bool = False,  # noqa: FBT001, FBT002
+    nav_depth: xr.DataArray = None,
+    orig_depth: xr.DataArray = None,
 ) -> tuple[xr.DataArray, xr.DataArray, int, float]:
     """
     Apply linear nudges to underwater latitudes and longitudes so that
@@ -376,7 +378,17 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     # Optional plotting code - raise error after opportunity to plot
     if create_plots:
         _create_nudge_plots(
-            lat, lon, lat_fix, lon_fix, lat_nudged, lon_nudged, auv_name, mission, logger
+            lat,
+            lon,
+            lat_fix,
+            lon_fix,
+            lat_nudged,
+            lon_nudged,
+            auv_name,
+            mission,
+            logger,
+            nav_depth=nav_depth,
+            orig_depth=orig_depth,
         )
 
     if error_message:
@@ -386,10 +398,34 @@ def nudge_positions(  # noqa: C901, PLR0912, PLR0913, PLR0915
     return lon_nudged, lat_nudged, segment_count, segment_minsum
 
 
-def _create_nudge_plots(  # noqa: PLR0913
-    lat, lon, lat_fix, lon_fix, lat_nudged, lon_nudged, auv_name, mission, logger
+def _create_nudge_plots(  # noqa: PLR0913, PLR0915
+    lat,
+    lon,
+    lat_fix,
+    lon_fix,
+    lat_nudged,
+    lon_nudged,
+    auv_name,
+    mission,
+    logger,
+    nav_depth=None,
+    orig_depth=None,
 ):
-    """Create debug plots for position nudging (separated for clarity)."""
+    """Create debug plots for position nudging (separated for clarity).
+
+    Args:
+        lat: Original latitude DataArray
+        lon: Original longitude DataArray
+        lat_fix: GPS latitude fixes DataArray
+        lon_fix: GPS longitude fixes DataArray
+        lat_nudged: Nudged latitude DataArray
+        lon_nudged: Nudged longitude DataArray
+        auv_name: Name of the AUV for plot titles
+        mission: Mission identifier for plot titles
+        logger: Logger instance for debug messages
+        nav_depth: Optional depth from combined file for comparison plotting
+        orig_depth: Optional depth from original Group file for comparison plotting
+    """
     try:
         import matplotlib.pyplot as plt
 
@@ -402,22 +438,45 @@ def _create_nudge_plots(  # noqa: PLR0913
         except ImportError:
             has_cartopy = False
 
-        # Time series plots
-        fig, axes = plt.subplots(nrows=2, figsize=(18, 6))
+        # Time series plots - include depth if available
+        has_depth = nav_depth is not None or orig_depth is not None
+        nrows = 3 if has_depth else 2
+        fig, axes = plt.subplots(nrows=nrows, figsize=(18, 9 if has_depth else 6))
+
         axes[0].plot(lat_nudged.coords["time"].data, lat_nudged, "-")
         axes[0].plot(lat.cf["T"].data, lat, "--")
         axes[0].plot(lat_fix.cf["T"].data, lat_fix, "*")
         axes[0].set_ylabel("Latitude")
         axes[0].legend(["Nudged", "Original", "GPS Fixes"])
+        axes[0].grid()
+
         axes[1].plot(lon_nudged.coords["time"].data, lon_nudged, "-")
         axes[1].plot(lon.cf["T"].data, lon, "--")
         axes[1].plot(lon_fix.cf["T"].data, lon_fix, "*")
         axes[1].set_ylabel("Longitude")
         axes[1].legend(["Nudged", "Original", "GPS Fixes"])
+        axes[1].grid()
+
+        # Add depth subplot if data is available
+        if has_depth:
+            if orig_depth is not None:
+                axes[2].plot(
+                    orig_depth.cf["T"].data,
+                    orig_depth,
+                    "--",
+                    label="Original (Group File)",
+                    color="gray",
+                )
+            if nav_depth is not None:
+                axes[2].plot(nav_depth.cf["T"].data, nav_depth, "-", label="Combined", color="red")
+            axes[2].set_ylabel("Depth (m)")
+            axes[2].set_xlabel("Time")
+            axes[2].legend()
+            axes[2].grid()
+            axes[2].invert_yaxis()  # Depth increases downward
+
         title = "Corrected nav from nudge_positions()"
         fig.suptitle(title)
-        axes[0].grid()
-        axes[1].grid()
         logger.debug("Pausing with plot entitled: %s. Close window to continue.", title)
         plt.show()
 

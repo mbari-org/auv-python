@@ -568,6 +568,10 @@ class Combine_NetCDF:
             )
             data_array.attrs = ds[orig_var].attrs.copy()
             data_array.attrs["units"] = "degrees"
+            data_array.attrs["comment"] = (
+                f"{orig_var} from group {ds.attrs.get('group_name', '')} "
+                f"converted from radians to degrees"
+            )
             data_array.attrs["coordinates"] = f"{dim_name}"
         elif len(ds[orig_var].dims) == 2:  # noqa: PLR2004
             # Handle 2D arrays (time, array_index) - e.g. biolume_raw, digitized_raw_ad_counts_M
@@ -867,7 +871,7 @@ class Combine_NetCDF:
                 set_to_nan=False,
             )
 
-    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:
+    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:  # noqa: PLR0912, PLR0915
         """Add nudged longitude and latitude variables to the combined dataset.
 
         If GPS fixes are available, positions are nudged to GPS. Otherwise,
@@ -912,6 +916,26 @@ class Combine_NetCDF:
                 gps_lat = gps_lat.isel({gps_lat.dims[0]: gps_monotonic})
 
             try:
+                # Get depth if available for plotting comparison
+                nav_depth = self.combined_nc.get("universals_depth", None)
+
+                # Get original depth from universals Group file for comparison
+                orig_depth = None
+                if nav_depth is not None:
+                    try:
+                        src_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
+                        log_stem = Path(self.log_file).stem
+                        universals_group_file = src_dir / f"{log_stem}_Group_Universals.nc"
+                        if universals_group_file.exists():
+                            with xr.open_dataset(universals_group_file, decode_cf=True) as group_ds:
+                                if "depth" in group_ds:
+                                    orig_depth = group_ds["depth"].load()
+                                    self.logger.debug(
+                                        "Loaded original depth from %s", universals_group_file.name
+                                    )
+                    except Exception as e:  # noqa: BLE001
+                        self.logger.warning("Could not load original depth from Group file: %s", e)
+
                 nudged_longitude, nudged_latitude, segment_count, segment_minsum = nudge_positions(
                     nav_longitude=self.combined_nc["universals_longitude"],
                     nav_latitude=self.combined_nc["universals_latitude"],
@@ -923,6 +947,8 @@ class Combine_NetCDF:
                     log_file=self.log_file,
                     max_sec_diff_at_end=max_sec_diff_at_end,
                     create_plots=self.plot,
+                    nav_depth=nav_depth,
+                    orig_depth=orig_depth,
                 )
                 gps_corrected = True
             except ValueError:
