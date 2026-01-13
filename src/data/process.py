@@ -115,7 +115,8 @@ def log_file_processor(func):
         finally:
             if hasattr(self, "log_handler"):
                 # Cleanup and archiving logic
-                self.archive(mission=None, log_file=log_file)
+                if self.config.get("clobber"):
+                    self.archive(mission=None, log_file=log_file)
                 if not self.config.get("no_cleanup"):
                     self.cleanup(log_file=log_file)
                 self.logger.info(
