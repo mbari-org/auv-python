@@ -1055,37 +1055,12 @@ class Combine_NetCDF:
         # Expand UBAT 2D arrays to 60hz time series
         self._expand_ubat_to_60hz()
 
-        # Write intermediate file for cf_xarray decoding
-        intermediate_file = self._intermediate_write_netcdf()
-        with xr.open_dataset(intermediate_file, decode_cf=True) as ds:
-            self.combined_nc = ds.load()
+        # Decode CF metadata in memory for cf_xarray to work in nudge_positions()
+        # This avoids precision loss from write/read cycle
+        self.combined_nc = xr.decode_cf(self.combined_nc)
 
         # Add nudged coordinates
         self._add_nudged_coordinates()
-
-        # Clean up intermediate file
-        Path(intermediate_file).unlink()
-
-    def _intermediate_write_netcdf(self) -> None:
-        """Write out an intermediate combined netCDF file so that data can be
-        read using decode_cf=True for nudge_positions() to work with cf accessors."""
-        netcdfs_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
-        out_fn = Path(netcdfs_dir, f"{Path(self.log_file).stem}_combined_intermediate.nc")
-
-        self.combined_nc.attrs = self.global_metadata()
-        self.logger.info("Writing intermediate combined group data to %s", out_fn)
-        if Path(out_fn).exists():
-            Path(out_fn).unlink()
-        self.combined_nc.to_netcdf(out_fn)
-        self.logger.debug(
-            "Data variables written: %s",
-            ", ".join(sorted(self.combined_nc.variables)),
-        )
-        self.logger.info(
-            "Wrote intermediate (_combined_intermediate.nc) netCDF file: %s",
-            out_fn,
-        )
-        return out_fn
 
     def write_netcdf(self) -> None:
         """Write combined netCDF file using instance attributes."""
