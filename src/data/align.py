@@ -450,7 +450,7 @@ class Align_NetCDF:
         )
         # Find navigation coordinates from combined data - must be from universals group
         nav_coords = {}
-        for coord_type in ["longitude", "latitude", "depth", "time"]:
+        for coord_type in ["longitude", "latitude", "depth"]:
             coord_var = f"universals_{coord_type}"
             if coord_var not in self.combined_nc:
                 error_message = (

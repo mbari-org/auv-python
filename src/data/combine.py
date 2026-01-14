@@ -92,7 +92,7 @@ class Combine_NetCDF:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
     variable_time_coord_mapping: dict = {}
-    TIME_MATCH_TOLERANCE = 1e-6  # seconds tolerance for matching time values
+    ESEC_REL_TOLERANCE = 1e-10  # Relative tolerance of about 0.1 seconds in 2026: rtol = 1e-10
 
     def __init__(
         self,
@@ -136,15 +136,17 @@ class Combine_NetCDF:
         metadata["date_update"] = iso_now
         metadata["date_modified"] = iso_now
         metadata["featureType"] = "trajectory"
+        if "universals_time" in self.combined_nc:
+            time_var = self.combined_nc["universals_time"].to_numpy()
+        elif "universals_depth_time" in self.combined_nc:
+            time_var = self.combined_nc["universals_depth_time"].to_numpy()
         try:
-            metadata["time_coverage_start"] = str(
-                pd.to_datetime(self.combined_nc["universals_time"].values, unit="s")[0].isoformat(),
-            )
+            metadata["time_coverage_start"] = str(pd.to_datetime(time_var, unit="s")[0].isoformat())
         except KeyError:
-            error_message = "No universals_time variable in combined_nc"
+            error_message = "No universals_time or universals_depth_time variable in combined_nc"
             raise EOFError(error_message) from None
         metadata["time_coverage_end"] = str(
-            pd.to_datetime(self.combined_nc["universals_time"].values, unit="s")[-1].isoformat(),
+            pd.to_datetime(time_var, unit="s")[-1].isoformat(),
         )
         metadata["distribution_statement"] = "Any use requires prior approval from MBARI"
         metadata["license"] = metadata["distribution_statement"]
@@ -452,7 +454,9 @@ class Combine_NetCDF:
 
             # Compare values with tolerance
             try:
-                if not np.allclose(time_array.values, first_time.values, atol=1e-6):
+                if not np.allclose(
+                    time_array.values, first_time.values, rtol=self.ESEC_REL_TOLERANCE
+                ):
                     all_identical = False
                     self.logger.debug(
                         "Group %s: Time coordinate '%s' values differ from '%s'",
@@ -668,7 +672,7 @@ class Combine_NetCDF:
 
         for i, t_ubat in enumerate(ubat_time):
             # Find matching time in calib_time
-            matches = np.where(np.abs(calib_time - t_ubat) < self.TIME_MATCH_TOLERANCE)[0]
+            matches = np.where(np.abs(calib_time - t_ubat) < self.ESEC_REL_TOLERANCE)[0]
             if len(matches) > 0:
                 common_indices_ubat.append(i)
                 common_indices_calib.append(matches[0])
@@ -759,7 +763,7 @@ class Combine_NetCDF:
             calib_time = calib_coeff.coords[calib_time_dim].to_numpy()
 
         # Verify the time coordinate values are now identical
-        if not np.allclose(ubat_time, calib_time, rtol=1e-9):
+        if not np.allclose(ubat_time, calib_time, rtol=self.ESEC_REL_TOLERANCE):
             error_message = (
                 f"Time coordinates {time_dim} and {calib_time_dim} have different values "
                 "even after alignment"
@@ -1056,7 +1060,6 @@ class Combine_NetCDF:
         self._expand_ubat_to_60hz()
 
         # Decode CF metadata in memory for cf_xarray to work in nudge_positions()
-        # This avoids precision loss from write/read cycle
         self.combined_nc = xr.decode_cf(self.combined_nc)
 
         # Add nudged coordinates
