@@ -435,7 +435,7 @@ class Combine_NetCDF:
         first_time_name = list(time_vars.keys())[0]
 
         all_identical = True
-        for i, (_name, time_array) in enumerate(time_vars.items()):
+        for i, (_name, time_array) in sorted(enumerate(time_vars.items())):
             if i == 0:
                 continue  # Skip first one (reference)
 
