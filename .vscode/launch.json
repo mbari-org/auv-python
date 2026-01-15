@@ -438,7 +438,9 @@
             //"args": ["-v", "1", "--start", "20250101T000000", "--end", "20260101T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250128_20250131/20250129T223350/202501292233_202501292247.nc4", "--no_cleanup"]
             // xarray.core.coordinates.CoordinateValidationError: conflicting sizes for dimension 'nudged_time': length 11 on the data but length 12 on coordinate 'nudged_time'
-            "args": ["-v", "1", "--log_file", "aku/missionlogs/2025/20250115_20250122/20250116T183140/202501161832_202501162027.nc4", "--no_cleanup"]
+            //"args": ["-v", "1", "--log_file", "aku/missionlogs/2025/20250115_20250122/20250116T183140/202501161832_202501162027.nc4", "--no_cleanup"]
+            // KeyError: "No variable named 'universals_longitude'. Variables on the dataset include ['buoyancyservo_time', ...]"
+            "args": ["-v", "1", "--log_file", "aku/missionlogs/2025/20250205_20250206/20250206T003902/202502060039_202502060040.nc4", "--no_cleanup"]
         },
 
     ]
