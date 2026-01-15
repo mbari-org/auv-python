@@ -142,7 +142,7 @@ class Combine_NetCDF:
             time_var = self.combined_nc["universals_depth_time"].to_numpy()
         try:
             metadata["time_coverage_start"] = str(pd.to_datetime(time_var, unit="s")[0].isoformat())
-        except KeyError:
+        except (KeyError, UnboundLocalError):
             error_message = "No universals_time or universals_depth_time variable in combined_nc"
             raise EOFError(error_message) from None
         metadata["time_coverage_end"] = str(
@@ -894,6 +894,14 @@ class Combine_NetCDF:
                 "No GPS fix variables found in combined dataset - "
                 "using uncorrected dead-reckoned positions for nudged coordinates"
             )
+            if (
+                "universals_longitude" not in self.combined_nc
+                or "universals_latitude" not in self.combined_nc
+            ):
+                self.logger.error(
+                    "Dead-reckoned position variables not found - cannot create nudged coordinates"
+                )
+                return
             # Use dead-reckoned positions directly
             nudged_longitude = self.combined_nc["universals_longitude"].to_numpy()
             nudged_latitude = self.combined_nc["universals_latitude"].to_numpy()
