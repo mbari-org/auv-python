@@ -783,6 +783,41 @@ class CreateProducts:
             color="black",
         )
 
+    def _wrap_label_text(self, text: str, max_chars: int = 20) -> str:
+        """Wrap long text into multiple lines at underscore boundaries.
+
+        Args:
+            text: Text to wrap
+            max_chars: Maximum characters per line
+
+        Returns:
+            Text with newlines inserted at appropriate positions
+        """
+        if len(text) <= max_chars:
+            return text
+
+        # Split on underscores to find natural break points
+        parts = text.split("_")
+        lines = []
+        current_line = ""
+
+        for i, part in enumerate(parts):
+            # Add underscore back except for first part
+            modified_part = "_" + part if i > 0 else part
+
+            # Check if adding this part would exceed max_chars
+            if current_line and len(current_line + modified_part) > max_chars:
+                lines.append(current_line)
+                current_line = modified_part
+            else:
+                current_line += modified_part
+
+        # Add the last line
+        if current_line:
+            lines.append(current_line)
+
+        return "\n".join(lines)
+
     def _setup_no_data_axes(  # noqa: PLR0913
         self,
         curr_ax: matplotlib.axes.Axes,
@@ -841,7 +876,7 @@ class CreateProducts:
             aspect="auto",
             visible=False,
         )
-        cb = fig.colorbar(dummy_im, ax=curr_ax)
+        cb = fig.colorbar(dummy_im, ax=curr_ax, pad=0.01)
 
         # Hide the colorbar ticks and tick labels but keep the label visible
         cb.set_ticks([])
@@ -861,11 +896,14 @@ class CreateProducts:
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
 
+        # Wrap long names into multiple lines
+        long_name = self._wrap_label_text(long_name)
+
         # Add label to the colorbar area
         if units:
-            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
-            cb.set_label(long_name, fontsize=9)
+            cb.set_label(long_name, fontsize=8)
 
     def _plot_var(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
@@ -1054,7 +1092,7 @@ class CreateProducts:
         y_ticks = np.arange(0, int(y_min) + 50, 50)
         curr_ax.set_yticks(y_ticks)
 
-        cb = fig.colorbar(scatter, ax=curr_ax)
+        cb = fig.colorbar(scatter, ax=curr_ax, pad=0.01)
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
         cb.update_ticks()
@@ -1067,14 +1105,17 @@ class CreateProducts:
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
 
+        # Wrap long names into multiple lines
+        long_name = self._wrap_label_text(long_name)
+
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
         elif scale == "log":
             cb.set_label(f"{long_name}\n[log10]", fontsize=7)
         elif units:
-            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
-            cb.set_label(long_name, fontsize=9)
+            cb.set_label(long_name, fontsize=8)
 
         # Add CTD label for density, temperature, and salinity plots
         if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
@@ -1275,7 +1316,7 @@ class CreateProducts:
         y_ticks = np.arange(0, int(y_min) + 50, 50)
         curr_ax.set_yticks(y_ticks)
 
-        cb = fig.colorbar(cntrf, ax=curr_ax)
+        cb = fig.colorbar(cntrf, ax=curr_ax, pad=0.01)
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
         cb.update_ticks()
@@ -1313,14 +1354,17 @@ class CreateProducts:
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
 
+        # Wrap long names into multiple lines
+        long_name = self._wrap_label_text(long_name)
+
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
         elif scale == "log":
             cb.set_label(f"{long_name}\n[log10]", fontsize=7)
         elif units:
-            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
-            cb.set_label(long_name, fontsize=9)
+            cb.set_label(long_name, fontsize=8)
 
         # Add CTD label for density, temperature, and salinity plots
         if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
