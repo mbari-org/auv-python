@@ -875,7 +875,7 @@ class Combine_NetCDF:
                 set_to_nan=False,
             )
 
-    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:  # noqa: PLR0912, PLR0915
+    def _add_nudged_coordinates(self, max_sec_diff_at_end: int = 10) -> None:  # noqa: PLR0912, PLR0915, C901
         """Add nudged longitude and latitude variables to the combined dataset.
 
         If GPS fixes are available, positions are nudged to GPS. Otherwise,
@@ -995,16 +995,20 @@ class Combine_NetCDF:
             )
             lat_comment = lon_comment
 
-        self.combined_nc["nudged_longitude"] = xr.DataArray(
-            nudged_longitude,
-            coords=[
-                self.combined_nc[
-                    self.variable_time_coord_mapping["universals_longitude"]
-                ].to_numpy()
-            ],
-            dims={f"nudged_{TIME}"},
-            name="nudged_longitude",
-        )
+        try:
+            self.combined_nc["nudged_longitude"] = xr.DataArray(
+                nudged_longitude,
+                coords=[
+                    self.combined_nc[
+                        self.variable_time_coord_mapping["universals_longitude"]
+                    ].to_numpy()
+                ],
+                dims={f"nudged_{TIME}"},
+                name="nudged_longitude",
+            )
+        except ValueError as e:
+            self.logger.error("Error creating nudged_longitude DataArray: %s", e)  # noqa: TRY400
+            return
         self.combined_nc["nudged_longitude"].attrs = {
             "long_name": "Nudged Longitude",
             "standard_name": "longitude",
