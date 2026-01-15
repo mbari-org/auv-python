@@ -1023,7 +1023,10 @@ class CreateProducts:
                 bottom_depths,
                 [bottom_depths[-1], curr_ax.get_ylim()[0], curr_ax.get_ylim()[0], bottom_depths[0]],
             )
-            curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8)
+            try:
+                curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8)
+            except ValueError as e:
+                self.logger.warning("Could not fill bathymetry area: %s", e)  # noqa: TRY400
 
         # Add gulper bottle locations
         if gulper_locations:
