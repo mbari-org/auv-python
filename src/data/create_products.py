@@ -94,6 +94,7 @@ class CreateProducts:
         commandline: str = "",
         log_file: str = None,
         freq: str = FREQ,
+        use_scatter: bool = True,  # noqa: FBT001, FBT002
     ):
         """Initialize CreateProducts with explicit parameters.
 
@@ -107,6 +108,7 @@ class CreateProducts:
             commandline: Command line string for tracking
             log_file: Path to LRAUV log file (alternative to auv_name/mission)
             freq: Resampling frequency (default: '1S')
+            use_scatter: Use scatter plots instead of contour plots (default: True)
         """
         self.auv_name = auv_name
         self.mission = mission
@@ -117,6 +119,7 @@ class CreateProducts:
         self.commandline = commandline
         self.log_file = log_file
         self.freq = freq
+        self.use_scatter = use_scatter
 
     # Maximum length for long_name before using variable name instead
     MAX_LONG_NAME_LENGTH = 40
@@ -881,6 +884,228 @@ class CreateProducts:
         bottom_depths: np.array = None,
         best_ctd: str = None,
     ):
+        # Route to scatter or contour plot based on flag
+        if self.use_scatter:
+            return self._plot_var_scatter(
+                var,
+                idist,
+                iz,
+                distnav,
+                fig,
+                ax,
+                row,
+                col,
+                profile_bottoms,
+                scale,
+                num_colors,
+                gulper_locations,
+                bottom_depths,
+                best_ctd,
+            )
+        return self._plot_var_contour(
+            var,
+            idist,
+            iz,
+            distnav,
+            fig,
+            ax,
+            row,
+            col,
+            profile_bottoms,
+            scale,
+            num_colors,
+            gulper_locations,
+            bottom_depths,
+            best_ctd,
+        )
+
+    def _plot_var_scatter(  # noqa: C901, PLR0912, PLR0913, PLR0915
+        self,
+        var: str,
+        idist: np.array,
+        iz: np.array,
+        distnav: np.array,
+        fig: matplotlib.figure.Figure,
+        ax: matplotlib.axes.Axes,
+        row: int,
+        col: int,
+        profile_bottoms: xr.DataArray,
+        scale: str = "linear",
+        num_colors: int = 256,
+        gulper_locations: dict = None,
+        bottom_depths: np.array = None,
+        best_ctd: str = None,
+    ):
+        """Plot variable as scatter plot (no gridding/interpolation)."""
+        # Handle both 1D and 2D axis arrays
+        curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
+
+        # Check if variable exists and has valid data
+        no_data = False
+        if var not in self.ds:
+            self.logger.warning("%s not in dataset", var)
+            no_data = True
+        else:
+            if scale == "log":
+                # Filter out zeros and negative values before log10 to avoid warnings
+                data = self.ds[var].to_numpy()
+                var_to_plot = np.where(data > 0, np.log10(data), np.nan)
+            else:
+                var_to_plot = self.ds[var].to_numpy()
+            # Filter out both NaN and infinite values
+            valid_data = var_to_plot[~np.isnan(var_to_plot) & ~np.isinf(var_to_plot)]
+            if len(valid_data) == 0:
+                self.logger.warning("%s has no valid data", var)
+                no_data = True
+
+        # If no data, set up minimal axes and return early
+        if no_data:
+            self._setup_no_data_axes(curr_ax, idist, iz, fig, var, row, col)
+            return
+
+        # Get color map
+        color_map_name = self._get_colormap_name(var)
+        try:
+            cmap = plt.get_cmap(color_map_name)
+        except ValueError:
+            cmap = getattr(cmocean.cm, color_map_name)
+
+        v2_5 = np.percentile(valid_data, 2.5)
+        v97_5 = np.percentile(valid_data, 97.5)
+
+        # Check for invalid percentiles
+        if np.isnan(v2_5) or np.isnan(v97_5) or v2_5 == v97_5:
+            self.logger.warning(
+                "%s has invalid range (v2.5=%.2f, v97.5=%.2f)",
+                var,
+                v2_5,
+                v97_5,
+            )
+            self._setup_no_data_axes(
+                curr_ax, idist, iz, fig, var, row, col, text="Invalid Data Range"
+            )
+            return
+
+        norm = matplotlib.colors.Normalize(vmin=v2_5, vmax=v97_5)
+
+        self.logger.info(
+            "%s using %s cmap with ranges %.1f %.1f",
+            var,
+            color_map_name,
+            v2_5,
+            v97_5,
+        )
+
+        # Set axis limits
+        curr_ax.set_xlim([min(distnav.to_numpy()) / 1000.0, max(distnav.to_numpy()) / 1000.0])
+        curr_ax.set_ylim(max(iz), min(iz))
+
+        # Create scatter plot with actual data points
+        scatter = curr_ax.scatter(
+            distnav.to_numpy() / 1000.0,
+            self.ds.cf["depth"].to_numpy(),
+            c=var_to_plot,
+            s=1,
+            cmap=cmap,
+            norm=norm,
+            alpha=0.8,
+            rasterized=True,
+        )
+
+        # Add bathymetry as grey filled contour if available
+        if bottom_depths is not None:
+            dist_km = distnav.to_numpy() / 1000.0
+            xb_bathy = np.append(
+                dist_km,
+                [curr_ax.get_xlim()[1], curr_ax.get_xlim()[1], curr_ax.get_xlim()[0], dist_km[0]],
+            )
+            yb_bathy = np.append(
+                bottom_depths,
+                [bottom_depths[-1], curr_ax.get_ylim()[0], curr_ax.get_ylim()[0], bottom_depths[0]],
+            )
+            curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8)
+
+        # Add gulper bottle locations
+        if gulper_locations:
+            for bottle, (dist, depth) in gulper_locations.items():
+                curr_ax.text(
+                    dist,
+                    depth - 5,
+                    str(bottle),
+                    fontsize=7,
+                    ha="center",
+                    va="top",
+                    color="black",
+                    fontweight="bold",
+                    zorder=5,
+                )
+
+        # Only show y-label on left column or top of right column
+        if col == 0 or (col == 1 and row == 0):
+            curr_ax.set_ylabel("Depth (m)")
+        else:
+            curr_ax.set_ylabel("")
+
+        # Set y-axis ticks at 0, 50, 100, 150, etc.
+        y_min, y_max = curr_ax.get_ylim()
+        y_ticks = np.arange(0, int(y_min) + 50, 50)
+        curr_ax.set_yticks(y_ticks)
+
+        cb = fig.colorbar(scatter, ax=curr_ax)
+        cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
+        cb.minorticks_off()
+        cb.update_ticks()
+
+        # Get long_name and units with fallbacks
+        long_name = self.ds[var].attrs.get("long_name", var)
+        units = self.ds[var].attrs.get("units", "")
+
+        # Use variable name if long_name is too long
+        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
+            long_name = var
+
+        if scale == "log" and units:
+            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
+        elif scale == "log":
+            cb.set_label(f"{long_name}\n[log10]", fontsize=7)
+        elif units:
+            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+        else:
+            cb.set_label(long_name, fontsize=9)
+
+        # Add CTD label for density, temperature, and salinity plots
+        if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
+            y_pos = min(iz) - (max(iz) - min(iz)) * 0.025
+            x_pos = curr_ax.get_xlim()[0]
+            curr_ax.text(
+                x_pos,
+                y_pos,
+                best_ctd,
+                fontsize=8,
+                fontweight="bold",
+                verticalalignment="bottom",
+                horizontalalignment="left",
+                clip_on=False,
+            )
+
+    def _plot_var_contour(  # noqa: C901, PLR0912, PLR0913, PLR0915
+        self,
+        var: str,
+        idist: np.array,
+        iz: np.array,
+        distnav: np.array,
+        fig: matplotlib.figure.Figure,
+        ax: matplotlib.axes.Axes,
+        row: int,
+        col: int,
+        profile_bottoms: xr.DataArray,
+        scale: str = "linear",
+        num_colors: int = 256,
+        gulper_locations: dict = None,
+        bottom_depths: np.array = None,
+        best_ctd: str = None,
+    ):
+        """Plot variable as contour plot (with gridding/interpolation)."""
         # Handle both 1D and 2D axis arrays
         curr_ax = ax[row] if col == 0 and hasattr(ax, "ndim") and ax.ndim == 1 else ax[row, col]
 
@@ -1526,6 +1751,13 @@ class CreateProducts:
             help="Path to LRAUV log file (alternative to --auv_name/--mission for LRAUV data)",
             type=str,
         )
+        parser.add_argument(
+            "--no_scatter",
+            dest="use_scatter",
+            action="store_false",
+            help="Use contour plots instead of scatter plots (default is scatter plots)",
+        )
+        parser.set_defaults(use_scatter=True)
         # Note: --freq is already defined in get_standard_dorado_parser()
 
         self.args = parser.parse_args()
@@ -1540,6 +1772,7 @@ class CreateProducts:
         self.verbose = self.args.verbose
         self.log_file = getattr(self.args, "log_file", None)
         self.freq = self.args.freq
+        self.use_scatter = self.args.use_scatter
 
         # Validate that either (auv_name and mission) or log_file is provided
         if self.log_file:

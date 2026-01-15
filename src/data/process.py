@@ -381,9 +381,10 @@ class Processor:
             )
         else:
             self.logger.info(
-                "Finding log files from %s to %s for all AUVs",
+                "Finding log files from %s to %s in %s for all AUVs",
                 start_datetime,
                 end_datetime,
+                self.vehicle_dir,
             )
 
         # Search through each AUV directory
@@ -1062,7 +1063,19 @@ class Processor:
         self.combine(log_file=log_file)
         self.align(log_file=log_file)
         self.resample(log_file=log_file)
-        self.create_products(log_file=log_file)
+        # Call create_products() if we have a final resampled file
+        resampled_file = Path(
+            BASE_LRAUV_PATH,
+            Path(log_file).parent,
+            f"{Path(log_file).stem}_{FREQ}.nc",
+        )
+        if resampled_file.exists():
+            self.create_products(log_file=log_file)
+        else:
+            self.logger.warning(
+                "Resampled file %s not found, skipping create_products step",
+                resampled_file,
+            )
         self.logger.info("Finished processing log file: %s", log_file)
 
     def process_log_files(self) -> None:

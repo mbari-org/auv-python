@@ -239,7 +239,9 @@
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4"],
             //"args": ["-v", "1", "--auv_name", "dorado", "--mission", "2006.338.11"],
             // scipy.spatial._qhull.QhullError: QH6013 qhull input error: input is less than 3-dimensional since all points have the same x coordinate    0
-            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240724T221410/202407242214_202407242314.nc4"],
+            //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240724T221410/202407242214_202407242314.nc4"],
+            // A log_file showing temperature not looking right in stoqs_lrauv_jul2024_t, as shared on Slack plankton-proxies on 11 Dec 2025
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--no_scatter"]
         },
         {
             "name": "7.0 - email.py",
@@ -407,7 +409,7 @@
             //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--no_cleanup"]
             //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20250601T000000", "--end", "20250721T000000", "--noinput", "--num_cores", "1", "--no_cleanup", "--clobber"]
             // log files for Issue #115 on GitHub - Inconsistent incorrect LRAUV processing to final _1S.nc file
-            "args": ["-v", "1", "--auv_name", "pontus", "--start", "20240701T000000", "--end", "20240731T000000", "--noinput", "--num_cores", "1", "--no_cleanup", "--clobber"]
+            //"args": ["-v", "1", "--auv_name", "pontus", "--start", "20240701T000000", "--end", "20240731T000000", "--noinput", "--num_cores", "1", "--no_cleanup", "--clobber"]
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250623_20250707/20250707T043011/slate.nc4", "--no_cleanup"]
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250903_20250903/20250903T202626/202509032026_202509032030.nc4", "--no_cleanup"]
             // Does not have ctdseabird data, hence no coordinates for resampling
@@ -429,9 +431,12 @@
             // Testing for making 2column plot work with process_lrauv from an MBTS log_file
             //"args": ["-v", "1", "--log_file", "daphne/missionlogs/2025/20250721_20250723/20250721T211348/202507212114_202507222147.nc4", "--no_cleanup"]
             // A log_file showing temperature not looking right in stoqs_lrauv_jul2024_t, as shared on Slack plankton-proxies on 11 Dec 2025
-            //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--no_cleanup"]
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--no_cleanup"]
             // scipy.spatial._qhull.QhullError: QH6013 qhull input error: input is less than 3-dimensional since all points have the same x coordinate    0
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240724T221410/202407242214_202407242314.nc4", "--no_cleanup"]
+            // All 2025 LRAUV log files - fails with --log_file ahi/missionlogs/2025/20250128_20250131/20250129T223350/202501292233_202501292247.nc4
+            //"args": ["-v", "1", "--start", "20250101T000000", "--end", "20260101T000000", "--noinput", "--num_cores", "1", "--no_cleanup"]
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250128_20250131/20250129T223350/202501292233_202501292247.nc4", "--no_cleanup"]
         },
 
     ]
