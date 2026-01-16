@@ -796,14 +796,26 @@ class CreateProducts:
         if len(text) <= max_chars:
             return text
 
+        # Special case: insert underscore before digit suffix in long compound words
+        # This allows breaking variables like "volumescatcoeff117deg650nm" and
+        # "particulatebackscatteringcoeff470nm" at natural word boundaries
+        import re
+
+        # Pattern 1: Break after 'deg' before 3-digit number (volumescatcoeff117deg650nm)
+        text = re.sub(r"(deg)(\d{3})", r"\1_\2", text)
+
+        # Pattern 2: Break after 'coeff' before 3-digit number (particulatebackscatteringcoeff470nm)
+        text = re.sub(r"(coeff)(\d{3})", r"\1_\2", text)
+
         # Split on underscores to find natural break points
         parts = text.split("_")
         lines = []
         current_line = ""
 
         for i, part in enumerate(parts):
-            # Add underscore back except for first part
-            modified_part = "_" + part if i > 0 else part
+            # Don't add underscore back for parts that are purely numeric suffixes (like "470nm")
+            # These were split by our regex insertions above and should appear without underscore
+            modified_part = "_" + part if i > 0 and not re.match(r"^\d{3}", part) else part
 
             # Check if adding this part would exceed max_chars
             if current_line and len(current_line + modified_part) > max_chars:
@@ -1097,6 +1109,34 @@ class CreateProducts:
         cb.minorticks_off()
         cb.update_ticks()
 
+        # Format tick labels intelligently based on value range
+        tick_values = cb.get_ticks()
+        if len(tick_values) > 0:
+            value_range = abs(tick_values.max() - tick_values.min())
+            max_val = abs(tick_values).max()
+
+            # Threshold constants for tick label formatting
+            LARGE_VALUE_THRESHOLD = 100
+            LARGE_RANGE_THRESHOLD = 10
+            MEDIUM_VALUE_THRESHOLD = 10
+
+            # Choose format based on magnitude and range
+            if max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                # Large values or large range: use integers
+                labels = [f"{int(round(x))}" for x in tick_values]
+            elif max_val >= MEDIUM_VALUE_THRESHOLD:
+                # Medium values: 1 decimal place
+                labels = [f"{x:.1f}" for x in tick_values]
+            elif max_val >= 1:
+                # Values around 1-10: 2 decimal places
+                labels = [f"{x:.2f}" for x in tick_values]
+            else:
+                # Small values: use scientific notation
+                labels = [f"{x:.2g}" for x in tick_values]
+
+            cb.ax.set_yticks(tick_values)
+            cb.ax.set_yticklabels(labels)
+
         # Get long_name and units with fallbacks
         long_name = self.ds[var].attrs.get("long_name", var)
         units = self.ds[var].attrs.get("units", "")
@@ -1343,8 +1383,31 @@ class CreateProducts:
                 )
         else:
             tick_values = cb.get_ticks()
-            cb.ax.set_yticks(tick_values)
-            cb.ax.set_yticklabels([f"{x:.1f}" for x in tick_values])
+            if len(tick_values) > 0:
+                value_range = abs(tick_values.max() - tick_values.min())
+                max_val = abs(tick_values).max()
+
+                # Threshold constants for tick label formatting
+                LARGE_VALUE_THRESHOLD = 100
+                LARGE_RANGE_THRESHOLD = 10
+                MEDIUM_VALUE_THRESHOLD = 10
+
+                # Choose format based on magnitude and range
+                if max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                    # Large values or large range: use integers
+                    labels = [f"{int(round(x))}" for x in tick_values]
+                elif max_val >= MEDIUM_VALUE_THRESHOLD:
+                    # Medium values: 1 decimal place
+                    labels = [f"{x:.1f}" for x in tick_values]
+                elif max_val >= 1:
+                    # Values around 1-10: 2 decimal places
+                    labels = [f"{x:.2f}" for x in tick_values]
+                else:
+                    # Small values: use scientific notation
+                    labels = [f"{x:.2g}" for x in tick_values]
+
+                cb.ax.set_yticks(tick_values)
+                cb.ax.set_yticklabels(labels)
 
         # Get long_name and units with fallbacks
         long_name = self.ds[var].attrs.get("long_name", var)
@@ -1403,7 +1466,7 @@ class CreateProducts:
             return None
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
-        plt.subplots_adjust(hspace=0.15, wspace=0.01, left=0.05, right=1.01, top=0.96, bottom=0.06)
+        plt.subplots_adjust(hspace=0.15, wspace=0.04, left=0.05, right=0.97, top=0.96, bottom=0.06)
 
         # Compute density (sigma-t) if not already present
         best_ctd = None
