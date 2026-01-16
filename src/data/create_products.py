@@ -783,6 +783,53 @@ class CreateProducts:
             color="black",
         )
 
+    def _wrap_label_text(self, text: str, max_chars: int = 20) -> str:
+        """Wrap long text into multiple lines at underscore boundaries.
+
+        Args:
+            text: Text to wrap
+            max_chars: Maximum characters per line
+
+        Returns:
+            Text with newlines inserted at appropriate positions
+        """
+        if len(text) <= max_chars:
+            return text
+
+        # Special case: insert underscore before digit suffix in long compound words
+        # This allows breaking variables like "volumescatcoeff117deg650nm" and
+        # "particulatebackscatteringcoeff470nm" at natural word boundaries
+        import re
+
+        # Pattern 1: Break after 'deg' before 3-digit number (volumescatcoeff117deg650nm)
+        text = re.sub(r"(deg)(\d{3})", r"\1_\2", text)
+
+        # Pattern 2: Break after 'coeff' before 3-digit number (particulatebackscatteringcoeff470nm)
+        text = re.sub(r"(coeff)(\d{3})", r"\1_\2", text)
+
+        # Split on underscores to find natural break points
+        parts = text.split("_")
+        lines = []
+        current_line = ""
+
+        for i, part in enumerate(parts):
+            # Don't add underscore back for parts that are purely numeric suffixes (like "470nm")
+            # These were split by our regex insertions above and should appear without underscore
+            modified_part = "_" + part if i > 0 and not re.match(r"^\d{3}", part) else part
+
+            # Check if adding this part would exceed max_chars
+            if current_line and len(current_line + modified_part) > max_chars:
+                lines.append(current_line)
+                current_line = modified_part
+            else:
+                current_line += modified_part
+
+        # Add the last line
+        if current_line:
+            lines.append(current_line)
+
+        return "\n".join(lines)
+
     def _setup_no_data_axes(  # noqa: PLR0913
         self,
         curr_ax: matplotlib.axes.Axes,
@@ -841,7 +888,7 @@ class CreateProducts:
             aspect="auto",
             visible=False,
         )
-        cb = fig.colorbar(dummy_im, ax=curr_ax)
+        cb = fig.colorbar(dummy_im, ax=curr_ax, pad=0.01)
 
         # Hide the colorbar ticks and tick labels but keep the label visible
         cb.set_ticks([])
@@ -861,11 +908,14 @@ class CreateProducts:
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
 
+        # Wrap long names into multiple lines
+        long_name = self._wrap_label_text(long_name)
+
         # Add label to the colorbar area
         if units:
-            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
-            cb.set_label(long_name, fontsize=9)
+            cb.set_label(long_name, fontsize=8)
 
     def _plot_var(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
@@ -1054,10 +1104,38 @@ class CreateProducts:
         y_ticks = np.arange(0, int(y_min) + 50, 50)
         curr_ax.set_yticks(y_ticks)
 
-        cb = fig.colorbar(scatter, ax=curr_ax)
+        cb = fig.colorbar(scatter, ax=curr_ax, pad=0.01)
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
         cb.update_ticks()
+
+        # Format tick labels intelligently based on value range
+        tick_values = cb.get_ticks()
+        if len(tick_values) > 0:
+            value_range = abs(tick_values.max() - tick_values.min())
+            max_val = abs(tick_values).max()
+
+            # Threshold constants for tick label formatting
+            LARGE_VALUE_THRESHOLD = 100
+            LARGE_RANGE_THRESHOLD = 10
+            MEDIUM_VALUE_THRESHOLD = 10
+
+            # Choose format based on magnitude and range
+            if max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                # Large values or large range: use integers
+                labels = [f"{int(round(x))}" for x in tick_values]
+            elif max_val >= MEDIUM_VALUE_THRESHOLD:
+                # Medium values: 1 decimal place
+                labels = [f"{x:.1f}" for x in tick_values]
+            elif max_val >= 1:
+                # Values around 1-10: 2 decimal places
+                labels = [f"{x:.2f}" for x in tick_values]
+            else:
+                # Small values: use scientific notation
+                labels = [f"{x:.2g}" for x in tick_values]
+
+            cb.ax.set_yticks(tick_values)
+            cb.ax.set_yticklabels(labels)
 
         # Get long_name and units with fallbacks
         long_name = self.ds[var].attrs.get("long_name", var)
@@ -1067,14 +1145,17 @@ class CreateProducts:
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
 
+        # Wrap long names into multiple lines
+        long_name = self._wrap_label_text(long_name)
+
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
         elif scale == "log":
             cb.set_label(f"{long_name}\n[log10]", fontsize=7)
         elif units:
-            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
-            cb.set_label(long_name, fontsize=9)
+            cb.set_label(long_name, fontsize=8)
 
         # Add CTD label for density, temperature, and salinity plots
         if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
@@ -1275,7 +1356,7 @@ class CreateProducts:
         y_ticks = np.arange(0, int(y_min) + 50, 50)
         curr_ax.set_yticks(y_ticks)
 
-        cb = fig.colorbar(cntrf, ax=curr_ax)
+        cb = fig.colorbar(cntrf, ax=curr_ax, pad=0.01)
         cb.locator = matplotlib.ticker.LinearLocator(numticks=3)
         cb.minorticks_off()
         cb.update_ticks()
@@ -1302,8 +1383,31 @@ class CreateProducts:
                 )
         else:
             tick_values = cb.get_ticks()
-            cb.ax.set_yticks(tick_values)
-            cb.ax.set_yticklabels([f"{x:.1f}" for x in tick_values])
+            if len(tick_values) > 0:
+                value_range = abs(tick_values.max() - tick_values.min())
+                max_val = abs(tick_values).max()
+
+                # Threshold constants for tick label formatting
+                LARGE_VALUE_THRESHOLD = 100
+                LARGE_RANGE_THRESHOLD = 10
+                MEDIUM_VALUE_THRESHOLD = 10
+
+                # Choose format based on magnitude and range
+                if max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                    # Large values or large range: use integers
+                    labels = [f"{int(round(x))}" for x in tick_values]
+                elif max_val >= MEDIUM_VALUE_THRESHOLD:
+                    # Medium values: 1 decimal place
+                    labels = [f"{x:.1f}" for x in tick_values]
+                elif max_val >= 1:
+                    # Values around 1-10: 2 decimal places
+                    labels = [f"{x:.2f}" for x in tick_values]
+                else:
+                    # Small values: use scientific notation
+                    labels = [f"{x:.2g}" for x in tick_values]
+
+                cb.ax.set_yticks(tick_values)
+                cb.ax.set_yticklabels(labels)
 
         # Get long_name and units with fallbacks
         long_name = self.ds[var].attrs.get("long_name", var)
@@ -1313,14 +1417,17 @@ class CreateProducts:
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
 
+        # Wrap long names into multiple lines
+        long_name = self._wrap_label_text(long_name)
+
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
         elif scale == "log":
             cb.set_label(f"{long_name}\n[log10]", fontsize=7)
         elif units:
-            cb.set_label(f"{long_name} [{units}]", fontsize=9)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
-            cb.set_label(long_name, fontsize=9)
+            cb.set_label(long_name, fontsize=8)
 
         # Add CTD label for density, temperature, and salinity plots
         if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
@@ -1359,7 +1466,7 @@ class CreateProducts:
             return None
 
         fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
-        plt.subplots_adjust(hspace=0.15, wspace=0.01, left=0.05, right=1.01, top=0.96, bottom=0.06)
+        plt.subplots_adjust(hspace=0.15, wspace=0.04, left=0.05, right=0.97, top=0.96, bottom=0.06)
 
         # Compute density (sigma-t) if not already present
         best_ctd = None
