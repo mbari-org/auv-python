@@ -43,6 +43,10 @@ SCI_PARMS = {
         {"name": "latitude"},
         {"name": "depth"},
         {"name": "time"},
+        {"name": "platform_roll_angle"},
+        {"name": "platform_pitch_angle"},
+        {"name": "platform_orientation"},
+        {"name": "platform_speed_wrt_sea_water"},
     ],
     "Aanderaa_O2": [{"name": "mass_concentration_of_oxygen_in_sea_water"}],
     "CTD_NeilBrown": [

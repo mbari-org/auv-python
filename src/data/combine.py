@@ -577,6 +577,28 @@ class Combine_NetCDF:
                 f"converted from radians to degrees"
             )
             data_array.attrs["coordinates"] = f"{dim_name}"
+        elif orig_var in ("platform_roll_angle", "platform_pitch_angle", "platform_orientation"):
+            # Convert platform angles from radians to degrees
+            data_array = xr.DataArray(
+                ds[orig_var].to_numpy() * 180.0 / np.pi,
+                dims=[dim_name],
+                coords={dim_name: time_coord_data},
+            )
+            data_array.attrs = ds[orig_var].attrs.copy()
+            data_array.attrs["units"] = "degrees"
+            # Special handling for platform_orientation -> platform_yaw_angle
+            if orig_var == "platform_orientation":
+                data_array.attrs["standard_name"] = "platform_yaw_angle"
+                data_array.attrs["comment"] = (
+                    f"{orig_var} from group {ds.attrs.get('group_name', '')} "
+                    f"renamed to platform_yaw_angle and converted from radians to degrees"
+                )
+            else:
+                data_array.attrs["comment"] = (
+                    f"{orig_var} from group {ds.attrs.get('group_name', '')} "
+                    f"converted from radians to degrees"
+                )
+            data_array.attrs["coordinates"] = f"{dim_name}"
         elif len(ds[orig_var].dims) == 2:  # noqa: PLR2004
             # Handle 2D arrays (time, array_index) - e.g. biolume_raw, digitized_raw_ad_counts_M
             second_dim_name = ds[orig_var].dims[1]
@@ -626,7 +648,12 @@ class Combine_NetCDF:
                 self.logger.debug("Skipping scalar variable: %s", orig_var)
                 continue
 
-            new_var = group_name + "_" + orig_var.lower()
+            # Handle platform_orientation rename to platform_yaw_angle
+            var_name_lower = orig_var.lower()
+            if var_name_lower == "platform_orientation":
+                var_name_lower = "platform_yaw_angle"
+
+            new_var = group_name + "_" + var_name_lower
 
             # Get the original time dimension for this variable
             orig_time_dim = ds[orig_var].dims[0]  # Assuming first dim is time
