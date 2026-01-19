@@ -381,12 +381,10 @@ class Resampler:
         # is not fine enough for resampling to 1 second intervals without
         # introducing NaNs. Therefore, we will do minimal interpolation
         # (up to MAX_INTERPOLATE_LIMIT consecutive NaNs) after resampling.
-        # In order to have all deployments processed fallback to pitch.
+        # ctd instruments are unreliable for LRAUV data, no pitch correction
+        # is implemented for LRAUVs yet so we use platform pitch angle.
         if self.log_file:
             candidates = [
-                "ctdseabird",
-                "ctdseabird_sea_water_temperature",
-                "ctdneilbrown",
                 "universals_platform_pitch_angle",
             ]
         else:

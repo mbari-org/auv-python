@@ -1446,9 +1446,16 @@ class Extract:
             # Copy global attributes
             self._copy_global_attributes(src_group, dst_dataset)
 
+            # Calculate time coverage for ACDD metadata
+            time_coverage_start, time_coverage_end = self._calculate_time_coverage(
+                src_group, time_filters
+            )
+
             # Add standard global attributes
             log_file = self.log_file
-            for attr_name, attr_value in self.global_metadata(log_file, group_name).items():
+            for attr_name, attr_value in self.global_metadata(
+                log_file, group_name, time_coverage_start, time_coverage_end
+            ).items():
                 dst_dataset.setncattr(attr_name, attr_value)
 
             # Add note about time filtering if applied
@@ -1503,7 +1510,69 @@ class Extract:
                 coord_vars.append(dim_name)  # noqa: PERF401
         return coord_vars
 
-    def global_metadata(self, log_file: str, group_name: str):
+    def _calculate_time_coverage(
+        self, src_group: netCDF4.Group, time_filters: dict[str, dict]
+    ) -> tuple[str | None, str | None]:
+        """Calculate time_coverage_start and time_coverage_end from time variables.
+
+        Returns:
+            tuple: (time_coverage_start, time_coverage_end) in ISO 8601 format, or (None, None)
+        """
+        # Find all time variables in the group
+        time_vars = [var for var in src_group.variables if var.lower().endswith("_time")]
+        if not time_vars:
+            # Check for 'time' variable without suffix
+            if "time" in src_group.variables:
+                time_vars = ["time"]
+            else:
+                return None, None
+
+        min_time = None
+        max_time = None
+
+        for time_var_name in time_vars:
+            try:
+                time_var = src_group.variables[time_var_name]
+                time_data = time_var[:]
+
+                # Apply time filtering if this variable was filtered
+                if time_var_name in time_filters and time_filters[time_var_name]["filtered"]:
+                    indices = time_filters[time_var_name]["indices"]
+                    time_data = time_data[indices]
+
+                # Skip if no data
+                if len(time_data) == 0:
+                    continue
+
+                # Get min and max from this time variable
+                var_min = float(np.min(time_data))
+                var_max = float(np.max(time_data))
+
+                # Update overall min/max
+                if min_time is None or var_min < min_time:
+                    min_time = var_min
+                if max_time is None or var_max > max_time:
+                    max_time = var_max
+
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning("Could not read time data from %s: %s", time_var_name, e)
+                continue
+
+        # Convert Unix timestamps to ISO 8601 format
+        if min_time is not None and max_time is not None:
+            start_dt = datetime.fromtimestamp(min_time, UTC)
+            end_dt = datetime.fromtimestamp(max_time, UTC)
+            return start_dt.isoformat() + "Z", end_dt.isoformat() + "Z"
+
+        return None, None
+
+    def global_metadata(
+        self,
+        log_file: str,
+        group_name: str,
+        time_coverage_start: str | None = None,
+        time_coverage_end: str | None = None,
+    ):
         """Use instance variables to return a dictionary of
         metadata specific for the data that are written
         """
@@ -1553,6 +1622,13 @@ class Extract:
             " original .nc4 log file with non-monotonic time values removed using"
             " MBARI's auv-python software"
         )
+
+        # Add ACDD time coverage attributes if available
+        if time_coverage_start is not None:
+            metadata["time_coverage_start"] = time_coverage_start
+        if time_coverage_end is not None:
+            metadata["time_coverage_end"] = time_coverage_end
+
         return metadata
 
     def process_command_line(self):

@@ -445,7 +445,9 @@
             // ValueError: x and y must have same first dimension, but have shapes (45804,) and (14539,)
             //"args": ["-v", "1", "--log_file", "makai/missionlogs/2025/20251006_20251014/20251010T133000/202510101330_202510110214.nc4", "--no_cleanup"]
             // Mission without CTD data - test usng pitch
-            "args": ["-v", "1", "--log_file", "makai/missionlogs/2025/20250306_20250314/20250314T133305/202503141333_202503141735.nc4", "--no_cleanup"]
+            //"args": ["-v", "1", "--log_file", "makai/missionlogs/2025/20250306_20250314/20250314T133305/202503141333_202503141735.nc4", "--no_cleanup"]
+            // Processing truncated at 2025-01-12T15:15:43 instead of 2025-01-13T17:43:58 - seems to happen with several other log_files too
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250107_20250123/20250111T233141/202501112331_202501131744.nc4", "--no_cleanup"]
         },
 
     ]
