@@ -272,7 +272,6 @@ class Resampler:
             f" {self.auv_name} mission {self.mission}"
         )
         # Append location of original data files to summary
-        self.metadata["summary"] = self.ds.attrs.get
         matches = re.search(
             "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
             self.ds.attrs["summary"],
