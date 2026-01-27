@@ -2057,15 +2057,14 @@ class Resampler:
         mission_start, mission_end, instrs_to_pad = self.get_mission_start_end(nc_file)
         last_instr = ""
         pitch_corrected_instr = ""
-        for icount, (instr, variables) in enumerate(
-            self.instruments_variables(nc_file).items(),
-        ):
+        coordinates_saved = False
+        for instr, variables in self.instruments_variables(nc_file).items():
             # Omit LRAUV "instruments" whose coordinates are confusing
             # to have in the final resampled file
             if instr in ("deadreckonusingmultiplevelocitysources", "nal9602", "nudged"):
                 self.logger.info("Skipping resampling for instrument %s", instr)
                 continue
-            if icount == 0:
+            if not coordinates_saved:
                 self.df_o = pd.DataFrame()  # original dataframe
                 self.df_r = pd.DataFrame()  # resampled dataframe
                 # Choose an instrument to use for the resampled coordinates
@@ -2091,6 +2090,7 @@ class Resampler:
                 if self.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
                 self.add_profile(depth_threshold=depth_threshold)
+                coordinates_saved = True
             if instr != last_instr:
                 # Start with new dataframes for each instrument
                 self.df_o = pd.DataFrame()
