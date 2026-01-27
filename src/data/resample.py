@@ -621,6 +621,11 @@ class Resampler:
             f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
         )
+        self.logger.info(
+            "Coordinates saved to resampled_nc. Variables: %s, Coords: %s",
+            list(self.resampled_nc.variables.keys()),
+            list(self.resampled_nc.coords.keys()),
+        )
 
     def select_nighttime_bl_raw(
         self,
@@ -822,6 +827,11 @@ class Resampler:
         profiles = []
         count = 1
         k = 0
+        self.logger.info(
+            "Before accessing time coordinate - resampled_nc variables: %s, coords: %s",
+            list(self.resampled_nc.variables.keys()),
+            list(self.resampled_nc.coords.keys()),
+        )
         for tv in self.resampled_nc["time"].to_numpy():
             if tv > s_peaks.index[k + 1]:
                 # Encountered a new simple_depth point
@@ -2086,10 +2096,15 @@ class Resampler:
                     mf_width,
                     freq,
                 )
+                self.logger.info(
+                    "Calling save_coordinates for first non-skipped instrument: %s", instr
+                )
                 self.save_coordinates(instr, pitch_corrected_instr, mf_width, freq, aggregator)
+                self.logger.info("Calling add_profile")
                 if self.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
                 self.add_profile(depth_threshold=depth_threshold)
+                self.logger.info("Coordinates saved and profile added successfully")
                 coordinates_saved = True
             if instr != last_instr:
                 # Start with new dataframes for each instrument
