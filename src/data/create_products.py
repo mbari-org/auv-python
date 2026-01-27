@@ -1483,8 +1483,12 @@ class CreateProducts:
 
         # Parse sample locations - vehicle specific
         if self.auv_name and self.mission:
-            # Dorado missions use gulper
-            gulper_locations = self._get_gulper_locations(distnav)
+            try:
+                # Dorado missions use gulper
+                gulper_locations = self._get_gulper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving gulper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
         else:
             # LRAUV missions may use sipper or ESP
             # TODO: Implement _get_sipper_locations(distnav)

@@ -22,6 +22,7 @@ dependencies = [
     "jupyter-bokeh>=4.0.5",
     "netcdf4>=1.7.2",
     "numpy>=2.2.6",
+    "pandas>=2.2.0",
     "pooch>=1.8.2",
     "pyarrow>=20.0.0",
     "pygmt==0.16",
