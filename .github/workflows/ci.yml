@@ -21,7 +21,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgmt-dev
+          sudo apt-get install -y libgmt-dev gmt gmt-dcw gmt-gshhg
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
