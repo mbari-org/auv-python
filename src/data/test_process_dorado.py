@@ -31,7 +31,7 @@ def test_process_dorado(complete_dorado_processing):
     # but it will alert us if a code change unexpectedly changes the file size.
     # If code changes are expected to change the file size then we should
     # update the expected size here.
-    EXPECTED_SIZE_GITHUB = 627347
+    EXPECTED_SIZE_GITHUB = 626561
     EXPECTED_SIZE_ACT = 627345
     EXPECTED_SIZE_LOCAL = 627395
     if str(proc.args.base_path).startswith("/home/runner"):
@@ -50,7 +50,7 @@ def test_process_dorado(complete_dorado_processing):
     check_md5 = True
     if check_md5:
         # Check that the MD5 hash has not changed
-        EXPECTED_MD5_GITHUB = "dec71d83f9d412544dcc5442a8ea4529"
+        EXPECTED_MD5_GITHUB = "3be10ffae1bcefb4891d7b7fa7f875ba"
         EXPECTED_MD5_ACT = "136e130ac434494ab5eb52ff935a73b8"
         EXPECTED_MD5_LOCAL = "f17349e97d7ced5f01c7e92c6706c246"
         if str(proc.args.base_path).startswith("/home/runner"):

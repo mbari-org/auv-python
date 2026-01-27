@@ -272,7 +272,6 @@ class Resampler:
             f" {self.auv_name} mission {self.mission}"
         )
         # Append location of original data files to summary
-        self.metadata["summary"] = self.ds.attrs.get
         matches = re.search(
             "(" + SUMMARY_SOURCE.replace("{}", r".+$") + ")",
             self.ds.attrs["summary"],
@@ -587,8 +586,7 @@ class Resampler:
             freq: Resampling frequency (e.g., '1S' for 1 second)
             aggregator: Description of aggregation method used (e.g., '.mean() aggregator')
         """
-        self.df_r["depth"].index.rename("time", inplace=True)  # noqa: PD002
-        self.resampled_nc["depth"] = self.df_r["depth"].to_xarray()
+        self.resampled_nc["depth"] = self.df_r["depth"].rename_axis("time").to_xarray()
         self.resampled_nc["depth"].attrs = {}
         self.resampled_nc["depth"].attrs["units"] = "meters"
         self.resampled_nc["depth"].attrs["long_name"] = "Depth"
@@ -599,8 +597,7 @@ class Resampler:
             f" {self.mf_width} point median filter."
         )
 
-        self.df_r["latitude"].index.rename("time", inplace=True)  # noqa: PD002
-        self.resampled_nc["latitude"] = self.df_r["latitude"].to_xarray()
+        self.resampled_nc["latitude"] = self.df_r["latitude"].rename_axis("time").to_xarray()
         self.resampled_nc["latitude"].attrs = {}
         self.resampled_nc["latitude"].attrs["units"] = "degrees_north"
         self.resampled_nc["latitude"].attrs["long_name"] = "Latitude"
@@ -611,8 +608,7 @@ class Resampler:
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
-        self.df_r["longitude"].index.rename("time", inplace=True)  # noqa: PD002
-        self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
+        self.resampled_nc["longitude"] = self.df_r["longitude"].rename_axis("time").to_xarray()
         self.resampled_nc["longitude"].attrs = {}
         self.resampled_nc["longitude"].attrs["units"] = "degrees_east"
         self.resampled_nc["longitude"].attrs["long_name"] = "Longitude"
@@ -621,6 +617,11 @@ class Resampler:
             f"{self.ds[f'{pitch_corrected_instr}_longitude'].attrs['comment']}"
             f" median filtered with {mf_width} samples"
             f" and resampled with {aggregator} to {freq} intervals."
+        )
+        self.logger.info(
+            "Coordinates saved to resampled_nc. Variables: %s, Coords: %s",
+            list(self.resampled_nc.variables.keys()),
+            list(self.resampled_nc.coords.keys()),
         )
 
     def select_nighttime_bl_raw(
@@ -823,6 +824,11 @@ class Resampler:
         profiles = []
         count = 1
         k = 0
+        self.logger.info(
+            "Before accessing time coordinate - resampled_nc variables: %s, coords: %s",
+            list(self.resampled_nc.variables.keys()),
+            list(self.resampled_nc.coords.keys()),
+        )
         for tv in self.resampled_nc["time"].to_numpy():
             if tv > s_peaks.index[k + 1]:
                 # Encountered a new simple_depth point
@@ -2058,15 +2064,14 @@ class Resampler:
         mission_start, mission_end, instrs_to_pad = self.get_mission_start_end(nc_file)
         last_instr = ""
         pitch_corrected_instr = ""
-        for icount, (instr, variables) in enumerate(
-            self.instruments_variables(nc_file).items(),
-        ):
+        coordinates_saved = False
+        for instr, variables in self.instruments_variables(nc_file).items():
             # Omit LRAUV "instruments" whose coordinates are confusing
             # to have in the final resampled file
             if instr in ("deadreckonusingmultiplevelocitysources", "nal9602", "nudged"):
                 self.logger.info("Skipping resampling for instrument %s", instr)
                 continue
-            if icount == 0:
+            if not coordinates_saved:
                 self.df_o = pd.DataFrame()  # original dataframe
                 self.df_r = pd.DataFrame()  # resampled dataframe
                 # Choose an instrument to use for the resampled coordinates
@@ -2088,10 +2093,16 @@ class Resampler:
                     mf_width,
                     freq,
                 )
+                self.logger.info(
+                    "Calling save_coordinates for first non-skipped instrument: %s", instr
+                )
                 self.save_coordinates(instr, pitch_corrected_instr, mf_width, freq, aggregator)
+                self.logger.info("Calling add_profile")
                 if self.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
                 self.add_profile(depth_threshold=depth_threshold)
+                self.logger.info("Coordinates saved and profile added successfully")
+                coordinates_saved = True
             if instr != last_instr:
                 # Start with new dataframes for each instrument
                 self.df_o = pd.DataFrame()
@@ -2113,8 +2124,7 @@ class Resampler:
                     for var in self.df_r:
                         if var not in variables:
                             # save new proxy variable
-                            self.df_r[var].index.rename("time", inplace=True)  # noqa: PD002
-                            self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var] = self.df_r[var].rename_axis("time").to_xarray()
                             self.resampled_nc[var].attrs = self.df_r[var].attrs
                             self.resampled_nc[var].attrs["coordinates"] = (
                                 "time depth latitude longitude"
@@ -2135,8 +2145,7 @@ class Resampler:
                     for var in self.df_r:
                         if var not in variables:
                             # save new proxy variable
-                            self.df_r[var].index.rename("time", inplace=True)  # noqa: PD002
-                            self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var] = self.df_r[var].rename_axis("time").to_xarray()
                             self.resampled_nc[var].attrs = self.df_r[var].attrs
                             self.resampled_nc[var].attrs["coordinates"] = (
                                 "time depth latitude longitude"
@@ -2157,8 +2166,9 @@ class Resampler:
                         instrs_to_pad,
                         depth_threshold,
                     )
-                    self.df_r[variable].index.rename("time", inplace=True)  # noqa: PD002
-                    self.resampled_nc[variable] = self.df_r[variable].to_xarray()
+                    self.resampled_nc[variable] = (
+                        self.df_r[variable].rename_axis("time").to_xarray()
+                    )
                     self.resampled_nc[variable].attrs = self.ds[variable].attrs
                     self.resampled_nc[variable].attrs["coordinates"] = (
                         "time depth latitude longitude"
