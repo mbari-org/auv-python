@@ -586,8 +586,7 @@ class Resampler:
             freq: Resampling frequency (e.g., '1S' for 1 second)
             aggregator: Description of aggregation method used (e.g., '.mean() aggregator')
         """
-        self.df_r["depth"].index.name = "time"
-        self.resampled_nc["depth"] = self.df_r["depth"].to_xarray()
+        self.resampled_nc["depth"] = self.df_r["depth"].rename_axis("time").to_xarray()
         self.resampled_nc["depth"].attrs = {}
         self.resampled_nc["depth"].attrs["units"] = "meters"
         self.resampled_nc["depth"].attrs["long_name"] = "Depth"
@@ -598,8 +597,7 @@ class Resampler:
             f" {self.mf_width} point median filter."
         )
 
-        self.df_r["latitude"].index.name = "time"
-        self.resampled_nc["latitude"] = self.df_r["latitude"].to_xarray()
+        self.resampled_nc["latitude"] = self.df_r["latitude"].rename_axis("time").to_xarray()
         self.resampled_nc["latitude"].attrs = {}
         self.resampled_nc["latitude"].attrs["units"] = "degrees_north"
         self.resampled_nc["latitude"].attrs["long_name"] = "Latitude"
@@ -610,8 +608,7 @@ class Resampler:
             f" and resampled with {aggregator} to {freq} intervals."
         )
 
-        self.df_r["longitude"].index.name = "time"
-        self.resampled_nc["longitude"] = self.df_r["longitude"].to_xarray()
+        self.resampled_nc["longitude"] = self.df_r["longitude"].rename_axis("time").to_xarray()
         self.resampled_nc["longitude"].attrs = {}
         self.resampled_nc["longitude"].attrs["units"] = "degrees_east"
         self.resampled_nc["longitude"].attrs["long_name"] = "Longitude"
@@ -2127,8 +2124,7 @@ class Resampler:
                     for var in self.df_r:
                         if var not in variables:
                             # save new proxy variable
-                            self.df_r[var].index.name = "time"
-                            self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var] = self.df_r[var].rename_axis("time").to_xarray()
                             self.resampled_nc[var].attrs = self.df_r[var].attrs
                             self.resampled_nc[var].attrs["coordinates"] = (
                                 "time depth latitude longitude"
@@ -2149,8 +2145,7 @@ class Resampler:
                     for var in self.df_r:
                         if var not in variables:
                             # save new proxy variable
-                            self.df_r[var].index.name = "time"
-                            self.resampled_nc[var] = self.df_r[var].to_xarray()
+                            self.resampled_nc[var] = self.df_r[var].rename_axis("time").to_xarray()
                             self.resampled_nc[var].attrs = self.df_r[var].attrs
                             self.resampled_nc[var].attrs["coordinates"] = (
                                 "time depth latitude longitude"
@@ -2171,8 +2166,9 @@ class Resampler:
                         instrs_to_pad,
                         depth_threshold,
                     )
-                    self.df_r[variable].index.name = "time"
-                    self.resampled_nc[variable] = self.df_r[variable].to_xarray()
+                    self.resampled_nc[variable] = (
+                        self.df_r[variable].rename_axis("time").to_xarray()
+                    )
                     self.resampled_nc[variable].attrs = self.ds[variable].attrs
                     self.resampled_nc[variable].attrs["coordinates"] = (
                         "time depth latitude longitude"
