@@ -293,7 +293,7 @@
             //"args": ["-v", "1", "--mission", "2018.348.01", "--noinput", "--no_cleanup", "--clobber"],
             //"args": ["-v", "1", "--mission", "2024.324.00", "--noinput"],
             //"args": ["-v", "1", "--mission", "2025.030.00", "--noinput"],
-            "args": ["-v", "1", "--mission", "2025.296.00", "--noinput"],
+            "args": ["-v", "1", "--mission", "2025.296.00", "--noinput", "--no_cleanup"],
         },
         {
             "name": "process_dorado",
