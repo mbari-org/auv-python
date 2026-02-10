@@ -2,7 +2,38 @@
 
 The sequence of steps to process LRAUV data is as follows:
 
-  nc42netcdfs.py → combine.py → align.py → resample.py → archive.py → plot.py
+```mermaid
+flowchart LR
+    Z[(Original log<br/>.nc4 file)]
+    A[nc42netcdfs.py]
+    B[(\_Group\_*<br/>.nc files)]
+    C[combine.py]
+    D[(_combined.nc4)]
+    E[align.py]
+    F[(_align.nc4)]
+    G[resample.py]
+    H[(_nS.nc)]
+    I[archive.py]
+    J[(archived files)]
+    
+    Z --> A
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    
+    style Z fill:#e1f5ff
+    style B fill:#e1f5ff
+    style D fill:#e1f5ff
+    style F fill:#e1f5ff
+    style H fill:#e1f5ff
+    style J fill:#e1f5ff
+```
 
 Details of each step are described in the respective scripts and in the
 description of output netCDF files below. The output file directory structure
