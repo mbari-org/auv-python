@@ -4,7 +4,7 @@ The sequence of steps to process LRAUV data is as follows:
 
 ```mermaid
 flowchart LR
-    Z[(Original log<br/>.nc4 file)]
+    Z[(Original log<br/>.nc4 file from<br>/mbari/LRAUV/)]
     A[nc42netcdfs.py]
     B[(\_Group\_*<br/>.nc files)]
     C[combine.py]
@@ -14,7 +14,7 @@ flowchart LR
     G[resample.py]
     H[(_nS.nc)]
     I[archive.py]
-    J[(archived files)]
+    J[(archived files in<br>/mbari/LRAUV/)]
     
     Z --> A
     A --> B
