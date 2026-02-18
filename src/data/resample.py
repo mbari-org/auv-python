@@ -1841,6 +1841,55 @@ class Resampler:
                     f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
                 )
 
+    def _handle_hv_step_calibration_coefficient(
+        self,
+        variable: str,
+        mf_width: int,
+        timevar: str,
+    ) -> pd.Series:
+        """Handle special treatment for hv_step_calibration_coefficient variable.
+
+        Replace NaN values with the mean of the despiked (median filtered) data.
+        If there are no valid data at all, replace NaNs with a constant value of 14700000.0.
+
+        Args:
+            variable: The variable name (should be 'hv_step_calibration_coefficient')
+            mf_width: Median filter width for despiking
+            timevar: Name of the time dimension variable
+
+        Returns:
+            pd.Series: The processed data series with NaNs filled
+        """
+        # Apply median filter for despiking
+        despiked_data = (
+            self.ds[variable].rolling(**{timevar: mf_width}, center=True).median().to_pandas()
+        )
+
+        # Check if there are any non-NaN values in the despiked data
+        valid_data = despiked_data.dropna()
+
+        if len(valid_data) > 0:
+            # Calculate mean of despiked data
+            mean_value = valid_data.mean()
+            self.logger.info(
+                "Filling NaN values in %s with mean of despiked data: %.2f",
+                variable,
+                mean_value,
+            )
+            # Replace NaNs with the mean
+            filled_data = despiked_data.fillna(mean_value)
+        else:
+            # No valid data at all, use constant value
+            constant_value = 14700000.0
+            self.logger.info(
+                "No valid data for %s, filling all NaN values with constant: %.1f",
+                variable,
+                constant_value,
+            )
+            filled_data = despiked_data.fillna(constant_value)
+
+        return filled_data
+
     def resample_variable(  # noqa: PLR0913
         self,
         instr: str,
@@ -1891,9 +1940,20 @@ class Resampler:
             )
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
-            self.df_o[f"{variable}_mf"] = (
-                self.ds[variable].rolling(**{timevar: mf_width}, center=True).median().to_pandas()
-            )
+
+            # Special treatment for hv_step_calibration_coefficient
+            if variable == "wetlabsubat_hv_step_calibration_coefficient":
+                self.df_o[f"{variable}_mf"] = self._handle_hv_step_calibration_coefficient(
+                    variable, mf_width, timevar
+                )
+            else:
+                self.df_o[f"{variable}_mf"] = (
+                    self.ds[variable]
+                    .rolling(**{timevar: mf_width}, center=True)
+                    .median()
+                    .to_pandas()
+                )
+
             # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
             self.logger.info(
                 "Resampling %s with frequency %s following %d point median filter",
