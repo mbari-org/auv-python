@@ -40,8 +40,11 @@ WORKDIR $PYSETUP_PATH
 # Copy dependency files first for better cache
 COPY ./pyproject.toml ./uv.lock ./
 
-# Install Python dependencies using uv (from pyproject.toml)
-RUN uv pip install --system .
+# Install Python dependencies with exact versions from lock file
+# Export lock file to requirements format and install
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv export --no-dev --no-hashes -o requirements.txt && \
+    uv pip install --system -r requirements.txt
 
 # Create user and set permissions
 RUN adduser --disabled-password --gecos "" --uid $DOCKER_USER_ID docker_user \

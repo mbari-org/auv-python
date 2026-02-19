@@ -192,7 +192,6 @@ dependencies = [
     { name = "jupyter-bokeh" },
     { name = "netcdf4" },
     { name = "numpy" },
-    { name = "pandas" },
     { name = "pooch" },
     { name = "pyarrow" },
     { name = "pygmt" },
