@@ -1593,16 +1593,18 @@ class Resampler:
             f"{prefix}_proxy_hdinos",
             f"{prefix}_bg_biolume",
         ]
+        # Save attrs for ALL df_r columns before doing anything.  Every assignment
+        # to self.df_r (scalar, Series, or .loc) clears pandas' _item_cache for the
+        # entire DataFrame, evicting ALL cached Series objects and their attrs – not
+        # only the proxy columns being modified here.  Snapshotting everything and
+        # restoring at the end is the only reliable way to preserve attrs for columns
+        # this method does not even touch.
+        saved_attrs = {col: dict(self.df_r[col].attrs) for col in self.df_r.columns}
         try:
             df_p = self.df_r[variables].copy(deep=True)
         except KeyError:
             # We didn't add biolume proxies this round...
             return
-
-        # Save the attrs for later as the correction process will drop them
-        saved_attrs = defaultdict(list)
-        for var in variables:
-            saved_attrs[var] = self.df_r[var].attrs
 
         df_p[f"{prefix}_fluo"] = biolume_fluo
         df_p["fluoBL_corr"] = np.full_like(df_p[f"{prefix}_fluo"], np.nan, dtype=np.float64)
@@ -1828,17 +1830,21 @@ class Resampler:
             fluo_bl_threshold,
         )
 
-        # Copy the attrs back to self.df_r[] as they were lost in the processing
-        # Also add the fluo_bl_threshold value to the comment attribute
-        for var in saved_attrs:
-            self.df_r[var].attrs = saved_attrs[var]
-            if var in [
-                f"{prefix}_proxy_diatoms",
-                f"{prefix}_proxy_adinos",
-                f"{prefix}_proxy_hdinos",
-            ]:
-                self.df_r[var].attrs["comment"] += (
-                    f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
+        # Restore attrs for every df_r column – assignments above cleared the
+        # entire _item_cache, losing attrs on columns we never intended to modify.
+        for col in self.df_r.columns:
+            if col in saved_attrs:
+                self.df_r[col].attrs = saved_attrs[col]
+        # Append correction note to the three proxy columns
+        for var in [
+            f"{prefix}_proxy_diatoms",
+            f"{prefix}_proxy_adinos",
+            f"{prefix}_proxy_hdinos",
+        ]:
+            if var in self.df_r.columns:
+                self.df_r[var].attrs["comment"] = (
+                    self.df_r[var].attrs.get("comment", "")
+                    + f"; corrected with fluo_bl_threshold={fluo_bl_threshold}"
                 )
 
     def resample_variable(  # noqa: PLR0913
