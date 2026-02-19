@@ -52,11 +52,14 @@ import cf_xarray  # Needed for the .cf accessor  # noqa: F401
 import numpy as np
 import pandas as pd
 import xarray as xr
-from utils import monotonic_increasing_time_indices, nudge_positions
+from utils import (
+    get_deployment_name,
+    monotonic_increasing_time_indices,
+    nudge_positions,
+)
 from common_args import get_standard_lrauv_parser
 from logs2netcdfs import AUV_NetCDF, TIME, TIME60HZ
 from nc42netcdfs import BASE_LRAUV_PATH, GROUP
-from utils import get_deployment_name
 
 AVG_SALINITY = 33.6  # Typical value for upper 100m of Monterey Bay
 
@@ -723,7 +726,60 @@ class Combine_NetCDF:
 
         return ubat_2d_aligned, calib_coeff_aligned
 
-    def _expand_ubat_to_60hz(self) -> None:
+    def _handle_hv_step_calibration_coefficient(
+        self,
+        calib_coeff: xr.DataArray,
+        mf_width: int,
+    ) -> xr.DataArray:
+        """Handle special treatment for hv_step_calibration_coefficient variable.
+
+        Replace NaN values with the mean of the despiked (median filtered) data.
+        If there are no valid data at all, replace NaNs with a constant value of 14700000.0.
+
+        Args:
+            calib_coeff: The calibration coefficient DataArray to process
+            mf_width: Median filter width for despiking
+
+        Returns:
+            xr.DataArray: The processed calibration coefficient with NaNs filled
+        """
+        timevar = calib_coeff.dims[0]
+
+        # Apply median filter for despiking
+        despiked_data = calib_coeff.rolling(**{timevar: mf_width}, center=True).median().to_pandas()
+
+        # Check if there are any non-NaN values in the despiked data
+        valid_data = despiked_data.dropna()
+
+        if len(valid_data) > 0:
+            # Calculate mean of despiked data
+            mean_value = valid_data.mean()
+            self.logger.info(
+                "Filling NaN values in hv_step_calibration_coefficient "
+                "with mean of despiked data: %.2f",
+                mean_value,
+            )
+            # Replace NaNs with the mean
+            filled_data = despiked_data.fillna(mean_value)
+        else:
+            # No valid data at all, use constant value
+            constant_value = 14700000.0
+            self.logger.info(
+                "No valid data for hv_step_calibration_coefficient, "
+                "filling all NaN values with constant: %.1f",
+                constant_value,
+            )
+            filled_data = despiked_data.fillna(constant_value)
+
+        # Convert back to xarray DataArray with original coordinates and attributes
+        return xr.DataArray(
+            filled_data.values,
+            dims=[timevar],
+            coords={timevar: calib_coeff.coords[timevar]},
+            attrs=calib_coeff.attrs,
+        )
+
+    def _expand_ubat_to_60hz(self) -> None:  # noqa: PLR0915
         """Expand UBAT digitized_raw_ad_counts 2D array into 60hz time series.
 
         Replaces the 2D array with a 1D 60Hz time series, analogous to how
@@ -803,6 +859,15 @@ class Combine_NetCDF:
             calib_time_dim,
             len(ubat_time),
         )
+
+        # Apply special handling for NaN values in calibration coefficient
+        # Use median filter width of 3 (standard value for despiking)
+        mf_width = 3
+        self.logger.info("Applying NaN handling to wetlabsubat_hv_step_calibration_coefficient")
+        calib_coeff = self._handle_hv_step_calibration_coefficient(calib_coeff, mf_width)
+
+        # Save the filled calibration coefficient back to the combined dataset
+        self.combined_nc["wetlabsubat_hv_step_calibration_coefficient"] = calib_coeff
 
         # Multiply raw 60 hz values by the calibration coefficient
         # Broadcasting: calib_coeff is (m,) and ubat_2d is (m, 60)

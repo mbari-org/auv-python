@@ -140,7 +140,9 @@
             // No GPS data for a log_file that has an ESP Sample
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250920T070029/202509200700_202509201900.nc4", "--plot"]
             // Depth values get offset in time, See GitHub Issue 115.
-            "args": ["-v", "2", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--plot"]
+            //"args": ["-v", "2", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--plot"]
+            // Debug missing biolume data
+            "args": ["-v", "2", "--log_file", "pontus/missionlogs/2025/20250909_20250912/20250911T051742/202509110517_202509112217.nc4", "--plot"]
 
 
         },
@@ -211,7 +213,8 @@
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250414T205440/202504142054_202504150400.nc4"],
             //"args": ["--auv_name", "dorado", "--mission", "2022.201.00", "-v", "1"],
             //"args": ["--auv_name", "dorado", "--mission", "2006.338.11", "-v", "1"],
-            "args": ["--auv_name", "dorado", "--mission", "2017.347.00", "-v", "1"],
+            //"args": ["--auv_name", "dorado", "--mission", "2017.347.00", "-v", "1"],
+            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2025/20250909_20250912/20250911T051742/202509110517_202509112217.nc4"],
         },
         {
             "name": "5.0 - archive.py",

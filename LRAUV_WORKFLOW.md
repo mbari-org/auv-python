@@ -10,26 +10,33 @@ flowchart LR
     C[combine.py]
     D[(_combined.nc4)]
     E[align.py]
-    F[(_align.nc4)]
-    G[resample.py]
-    H[(_nS.nc)]
-    I[archive.py]
-    J[(archived files in<br>/mbari/LRAUV/)]
     
     Z --> A
     A --> B
     B --> C
     C --> D
     D --> E
+    
+    style Z fill:#e1f5ff
+    style B fill:#e1f5ff
+    style D fill:#e1f5ff
+```
+
+```mermaid
+flowchart LR
+    E[align.py]
+    F[(_align.nc4)]
+    G[resample.py]
+    H[(_nS.nc)]
+    I[archive.py]
+    J[(archived files in<br>/mbari/LRAUV/)]
+    
     E --> F
     F --> G
     G --> H
     H --> I
     I --> J
     
-    style Z fill:#e1f5ff
-    style B fill:#e1f5ff
-    style D fill:#e1f5ff
     style F fill:#e1f5ff
     style H fill:#e1f5ff
     style J fill:#e1f5ff

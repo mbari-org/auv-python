@@ -2275,6 +2275,7 @@ if __name__ == "__main__":
     if resamp.args.log_file:
         netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(resamp.args.log_file).parent}")
         nc_file = Path(netcdfs_dir, f"{Path(resamp.args.log_file).stem}_align.nc4")
+        resamp.auv_name = Path(resamp.args.log_file).parts[0]
     else:
         file_name = f"{resamp.args.auv_name}_{resamp.args.mission}_align.nc4"
         nc_file = Path(
@@ -2285,7 +2286,7 @@ if __name__ == "__main__":
             file_name,
         )
     p_start = time.time()
-    # Everything that Resampler needs should be in the self described nc_file
+    # Everything that Resampler needs should be in the self-described nc_file
     # whether it is Dorado/i2MAP or LRAUV
     resamp.resample_align_file(
         nc_file,
