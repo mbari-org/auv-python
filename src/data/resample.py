@@ -1605,7 +1605,7 @@ class Resampler:
             saved_attrs[var] = self.df_r[var].attrs
 
         df_p[f"{prefix}_fluo"] = biolume_fluo
-        df_p["fluoBL_corr"] = np.full_like(df_p[f"{prefix}_fluo"], np.nan)
+        df_p["fluoBL_corr"] = np.full_like(df_p[f"{prefix}_fluo"], np.nan, dtype=np.float64)
 
         depth_series = self.resampled_nc["depth"].to_series()
         # df_p["depth"] = depth_series.reindex(df_p.index, method="ffill")
@@ -1649,7 +1649,7 @@ class Resampler:
             [f"{prefix}_proxy_diatoms", f"{prefix}_proxy_adinos", f"{prefix}_proxy_hdinos"],
             strict=False,
         ):
-            df_p[new] = np.full_like(df_p[old], np.nan)
+            df_p[new] = np.full_like(df_p[old], np.nan, dtype=np.float64)
 
         def _interval_contains_sunevent(
             start: pd.Timestamp, end: pd.Timestamp, events: pd.DatetimeIndex
