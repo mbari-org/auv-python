@@ -177,7 +177,9 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4"],
-            "args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4"]
+            //"args": ["-v", "1", "--log_file", "brizo/missionlogs/2025/20250916_20250922/20250916T230652/202509162306_202509180305.nc4"]
+            // Debug using nudged coordinates
+            "args": ["-v", "1", "--log_file", "makai/missionlogs/2026/20260112_20260122/20260121T014546/202601210145_202601211444.nc4"]
         },
         {
             "name": "4.0 - resample.py",

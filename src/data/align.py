@@ -474,27 +474,27 @@ class Align_NetCDF:
         # Create interpolators for navigation coordinates
         try:
             lat_interp = interp1d(
-                self.combined_nc[nav_coords["latitude"]]
-                .get_index(variable_time_coord_mapping[nav_coords["latitude"]])
+                self.combined_nc["nudged_latitude"]
+                .get_index("nudged_time")
                 .view(np.int64)
                 .tolist(),
-                self.combined_nc[nav_coords["latitude"]].values,
+                self.combined_nc["nudged_latitude"].values,
                 fill_value=(
-                    self.combined_nc[nav_coords["latitude"]][0],
-                    self.combined_nc[nav_coords["latitude"]][-1],
+                    self.combined_nc["nudged_latitude"][0],
+                    self.combined_nc["nudged_latitude"][-1],
                 ),
                 bounds_error=False,
             )
 
             lon_interp = interp1d(
-                self.combined_nc[nav_coords["longitude"]]
-                .get_index(variable_time_coord_mapping[nav_coords["longitude"]])
+                self.combined_nc["nudged_longitude"]
+                .get_index("nudged_time")
                 .view(np.int64)
                 .tolist(),
-                self.combined_nc[nav_coords["longitude"]].values,
+                self.combined_nc["nudged_longitude"].values,
                 fill_value=(
-                    self.combined_nc[nav_coords["longitude"]][0],
-                    self.combined_nc[nav_coords["longitude"]][-1],
+                    self.combined_nc["nudged_longitude"][0],
+                    self.combined_nc["nudged_longitude"][-1],
                 ),
                 bounds_error=False,
             )
@@ -514,6 +514,7 @@ class Align_NetCDF:
 
         except KeyError as e:
             error_message = f"Missing navigation data in {src_file}: {e}"
+            self.logger.exception(error_message)
             raise InvalidCombinedFile(error_message) from e
         except ValueError as e:
             error_message = f"Cannot interpolate navigation coordinates: {e}"
