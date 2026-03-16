@@ -1443,7 +1443,7 @@ class Resampler:
 
         return fluo, sunsets, sunrises
 
-    def select_nighttime_ubat_raw(
+    def select_nighttime_ubat_raw(  # noqa: PLR0915
         self,
         stride: int = 3000,
     ) -> tuple[pd.Series, list[datetime], list[datetime]]:
@@ -1484,7 +1484,30 @@ class Resampler:
         nighttime_ubat_raw = pd.Series(dtype="float64")
 
         if len(ss_sr_times) == 0:
-            self.logger.info("No sunset or sunrise found during this mission.")
+            if all(a < 0 for a in sun_alts):
+                # Entire mission is at night — use full mission extent
+                mission_start = self.ds[time_coord].to_numpy()[0]
+                mission_end = self.ds[time_coord].to_numpy()[-1]
+                time_coord_name = self.ds["wetlabsubat_digitized_raw_ad_counts"].dims[0]
+                sunsets.append(mission_start)
+                sunrises.append(mission_end)
+                self.logger.info(
+                    "Mission is entirely at night. Extracting all "
+                    "wetlabsubat_digitized_raw_ad_counts data from %s to %s",
+                    mission_start,
+                    mission_end,
+                )
+                nighttime_ubat_raw = (
+                    self.ds["wetlabsubat_digitized_raw_ad_counts"]
+                    .where(
+                        (self.ds[time_coord_name] >= mission_start)
+                        & (self.ds[time_coord_name] <= mission_end),
+                    )
+                    .to_pandas()
+                    .dropna()
+                )
+            else:
+                self.logger.info("No sunset or sunrise found during this mission.")
             return nighttime_ubat_raw, sunsets, sunrises
 
         # Determine if transitions are sunsets or sunrises by checking sun altitude signs
