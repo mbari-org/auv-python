@@ -394,6 +394,71 @@ class CreateProducts:
             return self._get_lrauv_biolume_variables()
         return self._get_dorado_biolume_variables()
 
+    def _plot_nighttime_indicator(
+        self,
+        fig: matplotlib.figure.Figure,
+        ref_ax: matplotlib.axes.Axes,
+        distnav: xr.DataArray,
+    ) -> None:
+        """Draw a thin nighttime indicator strip just above ref_ax.
+
+        Fills black bars over the distance axis wherever the sun is below the horizon.
+        Uses the figure's existing white space without adjusting other subplot dimensions.
+        """
+        from datetime import UTC  # noqa: PLC0415
+
+        try:
+            from pysolar import solar  # noqa: PLC0415
+        except ImportError:
+            self.logger.warning("pysolar not available; skipping nighttime indicator")
+            return
+
+        times = pd.to_datetime(self.ds.cf["time"].to_numpy())
+        lats = self.ds.cf["latitude"].to_numpy()
+        lons = self.ds.cf["longitude"].to_numpy()
+        dist_km = distnav.to_numpy() / 1000.0
+
+        # Subsample for speed (pysolar is slow)
+        n = len(times)
+        step = max(1, n // 500)
+        idx = np.arange(0, n, step)
+
+        is_night = np.zeros(len(idx), dtype=bool)
+        for k, i in enumerate(idx):
+            try:
+                alt = solar.get_altitude(
+                    float(lats[i]),
+                    float(lons[i]),
+                    times[i].to_pydatetime().replace(tzinfo=UTC),
+                )
+                is_night[k] = alt < 0
+            except Exception:  # noqa: BLE001
+                self.logger.debug("pysolar altitude failed at index %d", i)
+
+        sub_dist = dist_km[idx]
+
+        # Create a thin axes above ref_ax using figure-normalized coordinates
+        bbox = ref_ax.get_position()
+        indicator_height = 0.004  # ~4 px at 100 dpi on a 10-inch-tall figure
+        gap = 0.013
+        night_ax = fig.add_axes([bbox.x0, bbox.y1 + gap, bbox.width, indicator_height])
+        night_ax.set_xlim(sub_dist[0], ref_ax.get_xlim()[1])
+        night_ax.set_ylim(0, 1)
+        night_ax.axis("off")
+
+        # Fill contiguous nighttime spans as black bars
+        in_night = False
+        night_start = None
+        for k in range(len(sub_dist)):
+            if is_night[k] and not in_night:
+                night_start = sub_dist[k]
+                in_night = True
+            elif not is_night[k] and in_night:
+                night_ax.axvspan(night_start, sub_dist[k - 1], color="black", lw=0)
+                in_night = False
+        if in_night:
+            night_ax.axvspan(night_start, sub_dist[-1], color="black", lw=0)
+
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
         # auvnav positions are too fine for distance calculations, they resolve
@@ -843,6 +908,9 @@ class CreateProducts:
 
         # Pattern 2: Break after 'coeff' before 3-digit number (particulatebackscatteringcoeff470nm)
         text = re.sub(r"(coeff)(\d{3})", r"\1_\2", text)
+
+        # Pattern 3: Break after 'High intensity' or 'Low intensity' in flash labels
+        text = re.sub(r"\b((?:High|Low) intensity)\s+", r"\1\n", text)
 
         # Split on underscores to find natural break points
         parts = text.split("_")
@@ -1723,6 +1791,9 @@ class CreateProducts:
                 col = 1
             else:
                 row += 1
+
+        # Draw nighttime indicator strip just above ax[0,1] now that its x-limits are final
+        self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
 
         # Save plot to file
         if self._is_lrauv():
