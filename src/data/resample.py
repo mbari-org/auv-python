@@ -39,7 +39,10 @@ PLOT_SECONDS = 300
 AUVCTD_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/auvctd"
 LRAUV_OPENDAP_BASE = "http://dods.mbari.org/opendap/data/lrauv"
 FLASH_THRESHOLD = 1.0e11
-DEPTH_THRESHOLD = 10.0  # meters
+PROFILE_MIN_DEPTH_CHANGE = (
+    10.0  # meters - min vertical displacement between peaks to increment profile counter
+)
+SURFACE_EXCLUSION_DEPTH_M = 2.0  # meters - min depth below surface for proxy correction
 MAX_INTERPOLATE_LIMIT = 3  # Maximum number of consecutive NaNs to fill during interpolation
 
 
@@ -824,7 +827,7 @@ class Resampler:
         self.logger.info("Using first available coordinates: %s and %s", lat_var, lon_var)
         return lat_var, lon_var
 
-    def add_profile(self, depth_threshold: float) -> None:
+    def add_profile(self, profile_min_depth_change: float) -> None:
         if len(self.resampled_nc["depth"]) == 0:
             self.logger.warning(
                 "No depth data available to compute profile numbers",
@@ -854,7 +857,7 @@ class Resampler:
             if tv > s_peaks.index[k + 1]:
                 # Encountered a new simple_depth point
                 k += 1
-                if abs(s_peaks.iloc[k + 1] - s_peaks.iloc[k]) > depth_threshold:
+                if abs(s_peaks.iloc[k + 1] - s_peaks.iloc[k]) > profile_min_depth_change:
                     # Completed downcast or upcast
                     count += 1
             profiles.append(count)
@@ -873,8 +876,9 @@ class Resampler:
             "comment": (
                 f"Sequential profile counter identifying individual vertical casts. "
                 f"Profiles are detected from depth vertices using scipy.signal.find_peaks "
-                f"with prominence={depth_threshold}m threshold. Increments when vehicle "
-                f"transitions between upcast and downcast with sufficient vertical displacement."
+                f"with prominence=10m and width=30 samples. Increments when vehicle "
+                f"transitions between upcast and downcast with >{profile_min_depth_change}m "
+                f"vertical displacement."
             ),
         }
 
@@ -1614,7 +1618,7 @@ class Resampler:
         biolume_fluo: pd.Series,  # from add_biolume_proxies or add_wetlabsubat_proxies
         biolume_sunsets: list[datetime],  # from add_biolume_proxies or add_wetlabsubat_proxies
         biolume_sunrises: list[datetime],  # from add_biolume_proxies or add_wetlabsubat_proxies
-        depth_threshold: float,
+        surface_exclusion_depth_m: float,
         adinos_threshold: float = 0.1,
         correction_threshold: int = 3,
         fluo_bl_threshold: float = 0.2,
@@ -1749,7 +1753,7 @@ class Resampler:
                 self.df_r.loc[target_indices, f"{prefix}_proxy_hdinos"] = np.nan
                 continue
             # excludes surface, must be within 5 min of it
-            ideep = iprofil & (df_p.depth > depth_threshold)
+            ideep = iprofil & (df_p.depth > surface_exclusion_depth_m)
             itime = (df_p.index > (df_p.index[ideep].min() - dt_5mins)) & (
                 df_p.index < (df_p.index[ideep].max() + dt_5mins)
             )
@@ -1900,7 +1904,7 @@ class Resampler:
         mission_start: pd.Timestamp,
         mission_end: pd.Timestamp,
         instrs_to_pad: dict[str, timedelta],
-        depth_threshold: float,
+        surface_exclusion_depth_m: float,
     ) -> None:
         # Get the time variable name from the dimension of the variable
         timevar = self.ds[variable].dims[0]
@@ -1919,7 +1923,7 @@ class Resampler:
                 biolume_fluo,
                 biolume_sunsets,
                 biolume_sunrises,
-                depth_threshold,
+                surface_exclusion_depth_m,
             )
         elif instr == "wetlabsubat" and variable == "wetlabsubat_digitized_raw_ad_counts":
             # All wetlabsubat proxy variables are computed from wetlabsubat_digitized_raw_ad_counts
@@ -1937,7 +1941,7 @@ class Resampler:
                 wetlabsubat_fluo,
                 wetlabsubat_sunsets,
                 wetlabsubat_sunrises,
-                depth_threshold,
+                surface_exclusion_depth_m,
             )
         else:
             self.df_o[variable] = self.ds[variable].to_pandas()
@@ -2103,11 +2107,17 @@ class Resampler:
         mf_width: int = MF_WIDTH,
         freq: str = FREQ,
         plot_seconds: float = PLOT_SECONDS,
-        depth_threshold: float = DEPTH_THRESHOLD,
+        profile_min_depth_change: float = PROFILE_MIN_DEPTH_CHANGE,
+        surface_exclusion_depth_m: float = SURFACE_EXCLUSION_DEPTH_M,
     ) -> None:
-        # Change depth_threshold here should a particular mission require it, e.g.:
+        # Change profile_min_depth_change or surface_exclusion_depth_m here
+        # should a particular mission require it, e.g.:
         # if "2023.192.01" in nc_file: ...
-        self.logger.info("Using depth_threshold = %.2f m", depth_threshold)
+        self.logger.info(
+            "Using profile_min_depth_change = %.2f m, surface_exclusion_depth_m = %.2f m",
+            profile_min_depth_change,
+            surface_exclusion_depth_m,
+        )
 
         pd.options.plotting.backend = "matplotlib"
         self.ds = xr.open_dataset(nc_file)
@@ -2150,7 +2160,7 @@ class Resampler:
                 self.logger.info("Calling add_profile")
                 if self.plot:
                     self.plot_coordinates(instr, freq, plot_seconds)
-                self.add_profile(depth_threshold=depth_threshold)
+                self.add_profile(profile_min_depth_change=profile_min_depth_change)
                 self.logger.info("Coordinates saved and profile added successfully")
                 coordinates_saved = True
             if instr != last_instr:
@@ -2169,7 +2179,7 @@ class Resampler:
                         mission_start,
                         mission_end,
                         instrs_to_pad,
-                        depth_threshold,
+                        surface_exclusion_depth_m,
                     )
                     for var in self.df_r:
                         if var not in variables:
@@ -2190,7 +2200,7 @@ class Resampler:
                         mission_start,
                         mission_end,
                         instrs_to_pad,
-                        depth_threshold,
+                        surface_exclusion_depth_m,
                     )
                     for var in self.df_r:
                         if var not in variables:
@@ -2214,7 +2224,7 @@ class Resampler:
                         mission_start,
                         mission_end,
                         instrs_to_pad,
-                        depth_threshold,
+                        surface_exclusion_depth_m,
                     )
                     self.resampled_nc[variable] = (
                         self.df_r[variable].rename_axis("time").to_xarray()
