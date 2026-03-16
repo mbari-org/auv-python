@@ -186,6 +186,9 @@ class CreateProducts:
         "hs2_fl676": "algae",
         "ecopuck_chla": "algae",
         "biolume_avg_biolume": "cividis",
+        "proxy_adinos": "algae",
+        "proxy_diatoms": "Purples",
+        "proxy_hdinos": "Blues",
     }
 
     def _open_ds(self):
@@ -356,6 +359,105 @@ class CreateProducts:
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
             ("wetlabsubat_average_bioluminescence", "log"),
         ]
+
+    def _get_dorado_biolume_variables(self) -> list:
+        """Get Dorado-specific bioluminescence plot variables for plot_biolume_2column()."""
+        return [
+            ("density", "linear"),
+            ("biolume_avg_biolume", "log"),
+            ("biolume_intflash", "linear"),
+            ("biolume_bg_biolume", "log"),
+            ("biolume_nbflash_high", "linear"),
+            ("biolume_nbflash_low", "linear"),
+            ("biolume_proxy_diatoms", "linear"),
+            ("biolume_proxy_adinos", "linear"),
+            ("biolume_proxy_hdinos", "linear"),
+        ]
+
+    def _get_lrauv_biolume_variables(self) -> list:
+        """Get LRAUV-specific bioluminescence plot variables for plot_biolume_2column()."""
+        return [
+            ("density", "linear"),
+            ("wetlabsubat_average_bioluminescence", "log"),
+            ("wetlabsubat_intflash", "linear"),
+            ("wetlabsubat_bg_biolume", "log"),
+            ("wetlabsubat_nbflash_high", "linear"),
+            ("wetlabsubat_nbflash_low", "linear"),
+            ("wetlabsubat_proxy_diatoms", "linear"),
+            ("wetlabsubat_proxy_adinos", "linear"),
+            ("wetlabsubat_proxy_hdinos", "linear"),
+        ]
+
+    def _get_biolume_plot_variables(self) -> list:
+        """Get vehicle-specific bioluminescence variables for plot_biolume_2column()."""
+        if self._is_lrauv():
+            return self._get_lrauv_biolume_variables()
+        return self._get_dorado_biolume_variables()
+
+    def _plot_nighttime_indicator(
+        self,
+        fig: matplotlib.figure.Figure,
+        ref_ax: matplotlib.axes.Axes,
+        distnav: xr.DataArray,
+    ) -> None:
+        """Draw a thin nighttime indicator strip just above ref_ax.
+
+        Fills black bars over the distance axis wherever the sun is below the horizon.
+        Uses the figure's existing white space without adjusting other subplot dimensions.
+        """
+        from datetime import UTC  # noqa: PLC0415
+
+        try:
+            from pysolar import solar  # noqa: PLC0415
+        except ImportError:
+            self.logger.warning("pysolar not available; skipping nighttime indicator")
+            return
+
+        times = pd.to_datetime(self.ds.cf["time"].to_numpy())
+        lats = self.ds.cf["latitude"].to_numpy()
+        lons = self.ds.cf["longitude"].to_numpy()
+        dist_km = distnav.to_numpy() / 1000.0
+
+        # Subsample for speed (pysolar is slow)
+        n = len(times)
+        step = max(1, n // 500)
+        idx = np.arange(0, n, step)
+
+        is_night = np.zeros(len(idx), dtype=bool)
+        for k, i in enumerate(idx):
+            try:
+                alt = solar.get_altitude(
+                    float(lats[i]),
+                    float(lons[i]),
+                    times[i].to_pydatetime().replace(tzinfo=UTC),
+                )
+                is_night[k] = alt < 0
+            except Exception:  # noqa: BLE001
+                self.logger.debug("pysolar altitude failed at index %d", i)
+
+        sub_dist = dist_km[idx]
+
+        # Create a thin axes above ref_ax using figure-normalized coordinates
+        bbox = ref_ax.get_position()
+        indicator_height = 0.004  # ~4 px at 100 dpi on a 10-inch-tall figure
+        gap = 0.013
+        night_ax = fig.add_axes([bbox.x0, bbox.y1 + gap, bbox.width, indicator_height])
+        night_ax.set_xlim(sub_dist[0], ref_ax.get_xlim()[1])
+        night_ax.set_ylim(0, 1)
+        night_ax.axis("off")
+
+        # Fill contiguous nighttime spans as black bars
+        in_night = False
+        night_start = None
+        for k in range(len(sub_dist)):
+            if is_night[k] and not in_night:
+                night_start = sub_dist[k]
+                in_night = True
+            elif not is_night[k] and in_night:
+                night_ax.axvspan(night_start, sub_dist[k - 1], color="black", lw=0)
+                in_night = False
+        if in_night:
+            night_ax.axvspan(night_start, sub_dist[-1], color="black", lw=0)
 
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
@@ -807,6 +909,9 @@ class CreateProducts:
         # Pattern 2: Break after 'coeff' before 3-digit number (particulatebackscatteringcoeff470nm)
         text = re.sub(r"(coeff)(\d{3})", r"\1_\2", text)
 
+        # Pattern 3: Break after 'High intensity' or 'Low intensity' in flash labels
+        text = re.sub(r"\b((?:High|Low) intensity)\s+", r"\1\n", text)
+
         # Split on underscores to find natural break points
         parts = text.split("_")
         lines = []
@@ -1116,12 +1221,16 @@ class CreateProducts:
             max_val = abs(tick_values).max()
 
             # Threshold constants for tick label formatting
+            VERY_LARGE_VALUE_THRESHOLD = 9_999
             LARGE_VALUE_THRESHOLD = 100
             LARGE_RANGE_THRESHOLD = 10
             MEDIUM_VALUE_THRESHOLD = 10
 
             # Choose format based on magnitude and range
-            if max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+            if max_val > VERY_LARGE_VALUE_THRESHOLD:
+                # Very large values (e.g. flash intensity): use scientific notation
+                labels = [f"{x:.3g}" for x in tick_values]
+            elif max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
                 # Large values or large range: use integers
                 labels = [f"{int(round(x))}" for x in tick_values]
             elif max_val >= MEDIUM_VALUE_THRESHOLD:
@@ -1388,12 +1497,16 @@ class CreateProducts:
                 max_val = abs(tick_values).max()
 
                 # Threshold constants for tick label formatting
+                VERY_LARGE_VALUE_THRESHOLD = 9_999
                 LARGE_VALUE_THRESHOLD = 100
                 LARGE_RANGE_THRESHOLD = 10
                 MEDIUM_VALUE_THRESHOLD = 10
 
                 # Choose format based on magnitude and range
-                if max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                if max_val > VERY_LARGE_VALUE_THRESHOLD:
+                    # Very large values (e.g. flash intensity): use scientific notation
+                    labels = [f"{x:.3g}" for x in tick_values]
+                elif max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
                     # Large values or large range: use integers
                     labels = [f"{int(round(x))}" for x in tick_values]
                 elif max_val >= MEDIUM_VALUE_THRESHOLD:
@@ -1570,58 +1683,88 @@ class CreateProducts:
         self.logger.info("Saved 2column plot to %s", output_file)
         return str(output_file)
 
-    def plot_biolume(self) -> str:  # noqa: C901, PLR0912
-        """Create bioluminescence plot showing raw signal and proxy variables"""
+    def plot_biolume_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
+        """Create 2-column bioluminescence plot with map, sigma-t, and all biolume proxy variables.
+
+        Layout (5 rows x 2 columns, column-major order):
+          (0,0) track map   (0,1) density (sigma-t)
+          (1,0) avg_biolume (1,1) intflash
+          (2,0) bg_biolume  (2,1) nbflash_high
+          (3,0) nbflash_low (3,1) proxy_diatoms
+          (4,0) proxy_adinos(4,1) proxy_hdinos
+        """
         # Skip plotting in pytest environment - too many prerequisites for CI
         if "pytest" in sys.modules:
-            self.logger.info("Skipping plot_biolume in pytest environment")
+            self.logger.info("Skipping plot_biolume_2column in pytest environment")
             return None
 
         self._open_ds()
 
-        # Check if biolume variables exist
-        biolume_vars = [v for v in self.ds.variables if v.startswith("biolume_")]
-        if not biolume_vars:
-            self.logger.warning("No biolume variables found in dataset")
+        # Early return if no biolume variables present
+        biolume_prefix = "wetlabsubat_" if self._is_lrauv() else "biolume_"
+        if not any(v.startswith(biolume_prefix) for v in self.ds.variables):
+            self.logger.warning(
+                "No %s* variables found in dataset, skipping plot_biolume_2column",
+                biolume_prefix,
+            )
             return None
 
         idist, iz, distnav = self._grid_dims()
-        if idist is None or iz is None or distnav is None:
-            self.logger.warning("Skipping plot_biolume due to missing gridding dimensions")
+        if idist.size == 0 or iz.size == 0 or distnav.size == 0:
+            self.logger.warning("Skipping plot_biolume_2column due to missing gridding dimensions")
             return None
+
+        fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
+        plt.subplots_adjust(hspace=0.15, wspace=0.04, left=0.05, right=0.97, top=0.96, bottom=0.06)
+
+        # Compute density (sigma-t) if not already present
+        best_ctd = None
+        if self._is_lrauv():
+            self.logger.info("LRAUV mission detected for biolume 2column plot")
+            self._compute_density_lrauv()
+        else:
+            self.logger.info("Dorado mission detected for biolume 2column plot")
+            best_ctd = self._get_best_ctd()
+            self._compute_density(best_ctd)
+
+        # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
+        self._plot_track_map(ax[0, 0], ax[1, 0])
+
+        # Gulper locations (Dorado only)
+        if self.auv_name and self.mission:
+            try:
+                gulper_locations = self._get_gulper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving gulper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
+        else:
+            gulper_locations = {}
+
         try:
             profile_bottoms = self._profile_bottoms(distnav)
         except (TypeError, ValueError) as e:
             self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
             profile_bottoms = None
 
-        # Create figure with subplots for biolume variables
-        num_plots = min(len(biolume_vars), 6)  # Limit to 6 most important variables
-        fig, ax = plt.subplots(nrows=num_plots, ncols=1, figsize=(18, 12))
-        if num_plots == 1:
-            ax = [ax]
-        fig.tight_layout(rect=[0, 0.06, 0.99, 0.96])
+        try:
+            bottom_depths = self._get_bathymetry(
+                self.ds.cf["longitude"].to_numpy(),
+                self.ds.cf["latitude"].to_numpy(),
+            )
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
+            bottom_depths = None
 
-        # Priority order for biolume variables to plot
-        priority_vars = [
-            "biolume_avg_biolume",
-            "biolume_bg_biolume",
-            "biolume_nbflash_high",
-            "biolume_nbflash_low",
-            "biolume_proxy_diatoms",
-            "biolume_proxy_adinos",
-        ]
+        row = 1  # Start at row 1, col 0 (below the map)
+        col = 0
 
-        vars_to_plot = []
-        for pvar in priority_vars:
-            if pvar in self.ds:
-                scale = "log" if "avg_biolume" in pvar or "bg_biolume" in pvar else "linear"
-                vars_to_plot.append((pvar, scale))
-            if len(vars_to_plot) >= num_plots:
-                break
+        plot_variables = self._get_biolume_plot_variables()
 
-        for i, (var, scale) in enumerate(vars_to_plot):
+        for var, scale in plot_variables:
             self.logger.info("Plotting %s...", var)
+            if var not in self.ds:
+                self.logger.warning("%s not in dataset, plotting with no data", var)
+
             self._plot_var(
                 var,
                 idist,
@@ -1629,34 +1772,46 @@ class CreateProducts:
                 distnav,
                 fig,
                 ax,
-                i,
-                0,
+                row,
+                col,
                 profile_bottoms,
                 scale=scale,
+                gulper_locations=gulper_locations,
+                bottom_depths=bottom_depths,
+                best_ctd=best_ctd,
             )
-            if i != num_plots - 1:
-                ax[i].get_xaxis().set_visible(False)
+            if row != 4:  # noqa: PLR2004
+                ax[row, col].get_xaxis().set_visible(False)
             else:
-                ax[i].set_xlabel("Distance along track (km)")
+                ax[row, col].set_xlabel("Distance along track (km)")
 
-        # Add title to the figure
-        title = f"{self.auv_name} {self.mission} - Bioluminescence"
-        if "title" in self.ds.attrs:
-            title = f"{self.ds.attrs['title']} - Bioluminescence"
-        fig.suptitle(title, fontsize=12, fontweight="bold")
+            # Column-major order: fill down first column, then second column
+            if row == 4 and col == 0:  # noqa: PLR2004
+                row = 0
+                col = 1
+            else:
+                row += 1
+
+        # Draw nighttime indicator strip just above ax[0,1] now that its x-limits are final
+        self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
 
         # Save plot to file
-        images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
-        Path(images_dir).mkdir(parents=True, exist_ok=True)
-
-        output_file = Path(
-            images_dir,
-            f"{self.auv_name}_{self.mission}_{self.freq}_biolume.png",
-        )
+        if self._is_lrauv():
+            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+            output_file = Path(
+                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_biolume.png"
+            )
+        else:
+            images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
+            Path(images_dir).mkdir(parents=True, exist_ok=True)
+            output_file = Path(
+                images_dir, f"{self.auv_name}_{self.mission}_{self.freq}_2column_biolume.png"
+            )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
+        plt.show()
         plt.close(fig)
 
-        self.logger.info("Saved biolume plot to %s", output_file)
+        self.logger.info("Saved biolume 2column plot to %s", output_file)
         return str(output_file)
 
     def _get_best_ctd(self) -> str:
@@ -1905,7 +2060,7 @@ if __name__ == "__main__":
     cp.process_command_line()
     p_start = time.time()
     cp.plot_2column()
-    cp.plot_biolume()
+    cp.plot_biolume_2column()
     if cp.mission and cp.auv_name:
         cp.gulper_odv()
     cp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
