@@ -1764,6 +1764,9 @@ class Resampler:
                 # print(f'no corrections possible for {iprofil_=}')
                 continue
             auv_profil = df_p.loc[iprofil]
+            deep_mask = auv_profil.depth > surface_exclusion_depth_m
+            deep_adinos = auv_profil.loc[deep_mask, f"{prefix}_proxy_adinos"]
+            valid_adinos_count = np.sum(deep_adinos > adinos_threshold)
             self.logger.debug(
                 "Processing profile=%d for proxy correction: total_points=%d > thresh=%d ?",
                 iprofil_,
@@ -1771,38 +1774,36 @@ class Resampler:
                 correction_threshold,
             )
             if auv_profil.shape[0] > correction_threshold:
-                if (
-                    np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold)
-                    < correction_threshold
-                ):
+                if valid_adinos_count < correction_threshold:
                     # all proxies are NaN so skip
-                    if auv_profil[f"{prefix}_proxy_adinos"].count() == 0:
+                    if deep_adinos.count() == 0:
                         self.logger.debug(
-                            "Correcting proxies: valid adinos=%d < thresh=%d -- all NaN so skip",
-                            np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
+                            "Correcting proxies: valid deep adinos=%d < thresh=%d -- all NaN so skip",  # noqa: E501
+                            valid_adinos_count,
                             correction_threshold,
                         )
                         continue
                     # no correction for low fluo & biolum values
                     fluoBL_corr = 1.0
                     self.logger.debug(
-                        "Correcting proxies: valid adinos=%d < thresh=%d"
+                        "Correcting proxies: valid deep adinos=%d < thresh=%d"
                         " -- using fluoBL_corr=%.4f, total_size_adinos=%d, nans=%d",
-                        np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
+                        valid_adinos_count,
                         correction_threshold,
                         fluoBL_corr,
-                        auv_profil[f"{prefix}_proxy_adinos"].shape[0],
-                        auv_profil[f"{prefix}_proxy_adinos"].isna().sum(),
+                        deep_adinos.shape[0],
+                        deep_adinos.isna().sum(),
                     )
                 else:
-                    # correlation between fluo and bg_biolum computed on high
-                    # adino values for each profile
-                    idepth = (
-                        auv_profil.depth
-                        <= auv_profil.depth[
-                            auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold
-                        ].max()
+                    # Correlation between fluo and bg_biolum is computed on the
+                    # profile part below surface_exclusion_depth_m, truncated at
+                    # the max depth where adinos exceeds threshold.
+                    deep_high_adinos = deep_mask & (
+                        auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold
                     )
+                    idepth = (
+                        auv_profil.depth <= auv_profil.depth[deep_high_adinos].max()
+                    ) & deep_mask
                     auv_profil_idepth = auv_profil[
                         [f"{prefix}_fluo", f"{prefix}_bg_biolume", "depth"]
                     ].loc[idepth]
@@ -1811,14 +1812,14 @@ class Resampler:
                         auv_profil_idepth[f"{prefix}_bg_biolume"], method=corr_type
                     )
                     self.logger.debug(
-                        "Correcting proxies: valid adinos=%d > thresh=%d"
+                        "Correcting proxies: valid deep adinos=%d > thresh=%d"
                         " -- using fluoBL_corr=%.4f, total_size_idepth=%d, nans=%d,"
                         " min_depth=%.4f, max_depth=%.4f",
-                        np.sum(auv_profil[f"{prefix}_proxy_adinos"] > adinos_threshold),
+                        valid_adinos_count,
                         correction_threshold,
                         fluoBL_corr,
                         auv_profil_idepth.shape[0],
-                        auv_profil[f"{prefix}_proxy_adinos"].isna().sum(),
+                        deep_adinos.isna().sum(),
                         auv_profil_idepth.depth.min(),
                         auv_profil_idepth.depth.max(),
                     )
