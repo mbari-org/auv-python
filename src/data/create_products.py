@@ -363,7 +363,7 @@ class CreateProducts:
     def _get_dorado_biolume_variables(self) -> list:
         """Get Dorado-specific bioluminescence plot variables for plot_biolume_2column()."""
         return [
-            ("density", "linear"),
+            ("biolume_flow", "linear"),
             ("biolume_avg_biolume", "log"),
             ("biolume_intflash", "linear"),
             ("biolume_bg_biolume", "log"),
@@ -374,10 +374,22 @@ class CreateProducts:
             ("biolume_proxy_hdinos", "linear"),
         ]
 
+    def _get_lrauv_ubat_flow_variable(self) -> str:
+        """Get the preferred LRAUV UBAT flow variable name.
+
+        Newer datasets use wetlabsubat_flow_rate; some older datasets use wetlabsubat_flow.
+        """
+        if hasattr(self, "ds"):
+            if "wetlabsubat_flow_rate" in self.ds:
+                return "wetlabsubat_flow_rate"
+            if "wetlabsubat_flow" in self.ds:
+                return "wetlabsubat_flow"
+        return "wetlabsubat_flow_rate"
+
     def _get_lrauv_biolume_variables(self) -> list:
         """Get LRAUV-specific bioluminescence plot variables for plot_biolume_2column()."""
         return [
-            ("density", "linear"),
+            (self._get_lrauv_ubat_flow_variable(), "linear"),
             ("wetlabsubat_average_bioluminescence", "log"),
             ("wetlabsubat_intflash", "linear"),
             ("wetlabsubat_bg_biolume", "log"),
@@ -1684,10 +1696,10 @@ class CreateProducts:
         return str(output_file)
 
     def plot_biolume_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
-        """Create 2-column bioluminescence plot with map, sigma-t, and all biolume proxy variables.
+        """Create 2-column bioluminescence plot with map, flow, and biolume proxies.
 
         Layout (5 rows x 2 columns, column-major order):
-          (0,0) track map   (0,1) density (sigma-t)
+          (0,0) track map   (0,1) flow
           (1,0) avg_biolume (1,1) intflash
           (2,0) bg_biolume  (2,1) nbflash_high
           (3,0) nbflash_low (3,1) proxy_diatoms
