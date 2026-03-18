@@ -1741,10 +1741,17 @@ class Resampler:
         # compute correlation per profil and then correct proxies
         profil = df_p.profile_number
         dt_5mins = np.timedelta64(timedelta(minutes=minutes_from_surface_threshold))
+        sun_event_skipped = 0
+        profile_window_skipped = 0
+        threshold_skipped = 0
+        all_nan_skipped = 0
+        fluo_corr_messages = 0
+        corrected_profiles = 0
         for iprofil_ in range(1, int(np.max(profil)) + 1):
             iprofil = profil == iprofil_
             has_sunevent = df_p.loc[iprofil, "has_sunevent"].any()
             if has_sunevent:  # set proxies for this profile to NaN
+                sun_event_skipped += 1
                 self.logger.info(
                     "Processing profile=%d for proxy correction: found sun event -- set NaN",
                     iprofil_,
@@ -1761,7 +1768,12 @@ class Resampler:
             )
             iprofil = iprofil & itime
             if not np.any(iprofil):
-                # print(f'no corrections possible for {iprofil_=}')
+                profile_window_skipped += 1
+                self.logger.debug(
+                    "profile=%d skipped for proxy correction: no points in deep ±%d minute window",  # noqa: E501
+                    iprofil_,
+                    minutes_from_surface_threshold,
+                )
                 continue
             auv_profil = df_p.loc[iprofil]
             deep_mask = auv_profil.depth > surface_exclusion_depth_m
@@ -1777,6 +1789,7 @@ class Resampler:
                 if valid_adinos_count < correction_threshold:
                     # all proxies are NaN so skip
                     if deep_adinos.count() == 0:
+                        all_nan_skipped += 1
                         self.logger.debug(
                             "Correcting proxies: valid deep adinos=%d < thresh=%d -- all NaN so skip",  # noqa: E501
                             valid_adinos_count,
@@ -1794,6 +1807,7 @@ class Resampler:
                         deep_adinos.shape[0],
                         deep_adinos.isna().sum(),
                     )
+                    fluo_corr_messages += 1
                 else:
                     # Correlation between fluo and bg_biolum is computed on the
                     # profile part below surface_exclusion_depth_m, truncated at
@@ -1823,6 +1837,7 @@ class Resampler:
                         auv_profil_idepth.depth.min(),
                         auv_profil_idepth.depth.max(),
                     )
+                    fluo_corr_messages += 1
 
                 # save correlation
                 df_p.loc[iprofil, "fluoBL_corr"] = fluoBL_corr
@@ -1867,7 +1882,9 @@ class Resampler:
                     iprofil
                 ]
                 self.df_r.loc[target_indices, f"{prefix}_proxy_hdinos"] = df_p.hdinosN.loc[iprofil]
+                corrected_profiles += 1
             else:
+                threshold_skipped += 1
                 self.logger.debug(
                     "profile=%d skipped for proxy correction",
                     iprofil_,
@@ -1879,6 +1896,29 @@ class Resampler:
             "Proxy correction complete: processed %d profiles with fluo_bl_threshold=%.4f",
             profiles_processed,
             fluo_bl_threshold,
+        )
+        corrected_inferred = (
+            profiles_processed
+            - sun_event_skipped
+            - profile_window_skipped
+            - all_nan_skipped
+            - threshold_skipped
+        )
+        self.logger.info(
+            "Proxy correction summary: processed_profiles=%d, sun_event_skipped=%d, "
+            "profile_window_skipped=%d, all_nan_skipped=%d, corrected_inferred=%d, "
+            "corrected_profiles=%d, fluo_corr_messages=%d, threshold_skipped=%d",
+            profiles_processed,
+            sun_event_skipped,
+            profile_window_skipped,
+            all_nan_skipped,
+            corrected_inferred,
+            corrected_profiles,
+            fluo_corr_messages,
+            threshold_skipped,
+        )
+        self.logger.info(
+            "Proxy correction sanity check: deep-only logic active (valid deep adinos)."
         )
 
         # Restore attrs for every df_r column – assignments above cleared the
