@@ -1292,22 +1292,24 @@ class Resampler:
             )
             self.logger.info("Using wetlabsubat_flow for flow calculations")
 
-        # Flow sensor is not always on or may not be present, fill in 0.0 values with 350 ml/s
+        # Flow sensor is not always on or may not be present, fill in 0.0 values with 0.35 l/s
+        # (wetlabsubat_flow_rate is in l/s; 0.35 l/s == 350 mL/s, the Dorado equivalent)
+        FALLBACK_FLOW_L_PER_S = 0.35
         zero_note = ""
         if flow is None:
-            self.logger.info("No flow data found - using constant 350 ml/s")
+            self.logger.info("No flow data found - using constant %.2f l/s", FALLBACK_FLOW_L_PER_S)
             # Create flow series with same index as resampled data
-            flow = pd.Series(350.0, index=nbflash_high_counts.index)
-            zero_note = "No flow data available - used constant 350 ml/s"
+            flow = pd.Series(FALLBACK_FLOW_L_PER_S, index=nbflash_high_counts.index)
+            zero_note = f"No flow data available - used constant {FALLBACK_FLOW_L_PER_S} l/s"
         else:
             num_zero_flow = len(np.where(flow == 0)[0])
             if num_zero_flow > 0:
                 zero_note = (
                     f"Zero flow values found: {num_zero_flow} of {len(flow)} "
-                    f"- replaced with 350 ml/s"
+                    f"- replaced with {FALLBACK_FLOW_L_PER_S} l/s"
                 )
                 self.logger.info(zero_note)
-                flow = flow.replace(0.0, 350.0)
+                flow = flow.replace(0.0, FALLBACK_FLOW_L_PER_S)
 
         # Compute flashes per liter - pandas.Series.divide() will match indexes
         self.logger.info(
