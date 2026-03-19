@@ -676,6 +676,40 @@ class CreateProducts:
 
         return locations
 
+    def _get_sipper_locations(self, distnav: xr.DataArray) -> dict:
+        """Get sipper sample locations in distance/depth space.
+
+        Returns:
+            Dictionary mapping sample number to (distance_km, depth_m) tuple
+        """
+        if not self.log_file:
+            return {}
+
+        sipper = Sipper()
+        sipper.args = argparse.Namespace()
+        sipper.args.log_file = self.log_file
+        sipper.args.local = self.local
+        sipper.args.verbose = 0  # Suppress sipper logging
+        sipper.logger.setLevel(logging.WARNING)
+
+        sipper_times = sipper.parse_sippers()
+        if not sipper_times:
+            return {}
+
+        locations = {}
+        for sample_num, esec in sipper_times.items():
+            # Find closest time index
+            time_ns = np.datetime64(int(esec * 1e9), "ns")
+            time_idx = np.abs(self.ds.cf["time"].to_numpy() - time_ns).argmin()
+
+            # Get distance and depth at that time
+            dist_km = distnav.to_numpy()[time_idx] / 1000.0
+            depth_m = self.ds.cf["depth"].to_numpy()[time_idx]
+
+            locations[sample_num] = (dist_km, depth_m)
+
+        return locations
+
     def _get_colormap_name(self, var: str) -> str:
         """Get colormap name for a variable.
 
@@ -1617,9 +1651,12 @@ class CreateProducts:
                 gulper_locations = {}
         else:
             # LRAUV missions may use sipper or ESP
-            # TODO: Implement _get_sipper_locations(distnav)
+            try:
+                gulper_locations = self._get_sipper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving sipper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
             # TODO: Implement _get_esp_locations(distnav)
-            gulper_locations = {}
 
         try:
             profile_bottoms = self._profile_bottoms(distnav)
@@ -1743,7 +1780,7 @@ class CreateProducts:
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
         self._plot_track_map(ax[0, 0], ax[1, 0])
 
-        # Gulper locations (Dorado only)
+        # Sample locations (Dorado: Gulper, LRAUV: Sipper)
         if self.auv_name and self.mission:
             try:
                 gulper_locations = self._get_gulper_locations(distnav)
@@ -1751,7 +1788,11 @@ class CreateProducts:
                 self.logger.warning("Error retrieving gulper locations: %s", e)  # noqa: TRY400
                 gulper_locations = {}
         else:
-            gulper_locations = {}
+            try:
+                gulper_locations = self._get_sipper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving sipper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
 
         try:
             profile_bottoms = self._profile_bottoms(distnav)
