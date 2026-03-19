@@ -1,5 +1,7 @@
 # noqa: INP001
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -136,6 +138,37 @@ def test_lrauv_group_file_structure(complete_lrauv_processing):
     assert "navigation_depth" in ds.variables  # noqa: S101
     assert "time" in ds.coords  # noqa: S101
     ds.close()
+
+
+def test_lrauv_archive_copies_sipper_text_product(tmp_path, monkeypatch):
+    """Ensure LRAUV archiving copies generated _Sipper.txt product files."""
+    import archive as archive_mod
+    from archive import Archiver
+
+    src_root = tmp_path / "lrauv_source"
+    dst_root = tmp_path / "lrauv_archive"
+    monkeypatch.setattr(archive_mod, "BASE_LRAUV_PATH", src_root)
+    monkeypatch.setattr(archive_mod, "LRAUV_VOL", str(dst_root))
+
+    log_file = (
+        "daphne/missionlogs/2026/20260316_20260318/20260317T191958/202603171919_202603181628.nc4"
+    )
+    stem = Path(log_file).stem
+    relative_parent = Path(log_file).parent
+    src_dir = src_root / relative_parent
+    dst_dir = dst_root / relative_parent
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    src_sipper_txt = src_dir / f"{stem}_1S_Sipper.txt"
+    src_sipper_txt.write_text("header\nrow\n", encoding="utf-8")
+
+    arch = Archiver(add_handlers=False, clobber=True, verbose=1)
+    arch.copy_to_LRAUV(log_file, freq="1S")
+
+    dst_sipper_txt = dst_dir / src_sipper_txt.name
+    assert dst_sipper_txt.exists()  # noqa: S101
+    assert dst_sipper_txt.read_text(encoding="utf-8") == "header\nrow\n"  # noqa: S101
 
 
 @pytest.mark.skip(reason="Full integration test - requires all processing modules")

@@ -209,7 +209,7 @@ class Archiver:
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
 
-    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:  # noqa: C901, PLR0912
+    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
         "Copy the intermediate and resampled netCDF file(s) to the archive LRAUV location"
         src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         dst_dir = Path(LRAUV_VOL, Path(log_file).parent)
@@ -251,6 +251,22 @@ class Archiver:
         # Copy PNG product files created by create_products.py
         self.logger.info("Archiving product files")
         for src_file in src_dir.glob(f"{Path(log_file).stem}_*.png"):
+            dst_file = Path(dst_dir, src_file.name)
+            if self.clobber:
+                if dst_file.exists():
+                    self.logger.info("Removing %s", dst_file)
+                    dst_file.unlink()
+                if src_file.exists():
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+            elif src_file.exists():
+                self.logger.info(
+                    "%-36s exists, but is not being archived because --clobber is not specified.",
+                    src_file.name,
+                )
+
+        # Copy ODV/text product files created by create_products.py (e.g., *_Sipper.txt)
+        for src_file in src_dir.glob(f"{Path(log_file).stem}_*.txt"):
             dst_file = Path(dst_dir, src_file.name)
             if self.clobber:
                 if dst_file.exists():
