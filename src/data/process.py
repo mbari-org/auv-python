@@ -703,6 +703,8 @@ class Processor:
         cp.plot_2column()
         if mission and "dorado" in cp.auv_name.lower():
             cp.gulper_odv()
+        if log_file:
+            cp.sipper_odv()
         cp.logger.removeHandler(self.log_handler)
 
     def email(self, mission: str) -> None:

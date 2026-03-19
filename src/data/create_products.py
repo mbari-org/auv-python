@@ -33,6 +33,7 @@ from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
 from nc42netcdfs import BASE_LRAUV_PATH
 from resample import AUVCTD_OPENDAP_BASE, FREQ, LRAUV_OPENDAP_BASE
 from scipy.interpolate import griddata
+from sipper import Sipper
 
 # Optional import for bathymetry data
 # Set GMT library path for macOS systems with MacPorts or Homebrew installations
@@ -672,6 +673,40 @@ class CreateProducts:
             depth_m = self.ds.cf["depth"].to_numpy()[time_idx]
 
             locations[bottle] = (dist_km, depth_m)
+
+        return locations
+
+    def _get_sipper_locations(self, distnav: xr.DataArray) -> dict:
+        """Get sipper sample locations in distance/depth space.
+
+        Returns:
+            Dictionary mapping sample number to (distance_km, depth_m) tuple
+        """
+        if not self.log_file:
+            return {}
+
+        sipper = Sipper()
+        sipper.args = argparse.Namespace()
+        sipper.args.log_file = self.log_file
+        sipper.args.local = self.local
+        sipper.args.verbose = 0  # Suppress sipper logging
+        sipper.logger.setLevel(logging.WARNING)
+
+        sipper_times = sipper.parse_sippers()
+        if not sipper_times:
+            return {}
+
+        locations = {}
+        for sample_num, esec in sipper_times.items():
+            # Find closest time index
+            time_ns = np.datetime64(int(esec * 1e9), "ns")
+            time_idx = np.abs(self.ds.cf["time"].to_numpy() - time_ns).argmin()
+
+            # Get distance and depth at that time
+            dist_km = distnav.to_numpy()[time_idx] / 1000.0
+            depth_m = self.ds.cf["depth"].to_numpy()[time_idx]
+
+            locations[sample_num] = (dist_km, depth_m)
 
         return locations
 
@@ -1616,9 +1651,12 @@ class CreateProducts:
                 gulper_locations = {}
         else:
             # LRAUV missions may use sipper or ESP
-            # TODO: Implement _get_sipper_locations(distnav)
+            try:
+                gulper_locations = self._get_sipper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving sipper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
             # TODO: Implement _get_esp_locations(distnav)
-            gulper_locations = {}
 
         try:
             profile_bottoms = self._profile_bottoms(distnav)
@@ -1742,7 +1780,7 @@ class CreateProducts:
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
         self._plot_track_map(ax[0, 0], ax[1, 0])
 
-        # Gulper locations (Dorado only)
+        # Sample locations (Dorado: Gulper, LRAUV: Sipper)
         if self.auv_name and self.mission:
             try:
                 gulper_locations = self._get_gulper_locations(distnav)
@@ -1750,7 +1788,11 @@ class CreateProducts:
                 self.logger.warning("Error retrieving gulper locations: %s", e)  # noqa: TRY400
                 gulper_locations = {}
         else:
-            gulper_locations = {}
+            try:
+                gulper_locations = self._get_sipper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving sipper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
 
         try:
             profile_bottoms = self._profile_bottoms(distnav)
@@ -2014,6 +2056,224 @@ class CreateProducts:
             gulper_odv_filename,
         )
 
+    def sipper_odv(self, sec_bnds: int = 1) -> str:  # noqa: C901, PLR0912, PLR0915
+        "Create sipper sample numbers and data at sample collection (ODV tab-delimited) file"
+
+        if not self._is_lrauv() or not self.log_file:
+            self.logger.info("sipper_odv() is only applicable to LRAUV log_file workflows")
+            return None
+
+        sipper = Sipper()
+        sipper.args = argparse.Namespace()
+        sipper.args.log_file = self.log_file
+        sipper.args.local = self.local
+        sipper.args.verbose = self.verbose
+        sipper.logger.setLevel(self._log_levels[self.verbose])
+        sipper.logger.addHandler(self._handler)
+
+        sipper_times = sipper.parse_sippers()
+        if not sipper_times:
+            self.logger.info("No sipper times found for %s", self.log_file)
+            return None
+
+        odv_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+        Path(odv_dir).mkdir(parents=True, exist_ok=True)
+        sipper_odv_filename = Path(
+            odv_dir,
+            f"{Path(self.log_file).stem}_{self.freq}_Sipper.txt",
+        )
+
+        self._open_ds()
+
+        odv_column_names = self.ODV_COLUMN_NAMES.copy()
+        odv_column_names[8] = "Sipper Number [count]"
+
+        # Get bathymetry data for all sipper locations if available
+        bathymetry_dict = {}
+        if PYGMT_AVAILABLE:
+            sipper_lons = []
+            sipper_lats = []
+            sipper_numbers = []
+            for number, esec in sipper_times.items():
+                sipper_data = self.ds.sel(
+                    time=slice(
+                        np.datetime64(int((esec - sec_bnds) * 1e9), "ns"),
+                        np.datetime64(int((esec + sec_bnds) * 1e9), "ns"),
+                    ),
+                )
+                if sipper_data.cf["time"].size == 0:
+                    continue
+                sipper_lons.append(sipper_data.cf["longitude"].to_numpy().mean())
+                sipper_lats.append(sipper_data.cf["latitude"].to_numpy().mean())
+                sipper_numbers.append(number)
+
+            if sipper_lons and sipper_lats:
+                bathymetry = self._get_bathymetry(np.array(sipper_lons), np.array(sipper_lats))
+                if bathymetry is not None:
+                    for i, number in enumerate(sipper_numbers):
+                        bathymetry_dict[number] = bathymetry[i]
+
+        def mean_of(data: xr.Dataset, candidates: list[str]) -> float:
+            for candidate in candidates:
+                if candidate in data:
+                    values = data[candidate].to_numpy()
+                    if values.size > 0 and np.isfinite(values).any():
+                        return float(np.nanmean(values))
+            return np.nan
+
+        with sipper_odv_filename.open("w") as f:
+            f.write("\t".join(odv_column_names) + "\n")
+            for number, esec in sipper_times.items():
+                self.logger.debug("sipper sample: %d of %d", number, len(sipper_times))
+                sipper_data = self.ds.sel(
+                    time=slice(
+                        np.datetime64(int((esec - sec_bnds) * 1e9), "ns"),
+                        np.datetime64(int((esec + sec_bnds) * 1e9), "ns"),
+                    ),
+                )
+
+                if sipper_data.cf["time"].size == 0:
+                    self.logger.warning(
+                        "No LRAUV data found near sipper sample %s at epoch %.3f", number, esec
+                    )
+                    continue
+
+                sample_time = pd.to_datetime(sipper_data.cf["time"][0].to_numpy())
+                profile_num = mean_of(sipper_data, ["profile_number"])
+
+                for count, name in enumerate(odv_column_names):
+                    if name == "Cruise":
+                        f.write(f"{Path(self.log_file).stem}_{self.freq}")
+                    elif name == "Station":
+                        if np.isfinite(profile_num):
+                            f.write(f"{int(profile_num):d}")
+                        else:
+                            f.write("0")
+                    elif name == "Type":
+                        f.write("B")
+                    elif name == "mon/day/yr":
+                        f.write(f"{sample_time.month:02d}/{sample_time.day:02d}/{sample_time.year}")
+                    elif name == "hh:mm":
+                        f.write(f"{sample_time.hour:02d}:{sample_time.minute:02d}")
+                    elif name == "Lon (degrees_east)":
+                        lon = float(sipper_data.cf["longitude"].to_numpy().mean())
+                        f.write(f"{lon + 360.0:9.5f}")
+                    elif name == "Lat (degrees_north)":
+                        lat = float(sipper_data.cf["latitude"].to_numpy().mean())
+                        f.write(f"{lat:8.5f}")
+                    elif name == "Bot. Depth [m]":
+                        if number in bathymetry_dict:
+                            f.write(f"{bathymetry_dict[number]:8.1f}")
+                        else:
+                            f.write(f"{float(1000):8.1f}")
+                    elif name == "Sipper Number [count]":
+                        f.write(f"{number}")
+                    elif name == "QF":
+                        f.write("0")
+                    elif name == "DEPTH [m]":
+                        f.write(f"{float(sipper_data.cf['depth'].to_numpy().mean()):6.2f}")
+                    elif name == "TEMPERATURE [°C]":
+                        temp = mean_of(
+                            sipper_data,
+                            [
+                                "ctdseabird_sea_water_temperature",
+                                "ctd1_temperature",
+                                "ctd2_temperature",
+                            ],
+                        )
+                        f.write(f"{temp:5.2f}" if np.isfinite(temp) else "NaN")
+                    elif name == "SALINITY [PSS78]":
+                        sal = mean_of(
+                            sipper_data,
+                            [
+                                "ctdseabird_sea_water_salinity",
+                                "ctd1_salinity",
+                                "ctd2_salinity",
+                            ],
+                        )
+                        f.write(f"{sal:6.3f}" if np.isfinite(sal) else "NaN")
+                    elif name == "Oxygen [ml/l]":
+                        oxygen = mean_of(
+                            sipper_data,
+                            [
+                                "ctdseabird_sea_water_oxygen",
+                                "ctd1_oxygen_mll",
+                                "ctd2_oxygen_mll",
+                            ],
+                        )
+                        f.write(f"{oxygen:5.3f}" if np.isfinite(oxygen) else "NaN")
+                    elif name == "NITRATE [µmol/kg]":
+                        no3 = mean_of(
+                            sipper_data,
+                            [
+                                "isus_mole_concentration_of_nitrate_in_sea_water_time",
+                                "isus_nitrate",
+                            ],
+                        )
+                        f.write(f"{no3:6.3f}" if np.isfinite(no3) else "NaN")
+                    elif name == "ChlFluor [raw]":
+                        chl = mean_of(
+                            sipper_data,
+                            [
+                                "wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water",
+                                "hs2_fl700",
+                                "hs2_fl676",
+                            ],
+                        )
+                        f.write(f"{chl:11.8f}" if np.isfinite(chl) else "NaN")
+                    elif name == "bbp420 [m^{-1}]":
+                        bbp_blue = mean_of(
+                            sipper_data,
+                            [
+                                "wetlabsbb2fl_particulatebackscatteringcoeff470nm",
+                                "hs2_bb420",
+                                "hs2_bbp420",
+                            ],
+                        )
+                        f.write(f"{bbp_blue:8.7f}" if np.isfinite(bbp_blue) else "NaN")
+                    elif name == "bbp470 [m^{-1}]":
+                        bbp470 = mean_of(sipper_data, ["hs2_bb470"])
+                        f.write(f"{bbp470:8.7f}" if np.isfinite(bbp470) else "NaN")
+                    elif name == "bbp700 [m^{-1}]":
+                        bbp_red = mean_of(
+                            sipper_data,
+                            [
+                                "wetlabsbb2fl_particulatebackscatteringcoeff650nm",
+                                "hs2_bb700",
+                                "hs2_bbp700",
+                            ],
+                        )
+                        f.write(f"{bbp_red:8.7f}" if np.isfinite(bbp_red) else "NaN")
+                    elif name == "bbp676 [m^{-1}]":
+                        bbp676 = mean_of(sipper_data, ["hs2_bb676"])
+                        f.write(f"{bbp676:8.7f}" if np.isfinite(bbp676) else "NaN")
+                    elif name == "PAR [V]":
+                        par = mean_of(
+                            sipper_data,
+                            [
+                                "ctd2_par",
+                                "surface_downwelling_photosynthetic_photon_flux_in_air",
+                            ],
+                        )
+                        f.write(f"{par:6.3f}" if np.isfinite(par) else "NaN")
+                    elif name == "YearDay [day]":
+                        fractional_ns = sipper_data.cf["time"][0] - sipper_data.cf["time"][
+                            0
+                        ].dt.floor("D")
+                        fractional_day = float(fractional_ns) / 86400000000000.0
+                        f.write(f"{sample_time.dayofyear + fractional_day:9.5f}")
+
+                    if count < len(odv_column_names) - 1:
+                        f.write("\t")
+                f.write("\n")
+
+        self.logger.info(
+            "Wrote %d Sipper data lines to %s",
+            len(sipper_times),
+            sipper_odv_filename,
+        )
+        return str(sipper_odv_filename)
+
     def process_command_line(self):
         """Process command line arguments using shared parser infrastructure."""
         # Use shared parser with create_products-specific additions
@@ -2075,4 +2335,6 @@ if __name__ == "__main__":
     cp.plot_biolume_2column()
     if cp.mission and cp.auv_name:
         cp.gulper_odv()
+    if cp.log_file:
+        cp.sipper_odv()
     cp.logger.info("Time to process: %.2f seconds", (time.time() - p_start))
