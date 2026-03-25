@@ -77,6 +77,15 @@ SCI_PARMS = {
         {"name": "VolumeScatCoeff117deg700nm"},
         {"name": "mass_concentration_of_petroleum_hydrocarbons_in_sea_water"},
     ],
+    "_": [
+        {"name": "planktivore_diatoms"},
+        {"name": "planktivore_dinoflagellates"},
+        {"name": "planktivore_caseTemp"},
+        {"name": "planktivore_caseHumidity"},
+        {"name": "planktivore_casePress"},
+        {"name": "planktivore_HM_AvgRois"},
+        {"name": "planktivore_LM_AvgRois"},
+    ],
     "WetLabsUBAT": [
         {"name": "average_bioluminescence"},
         {"name": "flow_rate"},
@@ -205,9 +214,12 @@ class Extract:
 
             # Extract all other groups
             all_groups = list(src_dataset.groups.keys())
+            if "_" in all_groups:
+                self._extract_backseat_group(log_file, src_dataset, netcdfs_dir)
+
             for group_name in sorted(SCIENG_PARMS):
-                if group_name == "/" or group_name not in all_groups:
-                    if group_name != "/" and group_name not in all_groups:
+                if group_name in {"/", "_"} or group_name not in all_groups:
+                    if group_name not in {"/", "_"} and group_name not in all_groups:
                         self.logger.warning("Group %s not found in %s", group_name, input_file)
                     continue
                 self._extract_single_group(log_file, group_name, src_dataset, netcdfs_dir)
@@ -242,6 +254,32 @@ class Extract:
             self.logger.info("Extracted root group '/' to %s", output_file)
         else:
             self.logger.warning("No requested variables found in root group '/'")
+
+    def _extract_backseat_group(
+        self, log_file: str, src_dataset: netCDF4.Dataset, output_dir: Path
+    ):
+        """Extract variables from the '_' group to <stem>_{GROUP}_Backseat.nc."""
+        backseat_parms = SCIENG_PARMS.get("_", [])
+        if not backseat_parms:
+            return
+
+        try:
+            src_group = src_dataset.groups["_"]
+        except KeyError:
+            self.logger.warning("Backseat group '_' not found in %s", Path(log_file).name)
+            return
+
+        self.logger.info("Extracting backseat group '_' as Backseat")
+        vars_to_extract, requested_vars = self._get_available_variables(src_group, backseat_parms)
+
+        if vars_to_extract:
+            output_file = output_dir / f"{Path(log_file).stem}_{GROUP}_Backseat.nc"
+            self._create_netcdf_file(log_file, "Backseat", src_group, vars_to_extract, output_file)
+            self.logger.info("Extracted backseat group '_' to %s", output_file)
+        else:
+            self.logger.warning(
+                "No requested variables (%s) found in backseat group '_'", requested_vars
+            )
 
     def _extract_single_group(
         self,
