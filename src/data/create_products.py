@@ -1768,12 +1768,11 @@ class CreateProducts:
 
         self._open_ds()
 
-        # Early return if no biolume variables present
-        biolume_prefix = "wetlabsubat_" if self._is_lrauv() else "biolume_"
-        if not any(v.startswith(biolume_prefix) for v in self.ds.variables):
+        # Early return if no biolume plot variables present in dataset
+        plot_variables = self._get_biolume_plot_variables()
+        if not any(var in self.ds for var, _ in plot_variables):
             self.logger.warning(
-                "No %s* variables found in dataset, skipping plot_biolume_2column",
-                biolume_prefix,
+                "No biolume plot variables found in dataset, skipping plot_biolume_2column",
             )
             return None
 
@@ -1903,10 +1902,15 @@ class CreateProducts:
 
         self._open_ds()
 
-        # Early return if no planktivore variables present
-        if not any(v.startswith("backseat_planktivore_") for v in self.ds.variables):
+        # Early return if no planktivore plot variables present in dataset
+        planktivore_vars = [
+            v
+            for v, _ in self._get_planktivore_plot_variables()
+            if v.startswith("backseat_planktivore_")
+        ]
+        if not any(var in self.ds for var in planktivore_vars):
             self.logger.warning(
-                "No backseat_planktivore_* variables found in dataset, "
+                "No backseat_planktivore plot variables found in dataset, "
                 "skipping plot_planktivore_2column",
             )
             return None
