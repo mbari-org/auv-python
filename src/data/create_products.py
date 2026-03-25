@@ -190,6 +190,10 @@ class CreateProducts:
         "proxy_adinos": "algae",
         "proxy_diatoms": "Purples",
         "proxy_hdinos": "Blues",
+        "avgrois": "YlOrRd",
+        "casetemp": "thermal",
+        "casehumidity": "PuBu",
+        "casepress": "deep",
     }
 
     def _open_ds(self):
@@ -406,6 +410,20 @@ class CreateProducts:
         if self._is_lrauv():
             return self._get_lrauv_biolume_variables()
         return self._get_dorado_biolume_variables()
+
+    def _get_planktivore_plot_variables(self) -> list:
+        """Get planktivore + context variables for plot_planktivore_2column()."""
+        return [
+            ("backseat_planktivore_hm_avgrois", "linear"),
+            ("backseat_planktivore_lm_avgrois", "linear"),
+            ("backseat_planktivore_casetemp", "linear"),
+            ("backseat_planktivore_casehumidity", "linear"),
+            ("density", "linear"),
+            ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
+            ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
+            ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
+            ("backseat_planktivore_casepress", "linear"),
+        ]
 
     def _plot_nighttime_indicator(
         self,
@@ -1868,6 +1886,138 @@ class CreateProducts:
         self.logger.info("Saved biolume 2column plot to %s", output_file)
         return str(output_file)
 
+    def plot_planktivore_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
+        """Create 2-column planktivore plot with map, ROIs, engineering, and context.
+
+        Layout (5 rows x 2 columns, column-major order):
+          (0,0) track map       (0,1) density
+          (1,0) hm_avgrois      (1,1) backscatter470
+          (2,0) lm_avgrois      (2,1) backscatter650
+          (3,0) casetemp        (3,1) chlorophyll
+          (4,0) casehumidity    (4,1) casepress
+        """
+        # Skip plotting in pytest environment - too many prerequisites for CI
+        if "pytest" in sys.modules:
+            self.logger.info("Skipping plot_planktivore_2column in pytest environment")
+            return None
+
+        self._open_ds()
+
+        # Early return if no planktivore variables present
+        if not any(v.startswith("backseat_planktivore_") for v in self.ds.variables):
+            self.logger.warning(
+                "No backseat_planktivore_* variables found in dataset, "
+                "skipping plot_planktivore_2column",
+            )
+            return None
+
+        idist, iz, distnav = self._grid_dims()
+        if idist.size == 0 or iz.size == 0 or distnav.size == 0:
+            self.logger.warning(
+                "Skipping plot_planktivore_2column due to missing gridding dimensions"
+            )
+            return None
+
+        fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
+        plt.subplots_adjust(hspace=0.15, wspace=0.04, left=0.05, right=0.97, top=0.96, bottom=0.06)
+
+        best_ctd = None
+        if self._is_lrauv():
+            self.logger.info("LRAUV mission detected for planktivore 2column plot")
+            self._compute_density_lrauv()
+        else:
+            self.logger.info("Dorado mission detected for planktivore 2column plot")
+            best_ctd = self._get_best_ctd()
+            self._compute_density(best_ctd)
+
+        self._plot_track_map(ax[0, 0], ax[1, 0])
+
+        if self.auv_name and self.mission:
+            try:
+                gulper_locations = self._get_gulper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving gulper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
+        else:
+            try:
+                gulper_locations = self._get_sipper_locations(distnav)
+            except FileNotFoundError as e:
+                self.logger.warning("Error retrieving sipper locations: %s", e)  # noqa: TRY400
+                gulper_locations = {}
+
+        try:
+            profile_bottoms = self._profile_bottoms(distnav)
+        except (TypeError, ValueError) as e:
+            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
+            profile_bottoms = None
+
+        try:
+            bottom_depths = self._get_bathymetry(
+                self.ds.cf["longitude"].to_numpy(),
+                self.ds.cf["latitude"].to_numpy(),
+            )
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
+            bottom_depths = None
+
+        row = 1
+        col = 0
+
+        plot_variables = self._get_planktivore_plot_variables()
+
+        for var, scale in plot_variables:
+            self.logger.info("Plotting %s...", var)
+            if var not in self.ds:
+                self.logger.warning("%s not in dataset, plotting with no data", var)
+
+            self._plot_var(
+                var,
+                idist,
+                iz,
+                distnav,
+                fig,
+                ax,
+                row,
+                col,
+                profile_bottoms,
+                scale=scale,
+                gulper_locations=gulper_locations,
+                bottom_depths=bottom_depths,
+                best_ctd=best_ctd,
+            )
+            if row != 4:  # noqa: PLR2004
+                ax[row, col].get_xaxis().set_visible(False)
+            else:
+                ax[row, col].set_xlabel("Distance along track (km)")
+
+            if row == 4 and col == 0:  # noqa: PLR2004
+                row = 0
+                col = 1
+            else:
+                row += 1
+
+        self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+
+        if self._is_lrauv():
+            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+            output_file = Path(
+                netcdfs_dir,
+                f"{Path(self.log_file).stem}_{self.freq}_2column_planktivore.png",
+            )
+        else:
+            images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
+            Path(images_dir).mkdir(parents=True, exist_ok=True)
+            output_file = Path(
+                images_dir,
+                f"{self.auv_name}_{self.mission}_{self.freq}_2column_planktivore.png",
+            )
+        plt.savefig(output_file, dpi=100, bbox_inches="tight")
+        plt.show()
+        plt.close(fig)
+
+        self.logger.info("Saved planktivore 2column plot to %s", output_file)
+        return str(output_file)
+
     def _get_best_ctd(self) -> str:
         """Determine best CTD to use for ODV lookup table based on metadata"""
         # LRAUV doesn't use multiple CTDs, return None
@@ -2333,6 +2483,7 @@ if __name__ == "__main__":
     p_start = time.time()
     cp.plot_2column()
     cp.plot_biolume_2column()
+    cp.plot_planktivore_2column()
     if cp.mission and cp.auv_name:
         cp.gulper_odv()
     if cp.log_file:
