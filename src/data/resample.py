@@ -1987,10 +1987,14 @@ class Resampler:
                 surface_exclusion_depth_m,
             )
         else:
-            self.df_o[variable] = self.ds[variable].to_pandas()
-            self.df_o[f"{variable}_mf"] = (
+            orig_series = self.ds[variable].to_pandas()
+            mf_series = (
                 self.ds[variable].rolling(**{timevar: mf_width}, center=True).median().to_pandas()
             )
+            # Reset df_o per variable to avoid index alignment issues when
+            # variables within the same instrument have different time axes
+            # (e.g., Backseat group has diatoms at ~10s and case* at ~1s)
+            self.df_o = pd.DataFrame({variable: orig_series, f"{variable}_mf": mf_series})
             # Resample to center of freq https://stackoverflow.com/a/69945592/1281657
             self.logger.info(
                 "Resampling %s with frequency %s following %d point median filter",
@@ -2006,19 +2010,11 @@ class Resampler:
                 )
                 dt_index = pd.date_range(mission_start, mission_end, freq=freq.lower())
                 self.df_r[variable] = pd.Series(np.nan, index=dt_index)
-                instr_data = (
-                    self.df_o[f"{variable}_mf"]
-                    .shift(0.5, freq=freq.lower())
-                    .resample(freq.lower())
-                    .mean()
-                )
+                instr_data = mf_series.shift(0.5, freq=freq.lower()).resample(freq.lower()).mean()
                 self.df_r.loc[instr_data.index, variable] = instr_data
             else:
                 self.df_r[variable] = (
-                    self.df_o[f"{variable}_mf"]
-                    .shift(0.5, freq=freq.lower())
-                    .resample(freq.lower())
-                    .mean()
+                    mf_series.shift(0.5, freq=freq.lower()).resample(freq.lower()).mean()
                 )
         return ".mean() aggregator"
 
