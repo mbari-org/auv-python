@@ -700,6 +700,7 @@ class Processor:
         cp.logger.addHandler(self.log_handler)
 
         cp.plot_biolume_2column()
+        cp.plot_planktivore_2column()
         cp.plot_2column()
         if mission and "dorado" in cp.auv_name.lower():
             cp.gulper_odv()
