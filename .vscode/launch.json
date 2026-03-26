@@ -460,7 +460,9 @@
             // Test sipper_odv() with a log_file that has an ESP Sample
             //"args": ["-v", "1", "--log_file", "daphne/missionlogs/2026/20260316_20260318/20260317T191958/202603171919_202603181628.nc4", "--no_cleanup"]
             // Test sipper_odv() with a log_file that has an ESP Sample
-            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250415T040019/202504150400_202504152346.nc4", "--no_cleanup"]
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250415T040019/202504150400_202504152346.nc4", "--no_cleanup"]
+            // Test not writing _2column_cmocean.png file if there is no data to plot
+            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250128_20250131/20250131T051404/202501310514_202501310535.nc4", "--clobber"]
         },
 
     ]
