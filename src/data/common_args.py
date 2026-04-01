@@ -87,6 +87,11 @@ class CommonArgumentParser:
             action="store_true",
             help="Don't re-process existing output files",
         )
+        parser.add_argument(
+            "--update_ssds_provenance",
+            action="store_true",
+            help="Submit/update provenance records in the SSDS_Metadata database",
+        )
 
         return parser
 

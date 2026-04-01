@@ -75,6 +75,7 @@ from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB, Extract
+from provenance import get_dods_url, submit_process_run
 from resample import (
     AUVCTD_OPENDAP_BASE,
     FLASH_THRESHOLD,
@@ -177,6 +178,7 @@ class Processor:
         "no_cleanup": False,
         "skip_download_process": False,
         "archive_only_products": False,
+        "update_ssds_provenance": False,
         "num_cores": None,
         # Filtering/processing params (only used in from_args, not common_config)
         "start_year": None,
@@ -708,6 +710,34 @@ class Processor:
             cp.sipper_odv()
         cp.logger.removeHandler(self.log_handler)
 
+    def _submit_provenance(  # noqa: PLR0913
+        self,
+        output_nc: str,
+        input_files: list[str],
+        pr_start: str,
+        pr_end: str,
+        script_name: str = "src/data/process.py",
+        log_file: str | None = None,
+    ) -> None:
+        """Submit a provenance record — failures are logged, never raised."""
+        try:
+            if not Path(output_nc).exists():
+                self.logger.debug("Output %s not found, skipping provenance", output_nc)
+                return
+            log_url = get_dods_url(log_file) if log_file else None
+            submit_process_run(
+                nc_file_path=output_nc,
+                input_uris=input_files,
+                pr_start=pr_start,
+                pr_end=pr_end,
+                script_name=script_name,
+                cmd_line_args=self.commandline,
+                log_file_url=log_url,
+                log=self.logger,
+            )
+        except Exception:  # noqa: BLE001
+            self.logger.warning("Provenance submission failed", exc_info=True)
+
     def email(self, mission: str) -> None:
         self.logger.info("Sending notification email for %s", mission)
         email = Emailer()
@@ -771,6 +801,7 @@ class Processor:
             self.logger.error("Either mission or log_file must be provided for cleanup.")
 
     def process_mission(self, mission: str, src_dir: str = "") -> None:  # noqa: C901, PLR0912, PLR0915
+        _pr_start = datetime.now(tz=UTC).isoformat()
         netcdfs_dir = Path(
             self.config["base_path"],
             self.auv_name,
@@ -854,6 +885,39 @@ class Processor:
             self.align(mission)
             self.resample(mission)
             self.create_products(mission)
+            if self.config["update_ssds_provenance"]:
+                resampled = Path(
+                    self.config["base_path"],
+                    self.auv_name,
+                    MISSIONNETCDFS,
+                    mission,
+                    f"{self.auv_name}_{mission}_{FREQ}.nc",
+                )
+                self._submit_provenance(
+                    output_nc=str(resampled),
+                    input_files=[
+                        str(
+                            Path(
+                                self.config["base_path"],
+                                self.auv_name,
+                                MISSIONLOGS,
+                                mission,
+                            )
+                        )
+                    ],
+                    pr_start=_pr_start,
+                    pr_end=datetime.now(tz=UTC).isoformat(),
+                    script_name="src/data/process_dorado.py",
+                    log_file=str(
+                        Path(
+                            self.config["base_path"],
+                            self.auv_name,
+                            MISSIONNETCDFS,
+                            mission,
+                            f"{self.auv_name}_{mission}_{LOG_NAME}",
+                        )
+                    ),
+                )
             # self.archive() is called in finally: blocks in process_missions()
 
     def process_mission_job(self, mission: str, src_dir: str = "") -> None:
@@ -1041,6 +1105,7 @@ class Processor:
 
     @log_file_processor
     def process_log_file(self, log_file: str) -> None:
+        _pr_start = datetime.now(tz=UTC).isoformat()
         netcdfs_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         Path(netcdfs_dir).mkdir(parents=True, exist_ok=True)
         self.log_handler = logging.FileHandler(
@@ -1074,6 +1139,21 @@ class Processor:
         )
         if resampled_file.exists():
             self.create_products(log_file=log_file)
+            if self.config["update_ssds_provenance"]:
+                self._submit_provenance(
+                    output_nc=str(resampled_file),
+                    input_files=[get_dods_url(str(Path(BASE_LRAUV_PATH, log_file)))],
+                    pr_start=_pr_start,
+                    pr_end=datetime.now(tz=UTC).isoformat(),
+                    script_name="src/data/process_lrauv.py",
+                    log_file=str(
+                        Path(
+                            BASE_LRAUV_PATH,
+                            Path(log_file).parent,
+                            f"{Path(log_file).stem}_processing.log",
+                        )
+                    ),
+                )
         else:
             self.logger.warning(
                 "Resampled file %s not found, skipping create_products step",
@@ -1339,6 +1419,11 @@ class Processor:
                 f"Override the default flash_threshold value of {FLASH_THRESHOLD:.0E} "
                 "and append to the netCDF file name"
             ),
+        )
+        parser.add_argument(
+            "--update_ssds_provenance",
+            action="store_true",
+            help="Submit/update provenance records in the SSDS_Metadata database",
         )
         parser.add_argument(
             "--num_cores",
