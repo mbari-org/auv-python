@@ -109,6 +109,8 @@ def submit_process_run(  # noqa: PLR0913
     nc_file_path: str,
     input_uris: list[str],
     *,
+    producer_name: str | None = None,
+    producer_description: str | None = None,
     poc_email: str = "mccann@mbari.org",
     pr_start: str | None = None,
     pr_end: str | None = None,
@@ -174,12 +176,17 @@ def submit_process_run(  # noqa: PLR0913
     if additional_resources:
         resources.extend(additional_resources)
 
+    output_uri = get_dods_url(nc_file_path)
     payload = {
-        "output_uri": get_dods_url(nc_file_path),
-        "output_name": Path(nc_file_path).name,
+        "output_uri": output_uri,
+        "output_dodsurlstring": f"{output_uri}.html",
+        "producer_name": producer_name,
+        "producer_description": producer_description,
         "input_uris": input_uris,
+        "input_dodsurlstrings": [f"{uri}.html" for uri in input_uris],
         "software_name": software_name,
         "software_version": software_version,
+        "software_uristring": f"https://github.com/mbari-org/auv-python/tree/{software_version}",
         "person_email": poc_email,
         "startdate": pr_start,
         "enddate": pr_end,

@@ -713,20 +713,33 @@ class Processor:
     def _submit_provenance(  # noqa: PLR0913
         self,
         output_nc: str,
+        base_path: str,
         input_files: list[str],
         pr_start: str,
         pr_end: str,
         script_name: str = "src/data/process.py",
         log_file: str | None = None,
     ) -> None:
-        """Submit a provenance record — failures are logged, never raised."""
+        """Submit a provenance record — failures are logged, never raised.
+
+        *output_nc* is a path relative to *base_path* (e.g.
+        ``ahi/missionlogs/.../file_1S.nc``), matching the ``--log_file``
+        convention.  *base_path* is used internally to locate the file and
+        build the OPeNDAP URL.
+        """
         try:
-            if not Path(output_nc).exists():
-                self.logger.debug("Output %s not found, skipping provenance", output_nc)
+            full_nc = str(Path(base_path, output_nc))
+            if not Path(full_nc).exists():
+                self.logger.debug("Output %s not found, skipping provenance", full_nc)
                 return
             log_url = get_dods_url(log_file) if log_file else None
             submit_process_run(
-                nc_file_path=output_nc,
+                producer_name=(
+                    f"auv-python - Execution of {Path(script_name).name}"
+                    f" to produce {Path(output_nc)}"
+                ),
+                producer_description=self.commandline,
+                nc_file_path=full_nc,
                 input_uris=input_files,
                 pr_start=pr_start,
                 pr_end=pr_end,
@@ -886,15 +899,16 @@ class Processor:
             self.resample(mission)
             self.create_products(mission)
             if self.config["update_ssds_provenance"]:
-                resampled = Path(
-                    self.config["base_path"],
-                    self.auv_name,
-                    MISSIONNETCDFS,
-                    mission,
-                    f"{self.auv_name}_{mission}_{FREQ}.nc",
-                )
                 self._submit_provenance(
-                    output_nc=str(resampled),
+                    output_nc=str(
+                        Path(
+                            self.auv_name,
+                            MISSIONNETCDFS,
+                            mission,
+                            f"{self.auv_name}_{mission}_{FREQ}.nc",
+                        )
+                    ),
+                    base_path=self.config["base_path"],
                     input_files=[
                         str(
                             Path(
@@ -1141,7 +1155,8 @@ class Processor:
             self.create_products(log_file=log_file)
             if self.config["update_ssds_provenance"]:
                 self._submit_provenance(
-                    output_nc=str(resampled_file),
+                    output_nc=str(Path(log_file).parent / f"{Path(log_file).stem}_{FREQ}.nc"),
+                    base_path=str(BASE_LRAUV_PATH),
                     input_files=[get_dods_url(str(Path(BASE_LRAUV_PATH, log_file)))],
                     pr_start=_pr_start,
                     pr_end=datetime.now(tz=UTC).isoformat(),
