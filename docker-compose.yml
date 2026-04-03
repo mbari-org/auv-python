@@ -1,3 +1,4 @@
+# Create .env from .env.example, then set values for your environment.
 # Env variables required in .env, e.g. for Mac:
 # M3_VOL=/Volumes/M3
 # AUVCTD_VOL=/Volumes/AUVCTD

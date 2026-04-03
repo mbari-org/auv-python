@@ -103,28 +103,38 @@ First time use with Docker on a server using a service account:
 * cd /opt   # There should be an `auv-python` directory here that is writable by docker_user 
 * git clone git&#xFEFF;@github.com:mbari-org/auv-python.git
 * cd auv-python
-* Create a .env file in `/opt/auv-python` with the following contents:   
-    `M3_VOL=<mount_location>`
-    `AUVCTD_VOL=<mount_location>`
-    `LRAUV_VOL=<mount_location>`
-    `CALIBRATION_VOL=<mount_location>`
-    `WORK_VOL=<auv-python_home>/data`
-    `HOST_NAME=<name_of_host>`
-    `GMT_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/`
+* Create a .env file in `/opt/auv-python` using .env.example as a guide
+
 After installation and when logging into the server again mission data can be processed thusly:
-* Setting up environment and printing help message:   
-    `sudo -u docker_user -i`  
-    `cd /opt/auv-python`     
-    `git pull`      # To get new changes, e.g. mission added to src/data/dorado_info.py   
-    `export DOCKER_USER_ID=$(id -u)`  
-    `docker compose build`   
-    `docker compose run --rm auvpython src/data/process_i2map.py --help`   
-* To actually process a mission and have the processed data copied to the archive use the `-v` and `--clobber` options, e.g.:   
-    `docker compose run --rm auvpython src/data/process_dorado.py --mission 2025.139.04 -v --clobber --noinput`   
-* To process LRAUV data for a specific vehicle and time range:   
-    `docker compose run --rm auvpython src/data/process_lrauv.py --auv_name tethys --start 20250401T000000 --end 20250502T000000 -v --noinput`   
-* To process a specific LRAUV log file:   
-    `docker compose run --rm auvpython src/data/process_lrauv.py --log_file tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4 -v --noinput`   
+* Setting up environment and printing help message:
+```
+    sudo -u docker_user -i
+    cd /opt/auv-python
+    git pull
+    export DOCKER_USER_ID=$(id -u)
+    docker compose build
+    docker compose run --rm auvpython src/data/process_i2map.py --help
+```
+
+* To actually process a mission and have the processed data copied to the archive use the `-v` and `--clobber` options, e.g.:
+```
+    docker compose run --rm auvpython src/data/process_dorado.py --mission 2025.139.04 -v --clobber --noinput
+```
+
+* To process LRAUV data for a specific vehicle and time range:
+```  
+    docker compose run --rm auvpython src/data/process_lrauv.py --auv_name tethys --start 20250401T000000 --end 20250502T000000 -v --clobber --noinput
+```
+
+* For missions/log_files to be processed sequentially add the `--num_cores 1` option:
+```
+    docker compose run --rm auvpython src/data/process_lrauv.py --start 20250101T000000 --end 20260101T000000 -v --clobber --noinput --num_cores 1
+```
+
+* To process a specific LRAUV log file:
+```
+    docker compose run --rm auvpython src/data/process_lrauv.py --log_file tethys/missionlogs/2012/20120908_20120920/20120917T025522/201209170255_201209171110.nc4 -v --clobber --noinput
+``` 
 
 
 --

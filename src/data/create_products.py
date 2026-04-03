@@ -1638,6 +1638,15 @@ class CreateProducts:
 
         self._open_ds()
 
+        # Early return if no plot variables present in dataset
+        # Use a quick pre-check with LRAUV or Dorado variables (excluding computed 'density')
+        plot_variables = self._get_plot_variables(None if self._is_lrauv() else "ctd1")
+        if not any(var in self.ds for var, _ in plot_variables if var != "density"):
+            self.logger.warning(
+                "No plot variables found in dataset, skipping plot_2column",
+            )
+            return None
+
         idist, iz, distnav = self._grid_dims()
         if idist.size == 0 or iz.size == 0 or distnav.size == 0:
             self.logger.warning("Skipping plot_2column due to missing gridding dimensions")
