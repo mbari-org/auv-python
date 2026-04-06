@@ -96,6 +96,9 @@ class CreateProducts:
         log_file: str = None,
         freq: str = FREQ,
         use_scatter: bool = True,  # noqa: FBT001, FBT002
+        ds: xr.Dataset = None,
+        output_dir: Path = None,
+        plot_name_stem: str = None,
     ):
         """Initialize CreateProducts with explicit parameters.
 
@@ -121,6 +124,9 @@ class CreateProducts:
         self.log_file = log_file
         self.freq = freq
         self.use_scatter = use_scatter
+        self.ds = ds
+        self.output_dir = output_dir
+        self.plot_name_stem = plot_name_stem
 
     # Maximum length for long_name before using variable name instead
     MAX_LONG_NAME_LENGTH = 40
@@ -197,6 +203,8 @@ class CreateProducts:
     }
 
     def _open_ds(self):
+        if self.ds is not None:
+            return
         if self._is_lrauv():
             # Open LRAUV resampled file - transform log_file to point to _1S.nc file
             # Convert from original .nc4 to resampled _1S.nc format
@@ -1743,10 +1751,15 @@ class CreateProducts:
 
         # Save plot to file
         if self._is_lrauv():
-            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            output_file = Path(
-                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_cmocean.png"
+            out_dir = (
+                self.output_dir
+                if self.output_dir is not None
+                else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            stem = (
+                self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+            )
+            output_file = Path(out_dir, f"{stem}_{self.freq}_2column_cmocean.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
@@ -1877,10 +1890,15 @@ class CreateProducts:
 
         # Save plot to file
         if self._is_lrauv():
-            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            output_file = Path(
-                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_biolume.png"
+            out_dir = (
+                self.output_dir
+                if self.output_dir is not None
+                else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            stem = (
+                self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+            )
+            output_file = Path(out_dir, f"{stem}_{self.freq}_2column_biolume.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
@@ -2012,11 +2030,15 @@ class CreateProducts:
         self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
 
         if self._is_lrauv():
-            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            output_file = Path(
-                netcdfs_dir,
-                f"{Path(self.log_file).stem}_{self.freq}_2column_planktivore.png",
+            out_dir = (
+                self.output_dir
+                if self.output_dir is not None
+                else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            stem = (
+                self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+            )
+            output_file = Path(out_dir, f"{stem}_{self.freq}_2column_planktivore.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
