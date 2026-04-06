@@ -766,6 +766,24 @@ class Processor:
                 }
             )
 
+        # create_products.py: quick look plots
+        plot_suffixes = [
+            ("2column_cmocean", "Standard 2-column plot"),
+            ("2column_biolume", "Bioluminescence 2-column plot"),
+            ("2column_planktivore", "Planktivore 2-column plot"),
+        ]
+        for suffix, description in plot_suffixes:
+            plot_file = netcdfs_dir / f"{stem}_{FREQ}_{suffix}.png"
+            if plot_file.exists():
+                resources.append(
+                    {
+                        "name": plot_file.name,
+                        "uristring": get_dods_url(str(plot_file)),
+                        "description": f"Created by create_products.py: {description}",
+                        "resourcetype_name": "Quick Look Plot",
+                    }
+                )
+
         return resources
 
     def _submit_provenance(  # noqa: PLR0913
