@@ -176,14 +176,17 @@ def submit_process_run(  # noqa: PLR0913
     if additional_resources:
         resources.extend(additional_resources)
 
+    def _dods_html_url(uri: str) -> str:
+        return f"{uri}.dmr.html" if uri.endswith(".nc4") else f"{uri}.html"
+
     output_uri = get_dods_url(nc_file_path)
     payload = {
         "output_uri": output_uri,
-        "output_dodsurlstring": f"{output_uri}.html",
+        "output_dodsurlstring": _dods_html_url(output_uri),
         "producer_name": producer_name,
         "producer_description": producer_description,
         "input_uris": input_uris,
-        "input_dodsurlstrings": [f"{uri}.html" for uri in input_uris],
+        "input_dodsurlstrings": [_dods_html_url(uri) for uri in input_uris],
         "software_name": software_name,
         "software_version": software_version,
         "software_uristring": f"https://github.com/mbari-org/auv-python/tree/{software_version}",
