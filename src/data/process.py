@@ -74,7 +74,7 @@ from dorado_info import FAILED, TEST, dorado_info
 from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
-from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB, Extract
+from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB, GROUP, Extract
 from provenance import get_dods_url, submit_process_run
 from resample import (
     AUVCTD_OPENDAP_BASE,
@@ -710,6 +710,64 @@ class Processor:
             cp.sipper_odv()
         cp.logger.removeHandler(self.log_handler)
 
+    def _collect_lrauv_netcdf_resources(
+        self,
+        log_file: str,
+        netcdfs_dir: Path,
+    ) -> list[dict]:
+        """Build Resource dicts for all intermediate NetCDF files produced by the LRAUV pipeline."""
+        stem = Path(log_file).stem
+        resources: list[dict] = []
+
+        # nc42netcdfs.py: {stem}_{GROUP}_*.nc files
+        resources.extend(
+            {
+                "name": nc_file.name,
+                "uristring": get_dods_url(str(nc_file)),
+                "description": f"Extracted by nc42netcdfs.py from {Path(log_file).name}",
+                "resourcetype_name": "NetCDF",
+            }
+            for nc_file in sorted(netcdfs_dir.glob(f"{stem}_{GROUP}_*.nc"))
+        )
+
+        # combine.py: {stem}_combined.nc4
+        combined = netcdfs_dir / f"{stem}_combined.nc4"
+        if combined.exists():
+            resources.append(
+                {
+                    "name": combined.name,
+                    "uristring": get_dods_url(str(combined)),
+                    "description": "Combined by combine.py",
+                    "resourcetype_name": "NetCDF",
+                }
+            )
+
+        # align.py: {stem}_align.nc4
+        align = netcdfs_dir / f"{stem}_align.nc4"
+        if align.exists():
+            resources.append(
+                {
+                    "name": align.name,
+                    "uristring": get_dods_url(str(align)),
+                    "description": "Aligned by align.py",
+                    "resourcetype_name": "NetCDF",
+                }
+            )
+
+        # resample.py: {stem}_{FREQ}.nc
+        resampled = netcdfs_dir / f"{stem}_{FREQ}.nc"
+        if resampled.exists():
+            resources.append(
+                {
+                    "name": resampled.name,
+                    "uristring": get_dods_url(str(resampled)),
+                    "description": f"Resampled by resample.py at {FREQ} frequency",
+                    "resourcetype_name": "NetCDF",
+                }
+            )
+
+        return resources
+
     def _submit_provenance(  # noqa: PLR0913
         self,
         output_nc: str,
@@ -719,6 +777,7 @@ class Processor:
         pr_end: str,
         script_name: str = "src/data/process.py",
         log_file: str | None = None,
+        additional_resources: list[dict] | None = None,
     ) -> None:
         """Submit a provenance record — failures are logged, never raised.
 
@@ -746,6 +805,7 @@ class Processor:
                 script_name=script_name,
                 cmd_line_args=self.commandline,
                 log_file_url=log_url,
+                additional_resources=additional_resources,
                 log=self.logger,
             )
         except Exception:  # noqa: BLE001
@@ -1154,6 +1214,10 @@ class Processor:
         if resampled_file.exists():
             self.create_products(log_file=log_file)
             if self.config["update_ssds_provenance"]:
+                netcdf_resources = self._collect_lrauv_netcdf_resources(
+                    log_file,
+                    netcdfs_dir,
+                )
                 self._submit_provenance(
                     output_nc=str(Path(log_file).parent / f"{Path(log_file).stem}_{FREQ}.nc"),
                     base_path=str(BASE_LRAUV_PATH),
@@ -1168,6 +1232,7 @@ class Processor:
                             f"{Path(log_file).stem}_processing.log",
                         )
                     ),
+                    additional_resources=netcdf_resources,
                 )
         else:
             self.logger.warning(
