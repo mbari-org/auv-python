@@ -469,6 +469,17 @@
             // Test ahi mission that has Backseat Planktivore data with --update_ssds_provenance
             "args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250415T040019/202504150400_202504152346.nc4", "--update_ssds_provenance"]
         },
+        {
+            "name": "lrauv_deployment_plots",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/lrauv_deployment_plots.py",
+            "console": "integratedTerminal",
+            // ahi planktivore deployment April 2025
+            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20250414_20250418.dlist"]
+            // tethys CANON September 2012 (classic test case)
+            //"args": ["-v", "1", "--dlist", "tethys/missionlogs/2012/20120908_20120920.dlist"]
+        },
 
     ]
 }
