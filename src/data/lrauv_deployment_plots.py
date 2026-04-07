@@ -16,6 +16,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2026, Monterey Bay Aquarium Research Institute"
 
 import argparse  # noqa: I001
+import http
 import logging
 import re
 import time
@@ -276,23 +277,67 @@ class DeploymentPlotter:
 
         if png_paths:
             html_path = deployment_dir / f"{plot_name_stem}.html"
-            self._write_html(html_path, plot_name_stem, png_paths)
+            self._write_html(html_path, plot_name_stem, png_paths, nc_files)
             self.logger.info("HTML index written to %s", html_path)
 
-    def _write_html(self, html_path: Path, title: str, png_paths: list[str]) -> None:
-        """Write a simple HTML page linking to each deployment plot PNG."""
-        items = ""
+    _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
+
+    def _png_urls_for_nc(self, nc_url: str) -> list[str]:
+        """Return web-accessible PNG URLs for all plot kinds for one OPeNDAP nc URL."""
+        rel = nc_url.replace(LRAUV_OPENDAP_BASE.rstrip("/") + "/", "")
+        base = BASE_LRAUV_WEB.rstrip("/") + "/" + rel[: -len(".nc")]
+        return [f"{base}_{kind}.png" for kind in self._PLOT_KINDS]
+
+    def _url_exists(self, url: str) -> bool:
+        """Return True if the URL responds with HTTP 200 to a HEAD request."""
+        try:
+            req = urllib.request.Request(url, method="HEAD")  # noqa: S310
+            with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+                return resp.status == http.client.OK
+        except (urllib.error.URLError, OSError):
+            return False
+
+    def _write_html(
+        self, html_path: Path, title: str, png_paths: list[str], nc_files: list[str]
+    ) -> None:
+        """Write a simple HTML page linking to deployment and per-log plot PNGs."""
+        depl_items = ""
         for p in png_paths:
-            name = Path(p).name
-            items += f'        <li><a href="{name}">{name}</a></li>\n'
+            if Path(p).exists():
+                name = Path(p).name
+                depl_items += f'        <li><a href="{name}">{name}</a></li>\n'
+            else:
+                self.logger.debug("Deployment PNG not found, skipping: %s", p)
+
+        # Group nc_files by log directory (second-to-last URL component)
+        grouped: dict[str, list[str]] = {}
+        for url in nc_files:
+            log_dir = url.rsplit("/", 2)[1]
+            grouped.setdefault(log_dir, []).append(url)
+
+        log_sections = ""
+        for log_dir in sorted(grouped):
+            section_items = ""
+            for nc_url in grouped[log_dir]:
+                for png_url in self._png_urls_for_nc(nc_url):
+                    if self._url_exists(png_url):
+                        name = png_url.rsplit("/", 1)[1]
+                        section_items += f'        <li><a href="{png_url}">{name}</a></li>\n'
+                    else:
+                        self.logger.debug("Per-log PNG not found, skipping: %s", png_url)
+            if section_items:
+                log_sections += f"    <h3>{log_dir}</h3>\n    <ul>\n{section_items}    </ul>\n"
+
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>{title}</title></head>
 <body>
 <h1>{title}</h1>
+<h2>Deployment plots</h2>
 <ul>
-{items}</ul>
-</body>
+{depl_items}</ul>
+<h2>Per-log plots</h2>
+{log_sections}</body>
 </html>
 """
         html_path.write_text(html, encoding="utf-8")
