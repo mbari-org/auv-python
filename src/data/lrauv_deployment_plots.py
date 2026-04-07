@@ -263,10 +263,39 @@ class DeploymentPlotter:
         )
 
         p_start = time.time()
-        cp.plot_2column()
-        cp.plot_biolume_2column()
-        cp.plot_planktivore_2column()
+        png_paths = [
+            p
+            for p in (
+                cp.plot_2column(),
+                cp.plot_biolume_2column(),
+                cp.plot_planktivore_2column(),
+            )
+            if p is not None
+        ]
         self.logger.info("Deployment plots completed in %.1f s", time.time() - p_start)
+
+        if png_paths:
+            html_path = deployment_dir / f"{plot_name_stem}.html"
+            self._write_html(html_path, plot_name_stem, png_paths)
+            self.logger.info("HTML index written to %s", html_path)
+
+    def _write_html(self, html_path: Path, title: str, png_paths: list[str]) -> None:
+        """Write a simple HTML page linking to each deployment plot PNG."""
+        items = ""
+        for p in png_paths:
+            name = Path(p).name
+            items += f'        <li><a href="{name}">{name}</a></li>\n'
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{title}</title></head>
+<body>
+<h1>{title}</h1>
+<ul>
+{items}</ul>
+</body>
+</html>
+"""
+        html_path.write_text(html, encoding="utf-8")
 
     def process_command_line(self) -> None:
         parser = argparse.ArgumentParser(
