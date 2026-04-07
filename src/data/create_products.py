@@ -790,7 +790,17 @@ class CreateProducts:
         end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S")
 
         # Get title from netCDF attributes
-        title = self.ds.attrs.get("title", f"{self.auv_name} {self.mission}")
+        if self._is_lrauv() and self.plot_name_stem:
+            # Derive dlist path (vehicle/missionlogs/year/dlist_dir) from log_file
+            lf_parts = Path(self.log_file).parts
+            dlist_path = "/".join(lf_parts[:4]) if len(lf_parts) >= 4 else self.log_file  # noqa: PLR2004
+            deployment_name = self.plot_name_stem.replace("_", " ")
+            title = (
+                "Combined, Aligned, and Resampled LRAUV instrument data from "
+                f"Deployment:\n{deployment_name}\n{dlist_path}"
+            )
+        else:
+            title = self.ds.attrs.get("title", f"{self.auv_name} {self.mission}")
 
         # Get the position of the reference axes below to align with
         ref_pos = reference_ax.get_position()

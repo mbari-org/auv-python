@@ -277,7 +277,12 @@ class DeploymentPlotter:
 
         if png_paths:
             html_path = deployment_dir / f"{plot_name_stem}.html"
-            self._write_html(html_path, plot_name_stem, png_paths, nc_files)
+            dlist_no_ext = str(Path(dlist).with_suffix(""))
+            html_title = (
+                "Combined, Aligned, and Resampled LRAUV instrument data from "
+                f"Deployment:\n{raw_name or plot_name_stem}\n{dlist_no_ext}"
+            )
+            self._write_html(html_path, html_title, png_paths, nc_files)
             self.logger.info("HTML index written to %s", html_path)
 
     _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
@@ -328,11 +333,13 @@ class DeploymentPlotter:
             if section_items:
                 log_sections += f"    <h3>{log_dir}</h3>\n    <ul>\n{section_items}    </ul>\n"
 
+        html_title_tag = title.replace("\n", " — ")
+        html_h1 = title.replace("\n", "<br>")
         html = f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>{title}</title></head>
+<head><meta charset="utf-8"><title>{html_title_tag}</title></head>
 <body>
-<h1>{title}</h1>
+<h1>{html_h1}</h1>
 <h2>Deployment plots</h2>
 <ul>
 {depl_items}</ul>
