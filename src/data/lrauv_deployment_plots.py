@@ -19,6 +19,7 @@ import argparse  # noqa: I001
 import http
 import logging
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -31,6 +32,7 @@ from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
 from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
+from provenance import get_dods_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
 
@@ -182,12 +184,18 @@ class DeploymentPlotter:
 
         return xr.concat(datasets, dim="time", join="outer")
 
-    def plot_deployment(self, dlist: str, verbose: int = 0) -> None:  # noqa: C901, PLR0912, PLR0915
+    def plot_deployment(  # noqa: C901, PLR0912, PLR0915
+        self,
+        dlist: str,
+        verbose: int = 0,
+        update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
+    ) -> None:
         """Main entry point: generate deployment-level plots from a .dlist path.
 
         Args:
             dlist: Path to .dlist file (relative to BASE_LRAUV_PATH or absolute).
             verbose: Verbosity level (0-2).
+            update_ssds_provenance: Submit provenance records to SSDS_Metadata.
         """
         self.logger.setLevel(self._log_levels[min(verbose, 2)])
 
@@ -290,6 +298,7 @@ class DeploymentPlotter:
                 png_paths,
                 nc_files,
                 verbose=verbose,
+                update_ssds_provenance=update_ssds_provenance,
             )
 
     def _build_and_write_html(  # noqa: PLR0913
@@ -302,6 +311,7 @@ class DeploymentPlotter:
         png_paths: list[str],
         nc_files: list[str],
         verbose: int = 0,
+        update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Fetch STOQS permalink and write the deployment HTML index file."""
         html_path = deployment_dir / f"{plot_name_stem}.html"
@@ -321,6 +331,75 @@ class DeploymentPlotter:
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
+        if update_ssds_provenance:
+            self._submit_provenance(
+                deployment_dir=deployment_dir,
+                dlist=dlist,
+                plot_name_stem=plot_name_stem,
+                raw_name=raw_name,
+                png_paths=png_paths,
+                nc_files=nc_files,
+            )
+
+    def _submit_provenance(  # noqa: PLR0913
+        self,
+        deployment_dir: Path,
+        dlist: str,
+        plot_name_stem: str,
+        raw_name: str | None,
+        png_paths: list[str],
+        nc_files: list[str],
+    ) -> None:
+        """Submit one ProcessRun record per deployment PNG to SSDS_Metadata.
+
+        Each PNG is recorded as the output; the input nc_files are its sources.
+        The producer name and description are derived from the HTML title text.
+        """
+        from datetime import UTC, datetime  # noqa: PLC0415
+
+        dlist_no_ext = str(Path(dlist).with_suffix(""))
+        producer_name = (
+            "auv-python - lrauv_deployment_plots.py producing "
+            f"deployment plots for {raw_name or plot_name_stem}"
+        )
+        producer_description = (
+            "Combined, Aligned, and Resampled LRAUV instrument data from "
+            f"Deployment: {raw_name or plot_name_stem} — {dlist_no_ext}"
+        )
+        cmd_line = " ".join(sys.argv)
+        input_uris = list(nc_files)  # already OPeNDAP URLs
+        now = datetime.now(tz=UTC).isoformat()
+
+        html_path = deployment_dir / f"{plot_name_stem}.html"
+        additional_resources = []
+        if html_path.exists():
+            additional_resources.append(
+                {
+                    "name": "deployment_html_index",
+                    "uristring": get_dods_url(str(html_path)),
+                    "description": f"HTML index page for {plot_name_stem}",
+                }
+            )
+
+        for png_path in png_paths:
+            if not Path(png_path).exists():
+                self.logger.debug("PNG not found, skipping provenance: %s", png_path)
+                continue
+            try:
+                submit_process_run(
+                    nc_file_path=png_path,
+                    input_uris=input_uris,
+                    producer_name=producer_name,
+                    producer_description=producer_description,
+                    pr_start=now,
+                    pr_end=now,
+                    script_name="src/data/lrauv_deployment_plots.py",
+                    cmd_line_args=cmd_line,
+                    additional_resources=additional_resources,
+                    log=self.logger,
+                )
+            except Exception:  # noqa: BLE001
+                self.logger.warning("Provenance submission failed for %s", png_path, exc_info=True)
 
     _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
 
@@ -426,10 +505,19 @@ class DeploymentPlotter:
             choices=[0, 1, 2],
             help="Verbosity level (0=warn, 1=info, 2=debug)",
         )
+        parser.add_argument(
+            "--update_ssds_provenance",
+            action="store_true",
+            help="Submit/update provenance records in the SSDS_Metadata database",
+        )
         self.args = parser.parse_args()
 
 
 if __name__ == "__main__":
     dp = DeploymentPlotter()
     dp.process_command_line()
-    dp.plot_deployment(dp.args.dlist, verbose=dp.args.verbose)
+    dp.plot_deployment(
+        dp.args.dlist,
+        verbose=dp.args.verbose,
+        update_ssds_provenance=dp.args.update_ssds_provenance,
+    )
