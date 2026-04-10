@@ -528,7 +528,7 @@ class CreateProducts:
         cmap = plt.get_cmap("tab10")
         for idx, (label, d_start, d_end) in enumerate(ranges):
             color = cmap(idx % 10)
-            y_line = idx + 0.2
+            y_line = idx * 0.25 + 0.5
             bar_ax.plot(
                 [d_start, d_end],
                 [y_line, y_line],
@@ -555,7 +555,7 @@ class CreateProducts:
         bar_ax.set_xlim(x_km_min, x_km_max)
         bar_ax.set_ylim(0, len(ranges))
 
-    def _plot_nighttime_indicator(
+    def _plot_nighttime_indicator(  # noqa: PLR0915
         self,
         fig: matplotlib.figure.Figure,
         ref_ax: matplotlib.axes.Axes,
@@ -566,7 +566,7 @@ class CreateProducts:
         Fills black bars over the distance axis wherever the sun is below the horizon.
         Uses the figure's existing white space without adjusting other subplot dimensions.
         """
-        from datetime import UTC  # noqa: PLC0415
+        from datetime import UTC, timedelta, timezone  # noqa: PLC0415
 
         try:
             from pysolar import solar  # noqa: PLC0415
@@ -601,7 +601,7 @@ class CreateProducts:
         # Create a thin axes above ref_ax using figure-normalized coordinates
         bbox = ref_ax.get_position()
         indicator_height = 0.004  # ~4 px at 100 dpi on a 10-inch-tall figure
-        gap = 0.013
+        gap = 0.022
         night_ax = fig.add_axes([bbox.x0, bbox.y1 + gap, bbox.width, indicator_height])
         night_ax.set_xlim(sub_dist[0], ref_ax.get_xlim()[1])
         night_ax.set_ylim(0, 1)
@@ -619,6 +619,46 @@ class CreateProducts:
                 in_night = False
         if in_night:
             night_ax.axvspan(night_start, sub_dist[-1], color="black", lw=0)
+
+        # Draw a short tick and local date label at each local midnight
+        utc_offset_h = int(round(float(np.median(lons)) / 15))
+        local_tz = timezone(timedelta(hours=utc_offset_h))
+        times_s = np.array([t.timestamp() for t in times])
+        day = times[0].to_pydatetime().astimezone(local_tz).date()
+        end_day = times[-1].to_pydatetime().astimezone(local_tz).date()
+        while day <= end_day:
+            midnight_local = pd.Timestamp(year=day.year, month=day.month, day=day.day, tz=local_tz)
+            ts = midnight_local.timestamp()
+            if times_s[0] <= ts <= times_s[-1]:
+                dist_mid = float(np.interp(ts, times_s, dist_km))
+                night_ax.plot(
+                    [dist_mid, dist_mid],
+                    [0.0, -1.0],
+                    color="black",
+                    linewidth=0.8,
+                    clip_on=False,
+                )
+                night_ax.text(
+                    dist_mid,
+                    -1.2,
+                    "Local:",
+                    fontsize=6,
+                    ha="right",
+                    va="top",
+                    color="black",
+                    clip_on=False,
+                )
+                night_ax.text(
+                    dist_mid,
+                    -1.2,
+                    f"{day.day} {day.strftime('%b %Y')}",
+                    fontsize=6,
+                    ha="left",
+                    va="top",
+                    color="black",
+                    clip_on=False,
+                )
+            day += timedelta(days=1)
 
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
@@ -888,13 +928,18 @@ class CreateProducts:
         return "cividis"
 
     def _plot_track_map(  # noqa: PLR0915
-        self, map_ax: matplotlib.axes.Axes, reference_ax: matplotlib.axes.Axes
+        self,
+        map_ax: matplotlib.axes.Axes,
+        reference_ax: matplotlib.axes.Axes,
+        night_ref_ax: matplotlib.axes.Axes | None = None,
     ) -> None:
         """Plot AUV track map on left side with title and times on right.
 
         Args:
             map_ax: The axes object to plot the map on
             reference_ax: The axes below to align with (for left edge)
+            night_ref_ax: The axes used by _plot_nighttime_indicator (ax[0,1]); when
+                provided the map top is shifted to align with the indicator top.
         """
         # Get lat/lon data
         lons = self.ds.cf["longitude"].to_numpy()
@@ -908,8 +953,8 @@ class CreateProducts:
 
         # Get time data for start/end
         times = self.ds.cf["time"].to_numpy()
-        start_time = pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M:%S")
-        end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S")
+        start_time = pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M:%S UTC")
+        end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Get title from netCDF attributes
         if self._is_lrauv() and self.plot_name_stem:
@@ -975,7 +1020,15 @@ class CreateProducts:
         aspect_ratio = (37.0 - 36.5) / (122.41 - 121.77)  # data aspect ratio
         map_width = map_height / aspect_ratio * 0.7  # scale to fit nicely
 
-        map_ax.set_position([ref_pos.x0, pos.y0, map_width, map_height])
+        # Align map top with the nighttime indicator top when ref axes is available.
+        # Constants must match _plot_nighttime_indicator: gap=0.022, height=0.004.
+        if night_ref_ax is not None:
+            night_top = night_ref_ax.get_position().y1 + 0.022 + 0.004
+            map_y0 = night_top - map_height
+        else:
+            map_y0 = pos.y0
+
+        map_ax.set_position([ref_pos.x0, map_y0, map_width, map_height])
 
         # Force aspect ratio again after positioning for consistency across platforms
         map_ax.set_aspect("equal", adjustable="box")
@@ -986,7 +1039,7 @@ class CreateProducts:
         cbar_width = 0.01
         cbar_pad = 0.005
         cbar_ax = map_ax.figure.add_axes(
-            [ref_pos.x0 + map_width + cbar_pad, pos.y0, cbar_width, map_height]
+            [ref_pos.x0 + map_width + cbar_pad, map_y0, cbar_width, map_height]
         )
         cbar = map_ax.figure.colorbar(
             scatter,
@@ -1806,7 +1859,7 @@ class CreateProducts:
             self._compute_density(best_ctd)
 
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
-        self._plot_track_map(ax[0, 0], ax[1, 0])
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
         # Parse sample locations - vehicle specific
         if self.auv_name and self.mission:
@@ -1881,6 +1934,7 @@ class CreateProducts:
                 # Move down in current column
                 row += 1
 
+        self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
         self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
         # Save plot to file
         if self._is_lrauv():
@@ -1950,7 +2004,7 @@ class CreateProducts:
             self._compute_density(best_ctd)
 
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
-        self._plot_track_map(ax[0, 0], ax[1, 0])
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
         # Sample locations (Dorado: Gulper, LRAUV: Sipper)
         if self.auv_name and self.mission:
@@ -2095,7 +2149,7 @@ class CreateProducts:
             best_ctd = self._get_best_ctd()
             self._compute_density(best_ctd)
 
-        self._plot_track_map(ax[0, 0], ax[1, 0])
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
         if self.auv_name and self.mission:
             try:
