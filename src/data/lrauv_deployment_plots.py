@@ -264,6 +264,7 @@ class DeploymentPlotter:
             output_dir=deployment_dir,
             plot_name_stem=plot_name_stem,
             verbose=verbose,
+            nc_files=[str(f) for f in nc_files],
         )
 
         p_start = time.time()

@@ -99,6 +99,7 @@ class CreateProducts:
         ds: xr.Dataset = None,
         output_dir: Path = None,
         plot_name_stem: str = None,
+        nc_files: list[str] | None = None,
     ):
         """Initialize CreateProducts with explicit parameters.
 
@@ -113,6 +114,8 @@ class CreateProducts:
             log_file: Path to LRAUV log file (alternative to auv_name/mission)
             freq: Resampling frequency (default: '1S')
             use_scatter: Use scatter plots instead of contour plots (default: True)
+            nc_files: Per-log OPeNDAP URL list (deployment plots only). When set,
+                log-file boundary lines are drawn on the deployment plot.
         """
         self.auv_name = auv_name
         self.mission = mission
@@ -127,6 +130,7 @@ class CreateProducts:
         self.ds = ds
         self.output_dir = output_dir
         self.plot_name_stem = plot_name_stem
+        self.nc_files = nc_files
 
     # Maximum length for long_name before using variable name instead
     MAX_LONG_NAME_LENGTH = 40
@@ -432,6 +436,124 @@ class CreateProducts:
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
             ("backseat_planktivore_casepress", "linear"),
         ]
+
+    def _log_file_distance_ranges(self, distnav: xr.DataArray) -> list[tuple[str, float, float]]:
+        """Return (label, start_km, end_km) for each nc_file in self.nc_files.
+
+        The label is the log-directory timestamp (e.g. ``20250414T205440``),
+        taken from the second-to-last URL component.  Start and end times are
+        parsed from the filename (second-to-last and last URL components differ):
+        filename format ``<start>_<end>_<freq>.nc``
+        (e.g. ``202504142054_202504150400_1S.nc``).
+        Entries that cannot be parsed, and duplicate log directories, are
+        silently skipped.
+        """
+        if not self.nc_files:
+            return []
+
+        seen_starts: set[str] = set()
+        times_np = distnav.coords["time"].to_numpy()
+        times_idx = pd.DatetimeIndex(times_np)
+        if times_idx.tz is None:
+            times_idx = times_idx.tz_localize("UTC")
+        dist_km = distnav.to_numpy() / 1000.0
+
+        result: list[tuple[str, float, float]] = []
+        for url in self.nc_files:
+            # label from parent dir: e.g. "20250414T205440"
+            # times from filename:   e.g. "202504142054_202504150400_1S.nc"
+            label = url.rstrip("/").split("/")[-2]
+            filename = url.rstrip("/").split("/")[-1]
+            parts = filename.split("_")
+            try:
+                t_start = pd.Timestamp(parts[0]).tz_localize("UTC")
+                t_end = pd.Timestamp(parts[1]).tz_localize("UTC")
+            except Exception:  # noqa: BLE001
+                self.logger.debug("Could not parse start/end times from filename: %s", filename)
+                continue
+
+            if label in seen_starts:
+                continue
+            seen_starts.add(label)
+
+            mask = (times_idx >= t_start) & (times_idx < t_end)
+            if not mask.any():
+                self.logger.debug("No data in distnav for %s, skipping", label)
+                continue
+            result.append((label, float(dist_km[mask][0]), float(dist_km[mask][-1])))
+
+        return result
+
+    def _plot_log_file_boundaries(
+        self,
+        fig: matplotlib.figure.Figure,
+        map_ax: matplotlib.axes.Axes,
+        ref_data_ax: matplotlib.axes.Axes,
+        distnav: xr.DataArray,
+    ) -> None:
+        """Draw horizontal log-file boundary segments between the map and first data row.
+
+        Creates a thin axes in the vertical gap between *map_ax* (the map/title
+        block at row 0) and *ref_data_ax* (the first data subplot at row 1, left
+        column).  Each log file gets one horizontal line segment spanning its
+        distance range, labelled with the log-directory timestamp.  Only drawn
+        for deployment plots (``self.nc_files`` must be set).
+        """
+        if not self.nc_files:
+            return
+
+        ranges = self._log_file_distance_ranges(distnav)
+        if not ranges:
+            return
+
+        map_pos = map_ax.get_position()
+        data_pos = ref_data_ax.get_position()
+
+        # Vertical span: from the top of the first data row to the bottom of the map
+        y0 = data_pos.y1  # top of first data subplot
+        y1 = map_pos.y0  # bottom of map (after _plot_track_map repositioning)
+        height = y1 - y0
+        if height <= 0:
+            self.logger.debug("No vertical gap for log-boundary axes (height=%.4f)", height)
+            return
+
+        # Derive x range from distnav — ref_data_ax xlim is not yet set at this
+        # point in plot construction (the _plot_var calls come after this)
+        x_km_min = float(distnav.to_numpy()[0]) / 1000.0
+        x_km_max = float(distnav.to_numpy()[-1]) / 1000.0
+
+        bar_ax = fig.add_axes([data_pos.x0, y0, data_pos.width, height])
+        bar_ax.axis("off")
+
+        cmap = plt.get_cmap("tab10")
+        for idx, (label, d_start, d_end) in enumerate(ranges):
+            color = cmap(idx % 10)
+            y_line = idx + 0.2
+            bar_ax.plot(
+                [d_start, d_end],
+                [y_line, y_line],
+                color=color,
+                linewidth=2,
+                solid_capstyle="butt",
+            )
+            bar_ax.plot(d_start, y_line, "|", color=color, markersize=6, markeredgewidth=1.5)
+            bar_ax.plot(d_end, y_line, "|", color=color, markersize=6, markeredgewidth=1.5)
+            # Label centred on the segment, clipped to the axes
+            x_mid = (d_start + d_end) / 2.0
+            bar_ax.text(
+                x_mid,
+                y_line + 0.25,
+                label,
+                fontsize=6,
+                ha="center",
+                va="bottom",
+                color=color,
+                clip_on=False,
+            )
+
+        # Set limits after plotting so they override matplotlib's autoscaling
+        bar_ax.set_xlim(x_km_min, x_km_max)
+        bar_ax.set_ylim(0, len(ranges))
 
     def _plot_nighttime_indicator(
         self,
@@ -886,10 +1008,10 @@ class CreateProducts:
             spine.set_linewidth(1)
 
         # Add text on the right side with title and times
-        # Wrap title for better formatting
+        # Wrap each pre-formatted line independently to preserve intentional newlines
         import textwrap
 
-        wrapped_title = textwrap.fill(title, width=40)
+        wrapped_title = "\n".join(textwrap.fill(line, width=40) for line in title.split("\n"))
 
         # Get updated position after aspect adjustment
         updated_pos = map_ax.get_position()
@@ -1759,6 +1881,7 @@ class CreateProducts:
                 # Move down in current column
                 row += 1
 
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
         # Save plot to file
         if self._is_lrauv():
             out_dir = (
@@ -1897,6 +2020,7 @@ class CreateProducts:
 
         # Draw nighttime indicator strip just above ax[0,1] now that its x-limits are final
         self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
 
         # Save plot to file
         if self._is_lrauv():
@@ -2038,6 +2162,7 @@ class CreateProducts:
                 row += 1
 
         self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
 
         if self._is_lrauv():
             out_dir = (
