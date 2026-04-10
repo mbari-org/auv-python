@@ -480,7 +480,9 @@
             // tethys CANON September 2012 (classic test case)
             //"args": ["-v", "1", "--dlist", "tethys/missionlogs/2012/20120908_20120920.dlist"]
             // ahi planktivore deployment April 2025 add --update_ssds_provenance
-            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20250414_20250418.dlist", "--update_ssds_provenance"]
+            //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20250414_20250418.dlist", "--update_ssds_provenance"]
+            // Test time range of DeploymentPlots with ahi planktivore deployment April 2025
+            "args": ["-v", "1", "--auv_name", "ahi", "--start", "20251001", "--end", "20251231", "--update_ssds_provenance"]
         },
 
     ]

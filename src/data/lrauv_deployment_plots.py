@@ -23,11 +23,12 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import xarray as xr
 
-from archive import Archiver
+from archive import LRAUV_VOL, Archiver
 from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
 from make_permalink import stoqs_url_from_ds
@@ -202,16 +203,21 @@ class DeploymentPlotter:
         # Relative dlist path (normalised, never absolute unless passed as absolute)
         dlist_rel = Path(dlist)
 
-        # The deployment directory with processed _1S.nc files is always under
-        # BASE_LRAUV_PATH, regardless of where we find the .dlist content.
+        # Output goes to BASE_LRAUV_PATH; validate existence against LRAUV_VOL too.
         if dlist_rel.is_absolute():
             deployment_dir = dlist_rel.parent / dlist_rel.stem
         else:
             deployment_dir = Path(BASE_LRAUV_PATH, dlist_rel.parent, dlist_rel.stem)
 
-        if not deployment_dir.is_dir():
-            self.logger.error("Expected deployment directory not found: %s", deployment_dir)
+        vol_dir = Path(LRAUV_VOL, dlist_rel.parent, dlist_rel.stem)
+        if not deployment_dir.is_dir() and not vol_dir.is_dir():
+            self.logger.error(
+                "Expected deployment directory not found in %s or %s",
+                deployment_dir,
+                vol_dir,
+            )
             return
+        deployment_dir.mkdir(parents=True, exist_ok=True)
 
         self.logger.info("Deployment directory: %s", deployment_dir)
 
@@ -492,18 +498,101 @@ class DeploymentPlotter:
 """
         html_path.write_text(html, encoding="utf-8")
 
+    def _dlist_list(  # noqa: C901, PLR0912
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        auv_name: str | None = None,
+    ) -> list[str]:
+        """Return dlist paths (relative to the scan base) whose date-range
+        directory overlaps with *start_dt*–*end_dt*.
+
+        Scans ``{base}/{auv}/missionlogs/{year}/`` for directories named
+        ``YYYYMMDD_YYYYMMDD`` and checks whether they overlap the requested
+        window.  The sibling ``.dlist`` file (``YYYYMMDD_YYYYMMDD.dlist``)
+        is returned for each matching directory.
+        """
+        _vol = Path(LRAUV_VOL)
+        base = _vol if _vol.is_dir() else Path(BASE_LRAUV_PATH)
+        dlists: list[str] = []
+        auv_dirs = (
+            sorted(base.glob("*/missionlogs/"))
+            if not auv_name
+            else [base / auv_name / "missionlogs"]
+        )
+        for missionlogs_dir in auv_dirs:
+            if not missionlogs_dir.is_dir():
+                continue
+            auv = missionlogs_dir.parent.name
+            for year_dir in sorted(missionlogs_dir.glob("*/")):
+                try:
+                    year = int(year_dir.name)
+                except ValueError:
+                    continue
+                if year < start_dt.year or year > end_dt.year:
+                    continue
+                for date_range_dir in sorted(year_dir.glob("*/")):
+                    # Directory name is YYYYMMDD_YYYYMMDD
+                    parts = date_range_dir.name.split("_")
+                    if len(parts) != 2:  # noqa: PLR2004
+                        continue
+                    try:
+                        dir_start = datetime.strptime(parts[0], "%Y%m%d").replace(tzinfo=UTC)
+                        dir_end = datetime.strptime(parts[1], "%Y%m%d").replace(tzinfo=UTC)
+                    except ValueError:
+                        continue
+                    # Overlap check: ranges overlap if dir_start <= end_dt and dir_end >= start_dt
+                    if dir_start > end_dt or dir_end < start_dt:
+                        continue
+                    # The .dlist file is a sibling of the date_range directory, same name + .dlist
+                    dlist_file = year_dir / f"{date_range_dir.name}.dlist"
+                    if dlist_file.exists():
+                        rel = f"{auv}/missionlogs/{year_dir.name}/{dlist_file.name}"
+                        dlists.append(rel)
+                        self.logger.info("Found dlist: %s", rel)
+                    else:
+                        self.logger.debug("No .dlist sibling found for %s", date_range_dir)
+        return dlists
+
     def process_command_line(self) -> None:
         parser = argparse.ArgumentParser(
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        parser.add_argument(
+        mode = parser.add_mutually_exclusive_group(required=True)
+        mode.add_argument(
             "--dlist",
-            required=True,
             help=(
                 "Path to the .dlist file, relative to BASE_LRAUV_PATH"
                 " (e.g. tethys/missionlogs/2012/20120908_20120920.dlist)"
                 " or an absolute path."
+            ),
+        )
+        mode.add_argument(
+            "--last_n_days",
+            type=int,
+            metavar="LAST_N_DAYS",
+            help="Process deployments whose date range ends in the last N days.",
+        )
+        mode.add_argument(
+            "--start",
+            metavar="YYYYMMDD",
+            help="Process deployments starting at or after this date.",
+        )
+        parser.add_argument(
+            "--end",
+            metavar="YYYYMMDD",
+            default=None,
+            help=(
+                "End date for time-range mode (YYYYMMDD). Defaults to today when used with --start."
+            ),
+        )
+        parser.add_argument(
+            "--auv_name",
+            default=None,
+            help=(
+                "Restrict dlist search to this AUV name (e.g. brizo, ahi)."
+                " If not specified, all AUVs will be searched."
             ),
         )
         parser.add_argument(
@@ -520,13 +609,34 @@ class DeploymentPlotter:
             help="Submit/update provenance records in the SSDS_Metadata database",
         )
         self.args = parser.parse_args()
+        if self.args.start and not self.args.end:
+            self.args.end = datetime.now(tz=UTC).strftime("%Y%m%d")
 
 
 if __name__ == "__main__":
     dp = DeploymentPlotter()
     dp.process_command_line()
-    dp.plot_deployment(
-        dp.args.dlist,
-        verbose=dp.args.verbose,
-        update_ssds_provenance=dp.args.update_ssds_provenance,
-    )
+    args = dp.args
+    dp.logger.setLevel(dp._log_levels[min(args.verbose, 2)])
+
+    if args.dlist:
+        dlists = [args.dlist]
+    elif args.last_n_days:
+        end_dt = datetime.now(tz=UTC)
+        start_dt = end_dt - timedelta(days=args.last_n_days)
+        dlists = dp._dlist_list(start_dt, end_dt, args.auv_name)
+    else:  # --start [--end]
+        start_dt = datetime.strptime(args.start, "%Y%m%d").replace(tzinfo=UTC)
+        end_dt = datetime.strptime(args.end, "%Y%m%d").replace(tzinfo=UTC)
+        dlists = dp._dlist_list(start_dt, end_dt, args.auv_name)
+
+    if not dlists:
+        dp.logger.warning("No dlist files found for the specified time range.")
+        sys.exit(0)
+
+    for dlist in dlists:
+        dp.plot_deployment(
+            dlist,
+            verbose=args.verbose,
+            update_ssds_provenance=args.update_ssds_provenance,
+        )
