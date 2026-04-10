@@ -578,7 +578,7 @@ class CreateProducts:
         idist = np.linspace(
             distnav.to_numpy()[0],
             distnav.to_numpy()[-1],
-            3 * self.ds["profile_number"].to_numpy()[-1],
+            int(3 * self.ds["profile_number"].to_numpy()[-1]),
         )
         # Vertical gridded to .5 m, rounded down to nearest 50m
         max_depth = np.floor(self.ds.cf["depth"].max() / 50) * 50

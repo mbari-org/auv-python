@@ -28,6 +28,7 @@ import xarray as xr
 
 from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
+from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
@@ -162,6 +163,8 @@ class DeploymentPlotter:
                 paths,
                 combine="by_coords",
                 join="outer",
+                parallel=True,
+                chunks="auto",
             )
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("open_mfdataset failed (%s), falling back to xr.concat", exc)
@@ -178,7 +181,7 @@ class DeploymentPlotter:
 
         return xr.concat(datasets, dim="time", join="outer")
 
-    def plot_deployment(self, dlist: str, verbose: int = 0) -> None:  # noqa: C901, PLR0912
+    def plot_deployment(self, dlist: str, verbose: int = 0) -> None:  # noqa: C901, PLR0912, PLR0915
         """Main entry point: generate deployment-level plots from a .dlist path.
 
         Args:
@@ -276,14 +279,35 @@ class DeploymentPlotter:
         self.logger.info("Deployment plots completed in %.1f s", time.time() - p_start)
 
         if png_paths:
-            html_path = deployment_dir / f"{plot_name_stem}.html"
-            dlist_no_ext = str(Path(dlist).with_suffix(""))
-            html_title = (
-                "Combined, Aligned, and Resampled LRAUV instrument data from "
-                f"Deployment:\n{raw_name or plot_name_stem}\n{dlist_no_ext}"
+            self._build_and_write_html(
+                deployment_dir, dlist, plot_name_stem, raw_name, combined_ds, png_paths, nc_files
             )
-            self._write_html(html_path, html_title, png_paths, nc_files)
-            self.logger.info("HTML index written to %s", html_path)
+
+    def _build_and_write_html(  # noqa: PLR0913
+        self,
+        deployment_dir: Path,
+        dlist: str,
+        plot_name_stem: str,
+        raw_name: str | None,
+        combined_ds: xr.Dataset,
+        png_paths: list[str],
+        nc_files: list[str],
+    ) -> None:
+        """Fetch STOQS permalink and write the deployment HTML index file."""
+        html_path = deployment_dir / f"{plot_name_stem}.html"
+        dlist_no_ext = str(Path(dlist).with_suffix(""))
+        html_title = (
+            "Combined, Aligned, and Resampled LRAUV instrument data from "
+            f"Deployment:\n{raw_name or plot_name_stem}\n{dlist_no_ext}"
+        )
+        stoqs_url = None
+        try:
+            stoqs_url = stoqs_url_from_ds(combined_ds, auv_name=dlist.split("/")[0])
+            self.logger.info("STOQS permalink: %s", stoqs_url)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("Could not generate STOQS permalink: %s", exc)
+        self._write_html(html_path, html_title, png_paths, nc_files, stoqs_url)
+        self.logger.info("HTML index written to %s", html_path)
 
     _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
 
@@ -302,8 +326,13 @@ class DeploymentPlotter:
         except (urllib.error.URLError, OSError):
             return False
 
-    def _write_html(
-        self, html_path: Path, title: str, png_paths: list[str], nc_files: list[str]
+    def _write_html(  # noqa: PLR0913
+        self,
+        html_path: Path,
+        title: str,
+        png_paths: list[str],
+        nc_files: list[str],
+        stoqs_url: str | None = None,
     ) -> None:
         """Write a simple HTML page linking to deployment and per-log plot PNGs."""
         depl_items = ""
@@ -313,6 +342,12 @@ class DeploymentPlotter:
                 depl_items += f'        <li><a href="{name}">{name}</a></li>\n'
             else:
                 self.logger.debug("Deployment PNG not found, skipping: %s", p)
+
+        stoqs_section = ""
+        if stoqs_url:
+            stoqs_section = (
+                f'<h2>STOQS</h2>\n<p><a href="{stoqs_url}">Share this view in STOQS</a></p>\n'
+            )
 
         # Group nc_files by log directory (second-to-last URL component)
         grouped: dict[str, list[str]] = {}
@@ -324,6 +359,13 @@ class DeploymentPlotter:
         for log_dir in sorted(grouped):
             section_items = ""
             for nc_url in grouped[log_dir]:
+                # OPeNDAP data access form link
+                nc_name = nc_url.rsplit("/", 1)[1]
+                dap_form_url = nc_url + ".html"
+                section_items += (
+                    f'        <li><a href="{dap_form_url}">{nc_name} (OPeNDAP)</a></li>\n'
+                )
+                # Plot image links
                 for png_url in self._png_urls_for_nc(nc_url):
                     if self._url_exists(png_url):
                         name = png_url.rsplit("/", 1)[1]
@@ -340,7 +382,7 @@ class DeploymentPlotter:
 <head><meta charset="utf-8"><title>{html_title_tag}</title></head>
 <body>
 <h1>{html_h1}</h1>
-<h2>Deployment plots</h2>
+{stoqs_section}<h2>Deployment plots</h2>
 <ul>
 {depl_items}</ul>
 <h2>Per-log plots</h2>
