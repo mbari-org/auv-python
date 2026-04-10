@@ -378,6 +378,7 @@ class DeploymentPlotter:
                     "name": "deployment_html_index",
                     "uristring": get_dods_url(str(html_path)),
                     "description": f"HTML index page for {plot_name_stem}",
+                    "resourcetype_name": "html",
                 }
             )
 
@@ -385,6 +386,14 @@ class DeploymentPlotter:
             if not Path(png_path).exists():
                 self.logger.debug("PNG not found, skipping provenance: %s", png_path)
                 continue
+            png_resources = additional_resources + [
+                {
+                    "name": Path(png_path).name,
+                    "uristring": get_dods_url(png_path),
+                    "description": f"Deployment quick look plot: {Path(png_path).name}",
+                    "resourcetype_name": "Quick Look Plot",
+                }
+            ]
             try:
                 submit_process_run(
                     nc_file_path=png_path,
@@ -395,7 +404,7 @@ class DeploymentPlotter:
                     pr_end=now,
                     script_name="src/data/lrauv_deployment_plots.py",
                     cmd_line_args=cmd_line,
-                    additional_resources=additional_resources,
+                    additional_resources=png_resources,
                     log=self.logger,
                 )
             except Exception:  # noqa: BLE001
