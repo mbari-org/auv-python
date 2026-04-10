@@ -26,6 +26,7 @@ from pathlib import Path
 
 import xarray as xr
 
+from archive import Archiver
 from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
 from make_permalink import stoqs_url_from_ds
@@ -281,7 +282,14 @@ class DeploymentPlotter:
 
         if png_paths:
             self._build_and_write_html(
-                deployment_dir, dlist, plot_name_stem, raw_name, combined_ds, png_paths, nc_files
+                deployment_dir,
+                dlist,
+                plot_name_stem,
+                raw_name,
+                combined_ds,
+                png_paths,
+                nc_files,
+                verbose=verbose,
             )
 
     def _build_and_write_html(  # noqa: PLR0913
@@ -293,6 +301,7 @@ class DeploymentPlotter:
         combined_ds: xr.Dataset,
         png_paths: list[str],
         nc_files: list[str],
+        verbose: int = 0,
     ) -> None:
         """Fetch STOQS permalink and write the deployment HTML index file."""
         html_path = deployment_dir / f"{plot_name_stem}.html"
@@ -309,6 +318,9 @@ class DeploymentPlotter:
             self.logger.warning("Could not generate STOQS permalink: %s", exc)
         self._write_html(html_path, html_title, png_paths, nc_files, stoqs_url)
         self.logger.info("HTML index written to %s", html_path)
+        archiver = Archiver(add_handlers=True, clobber=True)
+        archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
+        archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
 
     _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
 
