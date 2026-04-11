@@ -324,7 +324,7 @@ class DeploymentPlotter:
         dlist_no_ext = str(Path(dlist).with_suffix(""))
         html_title = (
             "Combined, Aligned, and Resampled LRAUV instrument data from "
-            f"Deployment:\n{raw_name or plot_name_stem}\n{dlist_no_ext}"
+            f"Deployment\n{raw_name or plot_name_stem}\n{dlist_no_ext}"
         )
         stoqs_url = None
         try:
@@ -433,7 +433,87 @@ class DeploymentPlotter:
         except (urllib.error.URLError, OSError):
             return False
 
-    def _write_html(  # noqa: PLR0913
+    _CSS = """
+    :root {
+      --navy: #0d1b2a;
+      --teal: #00b4d8;
+      --teal-light: #90e0ef;
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #1a1a2e;
+      --muted: #6c757d;
+      --radius: 8px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.10);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem 2rem 1.5rem;
+      border-bottom: 1px solid #d0d7de;
+      text-align: center;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 600; line-height: 1.4; color: var(--navy); }
+    main { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--navy);
+      border-left: 4px solid var(--teal);
+      padding-left: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .plots-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .plot-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+    }
+    .plot-card.small { max-width: 320px; }
+    .plot-card img { width: 100%; height: auto; display: block; }
+    .plot-card img:hover { opacity: 0.88; }
+    .plot-card figcaption {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    details {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+    details > summary {
+      cursor: pointer;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      color: var(--navy);
+      background: #eaf6fb;
+      list-style: none;
+      user-select: none;
+    }
+    details > summary::before { content: "\\25B6  "; font-size: 0.75rem; }
+    details[open] > summary::before { content: "\\25BC  "; }
+    details > summary::-webkit-details-marker { display: none; }
+    details > p, details > .plots-grid { padding: 0.75rem 1rem; }
+    .opendap-link { color: var(--teal); text-decoration: none; font-size: 0.9rem; }
+    .opendap-link:hover { text-decoration: underline; }
+"""
+
+    def _write_html(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         html_path: Path,
         title: str,
@@ -441,19 +521,34 @@ class DeploymentPlotter:
         nc_files: list[str],
         stoqs_url: str | None = None,
     ) -> None:
-        """Write a simple HTML page linking to deployment and per-log plot PNGs."""
-        depl_items = ""
+        """Write a styled HTML page with deployment and per-log plot thumbnails."""
+        # Deployment plot thumbnail cards
+        depl_cards = ""
         for p in png_paths:
             if Path(p).exists():
                 name = Path(p).name
-                depl_items += f'        <li><a href="{name}">{name}</a></li>\n'
+                img_tag = f'        <img src="{name}" alt="{name}" loading="lazy">'
+                depl_cards += (
+                    f'      <figure class="plot-card">\n'
+                    f'        <a href="{name}">{img_tag}</a>\n'
+                    f"        <figcaption>{name}</figcaption>\n"
+                    f"      </figure>\n"
+                )
             else:
                 self.logger.debug("Deployment PNG not found, skipping: %s", p)
 
-        stoqs_section = ""
+        stoqs_card = ""
         if stoqs_url:
-            stoqs_section = (
-                f'<h2>STOQS</h2>\n<p><a href="{stoqs_url}">Share this view in STOQS</a></p>\n'
+            _logo = (
+                "https://github.com/stoqs/stoqs/raw/master"
+                "/stoqs/static/images/STOQS_logo_gray1_689.png"
+            )
+            stoqs_card = (
+                f'      <figure class="plot-card">\n'
+                f'        <a href="{stoqs_url}">'
+                f'<img src="{_logo}" alt="STOQS" loading="lazy" style="padding:1rem"></a>\n'
+                f"        <figcaption>View in {stoqs_url.split('query')[0]}</figcaption>\n"
+                f"      </figure>\n"
             )
 
         # Group nc_files by log directory (second-to-last URL component)
@@ -464,36 +559,73 @@ class DeploymentPlotter:
 
         log_sections = ""
         for log_dir in sorted(grouped):
-            section_items = ""
+            inner = ""
+            # Link to per-log HTML page if it exists
+            per_log_html_url = ""
             for nc_url in grouped[log_dir]:
-                # OPeNDAP data access form link
+                candidate = nc_url.replace(
+                    LRAUV_OPENDAP_BASE.rstrip("/"), BASE_LRAUV_WEB.rstrip("/")
+                ).replace(f"_{FREQ}.nc", f"_{FREQ}.html")
+                if self._url_exists(candidate):
+                    per_log_html_url = candidate
+                    break
+            if per_log_html_url:
+                inner += (
+                    f'      <p><a class="opendap-link" href="{per_log_html_url}">'
+                    f"&#128196;&nbsp;{log_dir} — per-log plots</a></p>\n"
+                )
+            for nc_url in grouped[log_dir]:
                 nc_name = nc_url.rsplit("/", 1)[1]
                 dap_form_url = nc_url + ".html"
-                section_items += (
-                    f'        <li><a href="{dap_form_url}">{nc_name} (OPeNDAP)</a></li>\n'
+                inner += (
+                    f'      <p><a class="opendap-link" href="{dap_form_url}">'
+                    f"&#128190;&nbsp;{nc_name} (OPeNDAP)</a></p>\n"
                 )
-                # Plot image links
+                thumb_row = ""
                 for png_url in self._png_urls_for_nc(nc_url):
                     if self._url_exists(png_url):
-                        name = png_url.rsplit("/", 1)[1]
-                        section_items += f'        <li><a href="{png_url}">{name}</a></li>\n'
+                        pname = png_url.rsplit("/", 1)[1]
+                        thumb_row += (
+                            f'        <figure class="plot-card small">\n'
+                            f'          <a href="{png_url}">'
+                            f'<img src="{png_url}" alt="{pname}" loading="lazy"></a>\n'
+                            f"          <figcaption>{pname}</figcaption>\n"
+                            f"        </figure>\n"
+                        )
                     else:
                         self.logger.debug("Per-log PNG not found, skipping: %s", png_url)
-            if section_items:
-                log_sections += f"    <h3>{log_dir}</h3>\n    <ul>\n{section_items}    </ul>\n"
+                if thumb_row:
+                    inner += f'      <div class="plots-grid">\n{thumb_row}      </div>\n'
+            if inner:
+                log_sections += (
+                    f"    <details>\n      <summary>{log_dir}</summary>\n{inner}    </details>\n"
+                )
 
-        html_title_tag = title.replace("\n", " — ")
+        html_title_tag = title.replace("\n", " \u2014 ")
         html_h1 = title.replace("\n", "<br>")
         html = f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>{html_title_tag}</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html_title_tag}</title>
+  <style>{self._CSS}  </style>
+</head>
 <body>
-<h1>{html_h1}</h1>
-{stoqs_section}<h2>Deployment plots</h2>
-<ul>
-{depl_items}</ul>
-<h2>Per-log plots</h2>
-{log_sections}</body>
+  <header>
+    <h1>{html_h1}</h1>
+  </header>
+  <main>
+    <section>
+      <h2>Deployment Plots</h2>
+      <div class="plots-grid">
+{depl_cards}{stoqs_card}      </div>
+    </section>
+    <section>
+      <h2>Per-log Plots</h2>
+{log_sections}    </section>
+  </main>
+</body>
 </html>
 """
         html_path.write_text(html, encoding="utf-8")

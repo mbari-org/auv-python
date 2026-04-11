@@ -708,6 +708,7 @@ class Processor:
             cp.gulper_odv()
         if log_file:
             cp.sipper_odv()
+            cp.write_per_log_html()
         cp.logger.removeHandler(self.log_handler)
 
     def _collect_lrauv_netcdf_resources(

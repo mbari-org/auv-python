@@ -202,7 +202,7 @@ def submit_process_run(  # noqa: PLR0913
         )
         raise requests.HTTPError(err_txt, response=resp)
     process_run = resp.json()
-    log.info("Provenance recorded: %s -> id=%s", url, process_run.get("id", "?"))
+    log.info("Provenance recorded: %s -> id=%d", url, process_run.get("id", "?"))
     return process_run
 
 

@@ -30,7 +30,7 @@ import xarray as xr
 from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
-from nc42netcdfs import BASE_LRAUV_PATH
+from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 from resample import AUVCTD_OPENDAP_BASE, FREQ, LRAUV_OPENDAP_BASE
 from scipy.interpolate import griddata
 from sipper import Sipper
@@ -554,6 +554,93 @@ class CreateProducts:
         # Set limits after plotting so they override matplotlib's autoscaling
         bar_ax.set_xlim(x_km_min, x_km_max)
         bar_ax.set_ylim(0, len(ranges))
+
+    _PER_LOG_CSS = """
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:#f4f6f9;color:#1a1a2e;margin:0}
+    header{background:#0d1b2a;color:#fff;padding:1.5rem 2rem;
+           border-bottom:4px solid #00b4d8}
+    header h1{font-size:1.2rem;font-weight:600}
+    main{max-width:1400px;margin:0 auto;padding:1.5rem 2rem}
+    h2{font-size:1rem;font-weight:600;color:#0d1b2a;
+       border-left:4px solid #00b4d8;padding-left:.6rem;margin:1.2rem 0 .75rem}
+    .plots{display:flex;flex-wrap:wrap;gap:1rem}
+    .plot-card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);
+               overflow:hidden;max-width:700px}
+    .plot-card img{width:100%;height:auto;display:block}
+    .plot-card figcaption{padding:.3rem .7rem;font-size:.78rem;color:#6c757d}
+    .links a{display:inline-block;margin:.3rem .4rem 0 0;padding:.4rem 1rem;
+             background:#00b4d8;color:#fff;text-decoration:none;
+             border-radius:6px;font-size:.9rem}
+    .links a:hover{background:#90e0ef;color:#0d1b2a}
+"""
+
+    def write_per_log_html(self) -> str | None:
+        """Write a styled HTML page alongside the per-log PNGs.
+
+        Only meaningful for single-log processing (``nc_files`` is None).
+        Looks for any ``{stem}_{freq}_2column_*.png`` files that exist and embeds them.
+        Returns the path of the written HTML, or None if no PNGs found.
+        """
+        if not self._is_lrauv() or not self.log_file:
+            return None
+        out_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
+        stem = Path(self.log_file).stem
+        html_path = out_dir / f"{stem}_{self.freq}.html"
+
+        png_suffixes = ("_2column_cmocean.png", "_2column_biolume.png", "_2column_planktivore.png")
+        cards = ""
+        for suffix in png_suffixes:
+            png_path = out_dir / f"{stem}_{self.freq}{suffix}"
+            if png_path.exists():
+                name = png_path.name
+                cards += (
+                    f'      <figure class="plot-card">\n'
+                    f'        <a href="{name}"><img src="{name}" alt="{name}" loading="lazy"></a>\n'
+                    f"        <figcaption>{name}</figcaption>\n"
+                    f"      </figure>\n"
+                )
+
+        if not cards:
+            self.logger.debug("No per-log PNGs found; skipping write_per_log_html")
+            return None
+
+        # Build OPeNDAP link from the log file path
+        nc4_name = f"{stem}.nc4"
+        nc4_url = (
+            BASE_LRAUV_WEB.rstrip("/") + "/" + str(Path(self.log_file).parent) + f"/{nc4_name}"
+        )
+
+        title = f"{stem} — {self.freq} resampled"
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{title}</title>
+  <style>{self._PER_LOG_CSS}  </style>
+</head>
+<body>
+  <header><h1>{title}</h1></header>
+  <main>
+    <section>
+      <h2>Plots</h2>
+      <div class="plots">
+{cards}      </div>
+    </section>
+    <section>
+      <h2>Data</h2>
+      <div class="links">
+        <a href="{nc4_url}">&#128190;&nbsp;{nc4_name} (DODS)</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+"""
+        html_path.write_text(html, encoding="utf-8")
+        self.logger.info("Wrote per-log HTML to %s", html_path)
+        return str(html_path)
 
     def _plot_nighttime_indicator(  # noqa: PLR0915
         self,
