@@ -458,7 +458,17 @@ class DeploymentPlotter:
                     return url
         return fallback
 
-    def _write_per_png_html(  # noqa: PLR0913
+    def _per_log_png_links(self, nc_urls: list[str]) -> str:
+        """Return HTML anchor tags for each existing per-log PNG, pipe-separated."""
+        parts: list[str] = []
+        for nc_url in nc_urls:
+            for png_url in self._png_urls_for_nc(nc_url):
+                if self._url_exists(png_url):
+                    pname = png_url.rsplit("/", 1)[1]
+                    parts.append(f'<a href="{png_url}">{pname}</a>')
+        return " | ".join(parts)
+
+    def _write_per_png_html(  # noqa: C901, PLR0913
         self,
         html_path: Path,
         title: str,
@@ -487,6 +497,11 @@ class DeploymentPlotter:
             links = ""
             if per_log_html_url:
                 links += f'      <a href="{per_log_html_url}">image</a>'
+            png_links = self._per_log_png_links(nc_urls)
+            if png_links:
+                if links:
+                    links += " | "
+                links += png_links
             for nc_url in nc_urls:
                 dap_form_url = nc_url + ".html"
                 if links:
