@@ -185,11 +185,16 @@ class DeploymentPlotter:
 
         return xr.concat(datasets, dim="time", join="outer")
 
+    def _deployment_has_outputs(self, deployment_dir: Path, plot_name_stem: str) -> bool:
+        """Return True if any per-deployment PNG already exists in *deployment_dir*."""
+        return any(deployment_dir.glob(f"{plot_name_stem}_*.png"))
+
     def plot_deployment(  # noqa: C901, PLR0912, PLR0915
         self,
         dlist: str,
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
+        force: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Main entry point: generate deployment-level plots from a .dlist path.
 
@@ -197,6 +202,7 @@ class DeploymentPlotter:
             dlist: Path to .dlist file (relative to BASE_LRAUV_PATH or absolute).
             verbose: Verbosity level (0-2).
             update_ssds_provenance: Submit provenance records to SSDS_Metadata.
+            force: Reprocess even when output PNGs already exist.
         """
         self.logger.setLevel(self._log_levels[min(verbose, 2)])
 
@@ -240,6 +246,12 @@ class DeploymentPlotter:
                 "Could not parse deployment name from dlist; using %s",
                 plot_name_stem,
             )
+
+        if not force and self._deployment_has_outputs(deployment_dir, plot_name_stem):
+            self.logger.info(
+                "Outputs already exist for %s, skipping (use --force to reprocess)", dlist
+            )
+            return
 
         # Gather and concatenate per-log resampled files
         if dlist_content is None:
@@ -673,6 +685,14 @@ class DeploymentPlotter:
             action="store_true",
             help="Submit/update provenance records in the SSDS_Metadata database",
         )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help=(
+                "Reprocess deployments even when output PNGs already exist."
+                " By default, deployments with existing outputs are skipped."
+            ),
+        )
         self.args = parser.parse_args()
         if self.args.start and not self.args.end:
             self.args.end = datetime.now(tz=UTC).strftime("%Y%m%d")
@@ -704,4 +724,5 @@ if __name__ == "__main__":
             dlist,
             verbose=args.verbose,
             update_ssds_provenance=args.update_ssds_provenance,
+            force=args.force,
         )

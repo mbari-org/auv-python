@@ -451,7 +451,7 @@ class TestPlotDeploymentStoqsUrl:
             patch.object(dp, "_stoqs_url_for_nc_url", return_value=None),
         ):
             mock_session_cls.return_value.__enter__.return_value.get = _mock_session_get("7")
-            dp.plot_deployment(_DLIST, verbose=1)
+            dp.plot_deployment(_DLIST, verbose=1, force=True)
 
         assert (depl_dir / "CANON_April_2025_2column_cmocean.html").exists()  # noqa: S101
         assert not (depl_dir / "CANON_April_2025.html").exists()  # noqa: S101
@@ -481,7 +481,7 @@ class TestPlotDeploymentStoqsUrl:
             patch.object(dp, "_stoqs_url_for_nc_url", return_value=None),
         ):
             mock_session_cls.return_value.__enter__.return_value.get = _mock_session_get("7")
-            dp.plot_deployment(_DLIST, verbose=1)
+            dp.plot_deployment(_DLIST, verbose=1, force=True)
 
         html = (depl_dir / "CANON_April_2025_2column_cmocean.html").read_text()
         assert "stoqs_lrauv_apr2025" in html  # noqa: S101
@@ -508,6 +508,68 @@ class TestPlotDeploymentStoqsUrl:
             dp.plot_deployment(_DLIST, verbose=1)
 
         assert not (depl_dir / "CANON_April_2025.html").exists()  # noqa: S101
+
+
+# ---------------------------------------------------------------------------
+# Tests for --force / _deployment_has_outputs()
+# ---------------------------------------------------------------------------
+
+
+class TestForceFlag:
+    """Verify that existing outputs are skipped by default and reprocessed with force=True."""
+
+    def _make_deployment_dir(self, tmp_path: Path) -> Path:
+        depl_dir = tmp_path / "ahi" / "missionlogs" / "2025" / "20250414_20250418"
+        depl_dir.mkdir(parents=True)
+        return depl_dir
+
+    def test_skips_when_outputs_exist(self, dp, tmp_path):
+        """plot_deployment() must return without calling CreateProducts when a PNG exists."""
+        depl_dir = self._make_deployment_dir(tmp_path)
+        # Pre-create an output PNG that _deployment_has_outputs() will find
+        (depl_dir / "CANON_April_2025_2column_cmocean.png").touch()
+
+        with (
+            patch("lrauv_deployment_plots.BASE_LRAUV_PATH", tmp_path),
+            patch.object(dp, "_read_dlist_content", return_value=_DLIST_CONTENT),
+            patch("lrauv_deployment_plots.CreateProducts") as mock_cp_cls,
+        ):
+            dp.plot_deployment(_DLIST, verbose=1)  # force=False by default
+
+        mock_cp_cls.assert_not_called()  # noqa: S101
+
+    def test_force_reprocesses_when_outputs_exist(self, dp, tmp_path):
+        """plot_deployment(force=True) must proceed even when a PNG already exists."""
+        depl_dir = self._make_deployment_dir(tmp_path)
+        fake_png = depl_dir / "CANON_April_2025_2column_cmocean.png"
+        fake_png.touch()
+
+        mock_cp = MagicMock()
+        mock_cp.plot_2column.return_value = str(fake_png)
+        mock_cp.plot_biolume_2column.return_value = None
+        mock_cp.plot_planktivore_2column.return_value = None
+
+        with (
+            patch("lrauv_deployment_plots.BASE_LRAUV_PATH", tmp_path),
+            patch.object(dp, "_read_dlist_content", return_value=_DLIST_CONTENT),
+            patch.object(dp, "_collect_nc_files", return_value=[_NC_URL]),
+            patch.object(dp, "_concat_datasets", return_value=_make_ds("2025-04-14")),
+            patch("lrauv_deployment_plots.CreateProducts", return_value=mock_cp),
+            patch.object(dp, "_url_exists", return_value=False),
+            patch.object(dp, "_stoqs_url_for_nc_url", return_value=None),
+            patch("make_permalink.requests.Session") as mock_session_cls,
+        ):
+            mock_session_cls.return_value.__enter__.return_value.get = _mock_session_get("7")
+            dp.plot_deployment(_DLIST, verbose=1, force=True)
+
+        mock_cp.plot_2column.assert_called_once()  # noqa: S101
+
+    def test_deployment_has_outputs_false_when_empty(self, dp, tmp_path):
+        assert not dp._deployment_has_outputs(tmp_path, "CANON_April_2025")  # noqa: S101
+
+    def test_deployment_has_outputs_true_when_png_present(self, dp, tmp_path):
+        (tmp_path / "CANON_April_2025_2column_cmocean.png").touch()
+        assert dp._deployment_has_outputs(tmp_path, "CANON_April_2025")  # noqa: S101
 
 
 class TestStoqsUrlFromDs:
