@@ -319,8 +319,7 @@ class DeploymentPlotter:
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
-        """Fetch STOQS permalink and write the deployment HTML index file."""
-        html_path = deployment_dir / f"{plot_name_stem}.html"
+        """Fetch STOQS permalink and write per-PNG HTML pages."""
         dlist_no_ext = str(Path(dlist).with_suffix(""))
         html_title = (
             "Combined, Aligned, and Resampled LRAUV instrument data from "
@@ -332,8 +331,6 @@ class DeploymentPlotter:
             self.logger.info("STOQS permalink: %s", stoqs_url)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Could not generate STOQS permalink: %s", exc)
-        self._write_html(html_path, html_title, png_paths, nc_files, stoqs_url)
-        self.logger.info("HTML index written to %s", html_path)
         for png_path in png_paths:
             if Path(png_path).exists():
                 per_png_html = Path(png_path).with_suffix(".html")
@@ -388,17 +385,7 @@ class DeploymentPlotter:
         input_uris = list(nc_files)  # already OPeNDAP URLs
         now = datetime.now(tz=UTC).isoformat()
 
-        html_path = deployment_dir / f"{plot_name_stem}.html"
-        additional_resources = []
-        if html_path.exists():
-            additional_resources.append(
-                {
-                    "name": "deployment_html_index",
-                    "uristring": get_dods_url(str(html_path)),
-                    "description": f"HTML index page for {plot_name_stem}",
-                    "resourcetype_name": "html",
-                }
-            )
+        additional_resources: list[dict] = []
 
         for png_path in png_paths:
             if not Path(png_path).exists():
@@ -566,203 +553,6 @@ class DeploymentPlotter:
                 return resp.status == http.client.OK
         except (urllib.error.URLError, OSError):
             return False
-
-    _CSS = """
-    :root {
-      --navy: #0d1b2a;
-      --teal: #00b4d8;
-      --teal-light: #90e0ef;
-      --bg: #f4f6f9;
-      --card-bg: #ffffff;
-      --text: #1a1a2e;
-      --muted: #6c757d;
-      --radius: 8px;
-      --shadow: 0 2px 8px rgba(0,0,0,0.10);
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-    }
-    header {
-      background: var(--bg);
-      color: var(--text);
-      padding: 2rem 2rem 1.5rem;
-      border-bottom: 1px solid #d0d7de;
-      text-align: center;
-    }
-    header h1 { font-size: 1.4rem; font-weight: 600; line-height: 1.4; color: var(--navy); }
-    main { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-    section { margin-bottom: 2.5rem; }
-    h2 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: var(--navy);
-      border-left: 4px solid var(--teal);
-      padding-left: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .plots-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
-    .plot-card {
-      background: var(--card-bg);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      max-width: 480px;
-    }
-    .plot-card.small { max-width: 320px; }
-    .plot-card img { width: 100%; height: auto; display: block; }
-    .plot-card img:hover { opacity: 0.88; }
-    .plot-card figcaption {
-      padding: 0.4rem 0.75rem;
-      font-size: 0.78rem;
-      color: var(--muted);
-      word-break: break-all;
-    }
-    details {
-      background: var(--card-bg);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin-bottom: 0.75rem;
-      overflow: hidden;
-    }
-    details > summary {
-      cursor: pointer;
-      padding: 0.75rem 1rem;
-      font-weight: 600;
-      color: var(--navy);
-      background: #eaf6fb;
-      list-style: none;
-      user-select: none;
-    }
-    details > summary::before { content: "\\25B6  "; font-size: 0.75rem; }
-    details[open] > summary::before { content: "\\25BC  "; }
-    details > summary::-webkit-details-marker { display: none; }
-    details > p, details > .plots-grid { padding: 0.75rem 1rem; }
-    .opendap-link { color: var(--teal); text-decoration: none; font-size: 0.9rem; }
-    .opendap-link:hover { text-decoration: underline; }
-"""
-
-    def _write_html(  # noqa: C901, PLR0912, PLR0913, PLR0915
-        self,
-        html_path: Path,
-        title: str,
-        png_paths: list[str],
-        nc_files: list[str],
-        stoqs_url: str | None = None,
-    ) -> None:
-        """Write a styled HTML page with deployment and per-log plot thumbnails."""
-        # Deployment plot thumbnail cards
-        depl_cards = ""
-        for p in png_paths:
-            if Path(p).exists():
-                name = Path(p).name
-                img_tag = f'        <img src="{name}" alt="{name}" loading="lazy">'
-                depl_cards += (
-                    f'      <figure class="plot-card">\n'
-                    f'        <a href="{name}">{img_tag}</a>\n'
-                    f"        <figcaption>{name}</figcaption>\n"
-                    f"      </figure>\n"
-                )
-            else:
-                self.logger.debug("Deployment PNG not found, skipping: %s", p)
-
-        stoqs_card = ""
-        if stoqs_url:
-            _logo = (
-                "https://github.com/stoqs/stoqs/raw/master"
-                "/stoqs/static/images/STOQS_logo_gray1_689.png"
-            )
-            stoqs_card = (
-                f'      <figure class="plot-card">\n'
-                f'        <a href="{stoqs_url}">'
-                f'<img src="{_logo}" alt="STOQS" loading="lazy" style="padding:1rem"></a>\n'
-                f"        <figcaption>View in {stoqs_url.split('query')[0]}</figcaption>\n"
-                f"      </figure>\n"
-            )
-
-        # Group nc_files by log directory (second-to-last URL component)
-        grouped: dict[str, list[str]] = {}
-        for url in nc_files:
-            log_dir = url.rsplit("/", 2)[1]
-            grouped.setdefault(log_dir, []).append(url)
-
-        log_sections = ""
-        for log_dir in sorted(grouped):
-            inner = ""
-            # Link to per-log HTML page if it exists
-            per_log_html_url = ""
-            for nc_url in grouped[log_dir]:
-                candidate = nc_url.replace(
-                    LRAUV_OPENDAP_BASE.rstrip("/"), BASE_LRAUV_WEB.rstrip("/")
-                ).replace(f"_{FREQ}.nc", f"_{FREQ}.html")
-                if self._url_exists(candidate):
-                    per_log_html_url = candidate
-                    break
-            if per_log_html_url:
-                inner += (
-                    f'      <p><a class="opendap-link" href="{per_log_html_url}">'
-                    f"&#128196;&nbsp;{log_dir} — per-log plots</a></p>\n"
-                )
-            for nc_url in grouped[log_dir]:
-                nc_name = nc_url.rsplit("/", 1)[1]
-                dap_form_url = nc_url + ".html"
-                inner += (
-                    f'      <p><a class="opendap-link" href="{dap_form_url}">'
-                    f"&#128190;&nbsp;{nc_name} (OPeNDAP)</a></p>\n"
-                )
-                thumb_row = ""
-                for png_url in self._png_urls_for_nc(nc_url):
-                    if self._url_exists(png_url):
-                        pname = png_url.rsplit("/", 1)[1]
-                        thumb_row += (
-                            f'        <figure class="plot-card small">\n'
-                            f'          <a href="{png_url}">'
-                            f'<img src="{png_url}" alt="{pname}" loading="lazy"></a>\n'
-                            f"          <figcaption>{pname}</figcaption>\n"
-                            f"        </figure>\n"
-                        )
-                    else:
-                        self.logger.debug("Per-log PNG not found, skipping: %s", png_url)
-                if thumb_row:
-                    inner += f'      <div class="plots-grid">\n{thumb_row}      </div>\n'
-            if inner:
-                log_sections += (
-                    f"    <details>\n      <summary>{log_dir}</summary>\n{inner}    </details>\n"
-                )
-
-        html_title_tag = title.replace("\n", " \u2014 ")
-        html_h1 = title.replace("\n", "<br>")
-        html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html_title_tag}</title>
-  <style>{self._CSS}  </style>
-</head>
-<body>
-  <header>
-    <h1>{html_h1}</h1>
-  </header>
-  <main>
-    <section>
-      <h2>Deployment Plots</h2>
-      <div class="plots-grid">
-{depl_cards}{stoqs_card}      </div>
-    </section>
-    <section>
-      <h2>Per-log Plots</h2>
-{log_sections}    </section>
-  </main>
-</body>
-</html>
-"""
-        html_path.write_text(html, encoding="utf-8")
 
     def _dlist_list(  # noqa: C901, PLR0912
         self,
