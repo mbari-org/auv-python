@@ -742,6 +742,8 @@ class DeploymentPlotter:
             "-v",
             "--verbose",
             type=int,
+            nargs="?",
+            const=1,
             default=0,
             choices=[0, 1, 2],
             help="Verbosity level (0=warn, 1=info, 2=debug)",
