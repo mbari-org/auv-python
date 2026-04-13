@@ -360,6 +360,7 @@ class DeploymentPlotter:
                     per_png_html,
                     html_title,
                     Path(png_path).name,
+                    get_dods_url(png_path),
                     stoqs_url,
                     nc_files,
                     auv_name=dlist.split("/")[0],
@@ -559,14 +560,15 @@ class DeploymentPlotter:
         html_path: Path,
         title: str,
         png_name: str,
+        png_url: str,
         stoqs_url: str | None,
         nc_files: list[str],
         auv_name: str = "",
     ) -> None:
         """Write a plain HTML page for one deployment PNG.
 
-        Embeds the full-size PNG, links to the STOQS database, then lists
-        per-log image / data / STOQS links — no CSS.
+        Embeds the full-size PNG (via fully-qualified *png_url*), links to the
+        STOQS database, then lists per-log image / data / STOQS links — no CSS.
         """
         # Group nc_files by log directory (second-to-last path component)
         grouped: dict[str, list[str]] = {}
@@ -624,7 +626,7 @@ class DeploymentPlotter:
             "</head>\n"
             "<body>\n"
             f"  <h1>{html_title_single}</h1>\n"
-            f'  <img src="{png_name}" alt="{png_name}">\n'
+            f'  <img src="{png_url}" alt="{png_name}">\n'
             f"  {stoqs_line}"
             "  <h2>Log files</h2>\n"
             "  <ul>\n"

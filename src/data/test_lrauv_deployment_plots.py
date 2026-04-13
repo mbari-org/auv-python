@@ -20,6 +20,9 @@ from make_permalink import stoqs_url_from_ds
 _OPENDAP_BASE = "http://dods.mbari.org/opendap/data/lrauv"
 _NC_URL = f"{_OPENDAP_BASE}/ahi/missionlogs/2025/20250414_20250418/20250414T120000/ahi_1S.nc"
 _STOQS_URL = "https://tethysviz.shore.mbari.org/stoqs_lrauv_apr2025/query/?permalink_id=abc123"
+_PNG_URL = (
+    "https://dods.mbari.org/opendap/data/lrauv/ahi/missionlogs/2025/20250414_20250418/depl.png"
+)
 
 _DLIST_CONTENT = """\
 # Deployment name: CANON April 2025
@@ -82,6 +85,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Test Deployment\nApril 2025",
                 "deployment_2column_cmocean.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
@@ -100,11 +104,12 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl_cmocean.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
         html = html_path.read_text()
-        assert '<img src="depl_cmocean.png"' in html  # noqa: S101
+        assert '<img src="' + _PNG_URL + '"' in html  # noqa: S101
 
     def test_stoqs_link_present_when_url_given(self, dp, tmp_path):
         html_path = tmp_path / "depl.html"
@@ -116,6 +121,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 _STOQS_URL,
                 [_NC_URL],
             )
@@ -133,6 +139,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
@@ -148,6 +155,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
@@ -163,6 +171,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
@@ -179,6 +188,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 None,
                 [_NC_URL, nc_url_b],
             )
@@ -196,6 +206,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
@@ -217,6 +228,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
@@ -233,6 +245,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl.png",
+                _PNG_URL,
                 _STOQS_URL,
                 [_NC_URL],
                 auv_name="ahi",
@@ -250,6 +263,7 @@ class TestWritePerPngHtml:
                 html_path,
                 "Title",
                 "depl_cmocean.png",
+                _PNG_URL,
                 None,
                 [_NC_URL],
             )
