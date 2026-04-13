@@ -325,6 +325,7 @@ class Archiver:
         dst_dir.mkdir(parents=True, exist_ok=True)
         candidates = list(deployment_dir.glob(f"{plot_name_stem}_*.png"))
         candidates.append(deployment_dir / f"{plot_name_stem}.html")
+        candidates.extend(deployment_dir.glob(f"{plot_name_stem}_*.html"))
         for src_file in candidates:
             if not src_file.exists():
                 self.logger.debug("Source file not found, skipping: %s", src_file)

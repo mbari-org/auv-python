@@ -412,6 +412,16 @@ class DeploymentPlotter:
                     "resourcetype_name": "Quick Look Plot",
                 }
             ]
+            per_png_html = Path(png_path).with_suffix(".html")
+            if per_png_html.exists():
+                png_resources.append(
+                    {
+                        "name": per_png_html.name,
+                        "uristring": get_dods_url(str(per_png_html)),
+                        "description": f"Per-PNG HTML page for {per_png_html.name}",
+                        "resourcetype_name": "html",
+                    }
+                )
             try:
                 submit_process_run(
                     nc_file_path=png_path,
