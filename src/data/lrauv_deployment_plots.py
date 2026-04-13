@@ -38,6 +38,8 @@ from provenance import get_dods_url, get_script_github_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
 ENV_LRAUV_NOTIFY = "LRAUV_NOTIFY"
+ENV_SMTP_HOST = "SMTP_HOST"
+ENV_SMTP_PORT = "SMTP_PORT"
 
 
 class DeploymentPlotter:
@@ -427,8 +429,18 @@ class DeploymentPlotter:
             msg["From"] = "auv-python@mbari.org"
             msg["To"] = resolved
             msg.set_content(body)
+            for p in html_paths:
+                if p.exists():
+                    msg.add_attachment(
+                        p.read_text(encoding="utf-8"),
+                        subtype="html",
+                        filename=p.name,
+                    )
             try:
-                with smtplib.SMTP("localhost") as s:
+                smtp_host = os.environ.get(ENV_SMTP_HOST, "localhost")
+                smtp_port = int(os.environ.get(ENV_SMTP_PORT, "587"))
+                with smtplib.SMTP(smtp_host, smtp_port) as s:
+                    s.starttls()
                     s.send_message(msg)
                 self.logger.info("Email notification sent to %s", resolved)
             except Exception as exc:  # noqa: BLE001
@@ -742,6 +754,8 @@ class DeploymentPlotter:
             "-v",
             "--verbose",
             type=int,
+            nargs="?",
+            const=1,
             default=0,
             choices=[0, 1, 2],
             help="Verbosity level (0=warn, 1=info, 2=debug)",
