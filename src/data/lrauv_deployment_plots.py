@@ -334,6 +334,18 @@ class DeploymentPlotter:
             self.logger.warning("Could not generate STOQS permalink: %s", exc)
         self._write_html(html_path, html_title, png_paths, nc_files, stoqs_url)
         self.logger.info("HTML index written to %s", html_path)
+        for png_path in png_paths:
+            if Path(png_path).exists():
+                per_png_html = Path(png_path).with_suffix(".html")
+                self._write_per_png_html(
+                    per_png_html,
+                    html_title,
+                    Path(png_path).name,
+                    stoqs_url,
+                    nc_files,
+                    auv_name=dlist.split("/")[0],
+                )
+                self.logger.info("Per-PNG HTML written to %s", per_png_html)
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
@@ -415,6 +427,104 @@ class DeploymentPlotter:
                 )
             except Exception:  # noqa: BLE001
                 self.logger.warning("Provenance submission failed for %s", png_path, exc_info=True)
+
+    def _stoqs_url_for_nc_url(self, nc_url: str, auv_name: str) -> str | None:
+        """Return a STOQS permalink scoped to the time range of one nc file, or None."""
+        try:
+            ds = xr.open_dataset(nc_url)
+            return stoqs_url_from_ds(ds, auv_name=auv_name)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.debug("Could not generate per-log STOQS URL for %s: %s", nc_url, exc)
+            return None
+
+    def _per_log_html_url(self, nc_urls: list[str]) -> str:
+        """Return the first reachable per-log HTML URL for a list of nc URLs, or empty string."""
+        for nc_url in nc_urls:
+            candidate = nc_url.replace(
+                LRAUV_OPENDAP_BASE.rstrip("/"), BASE_LRAUV_WEB.rstrip("/")
+            ).replace(f"_{FREQ}.nc", f"_{FREQ}.html")
+            if self._url_exists(candidate):
+                return candidate
+        return ""
+
+    def _per_log_stoqs_url(
+        self, nc_urls: list[str], auv_name: str, fallback: str | None
+    ) -> str | None:
+        """Return a STOQS URL scoped to the first nc file's time range, or *fallback*."""
+        if auv_name:
+            for nc_url in nc_urls:
+                url = self._stoqs_url_for_nc_url(nc_url, auv_name)
+                if url:
+                    return url
+        return fallback
+
+    def _write_per_png_html(  # noqa: PLR0913
+        self,
+        html_path: Path,
+        title: str,
+        png_name: str,
+        stoqs_url: str | None,
+        nc_files: list[str],
+        auv_name: str = "",
+    ) -> None:
+        """Write a plain HTML page for one deployment PNG.
+
+        Embeds the full-size PNG, links to the STOQS database, then lists
+        per-log image / data / STOQS links — no CSS.
+        """
+        # Group nc_files by log directory (second-to-last path component)
+        grouped: dict[str, list[str]] = {}
+        for url in nc_files:
+            log_dir = url.rsplit("/", 2)[1]
+            grouped.setdefault(log_dir, []).append(url)
+
+        log_items = ""
+        for log_dir in sorted(grouped):
+            nc_urls = grouped[log_dir]
+            per_log_html_url = self._per_log_html_url(nc_urls)
+            log_stoqs_url = self._per_log_stoqs_url(nc_urls, auv_name, stoqs_url)
+
+            links = ""
+            if per_log_html_url:
+                links += f'      <a href="{per_log_html_url}">image</a>'
+            for nc_url in nc_urls:
+                dap_form_url = nc_url + ".html"
+                if links:
+                    links += " | "
+                links += f'<a href="{dap_form_url}">OPeNDAP Data Access Form</a>'
+            if log_stoqs_url:
+                if links:
+                    links += " | "
+                links += f'<a href="{log_stoqs_url}">STOQS</a>'
+
+            log_items += f"  <li>{log_dir} — {links}</li>\n"
+
+        stoqs_line = ""
+        if stoqs_url:
+            after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
+            db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
+            stoqs_line = f'<p><a href="{stoqs_url}">View these data in {db_label}</a></p>\n'
+
+        html_title_single = title.replace("\n", " \u2014 ")
+        html = (
+            "<!DOCTYPE html>\n"
+            '<html lang="en">\n'
+            "<head>\n"
+            '  <meta charset="utf-8">\n'
+            f"  <title>{html_title_single}</title>\n"
+            "</head>\n"
+            "<body>\n"
+            f"  <h1>{html_title_single}</h1>\n"
+            f'  <img src="{png_name}" alt="{png_name}">\n'
+            f"  {stoqs_line}"
+            "  <h2>Log files</h2>\n"
+            "  <ul>\n"
+            f"{log_items}"
+            "  </ul>\n"
+            "</body>\n"
+            "</html>\n"
+        )
+        html_path.write_text(html, encoding="utf-8")
 
     _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
 
