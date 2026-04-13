@@ -424,7 +424,6 @@ class DeploymentPlotter:
                 )
             try:
                 submit_process_run(
-                    nc_file_path=png_path,
                     input_uris=input_uris,
                     producer_name=producer_name,
                     producer_description=producer_description,

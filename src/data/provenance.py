@@ -106,9 +106,9 @@ def get_git_url(script_name: str, version: str) -> str:
 # Core function
 # ---------------------------------------------------------------------------
 def submit_process_run(  # noqa: PLR0913
-    nc_file_path: str,
     input_uris: list[str],
     *,
+    nc_file_path: str | None = None,
     producer_name: str | None = None,
     producer_description: str | None = None,
     poc_email: str = "mccann@mbari.org",
@@ -176,10 +176,7 @@ def submit_process_run(  # noqa: PLR0913
     if additional_resources:
         resources.extend(additional_resources)
 
-    output_uri = get_dods_url(nc_file_path)
-    payload = {
-        "output_uri": output_uri,
-        "output_dodsurlstring": f"{output_uri}.html",
+    payload: dict = {
         "producer_name": producer_name,
         "producer_description": producer_description,
         "input_uris": input_uris,
@@ -192,6 +189,10 @@ def submit_process_run(  # noqa: PLR0913
         "enddate": pr_end,
         "resources": resources,
     }
+    if nc_file_path is not None:
+        output_uri = get_dods_url(nc_file_path)
+        payload["output_uri"] = output_uri
+        payload["output_dodsurlstring"] = f"{output_uri}.html"
 
     url = f"{api_base}/process-runs/"
     resp = session.post(url, json=payload, timeout=REQUEST_TIMEOUT)
