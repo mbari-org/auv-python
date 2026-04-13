@@ -294,6 +294,58 @@ class Archiver:
                     src_file.name,
                 )
 
+    def copy_lrauv_deployment(self, deployment_dir: Path, plot_name_stem: str) -> None:
+        """Copy LRAUV deployment plots and HTML index to the LRAUV archive volume.
+
+        Mirrors *deployment_dir* under ``/Volumes/LRAUV``, creating the
+        destination directory if needed.  Copies:
+        - all ``{plot_name_stem}_*.png`` deployment plot files
+        - the ``{plot_name_stem}.html`` index file
+
+        Args:
+            deployment_dir: Local directory that contains the generated files
+                (e.g. ``BASE_LRAUV_PATH/vehicle/missionlogs/YYYY/dlist_dir/``).
+            plot_name_stem: Stem used to name the plots and HTML file.
+        """
+        try:
+            rel = deployment_dir.relative_to(BASE_LRAUV_PATH)
+        except ValueError:
+            self.logger.warning(
+                "deployment_dir %s is not under BASE_LRAUV_PATH %s; skipping archive",
+                deployment_dir,
+                BASE_LRAUV_PATH,
+            )
+            return
+        dst_dir = Path(LRAUV_VOL) / rel
+        try:
+            dst_dir.stat()
+        except FileNotFoundError:
+            self.logger.warning("%s not found; is %s mounted?", dst_dir, LRAUV_VOL)
+            return
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        candidates = list(deployment_dir.glob(f"{plot_name_stem}_*.png"))
+        candidates.append(deployment_dir / f"{plot_name_stem}.html")
+        candidates.extend(deployment_dir.glob(f"{plot_name_stem}_*.html"))
+        for src_file in candidates:
+            if not src_file.exists():
+                self.logger.debug("Source file not found, skipping: %s", src_file)
+                continue
+            dst_file = dst_dir / src_file.name
+            if self.clobber:
+                if dst_file.exists():
+                    self.logger.info("Removing %s", dst_file)
+                    dst_file.unlink()
+                shutil.copyfile(src_file, dst_file)
+                self.logger.info("copyfile %s %s done.", src_file.name, dst_dir)
+            elif dst_file.exists():
+                self.logger.info(
+                    "%-60s exists, but is not being archived because --clobber is not specified.",
+                    src_file.name,
+                )
+            else:
+                shutil.copyfile(src_file, dst_file)
+                self.logger.info("copyfile %s %s done.", src_file.name, dst_dir)
+
     def process_command_line(self):
         """Process command line arguments using shared parser infrastructure."""
         # Use shared parser with archive-specific additions

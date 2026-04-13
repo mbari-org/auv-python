@@ -30,7 +30,7 @@ import xarray as xr
 from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
-from nc42netcdfs import BASE_LRAUV_PATH
+from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 from resample import AUVCTD_OPENDAP_BASE, FREQ, LRAUV_OPENDAP_BASE
 from scipy.interpolate import griddata
 from sipper import Sipper
@@ -96,6 +96,10 @@ class CreateProducts:
         log_file: str = None,
         freq: str = FREQ,
         use_scatter: bool = True,  # noqa: FBT001, FBT002
+        ds: xr.Dataset = None,
+        output_dir: Path = None,
+        plot_name_stem: str = None,
+        nc_files: list[str] | None = None,
     ):
         """Initialize CreateProducts with explicit parameters.
 
@@ -110,6 +114,8 @@ class CreateProducts:
             log_file: Path to LRAUV log file (alternative to auv_name/mission)
             freq: Resampling frequency (default: '1S')
             use_scatter: Use scatter plots instead of contour plots (default: True)
+            nc_files: Per-log OPeNDAP URL list (deployment plots only). When set,
+                log-file boundary lines are drawn on the deployment plot.
         """
         self.auv_name = auv_name
         self.mission = mission
@@ -121,6 +127,10 @@ class CreateProducts:
         self.log_file = log_file
         self.freq = freq
         self.use_scatter = use_scatter
+        self.ds = ds
+        self.output_dir = output_dir
+        self.plot_name_stem = plot_name_stem
+        self.nc_files = nc_files
 
     # Maximum length for long_name before using variable name instead
     MAX_LONG_NAME_LENGTH = 40
@@ -197,6 +207,8 @@ class CreateProducts:
     }
 
     def _open_ds(self):
+        if self.ds is not None:
+            return
         if self._is_lrauv():
             # Open LRAUV resampled file - transform log_file to point to _1S.nc file
             # Convert from original .nc4 to resampled _1S.nc format
@@ -425,7 +437,212 @@ class CreateProducts:
             ("backseat_planktivore_casepress", "linear"),
         ]
 
-    def _plot_nighttime_indicator(
+    def _log_file_distance_ranges(self, distnav: xr.DataArray) -> list[tuple[str, float, float]]:
+        """Return (label, start_km, end_km) for each nc_file in self.nc_files.
+
+        The label is the log-directory timestamp (e.g. ``20250414T205440``),
+        taken from the second-to-last URL component.  Start and end times are
+        parsed from the filename (second-to-last and last URL components differ):
+        filename format ``<start>_<end>_<freq>.nc``
+        (e.g. ``202504142054_202504150400_1S.nc``).
+        Entries that cannot be parsed, and duplicate log directories, are
+        silently skipped.
+        """
+        if not self.nc_files:
+            return []
+
+        seen_starts: set[str] = set()
+        times_np = distnav.coords["time"].to_numpy()
+        times_idx = pd.DatetimeIndex(times_np)
+        if times_idx.tz is None:
+            times_idx = times_idx.tz_localize("UTC")
+        dist_km = distnav.to_numpy() / 1000.0
+
+        result: list[tuple[str, float, float]] = []
+        for url in self.nc_files:
+            # label from parent dir: e.g. "20250414T205440"
+            # times from filename:   e.g. "202504142054_202504150400_1S.nc"
+            label = url.rstrip("/").split("/")[-2]
+            filename = url.rstrip("/").split("/")[-1]
+            parts = filename.split("_")
+            try:
+                t_start = pd.Timestamp(parts[0]).tz_localize("UTC")
+                t_end = pd.Timestamp(parts[1]).tz_localize("UTC")
+            except Exception:  # noqa: BLE001
+                self.logger.debug("Could not parse start/end times from filename: %s", filename)
+                continue
+
+            if label in seen_starts:
+                continue
+            seen_starts.add(label)
+
+            mask = (times_idx >= t_start) & (times_idx < t_end)
+            if not mask.any():
+                self.logger.debug("No data in distnav for %s, skipping", label)
+                continue
+            result.append((label, float(dist_km[mask][0]), float(dist_km[mask][-1])))
+
+        return result
+
+    def _plot_log_file_boundaries(
+        self,
+        fig: matplotlib.figure.Figure,
+        map_ax: matplotlib.axes.Axes,
+        ref_data_ax: matplotlib.axes.Axes,
+        distnav: xr.DataArray,
+    ) -> None:
+        """Draw horizontal log-file boundary segments between the map and first data row.
+
+        Creates a thin axes in the vertical gap between *map_ax* (the map/title
+        block at row 0) and *ref_data_ax* (the first data subplot at row 1, left
+        column).  Each log file gets one horizontal line segment spanning its
+        distance range, labelled with the log-directory timestamp.  Only drawn
+        for deployment plots (``self.nc_files`` must be set).
+        """
+        if not self.nc_files:
+            return
+
+        ranges = self._log_file_distance_ranges(distnav)
+        if not ranges:
+            return
+
+        map_pos = map_ax.get_position()
+        data_pos = ref_data_ax.get_position()
+
+        # Vertical span: from the top of the first data row to the bottom of the map
+        y0 = data_pos.y1  # top of first data subplot
+        y1 = map_pos.y0  # bottom of map (after _plot_track_map repositioning)
+        height = y1 - y0
+        if height <= 0:
+            self.logger.debug("No vertical gap for log-boundary axes (height=%.4f)", height)
+            return
+
+        # Derive x range from distnav — ref_data_ax xlim is not yet set at this
+        # point in plot construction (the _plot_var calls come after this)
+        x_km_min = float(distnav.to_numpy()[0]) / 1000.0
+        x_km_max = float(distnav.to_numpy()[-1]) / 1000.0
+
+        bar_ax = fig.add_axes([data_pos.x0, y0, data_pos.width, height])
+        bar_ax.axis("off")
+
+        cmap = plt.get_cmap("tab10")
+        for idx, (label, d_start, d_end) in enumerate(ranges):
+            color = cmap(idx % 10)
+            y_line = idx * 0.25 + 0.5
+            bar_ax.plot(
+                [d_start, d_end],
+                [y_line, y_line],
+                color=color,
+                linewidth=2,
+                solid_capstyle="butt",
+            )
+            bar_ax.plot(d_start, y_line, "|", color=color, markersize=6, markeredgewidth=1.5)
+            bar_ax.plot(d_end, y_line, "|", color=color, markersize=6, markeredgewidth=1.5)
+            # Label centred on the segment, clipped to the axes
+            x_mid = (d_start + d_end) / 2.0
+            bar_ax.text(
+                x_mid,
+                y_line + 0.25,
+                label,
+                fontsize=6,
+                ha="center",
+                va="bottom",
+                color=color,
+                clip_on=False,
+            )
+
+        # Set limits after plotting so they override matplotlib's autoscaling
+        bar_ax.set_xlim(x_km_min, x_km_max)
+        bar_ax.set_ylim(0, len(ranges))
+
+    _PER_LOG_CSS = """
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:#f4f6f9;color:#1a1a2e;margin:0}
+    header{background:#0d1b2a;color:#fff;padding:1.5rem 2rem;
+           border-bottom:4px solid #00b4d8}
+    header h1{font-size:1.2rem;font-weight:600}
+    main{max-width:1400px;margin:0 auto;padding:1.5rem 2rem}
+    h2{font-size:1rem;font-weight:600;color:#0d1b2a;
+       border-left:4px solid #00b4d8;padding-left:.6rem;margin:1.2rem 0 .75rem}
+    .plots{display:flex;flex-wrap:wrap;gap:1rem}
+    .plot-card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);
+               overflow:hidden;max-width:700px}
+    .plot-card img{width:100%;height:auto;display:block}
+    .plot-card figcaption{padding:.3rem .7rem;font-size:.78rem;color:#6c757d}
+    .links a{display:inline-block;margin:.3rem .4rem 0 0;padding:.4rem 1rem;
+             background:#00b4d8;color:#fff;text-decoration:none;
+             border-radius:6px;font-size:.9rem}
+    .links a:hover{background:#90e0ef;color:#0d1b2a}
+"""
+
+    def write_per_log_html(self) -> str | None:
+        """Write a styled HTML page alongside the per-log PNGs.
+
+        Only meaningful for single-log processing (``nc_files`` is None).
+        Looks for any ``{stem}_{freq}_2column_*.png`` files that exist and embeds them.
+        Returns the path of the written HTML, or None if no PNGs found.
+        """
+        if not self._is_lrauv() or not self.log_file:
+            return None
+        out_dir = Path(BASE_LRAUV_PATH, Path(self.log_file).parent)
+        stem = Path(self.log_file).stem
+        html_path = out_dir / f"{stem}_{self.freq}.html"
+
+        png_suffixes = ("_2column_cmocean.png", "_2column_biolume.png", "_2column_planktivore.png")
+        cards = ""
+        for suffix in png_suffixes:
+            png_path = out_dir / f"{stem}_{self.freq}{suffix}"
+            if png_path.exists():
+                name = png_path.name
+                cards += (
+                    f'      <figure class="plot-card">\n'
+                    f'        <a href="{name}"><img src="{name}" alt="{name}" loading="lazy"></a>\n'
+                    f"        <figcaption>{name}</figcaption>\n"
+                    f"      </figure>\n"
+                )
+
+        if not cards:
+            self.logger.debug("No per-log PNGs found; skipping write_per_log_html")
+            return None
+
+        # Build OPeNDAP link from the log file path
+        nc4_name = f"{stem}.nc4"
+        nc4_url = (
+            BASE_LRAUV_WEB.rstrip("/") + "/" + str(Path(self.log_file).parent) + f"/{nc4_name}"
+        )
+
+        title = f"{stem} — {self.freq} resampled"
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{title}</title>
+  <style>{self._PER_LOG_CSS}  </style>
+</head>
+<body>
+  <header><h1>{title}</h1></header>
+  <main>
+    <section>
+      <h2>Plots</h2>
+      <div class="plots">
+{cards}      </div>
+    </section>
+    <section>
+      <h2>Data</h2>
+      <div class="links">
+        <a href="{nc4_url}">&#128190;&nbsp;{nc4_name} (DODS)</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+"""
+        html_path.write_text(html, encoding="utf-8")
+        self.logger.info("Wrote per-log HTML to %s", html_path)
+        return str(html_path)
+
+    def _plot_nighttime_indicator(  # noqa: PLR0915
         self,
         fig: matplotlib.figure.Figure,
         ref_ax: matplotlib.axes.Axes,
@@ -436,7 +653,7 @@ class CreateProducts:
         Fills black bars over the distance axis wherever the sun is below the horizon.
         Uses the figure's existing white space without adjusting other subplot dimensions.
         """
-        from datetime import UTC  # noqa: PLC0415
+        from datetime import UTC, timedelta, timezone  # noqa: PLC0415
 
         try:
             from pysolar import solar  # noqa: PLC0415
@@ -471,7 +688,7 @@ class CreateProducts:
         # Create a thin axes above ref_ax using figure-normalized coordinates
         bbox = ref_ax.get_position()
         indicator_height = 0.004  # ~4 px at 100 dpi on a 10-inch-tall figure
-        gap = 0.013
+        gap = 0.022
         night_ax = fig.add_axes([bbox.x0, bbox.y1 + gap, bbox.width, indicator_height])
         night_ax.set_xlim(sub_dist[0], ref_ax.get_xlim()[1])
         night_ax.set_ylim(0, 1)
@@ -489,6 +706,46 @@ class CreateProducts:
                 in_night = False
         if in_night:
             night_ax.axvspan(night_start, sub_dist[-1], color="black", lw=0)
+
+        # Draw a short tick and local date label at each local midnight
+        utc_offset_h = int(round(float(np.median(lons)) / 15))
+        local_tz = timezone(timedelta(hours=utc_offset_h))
+        times_s = np.array([t.timestamp() for t in times])
+        day = times[0].to_pydatetime().astimezone(local_tz).date()
+        end_day = times[-1].to_pydatetime().astimezone(local_tz).date()
+        while day <= end_day:
+            midnight_local = pd.Timestamp(year=day.year, month=day.month, day=day.day, tz=local_tz)
+            ts = midnight_local.timestamp()
+            if times_s[0] <= ts <= times_s[-1]:
+                dist_mid = float(np.interp(ts, times_s, dist_km))
+                night_ax.plot(
+                    [dist_mid, dist_mid],
+                    [0.0, -1.0],
+                    color="black",
+                    linewidth=0.8,
+                    clip_on=False,
+                )
+                night_ax.text(
+                    dist_mid,
+                    -1.2,
+                    "Local:",
+                    fontsize=6,
+                    ha="right",
+                    va="top",
+                    color="black",
+                    clip_on=False,
+                )
+                night_ax.text(
+                    dist_mid,
+                    -1.2,
+                    f"{day.day} {day.strftime('%b %Y')}",
+                    fontsize=6,
+                    ha="left",
+                    va="top",
+                    color="black",
+                    clip_on=False,
+                )
+            day += timedelta(days=1)
 
     def _grid_dims(self) -> tuple:
         # From Matlab code in plot_sections.m:
@@ -570,7 +827,7 @@ class CreateProducts:
         idist = np.linspace(
             distnav.to_numpy()[0],
             distnav.to_numpy()[-1],
-            3 * self.ds["profile_number"].to_numpy()[-1],
+            int(3 * self.ds["profile_number"].to_numpy()[-1]),
         )
         # Vertical gridded to .5 m, rounded down to nearest 50m
         max_depth = np.floor(self.ds.cf["depth"].max() / 50) * 50
@@ -758,13 +1015,18 @@ class CreateProducts:
         return "cividis"
 
     def _plot_track_map(  # noqa: PLR0915
-        self, map_ax: matplotlib.axes.Axes, reference_ax: matplotlib.axes.Axes
+        self,
+        map_ax: matplotlib.axes.Axes,
+        reference_ax: matplotlib.axes.Axes,
+        night_ref_ax: matplotlib.axes.Axes | None = None,
     ) -> None:
         """Plot AUV track map on left side with title and times on right.
 
         Args:
             map_ax: The axes object to plot the map on
             reference_ax: The axes below to align with (for left edge)
+            night_ref_ax: The axes used by _plot_nighttime_indicator (ax[0,1]); when
+                provided the map top is shifted to align with the indicator top.
         """
         # Get lat/lon data
         lons = self.ds.cf["longitude"].to_numpy()
@@ -778,11 +1040,21 @@ class CreateProducts:
 
         # Get time data for start/end
         times = self.ds.cf["time"].to_numpy()
-        start_time = pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M:%S")
-        end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S")
+        start_time = pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M:%S UTC")
+        end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Get title from netCDF attributes
-        title = self.ds.attrs.get("title", f"{self.auv_name} {self.mission}")
+        if self._is_lrauv() and self.plot_name_stem:
+            # Derive dlist path (vehicle/missionlogs/year/dlist_dir) from log_file
+            lf_parts = Path(self.log_file).parts
+            dlist_path = "/".join(lf_parts[:4]) if len(lf_parts) >= 4 else self.log_file  # noqa: PLR2004
+            deployment_name = self.plot_name_stem.replace("_", " ")
+            title = (
+                "Combined, Aligned, and Resampled LRAUV instrument data from "
+                f"Deployment:\n{deployment_name}\n{dlist_path}"
+            )
+        else:
+            title = self.ds.attrs.get("title", f"{self.auv_name} {self.mission}")
 
         # Get the position of the reference axes below to align with
         ref_pos = reference_ax.get_position()
@@ -835,7 +1107,15 @@ class CreateProducts:
         aspect_ratio = (37.0 - 36.5) / (122.41 - 121.77)  # data aspect ratio
         map_width = map_height / aspect_ratio * 0.7  # scale to fit nicely
 
-        map_ax.set_position([ref_pos.x0, pos.y0, map_width, map_height])
+        # Align map top with the nighttime indicator top when ref axes is available.
+        # Constants must match _plot_nighttime_indicator: gap=0.022, height=0.004.
+        if night_ref_ax is not None:
+            night_top = night_ref_ax.get_position().y1 + 0.022 + 0.004
+            map_y0 = night_top - map_height
+        else:
+            map_y0 = pos.y0
+
+        map_ax.set_position([ref_pos.x0, map_y0, map_width, map_height])
 
         # Force aspect ratio again after positioning for consistency across platforms
         map_ax.set_aspect("equal", adjustable="box")
@@ -846,7 +1126,7 @@ class CreateProducts:
         cbar_width = 0.01
         cbar_pad = 0.005
         cbar_ax = map_ax.figure.add_axes(
-            [ref_pos.x0 + map_width + cbar_pad, pos.y0, cbar_width, map_height]
+            [ref_pos.x0 + map_width + cbar_pad, map_y0, cbar_width, map_height]
         )
         cbar = map_ax.figure.colorbar(
             scatter,
@@ -868,10 +1148,10 @@ class CreateProducts:
             spine.set_linewidth(1)
 
         # Add text on the right side with title and times
-        # Wrap title for better formatting
+        # Wrap each pre-formatted line independently to preserve intentional newlines
         import textwrap
 
-        wrapped_title = textwrap.fill(title, width=40)
+        wrapped_title = "\n".join(textwrap.fill(line, width=40) for line in title.split("\n"))
 
         # Get updated position after aspect adjustment
         updated_pos = map_ax.get_position()
@@ -1666,7 +1946,7 @@ class CreateProducts:
             self._compute_density(best_ctd)
 
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
-        self._plot_track_map(ax[0, 0], ax[1, 0])
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
         # Parse sample locations - vehicle specific
         if self.auv_name and self.mission:
@@ -1741,12 +2021,19 @@ class CreateProducts:
                 # Move down in current column
                 row += 1
 
+        self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
         # Save plot to file
         if self._is_lrauv():
-            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            output_file = Path(
-                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_cmocean.png"
+            out_dir = (
+                self.output_dir
+                if self.output_dir is not None
+                else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            stem = (
+                self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+            )
+            output_file = Path(out_dir, f"{stem}_{self.freq}_2column_cmocean.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
@@ -1804,7 +2091,7 @@ class CreateProducts:
             self._compute_density(best_ctd)
 
         # Create map in top-left subplot (row=0, col=0), aligned with ax[1,0] below
-        self._plot_track_map(ax[0, 0], ax[1, 0])
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
         # Sample locations (Dorado: Gulper, LRAUV: Sipper)
         if self.auv_name and self.mission:
@@ -1874,13 +2161,19 @@ class CreateProducts:
 
         # Draw nighttime indicator strip just above ax[0,1] now that its x-limits are final
         self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
 
         # Save plot to file
         if self._is_lrauv():
-            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            output_file = Path(
-                netcdfs_dir, f"{Path(self.log_file).stem}_{self.freq}_2column_biolume.png"
+            out_dir = (
+                self.output_dir
+                if self.output_dir is not None
+                else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            stem = (
+                self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+            )
+            output_file = Path(out_dir, f"{stem}_{self.freq}_2column_biolume.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)
@@ -1943,7 +2236,7 @@ class CreateProducts:
             best_ctd = self._get_best_ctd()
             self._compute_density(best_ctd)
 
-        self._plot_track_map(ax[0, 0], ax[1, 0])
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
         if self.auv_name and self.mission:
             try:
@@ -2010,13 +2303,18 @@ class CreateProducts:
                 row += 1
 
         self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
 
         if self._is_lrauv():
-            netcdfs_dir = Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
-            output_file = Path(
-                netcdfs_dir,
-                f"{Path(self.log_file).stem}_{self.freq}_2column_planktivore.png",
+            out_dir = (
+                self.output_dir
+                if self.output_dir is not None
+                else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            stem = (
+                self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+            )
+            output_file = Path(out_dir, f"{stem}_{self.freq}_2column_planktivore.png")
         else:
             images_dir = Path(BASE_PATH, self.auv_name, MISSIONIMAGES, self.mission)
             Path(images_dir).mkdir(parents=True, exist_ok=True)

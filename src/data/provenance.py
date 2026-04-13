@@ -102,13 +102,18 @@ def get_git_url(script_name: str, version: str) -> str:
     return f"{GIT_WEB_BASE}/{version}/{script_name}"
 
 
+def get_script_github_url(script_name: str) -> str:
+    """Return the GitHub blob URL for *script_name* at the current git version."""
+    return get_git_url(script_name, _get_git_version())
+
+
 # ---------------------------------------------------------------------------
 # Core function
 # ---------------------------------------------------------------------------
 def submit_process_run(  # noqa: PLR0913
-    nc_file_path: str,
     input_uris: list[str],
     *,
+    nc_file_path: str | None = None,
     producer_name: str | None = None,
     producer_description: str | None = None,
     poc_email: str = "mccann@mbari.org",
@@ -176,17 +181,11 @@ def submit_process_run(  # noqa: PLR0913
     if additional_resources:
         resources.extend(additional_resources)
 
-    def _dods_html_url(uri: str) -> str:
-        return f"{uri}.dmr.html" if uri.endswith(".nc4") else f"{uri}.html"
-
-    output_uri = get_dods_url(nc_file_path)
-    payload = {
-        "output_uri": output_uri,
-        "output_dodsurlstring": _dods_html_url(output_uri),
+    payload: dict = {
         "producer_name": producer_name,
         "producer_description": producer_description,
         "input_uris": input_uris,
-        "input_dodsurlstrings": [_dods_html_url(uri) for uri in input_uris],
+        "input_dodsurlstrings": [f"{uri}.html" for uri in input_uris],
         "software_name": software_name,
         "software_version": software_version,
         "software_uristring": f"https://github.com/mbari-org/auv-python/tree/{software_version}",
@@ -195,6 +194,10 @@ def submit_process_run(  # noqa: PLR0913
         "enddate": pr_end,
         "resources": resources,
     }
+    if nc_file_path is not None:
+        output_uri = get_dods_url(nc_file_path)
+        payload["output_uri"] = output_uri
+        payload["output_dodsurlstring"] = f"{output_uri}.html"
 
     url = f"{api_base}/process-runs/"
     resp = session.post(url, json=payload, timeout=REQUEST_TIMEOUT)
@@ -205,7 +208,7 @@ def submit_process_run(  # noqa: PLR0913
         )
         raise requests.HTTPError(err_txt, response=resp)
     process_run = resp.json()
-    log.info("Provenance recorded: %s -> id=%s", url, process_run.get("id", "?"))
+    log.info("Provenance recorded: %s -> id=%d", url, process_run.get("id", "?"))
     return process_run
 
 
