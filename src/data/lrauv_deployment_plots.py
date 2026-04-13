@@ -433,7 +433,6 @@ class DeploymentPlotter:
                 if p.exists():
                     msg.add_attachment(
                         p.read_text(encoding="utf-8"),
-                        maintype="text",
                         subtype="html",
                         filename=p.name,
                     )
