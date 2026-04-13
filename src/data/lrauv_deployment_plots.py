@@ -16,6 +16,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2026, Monterey Bay Aquarium Research Institute"
 
 import argparse  # noqa: I001
+import base64
 import http
 import logging
 import os
@@ -364,6 +365,7 @@ class DeploymentPlotter:
                     stoqs_url,
                     nc_files,
                     auv_name=dlist.split("/")[0],
+                    png_file_path=Path(png_path),
                 )
                 self.logger.info("Per-PNG HTML written to %s", per_png_html)
         archiver = Archiver(add_handlers=True, clobber=True)
@@ -564,11 +566,13 @@ class DeploymentPlotter:
         stoqs_url: str | None,
         nc_files: list[str],
         auv_name: str = "",
+        png_file_path: Path | None = None,
     ) -> None:
         """Write a plain HTML page for one deployment PNG.
 
-        Embeds the full-size PNG (via fully-qualified *png_url*), links to the
-        STOQS database, then lists per-log image / data / STOQS links — no CSS.
+        Embeds the full-size PNG as a base64 data URI when *png_file_path* is
+        supplied (so the image works in email clients that block external URLs).
+        Falls back to the fully-qualified *png_url* otherwise.
         """
         # Group nc_files by log directory (second-to-last path component)
         grouped: dict[str, list[str]] = {}
@@ -608,6 +612,12 @@ class DeploymentPlotter:
             db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
             stoqs_line = f'<p><a href="{stoqs_url}">View these data in {db_label}</a></p>\n'
 
+        if png_file_path is not None and png_file_path.exists():
+            b64 = base64.b64encode(png_file_path.read_bytes()).decode("ascii")
+            img_src = f"data:image/png;base64,{b64}"
+        else:
+            img_src = png_url
+
         html_title_single = title.replace("\n", " \u2014 ")
         script_github_url = get_script_github_url("src/data/lrauv_deployment_plots.py")
         created_ts = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -626,7 +636,7 @@ class DeploymentPlotter:
             "</head>\n"
             "<body>\n"
             f"  <h1>{html_title_single}</h1>\n"
-            f'  <img src="{png_url}" alt="{png_name}">\n'
+            f'  <img src="{img_src}" alt="{png_name}">\n'
             f"  {stoqs_line}"
             "  <h2>Log files</h2>\n"
             "  <ul>\n"
