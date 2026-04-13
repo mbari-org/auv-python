@@ -18,6 +18,7 @@ __copyright__ = "Copyright 2026, Monterey Bay Aquarium Research Institute"
 import argparse  # noqa: I001
 import http
 import logging
+import os
 import re
 import sys
 import time
@@ -35,6 +36,8 @@ from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 from provenance import get_dods_url, get_script_github_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
+
+ENV_LRAUV_NOTIFY = "LRAUV_NOTIFY"
 
 
 class DeploymentPlotter:
@@ -189,12 +192,13 @@ class DeploymentPlotter:
         """Return True if any per-deployment PNG already exists in *deployment_dir*."""
         return any(deployment_dir.glob(f"{plot_name_stem}_*.png"))
 
-    def plot_deployment(  # noqa: C901, PLR0912, PLR0915
+    def plot_deployment(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         dlist: str,
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
         force: bool = False,  # noqa: FBT001, FBT002
+        notify: str | None = None,
     ) -> None:
         """Main entry point: generate deployment-level plots from a .dlist path.
 
@@ -203,6 +207,8 @@ class DeploymentPlotter:
             verbose: Verbosity level (0-2).
             update_ssds_provenance: Submit provenance records to SSDS_Metadata.
             force: Reprocess even when output PNGs already exist.
+            notify: Email address or Slack webhook URL to notify after completion.
+                    Falls back to the ``LRAUV_NOTIFY`` environment variable.
         """
         self.logger.setLevel(self._log_levels[min(verbose, 2)])
 
@@ -317,6 +323,7 @@ class DeploymentPlotter:
                 nc_files,
                 verbose=verbose,
                 update_ssds_provenance=update_ssds_provenance,
+                notify=notify,
             )
 
     def _build_and_write_html(  # noqa: PLR0913
@@ -330,6 +337,7 @@ class DeploymentPlotter:
         nc_files: list[str],
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
+        notify: str | None = None,
     ) -> None:
         """Fetch STOQS permalink and write per-PNG HTML pages."""
         dlist_no_ext = str(Path(dlist).with_suffix(""))
@@ -358,6 +366,10 @@ class DeploymentPlotter:
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
+        html_paths = [
+            Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
+        ]
+        self._notify(notify or "", raw_name or plot_name_stem, html_paths, stoqs_url)
         if update_ssds_provenance:
             self._submit_provenance(
                 deployment_dir=deployment_dir,
@@ -367,6 +379,60 @@ class DeploymentPlotter:
                 png_paths=png_paths,
                 nc_files=nc_files,
             )
+
+    def _notify(
+        self,
+        target: str,
+        deployment_name: str,
+        html_paths: list[Path],
+        stoqs_url: str | None,
+    ) -> None:
+        """Send an email or Slack notification with links to the new deployment HTML pages.
+
+        *target* is auto-detected:
+        - starts with ``https://`` → treated as a Slack incoming-webhook URL
+        - anything else → treated as an email address (sent via localhost SMTP)
+
+        The ``LRAUV_NOTIFY`` environment variable can supply the target so it
+        stays out of shell history and cron job command lines.
+        """
+        resolved = target or os.environ.get(ENV_LRAUV_NOTIFY, "")
+        if not resolved:
+            return
+
+        lines = [f"New LRAUV deployment plots available: {deployment_name}"]
+        for p in html_paths:
+            lines.append(f"  {get_dods_url(str(p))}")  # noqa: PERF401
+        if stoqs_url:
+            lines.append(f"STOQS: {stoqs_url}")
+        body = "\n".join(lines)
+
+        if resolved.startswith("https://"):
+            # Slack incoming webhook
+            import requests  # noqa: PLC0415
+
+            try:
+                resp = requests.post(resolved, json={"text": body}, timeout=10)  # noqa: S113
+                resp.raise_for_status()
+                self.logger.info("Slack notification sent to webhook")
+            except Exception as exc:  # noqa: BLE001
+                self.logger.warning("Slack notification failed: %s", exc)
+        else:
+            # Email via localhost SMTP relay
+            import smtplib  # noqa: PLC0415
+            from email.message import EmailMessage  # noqa: PLC0415
+
+            msg = EmailMessage()
+            msg["Subject"] = f"New LRAUV deployment plots: {deployment_name}"
+            msg["From"] = "auv-python@mbari.org"
+            msg["To"] = resolved
+            msg.set_content(body)
+            try:
+                with smtplib.SMTP("localhost") as s:
+                    s.send_message(msg)
+                self.logger.info("Email notification sent to %s", resolved)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.warning("Email notification failed: %s", exc)
 
     def _submit_provenance(  # noqa: PLR0913
         self,
@@ -693,6 +759,16 @@ class DeploymentPlotter:
                 " By default, deployments with existing outputs are skipped."
             ),
         )
+        parser.add_argument(
+            "--notify",
+            default="",
+            metavar="EMAIL_OR_WEBHOOK",
+            help=(
+                "Send a notification when new plots are written. Provide an email"
+                " address or a Slack incoming-webhook URL. Falls back to the"
+                f" {ENV_LRAUV_NOTIFY} environment variable if not specified."
+            ),
+        )
         self.args = parser.parse_args()
         if self.args.start and not self.args.end:
             self.args.end = datetime.now(tz=UTC).strftime("%Y%m%d")
@@ -725,4 +801,5 @@ if __name__ == "__main__":
             verbose=args.verbose,
             update_ssds_provenance=args.update_ssds_provenance,
             force=args.force,
+            notify=args.notify,
         )

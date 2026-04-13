@@ -487,7 +487,11 @@
             //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20251001", "--end", "20251231", "--update_ssds_provenance", "--force"]
             // Test web page building with a short deployment
             //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20251022_20251024.dlist", "--update_ssds_provenance"]
-            "args": ["-v", "1", "--last_n_days", "10", "--update_ssds_provenance", "--force"]
+            // Test --force option for rebuilding web pages with a short deployment
+            //"args": ["-v", "1", "--last_n_days", "10", "--update_ssds_provenance", "--force"]
+            // Test --notify option
+            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20251022_20251024.dlist", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
+
         },
 
     ]
