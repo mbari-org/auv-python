@@ -102,6 +102,11 @@ def get_git_url(script_name: str, version: str) -> str:
     return f"{GIT_WEB_BASE}/{version}/{script_name}"
 
 
+def get_script_github_url(script_name: str) -> str:
+    """Return the GitHub blob URL for *script_name* at the current git version."""
+    return get_git_url(script_name, _get_git_version())
+
+
 # ---------------------------------------------------------------------------
 # Core function
 # ---------------------------------------------------------------------------

@@ -240,6 +240,25 @@ class TestWritePerPngHtml:
         html = html_path.read_text()
         assert "xyzlog" in html  # noqa: S101
 
+    def test_footer_contains_script_link_and_timestamp(self, dp, tmp_path):
+        html_path = tmp_path / "depl_cmocean.html"
+        with (
+            patch.object(dp, "_url_exists", return_value=False),
+            patch.object(dp, "_stoqs_url_for_nc_url", return_value=None),
+        ):
+            dp._write_per_png_html(
+                html_path,
+                "Title",
+                "depl_cmocean.png",
+                None,
+                [_NC_URL],
+            )
+        html = html_path.read_text()
+        assert "<hr>" in html  # noqa: S101
+        assert "lrauv_deployment_plots.py" in html  # noqa: S101
+        assert "github.com/mbari-org/auv-python" in html  # noqa: S101
+        assert "Created by" in html  # noqa: S101
+
 
 # ---------------------------------------------------------------------------
 # Tests for helper methods

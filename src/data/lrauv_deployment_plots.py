@@ -33,7 +33,7 @@ from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
 from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
-from provenance import get_dods_url, submit_process_run
+from provenance import get_dods_url, get_script_github_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
 
@@ -517,6 +517,14 @@ class DeploymentPlotter:
             stoqs_line = f'<p><a href="{stoqs_url}">View these data in {db_label}</a></p>\n'
 
         html_title_single = title.replace("\n", " \u2014 ")
+        script_github_url = get_script_github_url("src/data/lrauv_deployment_plots.py")
+        created_ts = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        footer = (
+            "<hr>\n"
+            "<p><small>Created by "
+            f'<a href="{script_github_url}">lrauv_deployment_plots.py</a>'
+            f" on {created_ts}</small></p>\n"
+        )
         html = (
             "<!DOCTYPE html>\n"
             '<html lang="en">\n'
@@ -532,6 +540,7 @@ class DeploymentPlotter:
             "  <ul>\n"
             f"{log_items}"
             "  </ul>\n"
+            f"{footer}"
             "</body>\n"
             "</html>\n"
         )
