@@ -369,23 +369,13 @@ class DeploymentPlotter:
                     png_file_path=Path(png_path),
                 )
                 self.logger.info("Per-PNG HTML written to %s", per_png_html)
-                per_png_pdf = Path(png_path).with_suffix(".pdf")
-                self._write_per_png_pdf(
-                    per_png_pdf,
-                    html_title,
-                    stoqs_url,
-                    nc_files,
-                    auv_name=_auv_name,
-                    png_file_path=Path(png_path),
-                )
-                self.logger.info("Per-PNG PDF written to %s", per_png_pdf)
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
-        pdf_paths = [
-            Path(p).with_suffix(".pdf") for p in png_paths if Path(p).with_suffix(".pdf").exists()
+        html_paths = [
+            Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
-        self._notify(notify or "", raw_name or plot_name_stem, pdf_paths, stoqs_url)
+        self._notify(notify or "", raw_name or plot_name_stem, html_paths, stoqs_url)
         if update_ssds_provenance:
             self._submit_provenance(
                 deployment_dir=deployment_dir,
@@ -400,10 +390,10 @@ class DeploymentPlotter:
         self,
         target: str,
         deployment_name: str,
-        pdf_paths: list[Path],
+        html_paths: list[Path],
         stoqs_url: str | None,
     ) -> None:
-        """Send an email or Slack notification with links to the new deployment PDF pages.
+        """Send an email or Slack notification with links to the new deployment HTML pages.
 
         *target* is auto-detected:
         - starts with ``https://`` → treated as a Slack incoming-webhook URL
@@ -417,7 +407,7 @@ class DeploymentPlotter:
             return
 
         lines = [f"New LRAUV deployment plots available: {deployment_name}"]
-        for p in pdf_paths:
+        for p in html_paths:
             lines.append(f"  {get_dods_url(str(p))}")  # noqa: PERF401
         if stoqs_url:
             lines.append(f"STOQS: {stoqs_url}")
@@ -443,12 +433,11 @@ class DeploymentPlotter:
             msg["From"] = "auv-python@mbari.org"
             msg["To"] = resolved
             msg.set_content(body)
-            for p in pdf_paths:
+            for p in html_paths:
                 if p.exists():
                     msg.add_attachment(
-                        p.read_bytes(),
-                        maintype="application",
-                        subtype="pdf",
+                        p.read_text(encoding="utf-8"),
+                        subtype="html",
                         filename=p.name,
                     )
             try:
@@ -568,117 +557,6 @@ class DeploymentPlotter:
                     pname = png_url.rsplit("/", 1)[1]
                     parts.append(f'<a href="{png_url}">{pname}</a>')
         return " | ".join(parts)
-
-    def _write_per_png_pdf(  # noqa: C901, PLR0913
-        self,
-        pdf_path: Path,
-        title: str,
-        stoqs_url: str | None,
-        nc_files: list[str],
-        auv_name: str = "",
-        png_file_path: Path | None = None,
-    ) -> None:
-        """Write a single-page PDF for one deployment PNG with embedded image and hyperlinks.
-
-        Uses matplotlib's PDF backend so no extra dependencies are required.
-        Text items in the links section carry PDF URI annotations that open in
-        macOS Preview, Acrobat, and Outlook's built-in PDF viewer.
-        """
-        if png_file_path is None or not png_file_path.exists():
-            self.logger.warning("PNG file not found, skipping PDF: %s", pdf_path.name)
-            return
-
-        import matplotlib.image as mpimg  # noqa: PLC0415
-        from matplotlib.backends.backend_pdf import PdfPages  # noqa: PLC0415
-        from matplotlib.figure import Figure  # noqa: PLC0415
-
-        try:
-            img = mpimg.imread(str(png_file_path))
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning("Could not read PNG for PDF, skipping: %s — %s", png_file_path, exc)
-            return
-        ih, iw = img.shape[:2]
-
-        # Fix page width at 11 in; scale height to match image aspect ratio
-        # plus a fixed band at the top for the title and bottom for links.
-        page_w = 11.0
-        title_h = 0.4  # inches
-        links_h = 1.5  # inches
-        img_display_h = page_w * ih / iw
-        page_h = min(img_display_h + title_h + links_h, 22.0)
-
-        fig = Figure(figsize=(page_w, page_h))
-
-        # Fractional layout (y=0 is bottom of page)
-        links_frac = links_h / page_h
-        title_frac = title_h / page_h
-        img_bottom = links_frac
-        img_h_frac = 1.0 - title_frac - links_frac
-
-        # Image
-        ax = fig.add_axes([0.0, img_bottom, 1.0, img_h_frac])
-        ax.imshow(img, aspect="auto")
-        ax.axis("off")
-
-        # Title
-        title_single = title.replace("\n", " \u2014 ")
-        fig.text(
-            0.5,
-            img_bottom + img_h_frac + title_frac * 0.5,
-            title_single,
-            ha="center",
-            va="center",
-            fontsize=8,
-        )
-
-        # Links section — group nc_files by log directory
-        grouped: dict[str, list[str]] = {}
-        for url in nc_files:
-            log_dir = url.rsplit("/", 2)[1]
-            grouped.setdefault(log_dir, []).append(url)
-
-        n_items = len(grouped) + (1 if stoqs_url else 0)
-        line_frac = min(links_frac / max(n_items + 1, 2), 0.025)
-        y = links_frac - line_frac * 0.4
-
-        if stoqs_url:
-            after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
-            db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
-            fig.text(
-                0.01,
-                y,
-                f"STOQS: {db_label}",
-                ha="left",
-                va="top",
-                fontsize=7,
-                url=stoqs_url,
-                color="blue",
-            )
-            y -= line_frac
-
-        for log_dir in sorted(grouped):
-            nc_urls = grouped[log_dir]
-            per_log_html_url = self._per_log_html_url(nc_urls)
-            log_stoqs_url = self._per_log_stoqs_url(nc_urls, auv_name, stoqs_url)
-            link_url = (
-                per_log_html_url or log_stoqs_url or (nc_urls[0] + ".html" if nc_urls else "")
-            )
-            fig.text(
-                0.01,
-                y,
-                log_dir,
-                ha="left",
-                va="top",
-                fontsize=6,
-                url=link_url if link_url else None,
-                color="blue" if link_url else "black",
-            )
-            y -= line_frac
-            if y < 1e-2:  # noqa: PLR2004
-                break
-
-        with PdfPages(str(pdf_path)) as pdf:
-            pdf.savefig(fig)
 
     def _write_per_png_html(  # noqa: C901, PLR0913
         self,
