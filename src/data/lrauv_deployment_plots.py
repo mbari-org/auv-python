@@ -429,6 +429,14 @@ class DeploymentPlotter:
             msg["From"] = "auv-python@mbari.org"
             msg["To"] = resolved
             msg.set_content(body)
+            for p in html_paths:
+                if p.exists():
+                    msg.add_attachment(
+                        p.read_text(encoding="utf-8"),
+                        maintype="text",
+                        subtype="html",
+                        filename=p.name,
+                    )
             try:
                 smtp_host = os.environ.get(ENV_SMTP_HOST, "localhost")
                 smtp_port = int(os.environ.get(ENV_SMTP_PORT, "587"))
