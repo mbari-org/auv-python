@@ -159,36 +159,23 @@ class DeploymentPlotter:
 
         Accepts both local Paths and OPeNDAP URL strings — xr.open_dataset
         handles both transparently.
-        Tries xr.open_mfdataset first; falls back to manual concat on failure.
         Uses join='outer' so every variable present in any log_file is retained
         (absent values filled with NaN).
         """
         if not nc_files:
             return None
 
-        paths = [str(p) for p in nc_files]
-        try:
-            self.logger.info("Concatenating %d files via open_mfdataset", len(paths))
-            return xr.open_mfdataset(
-                paths,
-                combine="by_coords",
-                join="outer",
-                parallel=True,
-                chunks="auto",
-            )
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning("open_mfdataset failed (%s), falling back to xr.concat", exc)
-
         datasets = []
         for p in nc_files:
             try:
-                datasets.append(xr.open_dataset(p))
+                datasets.append(xr.open_dataset(str(p)))
             except OSError as e:
                 self.logger.warning("Skipping %s: %s", p, e)
 
         if not datasets:
             return None
 
+        self.logger.info("Concatenating %d dataset(s) via xr.concat", len(datasets))
         return xr.concat(datasets, dim="time", join="outer")
 
     def _deployment_has_outputs(self, deployment_dir: Path, plot_name_stem: str) -> bool:
