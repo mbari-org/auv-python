@@ -35,7 +35,7 @@ from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
 from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
-from provenance import get_dods_url, get_script_github_url, submit_process_run
+from provenance import get_script_github_url, get_web_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
 ENV_LRAUV_NOTIFY = "LRAUV_NOTIFY"
@@ -362,7 +362,7 @@ class DeploymentPlotter:
                     per_png_html,
                     html_title,
                     Path(png_path).name,
-                    get_dods_url(png_path),
+                    get_web_url(png_path),
                     stoqs_url,
                     nc_files,
                     auv_name=_auv_name,
@@ -409,7 +409,7 @@ class DeploymentPlotter:
 
         lines = [f"New LRAUV deployment plots available: {deployment_name}"]
         for p in html_paths:
-            lines.append(f"  {get_dods_url(str(p))}")  # noqa: PERF401
+            lines.append(f"  {get_web_url(str(p))}")  # noqa: PERF401
         if stoqs_url:
             lines.append(f"STOQS: {stoqs_url}")
         body = "\n".join(lines)
@@ -489,7 +489,7 @@ class DeploymentPlotter:
             png_resources = additional_resources + [
                 {
                     "name": Path(png_path).name,
-                    "uristring": get_dods_url(png_path),
+                    "uristring": get_web_url(png_path),
                     "description": f"Deployment quick look plot: {Path(png_path).name}",
                     "resourcetype_name": "Quick Look Plot",
                 }
@@ -499,7 +499,7 @@ class DeploymentPlotter:
                 png_resources.append(
                     {
                         "name": per_png_html.name,
-                        "uristring": get_dods_url(str(per_png_html)),
+                        "uristring": get_web_url(str(per_png_html)),
                         "description": f"Per-PNG HTML page for {per_png_html.name}",
                         "resourcetype_name": "html",
                     }

@@ -75,7 +75,7 @@ from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB, GROUP, Extract
-from provenance import get_dods_url, submit_process_run
+from provenance import get_dods_url, get_web_url, submit_process_run
 from resample import (
     AUVCTD_OPENDAP_BASE,
     FLASH_THRESHOLD,
@@ -779,7 +779,7 @@ class Processor:
                 resources.append(
                     {
                         "name": plot_file.name,
-                        "uristring": get_dods_url(str(plot_file)),
+                        "uristring": get_web_url(str(plot_file)),
                         "description": f"Created by create_products.py: {description}",
                         "resourcetype_name": "Quick Look Plot",
                     }
