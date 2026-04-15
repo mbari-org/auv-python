@@ -1062,9 +1062,27 @@ class CreateProducts:
         # Store original position
         pos = map_ax.get_position()
 
-        # Set fixed axis limits for Monterey Bay area (in Web Mercator) FIRST
-        lon_bounds = [-122.41, -121.77]
-        lat_bounds = [36.5, 37.0]
+        # Use fixed Monterey Bay bounds when the track fits within them; otherwise
+        # compute bounds dynamically from the data with a 10% margin.
+        fixed_lon_bounds = [-122.41, -121.77]
+        fixed_lat_bounds = [36.5, 37.0]
+        valid_lons = lons[~np.isnan(lons)]
+        valid_lats = lats[~np.isnan(lats)]
+        if (
+            valid_lons.size > 0
+            and valid_lats.size > 0
+            and valid_lons.min() >= fixed_lon_bounds[0]
+            and valid_lons.max() <= fixed_lon_bounds[1]
+            and valid_lats.min() >= fixed_lat_bounds[0]
+            and valid_lats.max() <= fixed_lat_bounds[1]
+        ):
+            lon_bounds = fixed_lon_bounds
+            lat_bounds = fixed_lat_bounds
+        else:
+            lon_margin = (valid_lons.max() - valid_lons.min()) * 0.1 or 0.05
+            lat_margin = (valid_lats.max() - valid_lats.min()) * 0.1 or 0.05
+            lon_bounds = [valid_lons.min() - lon_margin, valid_lons.max() + lon_margin]
+            lat_bounds = [valid_lats.min() - lat_margin, valid_lats.max() + lat_margin]
         x_bounds, y_bounds = transformer.transform(lon_bounds, lat_bounds)
         map_ax.set_xlim(x_bounds)
         map_ax.set_ylim(y_bounds)
@@ -1104,7 +1122,7 @@ class CreateProducts:
         # Now position map aligned with left edge of reference, 50% width
         # Use a square aspect ratio based on the y-dimension
         map_height = pos.height
-        aspect_ratio = (37.0 - 36.5) / (122.41 - 121.77)  # data aspect ratio
+        aspect_ratio = (lat_bounds[1] - lat_bounds[0]) / (lon_bounds[1] - lon_bounds[0])
         map_width = map_height / aspect_ratio * 0.7  # scale to fit nicely
 
         # Align map top with the nighttime indicator top when ref axes is available.
