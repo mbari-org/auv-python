@@ -1090,12 +1090,20 @@ class CreateProducts:
         # Make the plot square by using equal aspect with explicit box adjustment
         map_ax.set_aspect("equal", adjustable="box")
 
-        # Plot the track with profile_number coloring in Web Mercator coordinates
+        # Plot the track colored by a cumulative profile number that keeps
+        # incrementing across concatenated log files (profile_number resets to
+        # zero at the start of each log file).
         profile_numbers = self.ds["profile_number"].to_numpy()
+        cumulative_profile = profile_numbers.copy().astype(float)
+        offset = 0
+        for i in range(1, len(profile_numbers)):
+            if profile_numbers[i] < profile_numbers[i - 1]:
+                offset += profile_numbers[i - 1]
+            cumulative_profile[i] = profile_numbers[i] + offset
         scatter = map_ax.scatter(
             x_merc,
             y_merc,
-            c=profile_numbers,
+            c=cumulative_profile,
             cmap="jet",
             s=1,
             alpha=0.6,
