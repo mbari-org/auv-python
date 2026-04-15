@@ -41,6 +41,11 @@ PATH_TO_URL_MAP: dict[str, str] = {
     str(_PROJECT_DATA / "auv_data"): "http://dods.mbari.org/opendap/data/auvctd",
     str(_PROJECT_DATA / "lrauv_data"): "http://dods.mbari.org/opendap/data/lrauv",
 }
+# Web-serving URLs (no opendap/ path prefix) — for PNG, HTML, and other static files.
+_PATH_TO_WEB_MAP: dict[str, str] = {
+    str(_PROJECT_DATA / "auv_data"): "https://dods.mbari.org/data/auvctd",
+    str(_PROJECT_DATA / "lrauv_data"): "https://dods.mbari.org/data/lrauv",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +97,21 @@ def get_dods_url(nc_file_path: str) -> str:
     """
     resolved = str(Path(nc_file_path).resolve())
     for local_prefix, url_prefix in PATH_TO_URL_MAP.items():
+        if resolved.startswith(local_prefix):
+            return resolved.replace(local_prefix, url_prefix, 1)
+    return resolved
+
+
+def get_web_url(file_path: str) -> str:
+    """Translate a local file path to its web-accessible URL (no OPeNDAP prefix).
+
+    Use this for PNG, HTML, and other static files served over HTTP.
+    Walks ``_PATH_TO_WEB_MAP`` looking for a matching prefix in the
+    *resolved* path string.  Returns the original path unchanged if no
+    match is found.
+    """
+    resolved = str(Path(file_path).resolve())
+    for local_prefix, url_prefix in _PATH_TO_WEB_MAP.items():
         if resolved.startswith(local_prefix):
             return resolved.replace(local_prefix, url_prefix, 1)
     return resolved

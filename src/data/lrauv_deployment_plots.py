@@ -35,7 +35,7 @@ from create_products import CreateProducts
 from logs2netcdfs import AUV_NetCDF
 from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
-from provenance import get_dods_url, get_script_github_url, submit_process_run
+from provenance import get_script_github_url, get_web_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
 ENV_LRAUV_NOTIFY = "LRAUV_NOTIFY"
@@ -362,7 +362,7 @@ class DeploymentPlotter:
                     per_png_html,
                     html_title,
                     Path(png_path).name,
-                    get_dods_url(png_path),
+                    get_web_url(png_path),
                     stoqs_url,
                     nc_files,
                     auv_name=_auv_name,
@@ -387,6 +387,63 @@ class DeploymentPlotter:
                 nc_files=nc_files,
             )
 
+    def _send_notify_email(
+        self,
+        recipient: str,
+        deployment_name: str,
+        html_paths: list[Path],
+    ) -> None:
+        """Send a plain-HTML email with the standard inline PNG and a single web link."""
+        import smtplib  # noqa: PLC0415
+        from email.mime.image import MIMEImage  # noqa: PLC0415
+        from email.mime.multipart import MIMEMultipart  # noqa: PLC0415
+        from email.mime.text import MIMEText  # noqa: PLC0415
+
+        std_html = next(
+            (p for p in html_paths if "2column_cmocean" in str(p)),
+            html_paths[0] if html_paths else None,
+        )
+        std_png = std_html.with_suffix(".png") if std_html else None
+        if std_png and not std_png.exists():
+            std_png = None
+        web_url = get_web_url(str(std_html)) if std_html else ""
+
+        plain = (
+            f"New LRAUV deployment plots: {deployment_name}\n\n"
+            f"  View this and related information on the web:\n  {web_url}"
+        )
+        img_tag = (
+            '<img src="cid:std_plot" alt="Standard plot" style="max-width:100%"><br>'
+            if std_png
+            else ""
+        )
+        html_body = (
+            f'{img_tag}<p><a href="{web_url}">View this and related information on the web</a></p>'
+        )
+
+        outer = MIMEMultipart("related")
+        outer["Subject"] = f"New LRAUV deployment plots: {deployment_name}"
+        outer["From"] = "auv-python@mbari.org"
+        outer["To"] = recipient
+        alt = MIMEMultipart("alternative")
+        outer.attach(alt)
+        alt.attach(MIMEText(plain, "plain"))
+        alt.attach(MIMEText(html_body, "html"))
+        if std_png:
+            img = MIMEImage(std_png.read_bytes())
+            img.add_header("Content-ID", "<std_plot>")
+            img.add_header("Content-Disposition", "inline", filename=std_png.name)
+            outer.attach(img)
+        try:
+            smtp_host = os.environ.get(ENV_SMTP_HOST, "localhost")
+            smtp_port = int(os.environ.get(ENV_SMTP_PORT, "587"))
+            with smtplib.SMTP(smtp_host, smtp_port) as s:
+                s.starttls()
+                s.send_message(outer)
+            self.logger.info("Email notification sent to %s", recipient)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("Email notification failed: %s", exc)
+
     def _notify(
         self,
         target: str,
@@ -407,49 +464,27 @@ class DeploymentPlotter:
         if not resolved:
             return
 
-        lines = [f"New LRAUV deployment plots available: {deployment_name}"]
-        for p in html_paths:
-            lines.append(f"  {get_dods_url(str(p))}")  # noqa: PERF401
-        if stoqs_url:
-            lines.append(f"STOQS: {stoqs_url}")
-        body = "\n".join(lines)
-
         if resolved.startswith("https://"):
-            # Slack incoming webhook
+            # Slack incoming webhook — include all plot links and STOQS URL
             import requests  # noqa: PLC0415
 
+            plot_links = [(get_web_url(str(p)), self._plot_label(str(p))) for p in html_paths]
+            lines = [f"New LRAUV deployment plots available: {deployment_name}", ""]
+            for url, label in plot_links:
+                lines.append(f"  {label}: {url}")
+            if stoqs_url:
+                after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
+                stoqs_db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
+                lines.append("")
+                lines.append(f"  STOQS ({stoqs_db_label}): {stoqs_url}")
             try:
-                resp = requests.post(resolved, json={"text": body}, timeout=10)  # noqa: S113
+                resp = requests.post(resolved, json={"text": "\n".join(lines)}, timeout=10)  # noqa: S113
                 resp.raise_for_status()
                 self.logger.info("Slack notification sent to webhook")
             except Exception as exc:  # noqa: BLE001
                 self.logger.warning("Slack notification failed: %s", exc)
         else:
-            # Email via localhost SMTP relay
-            import smtplib  # noqa: PLC0415
-            from email.message import EmailMessage  # noqa: PLC0415
-
-            msg = EmailMessage()
-            msg["Subject"] = f"New LRAUV deployment plots: {deployment_name}"
-            msg["From"] = "auv-python@mbari.org"
-            msg["To"] = resolved
-            msg.set_content(body)
-            for p in html_paths:
-                if p.exists():
-                    msg.add_attachment(
-                        p.read_text(encoding="utf-8"),
-                        subtype="html",
-                        filename=p.name,
-                    )
-            try:
-                smtp_host = os.environ.get(ENV_SMTP_HOST, "localhost")
-                smtp_port = int(os.environ.get(ENV_SMTP_PORT, "587"))
-                with smtplib.SMTP(smtp_host, smtp_port) as s:
-                    s.starttls()
-                    s.send_message(msg)
-                self.logger.info("Email notification sent to %s", resolved)
-            except Exception as exc:  # noqa: BLE001
-                self.logger.warning("Email notification failed: %s", exc)
+            self._send_notify_email(resolved, deployment_name, html_paths)
 
     def _submit_provenance(  # noqa: PLR0913
         self,
@@ -489,7 +524,7 @@ class DeploymentPlotter:
             png_resources = additional_resources + [
                 {
                     "name": Path(png_path).name,
-                    "uristring": get_dods_url(png_path),
+                    "uristring": get_web_url(png_path),
                     "description": f"Deployment quick look plot: {Path(png_path).name}",
                     "resourcetype_name": "Quick Look Plot",
                 }
@@ -499,7 +534,7 @@ class DeploymentPlotter:
                 png_resources.append(
                     {
                         "name": per_png_html.name,
-                        "uristring": get_dods_url(str(per_png_html)),
+                        "uristring": get_web_url(str(per_png_html)),
                         "description": f"Per-PNG HTML page for {per_png_html.name}",
                         "resourcetype_name": "html",
                     }
@@ -514,7 +549,6 @@ class DeploymentPlotter:
                     script_name="src/data/lrauv_deployment_plots.py",
                     cmd_line_args=cmd_line,
                     additional_resources=png_resources,
-                    log=self.logger,
                 )
             except Exception:  # noqa: BLE001
                 self.logger.warning("Provenance submission failed for %s", png_path, exc_info=True)
@@ -663,12 +697,24 @@ class DeploymentPlotter:
         html_path.write_text(html, encoding="utf-8")
 
     _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
+    _PLOT_KIND_LABELS = {
+        "2column_cmocean": "Standard",
+        "2column_biolume": "Bioluminescence",
+        "2column_planktivore": "Planktivore",
+    }
 
     def _png_urls_for_nc(self, nc_url: str) -> list[str]:
         """Return web-accessible PNG URLs for all plot kinds for one OPeNDAP nc URL."""
         rel = nc_url.replace(LRAUV_OPENDAP_BASE.rstrip("/") + "/", "")
         base = BASE_LRAUV_WEB.rstrip("/") + "/" + rel[: -len(".nc")]
         return [f"{base}_{kind}.png" for kind in self._PLOT_KINDS]
+
+    def _plot_label(self, path_str: str) -> str:
+        """Return a human-readable label for a plot PNG or HTML path."""
+        for kind, label in self._PLOT_KIND_LABELS.items():
+            if kind in path_str:
+                return label
+        return Path(path_str).stem
 
     def _url_exists(self, url: str) -> bool:
         """Return True if the URL responds with HTTP 200 to a HEAD request."""
