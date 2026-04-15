@@ -376,7 +376,7 @@ class DeploymentPlotter:
         html_paths = [
             Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
-        self._notify(notify or "", raw_name or plot_name_stem, html_paths, png_paths, stoqs_url)
+        self._notify(notify or "", raw_name or plot_name_stem, html_paths, stoqs_url)
         if update_ssds_provenance:
             self._submit_provenance(
                 deployment_dir=deployment_dir,
@@ -387,49 +387,68 @@ class DeploymentPlotter:
                 nc_files=nc_files,
             )
 
-    def _build_notify_email(  # noqa: PLR0913
+    def _send_notify_email(
         self,
-        deployment_name: str,
-        plain_body: str,
-        plot_links: list[tuple[str, str]],
-        stoqs_url: str | None,
-        stoqs_db_label: str,
-        std_png: Path | None,
         recipient: str,
-    ):
-        """Build a multipart/related email message with an inline standard PNG."""
+        deployment_name: str,
+        html_paths: list[Path],
+    ) -> None:
+        """Send a plain-HTML email with the standard inline PNG and a single web link."""
+        import smtplib  # noqa: PLC0415
         from email.mime.image import MIMEImage  # noqa: PLC0415
         from email.mime.multipart import MIMEMultipart  # noqa: PLC0415
         from email.mime.text import MIMEText  # noqa: PLC0415
 
-        img_tag = '<img src="cid:std_plot" alt="Standard plot"><br>' if std_png else ""
-        web_url = plot_links[0][0] if plot_links else ""
-        view_link = f'<a href="{web_url}">View this on the web.</a>' if web_url else ""
-        stoqs_html = (
-            f'<p>STOQS: <a href="{stoqs_url}">{stoqs_db_label}</a></p>' if stoqs_url else ""
+        std_html = next(
+            (p for p in html_paths if "2column_cmocean" in str(p)),
+            html_paths[0] if html_paths else None,
         )
-        html_body = f"<h2>{deployment_name}</h2>\n{img_tag}\n<p>{view_link}</p>\n{stoqs_html}\n"
+        std_png = std_html.with_suffix(".png") if std_html else None
+        if std_png and not std_png.exists():
+            std_png = None
+        web_url = get_web_url(str(std_html)) if std_html else ""
+
+        plain = (
+            f"New LRAUV deployment plots: {deployment_name}\n\n"
+            f"  View this and related information on the web:\n  {web_url}"
+        )
+        img_tag = (
+            '<img src="cid:std_plot" alt="Standard plot" style="max-width:100%"><br>'
+            if std_png
+            else ""
+        )
+        html_body = (
+            f'{img_tag}<p><a href="{web_url}">View this and related information on the web</a></p>'
+        )
+
         outer = MIMEMultipart("related")
         outer["Subject"] = f"New LRAUV deployment plots: {deployment_name}"
         outer["From"] = "auv-python@mbari.org"
         outer["To"] = recipient
         alt = MIMEMultipart("alternative")
         outer.attach(alt)
-        alt.attach(MIMEText(plain_body, "plain"))
+        alt.attach(MIMEText(plain, "plain"))
         alt.attach(MIMEText(html_body, "html"))
         if std_png:
             img = MIMEImage(std_png.read_bytes())
             img.add_header("Content-ID", "<std_plot>")
             img.add_header("Content-Disposition", "inline", filename=std_png.name)
             outer.attach(img)
-        return outer
+        try:
+            smtp_host = os.environ.get(ENV_SMTP_HOST, "localhost")
+            smtp_port = int(os.environ.get(ENV_SMTP_PORT, "587"))
+            with smtplib.SMTP(smtp_host, smtp_port) as s:
+                s.starttls()
+                s.send_message(outer)
+            self.logger.info("Email notification sent to %s", recipient)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("Email notification failed: %s", exc)
 
-    def _notify(  # noqa: PLR0912, PLR0913
+    def _notify(
         self,
         target: str,
         deployment_name: str,
         html_paths: list[Path],
-        png_paths: list[str],
         stoqs_url: str | None,
     ) -> None:
         """Send an email or Slack notification with links to the new deployment HTML pages.
@@ -445,61 +464,27 @@ class DeploymentPlotter:
         if not resolved:
             return
 
-        # Standard (cmocean) PNG for inline embedding in email
-        std_png = next(
-            (Path(p) for p in png_paths if "2column_cmocean" in p and Path(p).exists()),
-            None,
-        )
-
-        # Labelled (url, label) pairs for each HTML page
-        plot_links = [(get_web_url(str(p)), self._plot_label(str(p))) for p in html_paths]
-
-        # STOQS label (database name from URL path)
-        stoqs_db_label = ""
-        if stoqs_url:
-            after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
-            stoqs_db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
-
-        # Plain-text body (used by both Slack and the email text/plain part)
-        lines = [f"New LRAUV deployment plots available: {deployment_name}", ""]
-        for url, label in plot_links:
-            lines.append(f"  {label}: {url}")
-        if stoqs_url:
-            lines.append("")
-            lines.append(f"  STOQS ({stoqs_db_label}): {stoqs_url}")
-        plain_body = "\n".join(lines)
-
         if resolved.startswith("https://"):
-            # Slack incoming webhook
+            # Slack incoming webhook — include all plot links and STOQS URL
             import requests  # noqa: PLC0415
 
+            plot_links = [(get_web_url(str(p)), self._plot_label(str(p))) for p in html_paths]
+            lines = [f"New LRAUV deployment plots available: {deployment_name}", ""]
+            for url, label in plot_links:
+                lines.append(f"  {label}: {url}")
+            if stoqs_url:
+                after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
+                stoqs_db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
+                lines.append("")
+                lines.append(f"  STOQS ({stoqs_db_label}): {stoqs_url}")
             try:
-                resp = requests.post(resolved, json={"text": plain_body}, timeout=10)  # noqa: S113
+                resp = requests.post(resolved, json={"text": "\n".join(lines)}, timeout=10)  # noqa: S113
                 resp.raise_for_status()
                 self.logger.info("Slack notification sent to webhook")
             except Exception as exc:  # noqa: BLE001
                 self.logger.warning("Slack notification failed: %s", exc)
         else:
-            import smtplib  # noqa: PLC0415
-
-            msg = self._build_notify_email(
-                deployment_name,
-                plain_body,
-                plot_links,
-                stoqs_url,
-                stoqs_db_label,
-                std_png,
-                resolved,
-            )
-            try:
-                smtp_host = os.environ.get(ENV_SMTP_HOST, "localhost")
-                smtp_port = int(os.environ.get(ENV_SMTP_PORT, "587"))
-                with smtplib.SMTP(smtp_host, smtp_port) as s:
-                    s.starttls()
-                    s.send_message(msg)
-                self.logger.info("Email notification sent to %s", resolved)
-            except Exception as exc:  # noqa: BLE001
-                self.logger.warning("Email notification failed: %s", exc)
+            self._send_notify_email(resolved, deployment_name, html_paths)
 
     def _submit_provenance(  # noqa: PLR0913
         self,
