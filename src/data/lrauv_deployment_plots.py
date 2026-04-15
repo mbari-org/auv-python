@@ -514,7 +514,6 @@ class DeploymentPlotter:
                     script_name="src/data/lrauv_deployment_plots.py",
                     cmd_line_args=cmd_line,
                     additional_resources=png_resources,
-                    log=self.logger,
                 )
             except Exception:  # noqa: BLE001
                 self.logger.warning("Provenance submission failed for %s", png_path, exc_info=True)
