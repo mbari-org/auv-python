@@ -2030,6 +2030,7 @@ class CreateProducts:
                 if self.output_dir is not None
                 else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            out_dir.mkdir(parents=True, exist_ok=True)
             stem = (
                 self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
             )
@@ -2170,6 +2171,7 @@ class CreateProducts:
                 if self.output_dir is not None
                 else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            out_dir.mkdir(parents=True, exist_ok=True)
             stem = (
                 self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
             )
@@ -2311,6 +2313,7 @@ class CreateProducts:
                 if self.output_dir is not None
                 else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
             )
+            out_dir.mkdir(parents=True, exist_ok=True)
             stem = (
                 self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
             )
