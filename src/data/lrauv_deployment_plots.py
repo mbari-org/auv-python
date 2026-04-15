@@ -247,7 +247,7 @@ class DeploymentPlotter:
         # Deployment name (spaces → underscores for filenames)
         raw_name = self._parse_deployment_name(dlist_content) if dlist_content else None
         if raw_name:
-            plot_name_stem = raw_name.replace(" ", "_")
+            plot_name_stem = raw_name.replace(" ", "_").replace("/", "_")
             self.logger.info("Deployment name: %s", raw_name)
         else:
             plot_name_stem = dlist_rel.stem
@@ -367,6 +367,7 @@ class DeploymentPlotter:
                     nc_files,
                     auv_name=_auv_name,
                     png_file_path=Path(png_path),
+                    other_png_paths=[p for p in png_paths if p != png_path],
                 )
                 self.logger.info("Per-PNG HTML written to %s", per_png_html)
         archiver = Archiver(add_handlers=True, clobber=True)
@@ -527,16 +528,6 @@ class DeploymentPlotter:
             self.logger.debug("Could not generate per-log STOQS URL for %s: %s", nc_url, exc)
             return None
 
-    def _per_log_html_url(self, nc_urls: list[str]) -> str:
-        """Return the first reachable per-log HTML URL for a list of nc URLs, or empty string."""
-        for nc_url in nc_urls:
-            candidate = nc_url.replace(
-                LRAUV_OPENDAP_BASE.rstrip("/"), BASE_LRAUV_WEB.rstrip("/")
-            ).replace(f"_{FREQ}.nc", f"_{FREQ}.html")
-            if self._url_exists(candidate):
-                return candidate
-        return ""
-
     def _per_log_stoqs_url(
         self, nc_urls: list[str], auv_name: str, fallback: str | None
     ) -> str | None:
@@ -548,15 +539,15 @@ class DeploymentPlotter:
                     return url
         return fallback
 
-    def _per_log_png_links(self, nc_urls: list[str]) -> str:
-        """Return HTML anchor tags for each existing per-log PNG, pipe-separated."""
-        parts: list[str] = []
+    def _per_log_png_links(self, nc_urls: list[str]) -> list[tuple[str, str]]:
+        """Return (url, label) pairs for each existing per-log PNG."""
+        parts: list[tuple[str, str]] = []
         for nc_url in nc_urls:
             for png_url in self._png_urls_for_nc(nc_url):
                 if self._url_exists(png_url):
                     pname = png_url.rsplit("/", 1)[1]
-                    parts.append(f'<a href="{png_url}">{pname}</a>')
-        return " | ".join(parts)
+                    parts.append((png_url, pname))
+        return parts
 
     def _write_per_png_html(  # noqa: C901, PLR0913
         self,
@@ -568,6 +559,7 @@ class DeploymentPlotter:
         nc_files: list[str],
         auv_name: str = "",
         png_file_path: Path | None = None,
+        other_png_paths: list[str] | None = None,
     ) -> None:
         """Write a plain HTML page for one deployment PNG.
 
@@ -581,37 +573,59 @@ class DeploymentPlotter:
             log_dir = url.rsplit("/", 2)[1]
             grouped.setdefault(log_dir, []).append(url)
 
-        log_items = ""
+        # Collect per-row data first so we can suppress empty columns
+        rows: list[dict] = []
         for log_dir in sorted(grouped):
             nc_urls = grouped[log_dir]
-            per_log_html_url = self._per_log_html_url(nc_urls)
             log_stoqs_url = self._per_log_stoqs_url(nc_urls, auv_name, stoqs_url)
-
-            links = ""
-            if per_log_html_url:
-                links += f'      <a href="{per_log_html_url}">image</a>'
             png_links = self._per_log_png_links(nc_urls)
-            if png_links:
-                if links:
-                    links += " | "
-                links += png_links
-            for nc_url in nc_urls:
-                dap_form_url = nc_url + ".html"
-                if links:
-                    links += " | "
-                links += f'<a href="{dap_form_url}">OPeNDAP Data Access Form</a>'
-            if log_stoqs_url:
-                if links:
-                    links += " | "
-                links += f'<a href="{log_stoqs_url}">STOQS</a>'
+            rows.append(
+                {
+                    "dir": log_dir,
+                    "plots": "<br>".join(f'<a href="{u}">{lbl}</a>' for u, lbl in png_links),
+                    "dap": "".join(f'<a href="{nc_url}.html">OPeNDAP</a>' for nc_url in nc_urls),
+                    "stoqs": f'<a href="{log_stoqs_url}">STOQS</a>' if log_stoqs_url else "",
+                }
+            )
 
-            log_items += f"  <li>{log_dir} — {links}</li>\n"
+        # Only show columns that have at least one non-empty cell
+        show = {col: any(r[col] for r in rows) for col in ("plots", "dap", "stoqs")}
+        col_labels = {"plots": "Quick Look Plots", "dap": "OPeNDAP", "stoqs": "STOQS"}
+
+        header_cells = "<th>Log directory</th>" + "".join(
+            f"<th>{col_labels[c]}</th>" for c in col_labels if show[c]
+        )
+        log_rows = ""
+        for r in rows:
+            data_cells = "".join(f"<td>{r[c]}</td>" for c in col_labels if show[c])
+            log_rows += f"    <tr><td>{r['dir']}</td>{data_cells}</tr>\n"
+
+        log_table = (
+            "  <table>\n"
+            f"    <thead><tr>{header_cells}</tr></thead>\n"
+            "    <tbody>\n"
+            f"{log_rows}"
+            "    </tbody>\n"
+            "  </table>\n"
+        )
+
+        other_plots_line = ""
+        if other_png_paths:
+            sibling_links = [
+                f'<a href="{Path(p).with_suffix(".html").name}">{Path(p).name}</a>'
+                for p in other_png_paths
+                if Path(p).exists()
+            ]
+            if sibling_links:
+                other_plots_line = (
+                    "<p>Other plots for this deployment: " + " | ".join(sibling_links) + "</p>\n"
+                )
 
         stoqs_line = ""
         if stoqs_url:
             after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
             db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
-            stoqs_line = f'<p><a href="{stoqs_url}">View these data in {db_label}</a></p>\n'
+            stoqs_line = f'<p>View these data in <a href="{stoqs_url}">{db_label}</a></p>\n'
 
         if png_file_path is not None and png_file_path.exists():
             b64 = base64.b64encode(png_file_path.read_bytes()).decode("ascii")
@@ -638,11 +652,10 @@ class DeploymentPlotter:
             "<body>\n"
             f"  <h1>{html_title_single}</h1>\n"
             f'  <img src="{img_src}" alt="{png_name}">\n'
+            f"  {other_plots_line}"
             f"  {stoqs_line}"
             "  <h2>Log files</h2>\n"
-            "  <ul>\n"
-            f"{log_items}"
-            "  </ul>\n"
+            f"{log_table}"
             f"{footer}"
             "</body>\n"
             "</html>\n"
@@ -680,8 +693,11 @@ class DeploymentPlotter:
         window.  The sibling ``.dlist`` file (``YYYYMMDD_YYYYMMDD.dlist``)
         is returned for each matching directory.
         """
-        _vol = Path(LRAUV_VOL)
-        base = _vol if _vol.is_dir() else Path(BASE_LRAUV_PATH)
+        base = Path(LRAUV_VOL)
+        if not base.is_dir():
+            self.logger.error("%s does not exist.", LRAUV_VOL)
+            self.logger.info("Is %s mounted?", LRAUV_VOL)
+            sys.exit(1)
         dlists: list[str] = []
         auv_dirs = (
             sorted(base.glob("*/missionlogs/"))

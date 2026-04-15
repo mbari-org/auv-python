@@ -210,7 +210,7 @@ class TestWritePerPngHtml:
                 None,
                 [_NC_URL],
             )
-        assert "image" in html_path.read_text()  # noqa: S101
+        assert "2column_cmocean" in html_path.read_text()  # noqa: S101
 
     def test_per_log_png_links_included(self, dp, tmp_path):
         html_path = tmp_path / "depl.html"
@@ -220,7 +220,7 @@ class TestWritePerPngHtml:
             patch.object(
                 dp,
                 "_per_log_png_links",
-                return_value=f'<a href="{fake_png_url}">ahi_1S_2column_cmocean.png</a>',
+                return_value=[(fake_png_url, "ahi_1S_2column_cmocean.png")],
             ),
             patch.object(dp, "_stoqs_url_for_nc_url", return_value=None),
         ):
@@ -279,25 +279,6 @@ class TestWritePerPngHtml:
 # ---------------------------------------------------------------------------
 
 
-class TestPerLogHtmlUrl:
-    def test_returns_first_reachable(self, dp):
-        # Compute the expected candidate the same way _per_log_html_url does
-        from nc42netcdfs import BASE_LRAUV_WEB  # noqa: PLC0415
-        from resample import FREQ, LRAUV_OPENDAP_BASE  # noqa: PLC0415
-
-        nc_url_a = _NC_URL
-        expected = nc_url_a.replace(
-            LRAUV_OPENDAP_BASE.rstrip("/"), BASE_LRAUV_WEB.rstrip("/")
-        ).replace(f"_{FREQ}.nc", f"_{FREQ}.html")
-        with patch.object(dp, "_url_exists", side_effect=lambda u: u == expected):
-            result = dp._per_log_html_url([nc_url_a])
-        assert result == expected  # noqa: S101
-
-    def test_returns_empty_when_none_reachable(self, dp):
-        with patch.object(dp, "_url_exists", return_value=False):
-            assert dp._per_log_html_url([_NC_URL]) == ""  # noqa: S101
-
-
 class TestPerLogStoqsUrl:
     def test_returns_nc_scoped_url_when_available(self, dp):
         scoped = _STOQS_URL.replace("abc123", "scoped")
@@ -322,17 +303,16 @@ class TestPerLogPngLinks:
     def test_returns_links_for_existing_pngs(self, dp):
         with patch.object(dp, "_url_exists", return_value=True):
             result = dp._per_log_png_links([_NC_URL])
-        assert "2column_cmocean" in result  # noqa: S101
-        assert "<a href=" in result  # noqa: S101
+        assert any("2column_cmocean" in lbl for _, lbl in result)  # noqa: S101
 
     def test_returns_empty_when_no_pngs_exist(self, dp):
         with patch.object(dp, "_url_exists", return_value=False):
-            assert dp._per_log_png_links([_NC_URL]) == ""  # noqa: S101
+            assert dp._per_log_png_links([_NC_URL]) == []  # noqa: S101
 
-    def test_pipe_separated(self, dp):
+    def test_returns_multiple_tuples_for_multiple_kinds(self, dp):
         with patch.object(dp, "_url_exists", return_value=True):
             result = dp._per_log_png_links([_NC_URL])
-        assert " | " in result  # noqa: S101
+        assert len(result) > 1  # noqa: S101
 
 
 # ---------------------------------------------------------------------------
