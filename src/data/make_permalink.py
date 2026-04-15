@@ -8,7 +8,7 @@ Can be used with the stoqs_all_dorado database to zoom in on the data.
 import csv
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import lzstring
@@ -96,7 +96,8 @@ def stoqs_url_from_ds(ds: xr.Dataset, base_url: str | None = None, auv_name: str
     # --- times ---
     times_np = ds.cf["time"].to_numpy()
     stime = pd.Timestamp(times_np[0]).to_pydatetime().replace(tzinfo=UTC)
-    etime = pd.Timestamp(times_np[-1]).to_pydatetime().replace(tzinfo=UTC)
+    # Subtract 1 second from the end time to avoid picking up the next Activity in the STOQS UI
+    etime = pd.Timestamp(times_np[-1]).to_pydatetime().replace(tzinfo=UTC) - timedelta(seconds=1)
 
     # --- depths ---
     depths_np = ds.cf["depth"].to_numpy()

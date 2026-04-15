@@ -159,36 +159,23 @@ class DeploymentPlotter:
 
         Accepts both local Paths and OPeNDAP URL strings — xr.open_dataset
         handles both transparently.
-        Tries xr.open_mfdataset first; falls back to manual concat on failure.
         Uses join='outer' so every variable present in any log_file is retained
         (absent values filled with NaN).
         """
         if not nc_files:
             return None
 
-        paths = [str(p) for p in nc_files]
-        try:
-            self.logger.info("Concatenating %d files via open_mfdataset", len(paths))
-            return xr.open_mfdataset(
-                paths,
-                combine="by_coords",
-                join="outer",
-                parallel=True,
-                chunks="auto",
-            )
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning("open_mfdataset failed (%s), falling back to xr.concat", exc)
-
         datasets = []
         for p in nc_files:
             try:
-                datasets.append(xr.open_dataset(p))
+                datasets.append(xr.open_dataset(str(p)))
             except OSError as e:
                 self.logger.warning("Skipping %s: %s", p, e)
 
         if not datasets:
             return None
 
+        self.logger.info("Concatenating %d dataset(s) via xr.concat", len(datasets))
         return xr.concat(datasets, dim="time", join="outer")
 
     def _deployment_has_outputs(self, deployment_dir: Path, plot_name_stem: str) -> bool:
@@ -408,9 +395,11 @@ class DeploymentPlotter:
             std_png = None
         web_url = get_web_url(str(std_html)) if std_html else ""
 
+        sent_on = datetime.now(tz=UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
         plain = (
             f"New LRAUV deployment plots: {deployment_name}\n\n"
-            f"  View this and related information on the web:\n  {web_url}"
+            f"  View this and related information on the web:\n  {web_url}\n\n"
+            f"Sent on: {sent_on}"
         )
         img_tag = (
             '<img src="cid:std_plot" alt="Standard plot" style="max-width:100%"><br>'
@@ -418,7 +407,9 @@ class DeploymentPlotter:
             else ""
         )
         html_body = (
-            f'{img_tag}<p><a href="{web_url}">View this and related information on the web</a></p>'
+            f"{img_tag}"
+            f'<p><a href="{web_url}">View this and related information on the web</a></p>'
+            f"<p><small>Sent on: {sent_on}</small></p>"
         )
 
         outer = MIMEMultipart("related")
@@ -608,6 +599,7 @@ class DeploymentPlotter:
             grouped.setdefault(log_dir, []).append(url)
 
         # Collect per-row data first so we can suppress empty columns
+        nt = 'target="_blank" rel="noopener"'  # new-tab attributes for all links
         rows: list[dict] = []
         for log_dir in sorted(grouped):
             nc_urls = grouped[log_dir]
@@ -616,9 +608,11 @@ class DeploymentPlotter:
             rows.append(
                 {
                     "dir": log_dir,
-                    "plots": "<br>".join(f'<a href="{u}">{lbl}</a>' for u, lbl in png_links),
-                    "dap": "".join(f'<a href="{nc_url}.html">OPeNDAP</a>' for nc_url in nc_urls),
-                    "stoqs": f'<a href="{log_stoqs_url}">STOQS</a>' if log_stoqs_url else "",
+                    "plots": "<br>".join(f'<a href="{u}" {nt}>{lbl}</a>' for u, lbl in png_links),
+                    "dap": "".join(
+                        f'<a href="{nc_url}.html" {nt}>OPeNDAP</a>' for nc_url in nc_urls
+                    ),
+                    "stoqs": f'<a href="{log_stoqs_url}" {nt}>STOQS</a>' if log_stoqs_url else "",
                 }
             )
 
@@ -646,7 +640,7 @@ class DeploymentPlotter:
         other_plots_line = ""
         if other_png_paths:
             sibling_links = [
-                f'<a href="{Path(p).with_suffix(".html").name}">{Path(p).name}</a>'
+                f'<a href="{Path(p).with_suffix(".html").name}" {nt}>{Path(p).name}</a>'
                 for p in other_png_paths
                 if Path(p).exists()
             ]
@@ -659,7 +653,7 @@ class DeploymentPlotter:
         if stoqs_url:
             after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
             db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
-            stoqs_line = f'<p>View these data in <a href="{stoqs_url}">{db_label}</a></p>\n'
+            stoqs_line = f'<p>View these data in <a href="{stoqs_url}" {nt}>{db_label}</a></p>\n'
 
         if png_file_path is not None and png_file_path.exists():
             b64 = base64.b64encode(png_file_path.read_bytes()).decode("ascii")
@@ -673,7 +667,7 @@ class DeploymentPlotter:
         footer = (
             "<hr>\n"
             "<p><small>Created by "
-            f'<a href="{script_github_url}">lrauv_deployment_plots.py</a>'
+            f'<a href="{script_github_url}" {nt}>lrauv_deployment_plots.py</a>'
             f" on {created_ts}</small></p>\n"
         )
         html = (
