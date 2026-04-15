@@ -467,9 +467,11 @@
             // Test --update_ssds_provenance with a short log_file 
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250128_20250131/20250131T051404/202501310514_202501310535.nc4", "--update_ssds_provenance"]
             // Test ahi mission that has Backseat Planktivore data with --update_ssds_provenance
-            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250415T040019/202504150400_202504152346.nc4", "--update_ssds_provenance"]
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250414_20250418/20250415T040019/202504150400_202504152346.nc4", "--update_ssds_provenance"]
             // Make per log file .html files to test with lrauv_deployment_plots and --update_ssds_provenance
             //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20251022T000000", "--end", "20251024T000000", "--update_ssds_provenance", "--clobber"]
+            // Make per log file .html files to test with lrauv_deployment_plots and --update_ssds_provenance to test dynamic map bounds
+            "args": ["-v", "1", "--auv_name", "ahi", "--start", "20260409T000000", "--end", "20260415T000000", "--update_ssds_provenance", "--clobber"]
         },
         {
             "name": "lrauv_deployment_plots",
