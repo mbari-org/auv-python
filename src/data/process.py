@@ -75,7 +75,7 @@ from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
 from lopcToNetCDF import LOPC_Processor, UnexpectedAreaOfCode
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB, GROUP, Extract
-from provenance import get_dods_url, get_web_url, submit_process_run
+from provenance import ds_geobounds, get_dods_url, get_web_url, submit_process_run
 from resample import (
     AUVCTD_OPENDAP_BASE,
     FLASH_THRESHOLD,
@@ -811,6 +811,15 @@ class Processor:
                 self.logger.debug("Output %s not found, skipping provenance", full_nc)
                 return
             log_url = get_dods_url(log_file) if log_file else None
+            import xarray as xr  # noqa: PLC0415
+
+            try:
+                _ds = xr.open_dataset(full_nc)
+                _geobounds = ds_geobounds(_ds)
+                _ds.close()
+            except Exception:  # noqa: BLE001
+                self.logger.debug("Could not extract geobounds from %s", full_nc, exc_info=True)
+                _geobounds = {}
             submit_process_run(
                 producer_name=(
                     f"auv-python - Execution of {Path(script_name).name}"
@@ -826,6 +835,7 @@ class Processor:
                 log_file_url=log_url,
                 additional_resources=additional_resources,
                 log=self.logger,
+                **_geobounds,
             )
         except Exception:  # noqa: BLE001
             self.logger.warning("Provenance submission failed", exc_info=True)

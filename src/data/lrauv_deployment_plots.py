@@ -313,6 +313,7 @@ class DeploymentPlotter:
                 nc_files,
                 verbose=verbose,
                 update_ssds_provenance=update_ssds_provenance,
+                force=force,
                 notify=notify,
             )
 
@@ -327,6 +328,7 @@ class DeploymentPlotter:
         nc_files: list[str],
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
+        force: bool = False,  # noqa: FBT001, FBT002
         notify: str | None = None,
     ) -> None:
         """Fetch STOQS permalink and write per-PNG HTML pages."""
@@ -363,7 +365,7 @@ class DeploymentPlotter:
         html_paths = [
             Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
-        self._notify(notify or "", raw_name or plot_name_stem, html_paths, stoqs_url)
+        self._notify(notify or "", raw_name or plot_name_stem, html_paths, stoqs_url, force=force)
         if update_ssds_provenance:
             self._submit_provenance(
                 deployment_dir=deployment_dir,
@@ -379,6 +381,7 @@ class DeploymentPlotter:
         recipient: str,
         deployment_name: str,
         html_paths: list[Path],
+        force: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Send a plain-HTML email with the standard inline PNG and a single web link."""
         import smtplib  # noqa: PLC0415
@@ -395,9 +398,10 @@ class DeploymentPlotter:
             std_png = None
         web_url = get_web_url(str(std_html)) if std_html else ""
 
+        prefix = "" if force else "New "
         sent_on = datetime.now(tz=UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
         plain = (
-            f"New LRAUV deployment plots: {deployment_name}\n\n"
+            f"{prefix}LRAUV deployment plots: {deployment_name}\n\n"
             f"  View this and related information on the web:\n  {web_url}\n\n"
             f"Sent on: {sent_on}"
         )
@@ -413,7 +417,7 @@ class DeploymentPlotter:
         )
 
         outer = MIMEMultipart("related")
-        outer["Subject"] = f"New LRAUV deployment plots: {deployment_name}"
+        outer["Subject"] = f"{prefix}LRAUV deployment plots: {deployment_name}"
         outer["From"] = "auv-python@mbari.org"
         outer["To"] = recipient
         alt = MIMEMultipart("alternative")
@@ -435,12 +439,13 @@ class DeploymentPlotter:
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Email notification failed: %s", exc)
 
-    def _notify(
+    def _notify(  # noqa: PLR0913
         self,
         target: str,
         deployment_name: str,
         html_paths: list[Path],
         stoqs_url: str | None,
+        force: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Send an email or Slack notification with links to the new deployment HTML pages.
 
@@ -460,7 +465,8 @@ class DeploymentPlotter:
             import requests  # noqa: PLC0415
 
             plot_links = [(get_web_url(str(p)), self._plot_label(str(p))) for p in html_paths]
-            lines = [f"New LRAUV deployment plots available: {deployment_name}", ""]
+            prefix = "" if force else "New "
+            lines = [f"{prefix}LRAUV deployment plots available: {deployment_name}", ""]
             for url, label in plot_links:
                 lines.append(f"  {label}: {url}")
             if stoqs_url:
@@ -475,7 +481,7 @@ class DeploymentPlotter:
             except Exception as exc:  # noqa: BLE001
                 self.logger.warning("Slack notification failed: %s", exc)
         else:
-            self._send_notify_email(resolved, deployment_name, html_paths)
+            self._send_notify_email(resolved, deployment_name, html_paths, force=force)
 
     def _submit_provenance(  # noqa: PLR0913
         self,

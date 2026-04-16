@@ -128,6 +128,37 @@ def get_script_github_url(script_name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def ds_geobounds(ds: object) -> dict:
+    """Return output_* kwargs for submit_process_run extracted from an xarray Dataset.
+
+    Silently skips any variable that is missing or raises on min/max.
+    """
+    import pandas as pd  # noqa: PLC0415
+
+    bounds: dict = {}
+    for var, out_min, out_max in (
+        ("latitude", "output_minlatitude", "output_maxlatitude"),
+        ("longitude", "output_minlongitude", "output_maxlongitude"),
+        ("depth", "output_mindepth", "output_maxdepth"),
+    ):
+        if var in ds:  # type: ignore[operator]
+            try:
+                bounds[out_min] = float(ds[var].min())  # type: ignore[index]
+                bounds[out_max] = float(ds[var].max())  # type: ignore[index]
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not extract %s/%s bounds", out_min, out_max, exc_info=True)
+    try:
+        t = ds["time"]  # type: ignore[index]
+        bounds["output_startdate"] = pd.Timestamp(t.min().values).isoformat()
+        bounds["output_enddate"] = pd.Timestamp(t.max().values).isoformat()
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not extract temporal bounds", exc_info=True)
+    return bounds
+
+
+# ---------------------------------------------------------------------------
 # Core function
 # ---------------------------------------------------------------------------
 def submit_process_run(  # noqa: PLR0913
@@ -139,6 +170,14 @@ def submit_process_run(  # noqa: PLR0913
     poc_email: str = "mccann@mbari.org",
     pr_start: str | None = None,
     pr_end: str | None = None,
+    output_startdate: str | None = None,
+    output_enddate: str | None = None,
+    output_minlatitude: float | None = None,
+    output_maxlatitude: float | None = None,
+    output_minlongitude: float | None = None,
+    output_maxlongitude: float | None = None,
+    output_mindepth: float | None = None,
+    output_maxdepth: float | None = None,
     software_name: str = "auv-python",
     software_version: str | None = None,
     script_name: str = "src/data/process.py",
@@ -212,6 +251,14 @@ def submit_process_run(  # noqa: PLR0913
         "person_email": poc_email,
         "startdate": pr_start,
         "enddate": pr_end,
+        "output_startdate": output_startdate,
+        "output_enddate": output_enddate,
+        "output_minlatitude": output_minlatitude,
+        "output_maxlatitude": output_maxlatitude,
+        "output_minlongitude": output_minlongitude,
+        "output_maxlongitude": output_maxlongitude,
+        "output_mindepth": output_mindepth,
+        "output_maxdepth": output_maxdepth,
         "resources": resources,
     }
     if nc_file_path is not None:
