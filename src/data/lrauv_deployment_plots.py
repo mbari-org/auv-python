@@ -26,6 +26,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import xarray as xr
@@ -399,7 +400,8 @@ class DeploymentPlotter:
         web_url = get_web_url(str(std_html)) if std_html else ""
 
         prefix = "" if force else "New "
-        sent_on = datetime.now(tz=UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        _la = ZoneInfo("America/Los_Angeles")
+        sent_on = datetime.now(tz=UTC).astimezone(_la).strftime("%Y-%m-%d %H:%M:%S %Z")
         plain = (
             f"{prefix}LRAUV deployment plots: {deployment_name}\n\n"
             f"  View this and related information on the web:\n  {web_url}\n\n"
