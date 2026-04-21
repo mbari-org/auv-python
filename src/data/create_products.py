@@ -204,6 +204,74 @@ class CreateProducts:
         "casetemp": "thermal",
         "casehumidity": "PuBu",
         "casepress": "deep",
+        "pitch_angle": "balance",
+        "average_current": "jet",
+    }
+
+    centered_vars = {"pitch_angle"}  # noqa: RUF012
+    scatter_marker_size = {"average_current": 5}  # noqa: RUF012
+
+    # Override labels for variables whose name is not a good y-axis label.
+    variable_display_names: dict[str, str] = {"density": "Sigma-t"}  # noqa: RUF012
+
+    # Fallback display metadata for variables that may be absent from the dataset
+    # or whose NetCDF attributes are missing.  Each entry is (units, colormap).
+    variable_fallback_metadata: dict[str, tuple[str, str]] = {  # noqa: RUF012
+        # ── core oceanography ─────────────────────────────────────────────────
+        "density": ("kg/m^3", "dense"),
+        "ctd1_temperature": ("°C", "thermal"),
+        "ctd2_temperature": ("°C", "thermal"),
+        "ctd1_salinity": ("1", "haline"),
+        "ctd2_salinity": ("1", "haline"),
+        "isus_nitrate": ("umol/L", "matter"),
+        "ctd1_oxygen_mll": ("ml/L", "oxy"),
+        "ctd2_oxygen_mll": ("ml/L", "oxy"),
+        # ── HS2 backscatter / fluorescence ────────────────────────────────────
+        "hs2_bbp420": ("m^-1 sr^-1", "BuPu"),
+        "hs2_bbp470": ("m^-1 sr^-1", "BuPu"),
+        "hs2_bbp676": ("m^-1 sr^-1", "Reds"),
+        "hs2_bbp700": ("m^-1 sr^-1", "Reds"),
+        "hs2_fl676": ("counts", "algae"),
+        "hs2_fl700": ("counts", "algae"),
+        "ecopuck_chla": ("ug/L", "algae"),
+        # ── bioluminescence (Dorado) ───────────────────────────────────────────
+        "biolume_flow": ("ml/s", "cividis"),
+        "biolume_avg_biolume": ("photons/s/cm^2", "cividis"),
+        "biolume_intflash": ("photons/flash", "cividis"),
+        "biolume_bg_biolume": ("photons/s/cm^2", "cividis"),
+        "biolume_nbflash_high": ("counts", "cividis"),
+        "biolume_nbflash_low": ("counts", "cividis"),
+        "biolume_proxy_diatoms": ("", "Purples"),
+        "biolume_proxy_adinos": ("", "algae"),
+        "biolume_proxy_hdinos": ("", "Blues"),
+        # ── LRAUV CTD Seabird ─────────────────────────────────────────────────
+        "ctdseabird_sea_water_temperature": ("degC", "thermal"),
+        "ctdseabird_sea_water_salinity": ("psu", "haline"),
+        "ctdseabird_mass_concentration_of_oxygen_in_sea_water": ("ug/l", "oxy"),
+        # ── LRAUV other ───────────────────────────────────────────────────────
+        "onboard_platform_average_current": ("mA", "jet"),
+        "universals_platform_pitch_angle": ("degrees", "balance"),
+        # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
+        "wetlabsbb2fl_particulatebackscatteringcoeff470nm": ("1/m", "BuPu"),
+        "wetlabsbb2fl_particulatebackscatteringcoeff650nm": ("1/m", "Reds"),
+        "wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water": ("ug/l", "algae"),
+        # ── LRAUV UBAT bioluminescence ────────────────────────────────────────
+        "wetlabsubat_flow_rate": ("ml/s", "cividis"),
+        "wetlabsubat_flow": ("ml/s", "cividis"),
+        "wetlabsubat_average_bioluminescence": ("photons/s/cm^2", "cividis"),
+        "wetlabsubat_intflash": ("photons/flash", "cividis"),
+        "wetlabsubat_bg_biolume": ("photons/s/cm^2", "cividis"),
+        "wetlabsubat_nbflash_high": ("counts", "cividis"),
+        "wetlabsubat_nbflash_low": ("counts", "cividis"),
+        "wetlabsubat_proxy_diatoms": ("", "Purples"),
+        "wetlabsubat_proxy_adinos": ("", "algae"),
+        "wetlabsubat_proxy_hdinos": ("", "Blues"),
+        # ── Planktivore ───────────────────────────────────────────────────────
+        "backseat_planktivore_hm_avgrois": ("counts", "YlOrRd"),
+        "backseat_planktivore_lm_avgrois": ("counts", "YlOrRd"),
+        "backseat_planktivore_casetemp": ("°C", "thermal"),
+        "backseat_planktivore_casehumidity": ("%", "PuBu"),
+        "backseat_planktivore_casepress": ("dbar", "deep"),
     }
 
     def _open_ds(self):
@@ -252,6 +320,8 @@ class CreateProducts:
         """
         if "density" in self.ds:
             self.logger.debug("density already exists in dataset")
+            if not self.ds["density"].attrs.get("long_name"):
+                self.ds["density"].attrs.update({"long_name": "Sigma-t", "units": "kg/m^3"})
             return
 
         temp_var = f"{best_ctd}_temperature"
@@ -294,6 +364,8 @@ class CreateProducts:
         """
         if "density" in self.ds:
             self.logger.debug("density already exists in dataset")
+            if not self.ds["density"].attrs.get("long_name"):
+                self.ds["density"].attrs.update({"long_name": "Sigma-t", "units": "kg/m^3"})
             return
 
         temp_var = "ctdseabird_sea_water_temperature"
@@ -369,12 +441,12 @@ class CreateProducts:
             ("density", "linear"),
             ("ctdseabird_sea_water_temperature", "linear"),
             ("ctdseabird_sea_water_salinity", "linear"),
-            ("isus_mole_concentration_of_nitrate_in_sea_water_time", "linear"),
-            ("ctdseabird_sea_water_oxygen", "linear"),
+            ("onboard_platform_average_current", "linear"),
+            ("ctdseabird_mass_concentration_of_oxygen_in_sea_water", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
-            ("wetlabsubat_average_bioluminescence", "log"),
+            ("universals_platform_pitch_angle", "linear"),
         ]
 
     def _get_dorado_biolume_variables(self) -> list:
@@ -1127,11 +1199,12 @@ class CreateProducts:
         map_ax.set_xlim(x_bounds)
         map_ax.set_ylim(y_bounds)
 
-        # Now position map aligned with left edge of reference, 50% width
-        # Use a square aspect ratio based on the y-dimension
+        # Size the map to 20% of the left column's horizontal span.
         map_height = pos.height
-        aspect_ratio = (lat_bounds[1] - lat_bounds[0]) / (lon_bounds[1] - lon_bounds[0])
-        map_width = map_height / aspect_ratio * 0.7  # scale to fit nicely
+        cbar_width = 0.01
+        cbar_pad = 0.005
+        right_boundary = night_ref_ax.get_position().x0 if night_ref_ax is not None else pos.x1
+        map_width = (right_boundary - ref_pos.x0) * 0.20
 
         # Align map top with the nighttime indicator top when ref axes is available.
         # Constants must match _plot_nighttime_indicator: gap=0.022, height=0.004.
@@ -1149,8 +1222,6 @@ class CreateProducts:
         # Add colorbar for profile numbers - create manually positioned axes
         # to avoid affecting map position
         # Position colorbar to the right of the map
-        cbar_width = 0.01
-        cbar_pad = 0.005
         cbar_ax = map_ax.figure.add_axes(
             [ref_pos.x0 + map_width + cbar_pad, map_y0, cbar_width, map_height]
         )
@@ -1179,13 +1250,19 @@ class CreateProducts:
 
         wrapped_title = "\n".join(textwrap.fill(line, width=40) for line in title.split("\n"))
 
-        # Get updated position after aspect adjustment
-        updated_pos = map_ax.get_position()
+        # Compute text block height so the whole block can be centered on the map.
+        # line_height is approximate figure-coordinate height per line at fontsize 11.
+        line_height = 0.02
+        gap_after_title = 0.03
+        time_row_spacing = 0.025
+        num_title_lines = wrapped_title.count("\n") + 1
+        title_height_approx = num_title_lines * line_height
+        total_text_height = title_height_approx + gap_after_title + time_row_spacing
 
-        # Position text in figure coordinates, to the right of the colorbar
-        # Account for colorbar width, padding, and space for colorbar label
+        # Position text in figure coordinates, to the right of the colorbar.
+        # Center the full block vertically on the map.
         text_x = ref_pos.x0 + map_width + cbar_pad + cbar_width + 0.03
-        text_y = updated_pos.y0 + updated_pos.height  # Align with top of map
+        text_y = map_y0 + map_height / 2 + total_text_height / 2
 
         # Add title
         map_ax.figure.text(
@@ -1200,13 +1277,8 @@ class CreateProducts:
             color="black",
         )
 
-        # Calculate approximate title height based on number of lines
-        # Each line is roughly 0.015 in figure coordinates at fontsize 11
-        num_title_lines = wrapped_title.count("\n") + 1
-        title_height_approx = num_title_lines * 0.02
-
         # Position start/end text below the title with some spacing
-        start_end_y = text_y - title_height_approx - 0.03
+        start_end_y = text_y - title_height_approx - gap_after_title
 
         # Add start marker and text
         map_ax.figure.text(
@@ -1235,7 +1307,7 @@ class CreateProducts:
         # Add end marker and text
         map_ax.figure.text(
             text_x,
-            start_end_y - 0.025,
+            start_end_y - time_row_spacing,
             "▲ ",
             fontsize=14,
             fontweight="bold",
@@ -1246,7 +1318,7 @@ class CreateProducts:
         )
         map_ax.figure.text(
             text_x + 0.015,
-            start_end_y - 0.025,
+            start_end_y - time_row_spacing,
             f"End  : {end_time}",
             fontsize=11,
             fontweight="bold",
@@ -1306,6 +1378,28 @@ class CreateProducts:
 
         return "\n".join(lines)
 
+    def _resolve_label(self, var: str) -> tuple[str, str, str]:
+        """Return (display_name, units, colormap) for a variable.
+
+        Priority: dataset attrs > variable_display_names > variable name.
+        """
+        if var in self.ds and self.ds[var].attrs.get("long_name"):
+            long_name = self.ds[var].attrs["long_name"]
+            units = self.ds[var].attrs.get("units", "")
+            color_map_name = self._get_colormap_name(var)
+        else:
+            long_name = self.variable_display_names.get(var, var)
+            if var in self.variable_fallback_metadata:
+                units, color_map_name = self.variable_fallback_metadata[var]
+            else:
+                units = ""
+                color_map_name = self._get_colormap_name(var)
+
+        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
+            long_name = var
+        long_name = self._wrap_label_text(long_name)
+        return long_name, units, color_map_name
+
     def _setup_no_data_axes(  # noqa: PLR0913
         self,
         curr_ax: matplotlib.axes.Axes,
@@ -1316,6 +1410,7 @@ class CreateProducts:
         row: int,
         col: int,
         text: str = "No Data",
+        scale: str = "linear",
     ):
         """Set up minimal axes for plots with no data.
 
@@ -1328,6 +1423,7 @@ class CreateProducts:
             row: Row index in subplot grid
             col: Column index in subplot grid
             text: Text to display in the center of the plot
+            scale: Scale type ("linear" or "log") used to format the colorbar label
         """
         curr_ax.set_xlim([min(idist) / 1000.0, max(idist) / 1000.0])
         curr_ax.set_ylim([max(iz), min(iz)])
@@ -1355,40 +1451,28 @@ class CreateProducts:
             transform=curr_ax.transAxes,
         )
 
-        # Add a fake colorbar to maintain layout consistency
-        # Create a dummy mappable with a simple gray colormap
+        long_name, units, color_map_name = self._resolve_label(var)
+
+        # Show a colorbar (no ticks) using the resolved colormap
+        try:
+            cmap = plt.get_cmap(color_map_name)
+        except ValueError:
+            cmap = getattr(cmocean.cm, color_map_name)
         dummy_data = np.array([[0, 1]])
         dummy_im = curr_ax.imshow(
             dummy_data,
-            cmap="gray",
+            cmap=cmap,
             aspect="auto",
             visible=False,
         )
         cb = fig.colorbar(dummy_im, ax=curr_ax, pad=0.01)
-
-        # Hide the colorbar ticks and tick labels but keep the label visible
         cb.set_ticks([])
-        cb.ax.set_facecolor("white")
-        cb.outline.set_visible(False)
 
-        # Get variable name for the label
-        if var in self.ds:
-            long_name = self.ds[var].attrs.get("long_name", var)
-            units = self.ds[var].attrs.get("units", "")
-        else:
-            # Extract readable name from variable string (e.g., "isus_nitrate" -> "Nitrate")
-            long_name = var.split("_")[-1].capitalize()
-            units = ""
-
-        # Use variable name if long_name is too long
-        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
-            long_name = var
-
-        # Wrap long names into multiple lines
-        long_name = self._wrap_label_text(long_name)
-
-        # Add label to the colorbar area
-        if units:
+        if scale == "log" and units:
+            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
+        elif scale == "log":
+            cb.set_label(f"{long_name}\n[log10]", fontsize=7)
+        elif units:
             cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
         else:
             cb.set_label(long_name, fontsize=8)
@@ -1486,7 +1570,7 @@ class CreateProducts:
 
         # If no data, set up minimal axes and return early
         if no_data:
-            self._setup_no_data_axes(curr_ax, idist, iz, fig, var, row, col)
+            self._setup_no_data_axes(curr_ax, idist, iz, fig, var, row, col, scale=scale)
             return
 
         # Get color map
@@ -1508,11 +1592,15 @@ class CreateProducts:
                 v97_5,
             )
             self._setup_no_data_axes(
-                curr_ax, idist, iz, fig, var, row, col, text="Invalid Data Range"
+                curr_ax, idist, iz, fig, var, row, col, text="Invalid Data Range", scale=scale
             )
             return
 
-        norm = matplotlib.colors.Normalize(vmin=v2_5, vmax=v97_5)
+        if any(key in var.lower() for key in self.centered_vars):
+            abs_max = max(abs(v2_5), abs(v97_5))
+            norm = matplotlib.colors.Normalize(vmin=-abs_max, vmax=abs_max)
+        else:
+            norm = matplotlib.colors.Normalize(vmin=v2_5, vmax=v97_5)
 
         self.logger.info(
             "%s using %s cmap with ranges %.1f %.1f",
@@ -1527,11 +1615,14 @@ class CreateProducts:
         curr_ax.set_ylim(max(iz), min(iz))
 
         # Create scatter plot with actual data points
+        marker_size = next(
+            (size for key, size in self.scatter_marker_size.items() if key in var.lower()), 1
+        )
         scatter = curr_ax.scatter(
             distnav.to_numpy() / 1000.0,
             self.ds.cf["depth"].to_numpy(),
             c=var_to_plot,
-            s=1,
+            s=marker_size,
             cmap=cmap,
             norm=norm,
             alpha=0.8,
@@ -1617,16 +1708,7 @@ class CreateProducts:
             cb.ax.set_yticks(tick_values)
             cb.ax.set_yticklabels(labels)
 
-        # Get long_name and units with fallbacks
-        long_name = self.ds[var].attrs.get("long_name", var)
-        units = self.ds[var].attrs.get("units", "")
-
-        # Use variable name if long_name is too long
-        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
-            long_name = var
-
-        # Wrap long names into multiple lines
-        long_name = self._wrap_label_text(long_name)
+        long_name, units, _ = self._resolve_label(var)
 
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
@@ -1693,7 +1775,7 @@ class CreateProducts:
 
         # If no data, set up minimal axes and return early
         if no_data:
-            self._setup_no_data_axes(curr_ax, idist, iz, fig, var, row, col)
+            self._setup_no_data_axes(curr_ax, idist, iz, fig, var, row, col, scale=scale)
             return
 
         # Normal plotting path - we have valid data
@@ -1708,9 +1790,8 @@ class CreateProducts:
             )
         except (ValueError, scipy.spatial._qhull.QhullError) as e:
             self.logger.error("Error in griddata for %s: %s", var, e)  # noqa: TRY400
-            # Set up minimal axes and return early
             self._setup_no_data_axes(
-                curr_ax, idist, iz, fig, var, row, col, text="Failed to Grid Data"
+                curr_ax, idist, iz, fig, var, row, col, text="Failed to Grid Data", scale=scale
             )
             return
         color_map_name = self._get_colormap_name(var)
@@ -1731,9 +1812,8 @@ class CreateProducts:
                 v2_5,
                 v97_5,
             )
-            # Set up minimal axes and return early
             self._setup_no_data_axes(
-                curr_ax, idist, iz, fig, var, row, col, text="Invalid Data Range"
+                curr_ax, idist, iz, fig, var, row, col, text="Invalid Data Range", scale=scale
             )
             return
 
@@ -1893,16 +1973,7 @@ class CreateProducts:
                 cb.ax.set_yticks(tick_values)
                 cb.ax.set_yticklabels(labels)
 
-        # Get long_name and units with fallbacks
-        long_name = self.ds[var].attrs.get("long_name", var)
-        units = self.ds[var].attrs.get("units", "")
-
-        # Use variable name if long_name is too long
-        if len(long_name) > self.MAX_LONG_NAME_LENGTH:
-            long_name = var
-
-        # Wrap long names into multiple lines
-        long_name = self._wrap_label_text(long_name)
+        long_name, units, _ = self._resolve_label(var)
 
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
