@@ -189,7 +189,7 @@ class DeploymentPlotter:
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
         force: bool = False,  # noqa: FBT001, FBT002
-        notify: str | None = None,
+        notify: list[str] | None = None,
     ) -> None:
         """Main entry point: generate deployment-level plots from a .dlist path.
 
@@ -198,8 +198,9 @@ class DeploymentPlotter:
             verbose: Verbosity level (0-2).
             update_ssds_provenance: Submit provenance records to SSDS_Metadata.
             force: Reprocess even when output PNGs already exist.
-            notify: Email address or Slack webhook URL to notify after completion.
-                    Falls back to the ``LRAUV_NOTIFY`` environment variable.
+            notify: One or more email addresses or Slack webhook URLs to notify after
+                    completion. Falls back to the ``LRAUV_NOTIFY`` environment variable
+                    (comma-separated list).
         """
         self.logger.setLevel(self._log_levels[min(verbose, 2)])
 
@@ -330,7 +331,7 @@ class DeploymentPlotter:
         verbose: int = 0,
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
         force: bool = False,  # noqa: FBT001, FBT002
-        notify: str | None = None,
+        notify: list[str] | None = None,
     ) -> None:
         """Fetch STOQS permalink and write per-PNG HTML pages."""
         dlist_no_ext = str(Path(dlist).with_suffix(""))
@@ -366,7 +367,7 @@ class DeploymentPlotter:
         html_paths = [
             Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
-        self._notify(notify or "", raw_name or plot_name_stem, html_paths, stoqs_url, force=force)
+        self._notify(notify, raw_name or plot_name_stem, html_paths, force=force)
         if update_ssds_provenance:
             self._submit_provenance(
                 deployment_dir=deployment_dir,
@@ -441,49 +442,82 @@ class DeploymentPlotter:
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Email notification failed: %s", exc)
 
-    def _notify(  # noqa: PLR0913
+    def _notify(
         self,
-        target: str,
+        targets: list[str] | None,
         deployment_name: str,
         html_paths: list[Path],
-        stoqs_url: str | None,
         force: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
-        """Send an email or Slack notification with links to the new deployment HTML pages.
+        """Send email and/or Slack notifications for each target in *targets*.
 
-        *target* is auto-detected:
+        Each entry is auto-detected:
         - starts with ``https://`` → treated as a Slack incoming-webhook URL
         - anything else → treated as an email address (sent via localhost SMTP)
 
-        The ``LRAUV_NOTIFY`` environment variable can supply the target so it
-        stays out of shell history and cron job command lines.
+        When *targets* is ``None`` or empty (i.e. ``--notify`` was omitted), falls
+        back to the ``LRAUV_NOTIFY`` environment variable (comma-separated list).
+        Any explicitly provided targets override the environment variable entirely.
         """
-        resolved = target or os.environ.get(ENV_LRAUV_NOTIFY, "")
-        if not resolved:
+        non_empty = [t for t in (targets or []) if t]
+        if non_empty:
+            notify_list = non_empty
+        else:
+            notify_list = [
+                t.strip() for t in os.environ.get(ENV_LRAUV_NOTIFY, "").split(",") if t.strip()
+            ]
+        if not notify_list:
             return
 
-        if resolved.startswith("https://"):
-            # Slack incoming webhook — include all plot links and STOQS URL
-            import requests  # noqa: PLC0415
+        for target in notify_list:
+            if target.startswith("https://"):
+                # Slack incoming webhook — mirror the email: image on top, web link, timestamp
+                import requests  # noqa: PLC0415
 
-            plot_links = [(get_web_url(str(p)), self._plot_label(str(p))) for p in html_paths]
-            prefix = "" if force else "New "
-            lines = [f"{prefix}LRAUV deployment plots available: {deployment_name}", ""]
-            for url, label in plot_links:
-                lines.append(f"  {label}: {url}")
-            if stoqs_url:
-                after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
-                stoqs_db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
-                lines.append("")
-                lines.append(f"  STOQS ({stoqs_db_label}): {stoqs_url}")
-            try:
-                resp = requests.post(resolved, json={"text": "\n".join(lines)}, timeout=10)  # noqa: S113
-                resp.raise_for_status()
-                self.logger.info("Slack notification sent to webhook")
-            except Exception as exc:  # noqa: BLE001
-                self.logger.warning("Slack notification failed: %s", exc)
-        else:
-            self._send_notify_email(resolved, deployment_name, html_paths, force=force)
+                std_html = next(
+                    (p for p in html_paths if "2column_cmocean" in str(p)),
+                    html_paths[0] if html_paths else None,
+                )
+                std_png = std_html.with_suffix(".png") if std_html else None
+                if std_png and not std_png.exists():
+                    std_png = None
+                web_url = get_web_url(str(std_html)) if std_html else ""
+
+                prefix = "" if force else "New "
+                _la = ZoneInfo("America/Los_Angeles")
+                sent_on = datetime.now(tz=UTC).astimezone(_la).strftime("%Y-%m-%d %H:%M:%S %Z")
+
+                blocks: list[dict] = []
+                if std_png:
+                    std_png_url = get_web_url(str(std_png))
+                    blocks.append(
+                        {
+                            "type": "image",
+                            "image_url": std_png_url,
+                            "alt_text": f"{deployment_name} standard plot",
+                        }
+                    )
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"*{prefix}LRAUV deployment plots: {deployment_name}*\n"
+                                f"<{web_url}|View this and related information on the web>\n"
+                                f"_Sent on: {sent_on}_"
+                            ),
+                        },
+                    }
+                )
+                try:
+                    resp = requests.post(target, json={"blocks": blocks}, timeout=10)  # noqa: S113
+                    resp.raise_for_status()
+                    self.logger.info("Slack notification sent to webhook")
+                except Exception as exc:  # noqa: BLE001
+                    self.logger.warning("Slack notification failed: %s", exc)
+            else:
+                self._send_notify_email(target, deployment_name, html_paths, force=force)
 
     def _submit_provenance(  # noqa: PLR0913
         self,
@@ -852,12 +886,16 @@ class DeploymentPlotter:
         )
         parser.add_argument(
             "--notify",
-            default="",
+            action="append",
+            nargs="?",
+            const="",
+            default=None,
             metavar="EMAIL_OR_WEBHOOK",
             help=(
                 "Send a notification when new plots are written. Provide an email"
-                " address or a Slack incoming-webhook URL. Falls back to the"
-                f" {ENV_LRAUV_NOTIFY} environment variable if not specified."
+                " address or a Slack incoming-webhook URL. Repeat to notify multiple"
+                f" targets. When omitted, falls back to the {ENV_LRAUV_NOTIFY}"
+                " environment variable (comma-separated list)."
             ),
         )
         self.args = parser.parse_args()

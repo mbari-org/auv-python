@@ -498,7 +498,9 @@
             // Test what's running in cron on kraken
             //"args": ["-v", "1", "--last_n_days", "30", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
             // Test far offshore ahi mission with --update_ssds_provenance and --notify --force
-            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2026/20260406_20260412.dlist", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
+            //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2026/20260406_20260412.dlist", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
+            // Test --notify with no argument to a message to the Slack web hook in the LRAUV_NOTIFY environment variable
+            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20251022_20251024.dlist", "--force", "--notify"]
 
         },
 
