@@ -206,10 +206,11 @@ class CreateProducts:
         "casepress": "deep",
         "pitch_angle": "balance",
         "average_current": "jet",
+        "battery_charge": "jet",
     }
 
     centered_vars = {"pitch_angle"}  # noqa: RUF012
-    scatter_marker_size = {"average_current": 5}  # noqa: RUF012
+    scatter_marker_size = {"average_current": 5, "battery_charge": 10}  # noqa: RUF012
 
     # Override labels for variables whose name is not a good y-axis label.
     variable_display_names: dict[str, str] = {"density": "Sigma-t"}  # noqa: RUF012
@@ -250,6 +251,7 @@ class CreateProducts:
         "ctdseabird_mass_concentration_of_oxygen_in_sea_water": ("ug/l", "oxy"),
         # ── LRAUV other ───────────────────────────────────────────────────────
         "onboard_platform_average_current": ("mA", "jet"),
+        "bpc1_platform_battery_charge": ("Ah", "jet"),
         "universals_platform_pitch_angle": ("degrees", "balance"),
         # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
         "wetlabsbb2fl_particulatebackscatteringcoeff470nm": ("1/m", "BuPu"),
@@ -441,7 +443,7 @@ class CreateProducts:
             ("density", "linear"),
             ("ctdseabird_sea_water_temperature", "linear"),
             ("ctdseabird_sea_water_salinity", "linear"),
-            ("onboard_platform_average_current", "linear"),
+            ("bpc1_platform_battery_charge", "linear"),
             ("ctdseabird_mass_concentration_of_oxygen_in_sea_water", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
