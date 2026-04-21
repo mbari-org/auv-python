@@ -8,6 +8,7 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
 import argparse  # noqa: I001
+import contextlib
 import logging
 import os
 import re
@@ -1028,6 +1029,9 @@ class CreateProducts:
     def _get_sipper_locations(self, distnav: xr.DataArray) -> dict:
         """Get sipper sample locations in distance/depth space.
 
+        For deployment plots (self.nc_files is set), scans the syslog of every
+        log directory so samples from all logs are captured.
+
         Returns:
             Dictionary mapping sample number to (distance_km, depth_m) tuple
         """
@@ -1036,12 +1040,30 @@ class CreateProducts:
 
         sipper = Sipper()
         sipper.args = argparse.Namespace()
-        sipper.args.log_file = self.log_file
         sipper.args.local = self.local
         sipper.args.verbose = 0  # Suppress sipper logging
         sipper.logger.setLevel(logging.WARNING)
 
-        sipper_times = sipper.parse_sippers()
+        if self.nc_files:
+            # Deployment mode: derive a log_file path for each nc_file so we
+            # can read the syslog from each individual log directory.
+            log_files = [
+                re.sub(
+                    rf"_{re.escape(self.freq)}\.nc$",
+                    ".nc4",
+                    nc.replace(LRAUV_OPENDAP_BASE.rstrip("/") + "/", ""),
+                )
+                for nc in self.nc_files
+            ]
+            sipper_times: dict = {}
+            for lf in log_files:
+                sipper.args.log_file = lf
+                with contextlib.suppress(FileNotFoundError):
+                    sipper_times.update(sipper.parse_sippers())
+        else:
+            sipper.args.log_file = self.log_file
+            sipper_times = sipper.parse_sippers()
+
         if not sipper_times:
             return {}
 
