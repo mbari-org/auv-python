@@ -471,9 +471,9 @@
             // Make per log file .html files to test with lrauv_deployment_plots and --update_ssds_provenance
             //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20251022T000000", "--end", "20251024T000000", "--update_ssds_provenance", "--clobber"]
             // Make per log file .html files to test with lrauv_deployment_plots and --update_ssds_provenance to test dynamic map bounds
-            //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20260409T000000", "--end", "20260415T000000", "--update_ssds_provenance", "--clobber"]
+            "args": ["-v", "1", "--auv_name", "ahi", "--start", "20260409T000000", "--end", "20260415T000000", "--update_ssds_provenance", "--clobber"]
             // Fixup labels on No Data plots
-            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260411T145332/202604111453_202604111937.nc4", "--update_ssds_provenance", "--clobber"]
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260411T145332/202604111453_202604111937.nc4", "--update_ssds_provenance", "--clobber"]
         },
         {
             "name": "lrauv_deployment_plots",
