@@ -822,7 +822,7 @@ class CreateProducts:
                 )
             day += timedelta(days=1)
 
-    def _grid_dims(self) -> tuple:
+    def _grid_dims(self, plot_vars: list[str] | None = None) -> tuple:
         # From Matlab code in plot_sections.m:
         # auvnav positions are too fine for distance calculations, they resolve
         # spiral ascents and circling while on station
@@ -904,14 +904,26 @@ class CreateProducts:
             distnav.to_numpy()[-1],
             int(3 * self.ds["profile_number"].to_numpy()[-1]),
         )
-        # Vertical gridded to .5 m, rounded down to nearest 50m
-        max_depth = np.floor(self.ds.cf["depth"].max() / 50) * 50
-        iz = np.arange(2.0, max_depth, 0.5)
-        if not iz.any():
-            self.logger.warning(
-                "Gridding vertical for a surface only mission: {self.ds.cf['depth'].max() =}",
-            )
-            iz = np.arange(0, self.ds.cf["depth"].max(), 0.05)
+        # Vertical gridded to .5 m, rounded down to nearest 10m (minimum 10m)
+        # Use only depths where at least one sensor variable has valid data to
+        # exclude bogus depth values recorded when no valid sensor data was logged
+        # (e.g. from memory corruption events)
+        depth_values = self.ds.cf["depth"].to_numpy()
+        time_dim = self.ds.cf["depth"].dims[0]
+        nav_vars = {"depth", "latitude", "longitude", "profile_number"}
+        has_valid_sensor_data = np.zeros(len(depth_values), dtype=bool)
+        vars_to_check = [
+            v for v in (plot_vars or self.ds.data_vars) if v in self.ds and "pitch" not in v
+        ]
+        for var in vars_to_check:
+            if var not in nav_vars and time_dim in self.ds[var].dims and self.ds[var].ndim == 1:
+                has_valid_sensor_data |= ~np.isnan(self.ds[var].to_numpy())
+        depths_with_data = depth_values[has_valid_sensor_data]
+        if len(depths_with_data) > 0 and not np.all(np.isnan(depths_with_data)):
+            max_depth = max(np.floor(np.nanmax(depths_with_data) / 10) * 10, 10)
+        else:
+            max_depth = max(np.floor(np.nanmax(depth_values) / 10) * 10, 10)
+        iz = np.arange(0, max_depth, 0.5)
 
         return idist, iz, distnav
 
@@ -1690,9 +1702,10 @@ class CreateProducts:
         else:
             curr_ax.set_ylabel("")
 
-        # Set y-axis ticks at 0, 50, 100, 150, etc.
+        # Set y-axis ticks adaptively based on depth range
         y_min, y_max = curr_ax.get_ylim()
-        y_ticks = np.arange(0, int(y_min) + 50, 50)
+        tick_step = 10 if y_min <= 50 else 50  # noqa: PLR2004
+        y_ticks = np.arange(0, int(y_min) + tick_step, tick_step)
         curr_ax.set_yticks(y_ticks)
 
         cb = fig.colorbar(scatter, ax=curr_ax, pad=0.01)
@@ -1934,10 +1947,11 @@ class CreateProducts:
         else:
             curr_ax.set_ylabel("")
 
-        # Set y-axis ticks at 0, 50, 100, 150, etc.
+        # Set y-axis ticks adaptively based on depth range
         y_min, y_max = curr_ax.get_ylim()
         # Since y-axis is inverted (max at bottom), y_min is the deeper value
-        y_ticks = np.arange(0, int(y_min) + 50, 50)
+        tick_step = 10 if y_min <= 50 else 50  # noqa: PLR2004
+        y_ticks = np.arange(0, int(y_min) + tick_step, tick_step)
         curr_ax.set_yticks(y_ticks)
 
         cb = fig.colorbar(cntrf, ax=curr_ax, pad=0.01)
@@ -2048,7 +2062,7 @@ class CreateProducts:
             )
             return None
 
-        idist, iz, distnav = self._grid_dims()
+        idist, iz, distnav = self._grid_dims([var for var, _ in plot_variables])
         if idist.size == 0 or iz.size == 0 or distnav.size == 0:
             self.logger.warning("Skipping plot_2column due to missing gridding dimensions")
             return None
@@ -2194,7 +2208,7 @@ class CreateProducts:
             )
             return None
 
-        idist, iz, distnav = self._grid_dims()
+        idist, iz, distnav = self._grid_dims([var for var, _ in plot_variables])
         if idist.size == 0 or iz.size == 0 or distnav.size == 0:
             self.logger.warning("Skipping plot_biolume_2column due to missing gridding dimensions")
             return None
@@ -2340,7 +2354,8 @@ class CreateProducts:
             )
             return None
 
-        idist, iz, distnav = self._grid_dims()
+        planktivore_plot_vars = [var for var, _ in self._get_planktivore_plot_variables()]
+        idist, iz, distnav = self._grid_dims(planktivore_plot_vars)
         if idist.size == 0 or iz.size == 0 or distnav.size == 0:
             self.logger.warning(
                 "Skipping plot_planktivore_2column due to missing gridding dimensions"
