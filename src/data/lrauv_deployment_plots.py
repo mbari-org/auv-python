@@ -21,13 +21,19 @@ import http
 import logging
 import os
 import re
+import smtplib
 import sys
 import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
-from zoneinfo import ZoneInfo
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import requests
 
 import xarray as xr
 
@@ -40,6 +46,7 @@ from provenance import get_script_github_url, get_web_url, submit_process_run
 from resample import FREQ, LRAUV_OPENDAP_BASE
 
 ENV_LRAUV_NOTIFY = "LRAUV_NOTIFY"
+ENV_SLACK_BOT_TOKEN = "SLACK_BOT_TOKEN"  # noqa: S105
 ENV_SMTP_HOST = "SMTP_HOST"
 ENV_SMTP_PORT = "SMTP_PORT"
 
@@ -386,11 +393,6 @@ class DeploymentPlotter:
         force: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Send a plain-HTML email with the standard inline PNG and a single web link."""
-        import smtplib  # noqa: PLC0415
-        from email.mime.image import MIMEImage  # noqa: PLC0415
-        from email.mime.multipart import MIMEMultipart  # noqa: PLC0415
-        from email.mime.text import MIMEText  # noqa: PLC0415
-
         std_html = next(
             (p for p in html_paths if "2column_cmocean" in str(p)),
             html_paths[0] if html_paths else None,
@@ -442,7 +444,94 @@ class DeploymentPlotter:
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Email notification failed: %s", exc)
 
-    def _notify(
+    def _send_slack_file_upload(
+        self,
+        channel_id: str,
+        deployment_name: str,
+        html_paths: list[Path],
+    ) -> None:
+        """Upload the standard PNG to Slack via the Files API and post to a channel.
+
+        *channel_id* is the Slack channel ID (e.g. ``C0123456789``).  The bot token
+        is read from the ``SLACK_BOT_TOKEN`` environment variable.  The three-step
+        upload flow (getUploadURLExternal → POST bytes → completeUploadExternal)
+        avoids the URL-caching issue of ``image`` blocks sent via incoming webhooks.
+        """
+        token = os.environ.get(ENV_SLACK_BOT_TOKEN, "")
+        if not token:
+            self.logger.warning("SLACK_BOT_TOKEN is not set; skipping Slack file upload")
+            return
+        self.logger.debug("Slack file upload: channel_id=%s", channel_id)
+
+        std_html = next(
+            (p for p in html_paths if "2column_cmocean" in str(p)),
+            html_paths[0] if html_paths else None,
+        )
+        std_png = std_html.with_suffix(".png") if std_html else None
+        if std_png and not std_png.exists():
+            std_png = None
+        web_url = get_web_url(str(std_html)) if std_html else ""
+
+        _la = ZoneInfo("America/Los_Angeles")
+        sent_on = datetime.now(tz=UTC).astimezone(_la).strftime("%Y-%m-%d %H:%M:%S %Z")
+        comment = (
+            f"*{deployment_name}*\n"
+            f"<{web_url}|View related information on the web>\n"
+            f"_Sent on: {sent_on}_"
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+
+        if std_png:
+            png_bytes = std_png.read_bytes()
+
+            # Step 1: obtain an upload URL
+            r1 = requests.post(
+                "https://slack.com/api/files.getUploadURLExternal",
+                headers=headers,
+                data={"filename": std_png.name, "length": len(png_bytes)},
+                timeout=10,
+            )
+            r1.raise_for_status()
+            d1 = r1.json()
+            if not d1.get("ok"):
+                msg = f"getUploadURLExternal: {d1.get('error')}"
+                raise RuntimeError(msg)
+
+            # Step 2: upload the raw bytes
+            r2 = requests.post(d1["upload_url"], data=png_bytes, timeout=30)  # noqa: S113
+            r2.raise_for_status()
+
+            # Step 3: complete and share to channel
+            r3 = requests.post(
+                "https://slack.com/api/files.completeUploadExternal",
+                headers=headers,
+                json={
+                    "files": [{"id": d1["file_id"]}],
+                    "channel_id": channel_id,
+                    "initial_comment": comment,
+                },
+                timeout=10,
+            )
+            r3.raise_for_status()
+            d3 = r3.json()
+            if not d3.get("ok"):
+                msg = f"completeUploadExternal: {d3.get('error')}"
+                raise RuntimeError(msg)
+        else:
+            # No image available — fall back to a plain text message
+            r = requests.post(
+                "https://slack.com/api/chat.postMessage",
+                headers=headers,
+                json={"channel": channel_id, "text": comment},
+                timeout=10,
+            )
+            r.raise_for_status()
+            d = r.json()
+            if not d.get("ok"):
+                msg = f"chat.postMessage: {d.get('error')}"
+                raise RuntimeError(msg)
+
+    def _notify(  # noqa: PLR0912
         self,
         targets: list[str] | None,
         deployment_name: str,
@@ -452,6 +541,8 @@ class DeploymentPlotter:
         """Send email and/or Slack notifications for each target in *targets*.
 
         Each entry is auto-detected:
+        - starts with ``C`` (Slack channel ID) → uploads PNG via the Files API using
+          the ``SLACK_BOT_TOKEN`` env var (avoids URL caching)
         - starts with ``https://`` → treated as a Slack incoming-webhook URL
         - anything else → treated as an email address (sent via localhost SMTP)
 
@@ -470,10 +561,14 @@ class DeploymentPlotter:
             return
 
         for target in notify_list:
-            if target.startswith("https://"):
+            if target.startswith("C") and os.environ.get(ENV_SLACK_BOT_TOKEN):
+                try:
+                    self._send_slack_file_upload(target, deployment_name, html_paths)
+                    self.logger.info("Slack file-upload notification sent")
+                except Exception as exc:  # noqa: BLE001
+                    self.logger.warning("Slack file upload failed: %s", exc)
+            elif target.startswith("https://"):
                 # Slack incoming webhook — mirror the email: image on top, web link, timestamp
-                import requests  # noqa: PLC0415
-
                 std_html = next(
                     (p for p in html_paths if "2column_cmocean" in str(p)),
                     html_paths[0] if html_paths else None,
@@ -483,7 +578,6 @@ class DeploymentPlotter:
                     std_png = None
                 web_url = get_web_url(str(std_html)) if std_html else ""
 
-                prefix = "" if force else "New "
                 _la = ZoneInfo("America/Los_Angeles")
                 sent_on = datetime.now(tz=UTC).astimezone(_la).strftime("%Y-%m-%d %H:%M:%S %Z")
 
@@ -503,8 +597,8 @@ class DeploymentPlotter:
                         "text": {
                             "type": "mrkdwn",
                             "text": (
-                                f"*{prefix}LRAUV deployment plots: {deployment_name}*\n"
-                                f"<{web_url}|View this and related information on the web>\n"
+                                f"*{deployment_name}*\n"
+                                f"<{web_url}|View related information on the web>\n"
                                 f"_Sent on: {sent_on}_"
                             ),
                         },
@@ -533,8 +627,6 @@ class DeploymentPlotter:
         Each PNG is recorded as the output; the input nc_files are its sources.
         The producer name and description are derived from the HTML title text.
         """
-        from datetime import UTC, datetime  # noqa: PLC0415
-
         dlist_no_ext = str(Path(dlist).with_suffix(""))
         producer_name = (
             "auv-python - lrauv_deployment_plots.py producing "
