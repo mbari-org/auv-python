@@ -631,7 +631,7 @@ class TestStoqsUrlFromDs:
 
 
 # ===========================================================================
-# Tests for _notify()
+# Tests for _notify() and _send_slack_file_upload()
 # ===========================================================================
 
 
@@ -648,10 +648,9 @@ class TestNotify:
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
             dp._notify(
-                "team@mbari.org",
+                ["team@mbari.org"],
                 "CANON_April_2025",
                 [html_file],
-                "https://stoqs.mbari.org/query/?permalink_id=abc",
             )
 
         mock_smtp.send_message.assert_called_once()  # noqa: S101
@@ -660,54 +659,126 @@ class TestNotify:
         assert "CANON_April_2025" in msg["Subject"]  # noqa: S101
 
     def test_slack_webhook_posts(self, dp, tmp_path):
-        """_notify() with a Slack webhook URL should POST to that URL."""
-        html_file = tmp_path / "test.html"
+        """_notify() with a Slack webhook URL should POST blocks to that URL."""
+        html_file = tmp_path / "test_2column_cmocean.html"
         html_file.touch()
         webhook_url = "https://hooks.slack.com/services/T0000/B0000/xxxx"
 
-        with patch("requests.post") as mock_post:
+        with patch("lrauv_deployment_plots.requests.post") as mock_post:
             mock_post.return_value.raise_for_status = MagicMock()
-            dp._notify(
-                "https://hooks.slack.com/services/T0000/B0000/xxxx",
-                "CANON_April_2025",
-                [html_file],
-                None,
-            )
+            dp._notify([webhook_url], "CANON_April_2025", [html_file])
 
         mock_post.assert_called_once()  # noqa: S101
         call_kwargs = mock_post.call_args
         assert call_kwargs[0][0] == webhook_url  # noqa: S101
-        assert "text" in call_kwargs[1]["json"]  # noqa: S101
+        assert "blocks" in call_kwargs[1]["json"]  # noqa: S101
 
-    def test_noop_when_no_target_and_no_env(self, dp, tmp_path, monkeypatch):
-        """_notify() must not call anything when target is empty and env var unset."""
+    def test_noop_when_no_target_and_no_env(self, dp, monkeypatch):
+        """_notify() must not call anything when targets is empty and env var unset."""
         monkeypatch.delenv("LRAUV_NOTIFY", raising=False)
+        monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
 
         with (
             patch("smtplib.SMTP") as mock_smtp_cls,
-            patch("requests.post") as mock_post,
+            patch("lrauv_deployment_plots.requests.post") as mock_post,
         ):
-            dp._notify("", "CANON_April_2025", [], None)
+            dp._notify([], "CANON_April_2025", [])
 
         mock_smtp_cls.assert_not_called()  # noqa: S101
         mock_post.assert_not_called()  # noqa: S101
 
     def test_env_var_fallback_used(self, dp, tmp_path, monkeypatch):
-        """When notify='' but LRAUV_NOTIFY env var is set, that value is used."""
+        """When targets is None but LRAUV_NOTIFY env var is set, that value is used."""
         monkeypatch.setenv("LRAUV_NOTIFY", "fallback@mbari.org")
         html_file = tmp_path / "test.html"
         html_file.touch()
 
-        with (
-            patch("lrauv_deployment_plots.os") as mock_os,
-            patch("smtplib.SMTP") as mock_smtp_cls,
-        ):
-            mock_os.environ = {"LRAUV_NOTIFY": "fallback@mbari.org"}
+        with patch("smtplib.SMTP") as mock_smtp_cls:
             mock_smtp = MagicMock()
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
-            dp._notify("", "CANON_April_2025", [html_file], None)
+            dp._notify(None, "CANON_April_2025", [html_file])
 
         mock_smtp.send_message.assert_called_once()  # noqa: S101
         msg = mock_smtp.send_message.call_args[0][0]
         assert "fallback@mbari.org" in msg["To"]  # noqa: S101
+
+
+class TestSendSlackFileUpload:
+    """Unit tests for DeploymentPlotter._send_slack_file_upload()."""
+
+    def _make_responses(self, upload_url="https://files.slack.com/upload/v1/abc"):
+        """Return side_effect list for three requests.post calls in the upload flow."""
+        get_url_resp = MagicMock()
+        get_url_resp.raise_for_status = MagicMock()
+        get_url_resp.json.return_value = {
+            "ok": True,
+            "upload_url": upload_url,
+            "file_id": "F0TEST123",
+        }
+        upload_resp = MagicMock()
+        upload_resp.raise_for_status = MagicMock()
+        complete_resp = MagicMock()
+        complete_resp.raise_for_status = MagicMock()
+        complete_resp.json.return_value = {"ok": True}
+        return [get_url_resp, upload_resp, complete_resp]
+
+    def test_three_posts_made_when_png_present(self, dp, tmp_path, monkeypatch):
+        """Upload flow must make exactly three POST requests when a PNG exists."""
+        monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-test-token")
+        png = tmp_path / "depl_2column_cmocean.png"
+        png.write_bytes(b"fakepng")
+        html = tmp_path / "depl_2column_cmocean.html"
+        html.touch()
+
+        _EXPECTED_POST_COUNT = 3
+        with patch(
+            "lrauv_deployment_plots.requests.post", side_effect=self._make_responses()
+        ) as mock_post:
+            dp._send_slack_file_upload("C0TEST", "CANON April 2025", [html])
+
+        assert mock_post.call_count == _EXPECTED_POST_COUNT  # noqa: S101
+
+    def test_channel_id_sent_in_complete_call(self, dp, tmp_path, monkeypatch):
+        """completeUploadExternal must include the channel_id in its payload."""
+        monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-test-token")
+        png = tmp_path / "depl_2column_cmocean.png"
+        png.write_bytes(b"fakepng")
+        html = tmp_path / "depl_2column_cmocean.html"
+        html.touch()
+
+        with patch(
+            "lrauv_deployment_plots.requests.post", side_effect=self._make_responses()
+        ) as mock_post:
+            dp._send_slack_file_upload("C0MYCHANNEL", "CANON April 2025", [html])
+
+        complete_call = mock_post.call_args_list[2]
+        assert complete_call[1]["json"]["channel_id"] == "C0MYCHANNEL"  # noqa: S101
+
+    def test_missing_token_skips_upload(self, dp, tmp_path, monkeypatch):
+        """When SLACK_BOT_TOKEN is unset, no requests should be made."""
+        monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
+        html = tmp_path / "depl_2column_cmocean.html"
+        html.touch()
+
+        with patch("lrauv_deployment_plots.requests.post") as mock_post:
+            dp._send_slack_file_upload("C0TEST", "CANON April 2025", [html])
+
+        mock_post.assert_not_called()  # noqa: S101
+
+    def test_no_png_falls_back_to_chat_post_message(self, dp, tmp_path, monkeypatch):
+        """When no PNG exists, a single chat.postMessage call must be made instead."""
+        monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-test-token")
+        html = tmp_path / "depl_2column_cmocean.html"
+        html.touch()
+        # no PNG created — std_png will be None
+
+        chat_resp = MagicMock()
+        chat_resp.raise_for_status = MagicMock()
+        chat_resp.json.return_value = {"ok": True}
+
+        with patch("lrauv_deployment_plots.requests.post", return_value=chat_resp) as mock_post:
+            dp._send_slack_file_upload("C0TEST", "CANON April 2025", [html])
+
+        assert mock_post.call_count == 1  # noqa: S101
+        assert "chat.postMessage" in mock_post.call_args[0][0]  # noqa: S101
