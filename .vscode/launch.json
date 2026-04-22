@@ -471,9 +471,11 @@
             // Make per log file .html files to test with lrauv_deployment_plots and --update_ssds_provenance
             //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20251022T000000", "--end", "20251024T000000", "--update_ssds_provenance", "--clobber"]
             // Make per log file .html files to test with lrauv_deployment_plots and --update_ssds_provenance to test dynamic map bounds
-            "args": ["-v", "1", "--auv_name", "ahi", "--start", "20260409T000000", "--end", "20260415T000000", "--update_ssds_provenance", "--clobber"]
+            //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20260409T000000", "--end", "20260415T000000", "--update_ssds_provenance", "--clobber"]
             // Fixup labels on No Data plots
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260411T145332/202604111453_202604111937.nc4", "--update_ssds_provenance", "--clobber"]
+            // Test ESP markers - Shallow log file from Denmark deployment in June 2024, has large depth values in self.ds.depth.values[6500:6800]
+            "args": ["-v", "1", "--log_file", "makai/missionlogs/2024/20240607_20240615/20240611T082709/202406110827_202406111026.nc4", "--update_ssds_provenance", "--clobber"]
         },
         {
             "name": "lrauv_deployment_plots",
@@ -490,7 +492,7 @@
             // Test time range of DeploymentPlots with ahi planktivore deployment April 2025
             //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20250401", "--end", "20250501", "--update_ssds_provenance", "--force"]
             // Test web page building with a short deployment
-            //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20251022_20251024.dlist", "--update_ssds_provenance"]
+            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20251022_20251024.dlist", "--update_ssds_provenance", "--force", "--notify"]
             // Test --force option for rebuilding web pages with a short deployment
             //"args": ["-v", "1", "--last_n_days", "10", "--update_ssds_provenance", "--force"]
             // Test --notify option
@@ -498,7 +500,13 @@
             // Test what's running in cron on kraken
             //"args": ["-v", "1", "--last_n_days", "30", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
             // Test far offshore ahi mission with --update_ssds_provenance and --notify --force
-            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2026/20260406_20260412.dlist", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
+            //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2026/20260406_20260412.dlist", "--update_ssds_provenance", "--force", "--notify", "mccann@mbari.org"]
+            // Test --notify with no argument to a message to the Slack web hook in the LRAUV_NOTIFY environment variable
+            //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20251022_20251024.dlist", "--force", "--notify"]
+            // Test Sipper data presentation
+            //"args": ["-v", "1", "--dlist", "daphne/missionlogs/2026/20260316_20260318.dlist", "--force", "--notify"]
+            // Test ESP data presentation
+            //"args": ["-v", "1", "--dlist", "makai/missionlogs/2024/20240607_20240615.dlist", "--update_ssds_provenance", "--force", "--notify"]
 
         },
 
