@@ -250,7 +250,8 @@
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240724T221410/202407242214_202407242314.nc4"],
             // A log_file showing temperature not looking right in stoqs_lrauv_jul2024_t, as shared on Slack plankton-proxies on 11 Dec 2025
             //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4", "--no_scatter"]
-            "args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4"]
+            //"args": ["-v", "1", "--log_file", "pontus/missionlogs/2024/20240715_20240725/20240723T023501/202407230235_202407232319.nc4"]
+            "args": ["-v", "1", "--auv_name", "dorado", "--mission", "2026.113.00"]
         },
         {
             "name": "7.0 - email.py",

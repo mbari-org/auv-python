@@ -8,12 +8,14 @@ __author__ = "Mike McCann"
 __copyright__ = "Copyright 2023, Monterey Bay Aquarium Research Institute"
 
 import argparse  # noqa: I001
+import base64
 import contextlib
 import logging
 import os
 import re
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import cmocean
@@ -31,6 +33,7 @@ import xarray as xr
 from common_args import DEFAULT_BASE_PATH, get_standard_dorado_parser
 from gulper import Gulper
 from logs2netcdfs import AUV_NetCDF, MISSIONNETCDFS
+from make_permalink import stoqs_url_from_ds
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 from resample import AUVCTD_OPENDAP_BASE, FREQ, LRAUV_OPENDAP_BASE
 from scipy.interpolate import griddata
@@ -728,7 +731,7 @@ class CreateProducts:
         Fills black bars over the distance axis wherever the sun is below the horizon.
         Uses the figure's existing white space without adjusting other subplot dimensions.
         """
-        from datetime import UTC, timedelta, timezone  # noqa: PLC0415
+        from datetime import timedelta, timezone  # noqa: PLC0415
 
         try:
             from pysolar import solar  # noqa: PLC0415
@@ -1122,6 +1125,107 @@ class CreateProducts:
         # Default
         return "cividis"
 
+    def _overlay_gulper_on_map(self, map_ax: matplotlib.axes.Axes, transformer) -> None:
+        """Plot Gulper bottle locations on the track map (Dorado only)."""
+        try:
+            gulper = Gulper()
+            gulper.args = argparse.Namespace(
+                base_path=self.base_path,
+                auv_name=self.auv_name,
+                mission=self.mission,
+                local=self.local,
+                verbose=0,
+                start_esecs=self.start_esecs,
+            )
+            gulper.logger.setLevel(logging.WARNING)
+            gulper_times = gulper.parse_gulpers()
+        except Exception as exc:  # noqa: BLE001
+            self.logger.debug("Could not parse Gulper times: %s", exc)
+            return
+        if not gulper_times:
+            return
+        times_np = self.ds.cf["time"].to_numpy()
+        lons_np = self.ds.cf["longitude"].to_numpy()
+        lats_np = self.ds.cf["latitude"].to_numpy()
+        first = True
+        for bottle, esec in gulper_times.items():
+            idx = int(np.abs(times_np - np.datetime64(int(esec * 1e9), "ns")).argmin())
+            gx, gy = transformer.transform(lons_np[idx], lats_np[idx])
+            map_ax.plot(
+                gx,
+                gy,
+                "o",
+                markersize=7,
+                zorder=7,
+                markerfacecolor="white",
+                markeredgecolor="black",
+                label="Gulper" if first else "",
+            )
+            map_ax.annotate(
+                str(bottle),
+                (gx, gy),
+                textcoords="offset points",
+                xytext=(5, 0),
+                fontsize=6,
+                ha="left",
+                va="center",
+                color="black",
+            )
+            first = False
+
+    def _overlay_sipper_on_map(self, map_ax: matplotlib.axes.Axes, transformer) -> None:
+        """Plot Sipper sample locations on the track map (LRAUV only)."""
+        try:
+            sipper = Sipper()
+            sipper.args = argparse.Namespace(local=self.local, verbose=0)
+            sipper.logger.setLevel(logging.WARNING)
+            if self.nc_files:
+                sipper_times: dict = {}
+                for nc in self.nc_files:
+                    sipper.args.log_file = re.sub(
+                        rf"_{re.escape(self.freq)}\.nc$",
+                        ".nc4",
+                        nc.replace(LRAUV_OPENDAP_BASE.rstrip("/") + "/", ""),
+                    )
+                    with contextlib.suppress(FileNotFoundError):
+                        sipper_times.update(sipper.parse_sippers())
+            else:
+                sipper.args.log_file = self.log_file
+                sipper_times = sipper.parse_sippers()
+        except Exception as exc:  # noqa: BLE001
+            self.logger.debug("Could not parse Sipper times: %s", exc)
+            return
+        if not sipper_times:
+            return
+        times_np = self.ds.cf["time"].to_numpy()
+        lons_np = self.ds.cf["longitude"].to_numpy()
+        lats_np = self.ds.cf["latitude"].to_numpy()
+        first = True
+        for sample, esec in sipper_times.items():
+            idx = int(np.abs(times_np - np.datetime64(int(esec * 1e9), "ns")).argmin())
+            sx, sy = transformer.transform(lons_np[idx], lats_np[idx])
+            map_ax.plot(
+                sx,
+                sy,
+                "o",
+                markersize=7,
+                zorder=7,
+                markerfacecolor="white",
+                markeredgecolor="black",
+                label="Sipper" if first else "",
+            )
+            map_ax.annotate(
+                str(sample),
+                (sx, sy),
+                textcoords="offset points",
+                xytext=(5, 0),
+                fontsize=6,
+                ha="left",
+                va="center",
+                color="black",
+            )
+            first = False
+
     def _plot_track_map(  # noqa: PLR0915
         self,
         map_ax: matplotlib.axes.Axes,
@@ -1220,6 +1324,11 @@ class CreateProducts:
         # Add start and end markers
         map_ax.plot(x_merc[0], y_merc[0], "go", markersize=8, label="Start", zorder=5)
         map_ax.plot(x_merc[-1], y_merc[-1], "r^", markersize=8, label="End", zorder=5)
+
+        if not self._is_lrauv():
+            self._overlay_gulper_on_map(map_ax, transformer)
+        if self._is_lrauv() and self.log_file:
+            self._overlay_sipper_on_map(map_ax, transformer)
 
         # Add basemap with explicit zoom to ensure consistent rendering across platforms
         ctx.add_basemap(
@@ -1681,19 +1790,29 @@ class CreateProducts:
             except ValueError as e:
                 self.logger.warning("Could not fill bathymetry area: %s", e)  # noqa: TRY400
 
-        # Add gulper bottle locations
+        # Add gulper/sipper sample locations
         if gulper_locations:
             for bottle, (dist, depth) in gulper_locations.items():
-                curr_ax.text(
+                curr_ax.plot(
                     dist,
-                    depth - 5,
+                    depth,
+                    "o",
+                    markersize=7,
+                    zorder=5,
+                    markerfacecolor="white",
+                    markeredgecolor="black",
+                )
+                curr_ax.annotate(
                     str(bottle),
+                    (dist, depth),
+                    textcoords="offset points",
+                    xytext=(5, 0),
                     fontsize=7,
-                    ha="center",
-                    va="top",
+                    ha="left",
+                    va="center",
                     color="black",
                     fontweight="bold",
-                    zorder=5,
+                    zorder=6,
                 )
 
         # Only show y-label on left column or top of right column
@@ -1926,19 +2045,29 @@ class CreateProducts:
                 zorder=3,
             )
 
-        # Add gulper bottle locations
+        # Add gulper/sipper sample locations
         if gulper_locations:
             for bottle, (dist, depth) in gulper_locations.items():
-                curr_ax.text(
+                curr_ax.plot(
                     dist,
-                    depth - 5,
+                    depth,
+                    "o",
+                    markersize=7,
+                    zorder=5,
+                    markerfacecolor="white",
+                    markeredgecolor="black",
+                )
+                curr_ax.annotate(
                     str(bottle),
+                    (dist, depth),
+                    textcoords="offset points",
+                    xytext=(5, 0),
                     fontsize=7,
-                    ha="center",
-                    va="top",
+                    ha="left",
+                    va="center",
                     color="black",
                     fontweight="bold",
-                    zorder=5,
+                    zorder=6,
                 )
 
         # Only show y-label on left column or top of right column
@@ -2040,6 +2169,87 @@ class CreateProducts:
                 horizontalalignment="left",
                 clip_on=False,
             )
+
+    def _write_dorado_mission_html(self, png_path: Path) -> None:
+        """Write (or refresh) HTML companion pages for all Dorado mission plot PNGs.
+
+        Called after any plot completes so that cross-links between sibling pages
+        are always up to date regardless of the order plots are produced.
+        """
+        year = self.mission.split(".")[0]
+        _auvctd = "https://dods.mbari.org/data/auvctd/surveys"
+
+        nc_filename = f"{self.auv_name}_{self.mission}_{self.freq}.nc"
+        nc_url = f"https://dods.mbari.org/opendap/data/auvctd/surveys/{year}/netcdf/{nc_filename}"
+
+        log_filename = f"{self.auv_name}_{self.mission}_processing.log"
+        log_url = f"{_auvctd}/{year}/netcdf/{log_filename}"
+
+        gulper_filename = f"{self.auv_name}_{self.mission}_{self.freq}_Gulper.txt"
+        gulper_local = Path(BASE_PATH, self.auv_name, MISSIONODVS, self.mission, gulper_filename)
+        gulper_url = f"{_auvctd}/{year}/odv/{gulper_filename}" if gulper_local.exists() else None
+
+        stoqs_url = None
+        try:
+            self._open_ds()
+            stoqs_url = stoqs_url_from_ds(
+                self.ds,
+                base_url="https://stoqs.shore.mbari.org/stoqs_all_dorado",
+                auv_name=self.auv_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("Could not generate STOQS URL for %s: %s", self.mission, exc)
+
+        title = f"dorado {self.mission}"
+        now = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        nt = 'target="_blank" rel="noopener"'
+
+        stoqs_line = (
+            f'<p>View these data in <a href="{stoqs_url}" {nt}>stoqs_all_dorado</a></p>\n'
+            if stoqs_url
+            else ""
+        )
+        gulper_line = (
+            f'<p><a href="{gulper_url}" {nt}>ODV gulper file</a></p>\n' if gulper_url else ""
+        )
+
+        all_pngs = sorted(png_path.parent.glob(f"{self.auv_name}_{self.mission}_*_2column_*.png"))
+        for this_png in all_pngs:
+            siblings = [p for p in all_pngs if p != this_png]
+            sibling_line = ""
+            if siblings:
+                sibling_links = " | ".join(
+                    f'<a href="{p.with_suffix(".html").name}">{p.name}</a>' for p in siblings
+                )
+                sibling_line = f"<p>Other plots for this mission: {sibling_links}</p>\n"
+
+            b64 = base64.b64encode(this_png.read_bytes()).decode("ascii")
+            html = (
+                "<!DOCTYPE html>\n"
+                '<html lang="en">\n'
+                "<head>\n"
+                '  <meta charset="utf-8">\n'
+                f"  <title>{title}</title>\n"
+                "</head>\n"
+                "<body>\n"
+                f"  <h1>{title}</h1>\n"
+                f'  <img src="data:image/png;base64,{b64}" alt="{this_png.name}">\n'
+                f"  {sibling_line}"
+                f"  {stoqs_line}"
+                f'  <p><a href="{nc_url}.html" {nt}>OPeNDAP data access form</a></p>\n'
+                f'  <p><a href="{log_url}" {nt}>Processing log</a></p>\n'
+                f"  {gulper_line}"
+                "  <hr>\n"
+                f"  <p><small>Created by create_products.py on {now}</small></p>\n"
+                "</body>\n"
+                "</html>\n"
+            )
+            html_path = this_png.with_suffix(".html")
+            try:
+                html_path.write_text(html, encoding="utf-8")
+                self.logger.info("Wrote mission HTML to %s", html_path)
+            except OSError as exc:
+                self.logger.warning("Could not write mission HTML to %s: %s", html_path, exc)
 
     def plot_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
         """Create 2column plot similar to plot_sections.m and stoqs/utils/Viz/plotting.py
@@ -2181,6 +2391,8 @@ class CreateProducts:
         plt.close(fig)
 
         self.logger.info("Saved 2column plot to %s", output_file)
+        if not self._is_lrauv():
+            self._write_dorado_mission_html(output_file)
         return str(output_file)
 
     def plot_biolume_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
@@ -2322,6 +2534,8 @@ class CreateProducts:
         plt.close(fig)
 
         self.logger.info("Saved biolume 2column plot to %s", output_file)
+        if not self._is_lrauv():
+            self._write_dorado_mission_html(output_file)
         return str(output_file)
 
     def plot_planktivore_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
@@ -2466,6 +2680,8 @@ class CreateProducts:
         plt.close(fig)
 
         self.logger.info("Saved planktivore 2column plot to %s", output_file)
+        if not self._is_lrauv():
+            self._write_dorado_mission_html(output_file)
         return str(output_file)
 
     def _get_best_ctd(self) -> str:
