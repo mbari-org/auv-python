@@ -69,6 +69,13 @@ def dp():
     return plotter
 
 
+@pytest.fixture(autouse=True)
+def _clear_notify_env(monkeypatch):
+    """Prevent tests from accidentally sending real Slack/email notifications."""
+    monkeypatch.delenv("LRAUV_NOTIFY", raising=False)
+    monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Tests for _write_per_png_html()
 # ---------------------------------------------------------------------------
