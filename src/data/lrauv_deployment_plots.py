@@ -798,11 +798,19 @@ class DeploymentPlotter:
         html_title_single = title.replace("\n", " \u2014 ")
         script_github_url = get_script_github_url("src/data/lrauv_deployment_plots.py")
         created_ts = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        ssds_explorer_url = (
+            "https://mooring-ssds.shore.mbari.org/explorer/ssds_metadata/dataproducer/"
+            f"?resource_name={html_path.name}"
+        )
         footer = (
             "<hr>\n"
-            "<p><small>Created by "
+            '<p style="display: flex; justify-content: space-between">'
+            "<small>Created by "
             f'<a href="{script_github_url}" {nt}>lrauv_deployment_plots.py</a>'
-            f" on {created_ts}</small></p>\n"
+            f" on {created_ts}</small>"
+            f'<small><a href="{ssds_explorer_url}" {nt}>'
+            "Processrun details in SSDS</a></small>"
+            "</p>\n"
         )
         html = (
             "<!DOCTYPE html>\n"
