@@ -1155,11 +1155,12 @@ class CreateProducts:
                 gx,
                 gy,
                 "o",
-                markersize=7,
+                markersize=5,
                 zorder=7,
                 markerfacecolor="white",
                 markeredgecolor="black",
                 label="Gulper" if first else "",
+                clip_on=False,
             )
             map_ax.annotate(
                 str(bottle),
@@ -1170,6 +1171,7 @@ class CreateProducts:
                 ha="left",
                 va="center",
                 color="black",
+                annotation_clip=False,
             )
             first = False
 
@@ -1208,11 +1210,12 @@ class CreateProducts:
                 sx,
                 sy,
                 "o",
-                markersize=7,
+                markersize=5,
                 zorder=7,
                 markerfacecolor="white",
                 markeredgecolor="black",
                 label="Sipper" if first else "",
+                clip_on=False,
             )
             map_ax.annotate(
                 str(sample),
@@ -1223,6 +1226,7 @@ class CreateProducts:
                 ha="left",
                 va="center",
                 color="black",
+                annotation_clip=False,
             )
             first = False
 
@@ -1797,10 +1801,11 @@ class CreateProducts:
                     dist,
                     depth,
                     "o",
-                    markersize=7,
+                    markersize=5,
                     zorder=5,
                     markerfacecolor="white",
                     markeredgecolor="black",
+                    clip_on=False,
                 )
                 curr_ax.annotate(
                     str(bottle),
@@ -1813,6 +1818,7 @@ class CreateProducts:
                     color="black",
                     fontweight="bold",
                     zorder=6,
+                    annotation_clip=False,
                 )
 
         # Only show y-label on left column or top of right column
@@ -2052,10 +2058,11 @@ class CreateProducts:
                     dist,
                     depth,
                     "o",
-                    markersize=7,
+                    markersize=5,
                     zorder=5,
                     markerfacecolor="white",
                     markeredgecolor="black",
+                    clip_on=False,
                 )
                 curr_ax.annotate(
                     str(bottle),
@@ -2068,6 +2075,7 @@ class CreateProducts:
                     color="black",
                     fontweight="bold",
                     zorder=6,
+                    annotation_clip=False,
                 )
 
         # Only show y-label on left column or top of right column

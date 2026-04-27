@@ -11,10 +11,10 @@ See: https://github.com/mbari-org/auv-python/issues/144
 import argparse
 import logging
 import os
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from socket import gethostname
 
 import git
 import requests
@@ -88,16 +88,26 @@ def build_authenticated_session(
     return session
 
 
+_MISSION_NETCDFS_RE = re.compile(r"[^/]+/missionnetcdfs/(\d{4})\.[^/]+/(.+)$")
+_MISSION_IMAGES_RE = re.compile(r"[^/]+/missionimages/(\d{4})\.[^/]+/(.+)$")
+
+
 def get_dods_url(nc_file_path: str) -> str:
     """Translate a local NetCDF path to its OPeNDAP URL.
 
-    Walks ``PATH_TO_URL_MAP`` looking for a matching prefix in the
-    *resolved* path string.  Returns the original path unchanged if no
-    match is found.
+    Dorado/i2map NetCDF files are stored locally under
+    ``{auv_name}/missionnetcdfs/{YYYY}.{DDD}.{SS}/`` but are archived to
+    ``surveys/{YYYY}/netcdf/`` on the OPeNDAP server, so that mapping is
+    applied when the pattern is detected.
     """
     resolved = str(Path(nc_file_path).resolve())
     for local_prefix, url_prefix in PATH_TO_URL_MAP.items():
         if resolved.startswith(local_prefix):
+            rel = resolved[len(local_prefix) :].lstrip("/")
+            m = _MISSION_NETCDFS_RE.match(rel)
+            if m:
+                year, filename = m.group(1), m.group(2)
+                return f"{url_prefix}/surveys/{year}/netcdf/{filename}"
             return resolved.replace(local_prefix, url_prefix, 1)
     return resolved
 
@@ -105,14 +115,25 @@ def get_dods_url(nc_file_path: str) -> str:
 def get_web_url(file_path: str) -> str:
     """Translate a local file path to its web-accessible URL (no OPeNDAP prefix).
 
-    Use this for PNG, HTML, and other static files served over HTTP.
-    Walks ``_PATH_TO_WEB_MAP`` looking for a matching prefix in the
-    *resolved* path string.  Returns the original path unchanged if no
-    match is found.
+    Use this for PNG, HTML, log, and other static files served over HTTP.
+
+    Dorado/i2map files are stored locally under mission-specific subdirectories
+    but are archived to a flat ``surveys/{YYYY}/`` layout on the web server:
+    - ``{auv_name}/missionnetcdfs/{YYYY}.*/`` → ``surveys/{YYYY}/netcdf/``
+    - ``{auv_name}/missionimages/{YYYY}.*/``  → ``surveys/{YYYY}/images/``
     """
     resolved = str(Path(file_path).resolve())
     for local_prefix, url_prefix in _PATH_TO_WEB_MAP.items():
         if resolved.startswith(local_prefix):
+            rel = resolved[len(local_prefix) :].lstrip("/")
+            m = _MISSION_NETCDFS_RE.match(rel)
+            if m:
+                year, filename = m.group(1), m.group(2)
+                return f"{url_prefix}/surveys/{year}/netcdf/{filename}"
+            m = _MISSION_IMAGES_RE.match(rel)
+            if m:
+                year, filename = m.group(1), m.group(2)
+                return f"{url_prefix}/surveys/{year}/images/{filename}"
             return resolved.replace(local_prefix, url_prefix, 1)
     return resolved
 
@@ -221,14 +242,7 @@ def submit_process_run(  # noqa: PLR0913
             "description": f"Processing script: {script_name}",
         },
     ]
-    if cmd_line_args:
-        resources.append(
-            {
-                "name": "command_line",
-                "uristring": f"urn:cmdline:{gethostname()}",
-                "description": cmd_line_args,
-            }
-        )
+
     if log_file_url:
         resources.append(
             {

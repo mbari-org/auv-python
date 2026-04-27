@@ -839,7 +839,7 @@ class Processor:
             if not Path(full_nc).exists():
                 self.logger.debug("Output %s not found, skipping provenance", full_nc)
                 return
-            log_url = get_dods_url(log_file) if log_file else None
+            log_url = get_web_url(log_file) if log_file else None
             import xarray as xr  # noqa: PLC0415
 
             try:
@@ -852,7 +852,7 @@ class Processor:
             submit_process_run(
                 producer_name=(
                     f"auv-python - Execution of {Path(script_name).name}"
-                    f" to produce {Path(output_nc)}"
+                    f" to produce {Path(output_nc).name}"
                 ),
                 producer_description=self.commandline,
                 nc_file_path=full_nc,
