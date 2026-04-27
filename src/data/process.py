@@ -69,7 +69,7 @@ from align import Align_NetCDF, InvalidCalFile, InvalidCombinedFile
 from archive import LOG_NAME, Archiver
 from calibrate import EXPECTED_SENSORS, Calibrate_NetCDF
 from combine import Combine_NetCDF
-from create_products import CreateProducts
+from create_products import MISSIONIMAGES, CreateProducts
 from dorado_info import FAILED, TEST, dorado_info
 from emailer import NOTIFICATION_EMAIL, Emailer
 from logs2netcdfs import BASE_PATH, MISSIONLOGS, MISSIONNETCDFS, AUV_NetCDF
@@ -787,6 +787,35 @@ class Processor:
 
         return resources
 
+    def _collect_dorado_plot_resources(self, mission: str) -> list[dict]:
+        """Return Resource dicts for PNG and HTML plots produced by create_products.py.
+
+        The HTML resource names match the ?resource_name= filter used in the
+        'Processrun details in SSDS' footer link on each HTML page, so they
+        resolve to this processrun in the SSDS explorer.
+        """
+        images_dir = Path(self.config["base_path"], self.auv_name, MISSIONIMAGES, mission)
+        plot_suffixes = [
+            ("2column_cmocean", "Standard 2-column plot"),
+            ("2column_biolume", "Bioluminescence 2-column plot"),
+            ("2column_planktivore", "Planktivore 2-column plot"),
+        ]
+        resources: list[dict] = []
+        for suffix, description in plot_suffixes:
+            stem = f"{self.auv_name}_{mission}_{FREQ}_{suffix}"
+            for ext, rtype in [("png", "Quick Look Plot"), ("html", "html")]:
+                f = images_dir / f"{stem}.{ext}"
+                if f.exists():
+                    resources.append(
+                        {
+                            "name": f.name,
+                            "uristring": get_web_url(str(f)),
+                            "description": f"Created by create_products.py: {description}",
+                            "resourcetype_name": rtype,
+                        }
+                    )
+        return resources
+
     def _submit_provenance(  # noqa: PLR0913
         self,
         output_nc: str,
@@ -1020,6 +1049,7 @@ class Processor:
                             f"{self.auv_name}_{mission}_{LOG_NAME}",
                         )
                     ),
+                    additional_resources=self._collect_dorado_plot_resources(mission),
                 )
             # self.archive() is called in finally: blocks in process_missions()
 

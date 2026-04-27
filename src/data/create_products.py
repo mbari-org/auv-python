@@ -2240,7 +2240,12 @@ class CreateProducts:
                 f'  <p><a href="{log_url}" {nt}>Processing log</a></p>\n'
                 f"  {gulper_line}"
                 "  <hr>\n"
-                f"  <p><small>Created by create_products.py on {now}</small></p>\n"
+                '  <p style="display: flex; justify-content: space-between">'
+                f"<small>Created by create_products.py on {now}</small>"
+                f'<small><a href="https://mooring-ssds.shore.mbari.org/explorer/'
+                f'ssds_metadata/dataproducer/?resource_name={this_png.with_suffix(".html").name}"'
+                f" {nt}>Processrun details in SSDS</a></small>"
+                "</p>\n"
                 "</body>\n"
                 "</html>\n"
             )
@@ -2386,6 +2391,16 @@ class CreateProducts:
             output_file = Path(
                 images_dir, f"{self.auv_name}_{self.mission}_{self.freq}_2column_cmocean.png"
             )
+        created = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        fig.text(
+            0,
+            0,
+            f"Created by auv-python's create_products.py on {created}.",
+            fontsize=6,
+            fontstyle="italic",
+            ha="left",
+            va="bottom",
+        )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.show()
         plt.close(fig)
@@ -2529,6 +2544,16 @@ class CreateProducts:
             output_file = Path(
                 images_dir, f"{self.auv_name}_{self.mission}_{self.freq}_2column_biolume.png"
             )
+        created = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        fig.text(
+            0,
+            0,
+            f"Created by auv-python's create_products.py on {created}.",
+            fontsize=6,
+            fontstyle="italic",
+            ha="left",
+            va="bottom",
+        )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.show()
         plt.close(fig)
@@ -2675,6 +2700,16 @@ class CreateProducts:
                 images_dir,
                 f"{self.auv_name}_{self.mission}_{self.freq}_2column_planktivore.png",
             )
+        created = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        fig.text(
+            0,
+            0,
+            f"Created by auv-python's create_products.py on {created}.",
+            fontsize=6,
+            fontstyle="italic",
+            ha="left",
+            va="bottom",
+        )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
         plt.show()
         plt.close(fig)
