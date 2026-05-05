@@ -1613,6 +1613,9 @@ class Processor:
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+
+    load_dotenv()
     AUV_NAME = "i2map"
     VEHICLE_DIR = "/Volumes/M3/master/i2MAP"
     CALIBRATION_DIR = "/Volumes/DMO/MDUC_CORE_CTD_200103/Calibration Files"

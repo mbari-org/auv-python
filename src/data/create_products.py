@@ -3187,6 +3187,9 @@ class CreateProducts:
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+
+    load_dotenv()
     cp = CreateProducts()
     cp.process_command_line()
     p_start = time.time()
