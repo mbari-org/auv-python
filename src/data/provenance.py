@@ -207,7 +207,7 @@ def submit_process_run(  # noqa: PLR0913
     additional_resources: list[dict] | None = None,
     api_key: str | None = None,
     api_key_header: str | None = None,
-    api_base: str = SSDS_API_BASE,
+    api_base: str | None = None,
     session: requests.Session | None = None,
     log: logging.Logger | None = None,
 ) -> dict | None:
@@ -219,6 +219,7 @@ def submit_process_run(  # noqa: PLR0913
     Returns the created ProcessRun dict on success, or raises on HTTP error.
     """
     log = log or logger
+    api_base = api_base or os.environ.get(ENV_SSDS_API_BASE, SSDS_API_BASE)
     session = session or build_authenticated_session(
         api_key=api_key,
         api_key_header=api_key_header,
@@ -323,6 +324,9 @@ def process_command_line() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+
+    load_dotenv()
     args = process_command_line()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
