@@ -695,7 +695,7 @@ class TestNotify:
         mock_post.assert_not_called()  # noqa: S101
 
     def test_env_var_fallback_used(self, dp, tmp_path, monkeypatch):
-        """When targets is None but LRAUV_NOTIFY env var is set, that value is used."""
+        """When --notify is given with no value (empty list), LRAUV_NOTIFY is used."""
         monkeypatch.setenv("LRAUV_NOTIFY", "fallback@mbari.org")
         html_file = tmp_path / "test.html"
         html_file.touch()
@@ -704,11 +704,24 @@ class TestNotify:
             mock_smtp = MagicMock()
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
-            dp._notify(None, "CANON_April_2025", [html_file])
+            dp._notify([], "CANON_April_2025", [html_file])
 
         mock_smtp.send_message.assert_called_once()  # noqa: S101
         msg = mock_smtp.send_message.call_args[0][0]
         assert "fallback@mbari.org" in msg["To"]  # noqa: S101
+
+    def test_none_targets_skips_notification(self, dp, monkeypatch):
+        """When targets is None (--notify not given), no notification is sent."""
+        monkeypatch.setenv("LRAUV_NOTIFY", "fallback@mbari.org")
+
+        with (
+            patch("smtplib.SMTP") as mock_smtp_cls,
+            patch("lrauv_deployment_plots.requests.post") as mock_post,
+        ):
+            dp._notify(None, "CANON_April_2025", [])
+
+        mock_smtp_cls.assert_not_called()  # noqa: S101
+        mock_post.assert_not_called()  # noqa: S101
 
 
 class TestSendSlackFileUpload:
