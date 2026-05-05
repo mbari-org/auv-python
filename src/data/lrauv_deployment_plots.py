@@ -531,6 +531,26 @@ class DeploymentPlotter:
                 msg = f"chat.postMessage: {d.get('error')}"
                 raise RuntimeError(msg)
 
+    def _resolve_notify_targets(self, targets: list[str] | None) -> list[str] | None:
+        """Return the resolved list of notification targets, or None to skip.
+
+        Returns ``None`` when ``--notify`` was not given (targets is ``None``).
+        When ``--notify`` was given without values, falls back to ``LRAUV_NOTIFY``.
+        Returns ``None`` (with a warning) if no targets can be resolved.
+        """
+        if targets is None:
+            return None
+        non_empty = [t for t in targets if t]
+        resolved = non_empty or [
+            t.strip() for t in os.environ.get(ENV_LRAUV_NOTIFY, "").split(",") if t.strip()
+        ]
+        if not resolved:
+            self.logger.warning(
+                "--notify given but no targets found; set LRAUV_NOTIFY or pass a value"
+            )
+            return None
+        return resolved
+
     def _notify(  # noqa: PLR0912
         self,
         targets: list[str] | None,
@@ -546,18 +566,14 @@ class DeploymentPlotter:
         - starts with ``https://`` → treated as a Slack incoming-webhook URL
         - anything else → treated as an email address (sent via localhost SMTP)
 
-        When *targets* is ``None`` or empty (i.e. ``--notify`` was omitted), falls
-        back to the ``LRAUV_NOTIFY`` environment variable (comma-separated list).
-        Any explicitly provided targets override the environment variable entirely.
+        *targets* is ``None`` when ``--notify`` was not given at all — in that case
+        no notification is sent.  When ``--notify`` is given without an explicit value,
+        *targets* is an empty (or blank-only) list and the ``LRAUV_NOTIFY`` environment
+        variable is used as the target list.  Explicit ``--notify`` values always take
+        precedence over ``LRAUV_NOTIFY``.
         """
-        non_empty = [t for t in (targets or []) if t]
-        if non_empty:
-            notify_list = non_empty
-        else:
-            notify_list = [
-                t.strip() for t in os.environ.get(ENV_LRAUV_NOTIFY, "").split(",") if t.strip()
-            ]
-        if not notify_list:
+        notify_list = self._resolve_notify_targets(targets)
+        if notify_list is None:
             return
 
         for target in notify_list:
@@ -993,9 +1009,10 @@ class DeploymentPlotter:
             metavar="EMAIL_OR_WEBHOOK",
             help=(
                 "Send a notification when new plots are written. Provide an email"
-                " address or a Slack incoming-webhook URL. Repeat to notify multiple"
-                f" targets. When omitted, falls back to the {ENV_LRAUV_NOTIFY}"
-                " environment variable (comma-separated list)."
+                " address or a Slack channel ID (C...) or incoming-webhook URL."
+                " Repeat for multiple targets. If given without a value, targets"
+                f" are read from the {ENV_LRAUV_NOTIFY} environment variable."
+                " Omitting --notify entirely suppresses all notifications."
             ),
         )
         self.args = parser.parse_args()
