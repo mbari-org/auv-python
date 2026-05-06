@@ -22,6 +22,7 @@ import cmocean
 import contextily as ctx
 import gsw
 import matplotlib  # noqa: ICN001
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -218,6 +219,66 @@ class CreateProducts:
 
     # Override labels for variables whose name is not a good y-axis label.
     variable_display_names: dict[str, str] = {"density": "Sigma-t"}  # noqa: RUF012
+
+    # Maps dataset variable name → short human-readable label for use in plots and UIs.
+    variable_short_labels: dict[str, str] = {  # noqa: RUF012
+        # ── core oceanography ─────────────────────────────────────────────────
+        "density": "Density",
+        "ctd1_temperature": "Temperature",
+        "ctd2_temperature": "Temperature",
+        "ctd1_salinity": "Salinity",
+        "ctd2_salinity": "Salinity",
+        "isus_nitrate": "Nitrate",
+        "ctd1_oxygen_mll": "Oxygen",
+        "ctd2_oxygen_mll": "Oxygen",
+        # ── HS2 backscatter / fluorescence ────────────────────────────────────
+        "hs2_bbp420": "Backscatter 420nm",
+        "hs2_bbp470": "Backscatter 470nm",
+        "hs2_bbp676": "Backscatter 676nm",
+        "hs2_bbp700": "Backscatter 700nm",
+        "hs2_fl676": "Fluorescence 676nm",
+        "hs2_fl700": "Fluorescence 700nm",
+        "ecopuck_chla": "Chlorophyll",
+        # ── bioluminescence (Dorado) ───────────────────────────────────────────
+        "biolume_flow": "Flow",
+        "biolume_avg_biolume": "Bioluminescence",
+        "biolume_intflash": "Integrated Flash",
+        "biolume_bg_biolume": "Background Biolum.",
+        "biolume_nbflash_high": "High Flash Count",
+        "biolume_nbflash_low": "Low Flash Count",
+        "biolume_proxy_diatoms": "Diatom Proxy",
+        "biolume_proxy_adinos": "A-Dino Proxy",
+        "biolume_proxy_hdinos": "H-Dino Proxy",
+        # ── LRAUV CTD Seabird ─────────────────────────────────────────────────
+        "ctdseabird_sea_water_temperature": "Temperature",
+        "ctdseabird_sea_water_salinity": "Salinity",
+        "ctdseabird_mass_concentration_of_oxygen_in_sea_water": "Oxygen",
+        # ── LRAUV other ───────────────────────────────────────────────────────
+        "onboard_platform_average_current": "Current",
+        "bpc1_platform_battery_charge": "Battery",
+        "universals_platform_pitch_angle": "Pitch",
+        # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
+        "wetlabsbb2fl_particulatebackscatteringcoeff470nm": "Backscatter 470nm",
+        "wetlabsbb2fl_particulatebackscatteringcoeff650nm": "Backscatter 650nm",
+        "wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water": "Chlorophyll",
+        # ── LRAUV UBAT bioluminescence ────────────────────────────────────────
+        "wetlabsubat_flow_rate": "Flow",
+        "wetlabsubat_flow": "Flow",
+        "wetlabsubat_average_bioluminescence": "Bioluminescence",
+        "wetlabsubat_intflash": "Integrated Flash",
+        "wetlabsubat_bg_biolume": "Background Biolum.",
+        "wetlabsubat_nbflash_high": "High Flash Count",
+        "wetlabsubat_nbflash_low": "Low Flash Count",
+        "wetlabsubat_proxy_diatoms": "Diatom Proxy",
+        "wetlabsubat_proxy_adinos": "A-Dino Proxy",
+        "wetlabsubat_proxy_hdinos": "H-Dino Proxy",
+        # ── Planktivore ───────────────────────────────────────────────────────
+        "backseat_planktivore_hm_avgrois": "HM Avg ROIS",
+        "backseat_planktivore_lm_avgrois": "LM Avg ROIS",
+        "backseat_planktivore_casetemp": "Case Temp",
+        "backseat_planktivore_casehumidity": "Case Humidity",
+        "backseat_planktivore_casepress": "Case Pressure",
+    }
 
     # Fallback display metadata for variables that may be absent from the dataset
     # or whose NetCDF attributes are missing.  Each entry is (units, colormap).
@@ -1617,6 +1678,22 @@ class CreateProducts:
         cb = fig.colorbar(dummy_im, ax=curr_ax, pad=0.01)
         cb.set_ticks([])
 
+        short_label = self.variable_short_labels.get(var, "")
+        if short_label:
+            curr_ax.text(
+                0.5,
+                0.02,
+                short_label,
+                transform=curr_ax.transAxes,
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                color="white",
+                alpha=0.7,
+                zorder=10,
+                path_effects=[pe.withStroke(linewidth=1, foreground=(0, 0, 0, 0.3))],
+            )
+
         fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
@@ -1872,6 +1949,22 @@ class CreateProducts:
             cb.ax.set_yticklabels(labels)
 
         long_name, units, _ = self._resolve_label(var)
+
+        short_label = self.variable_short_labels.get(var, "")
+        if short_label:
+            curr_ax.text(
+                0.5,
+                0.02,
+                short_label,
+                transform=curr_ax.transAxes,
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                color="white",
+                alpha=0.7,
+                zorder=10,
+                path_effects=[pe.withStroke(linewidth=1, foreground=(0, 0, 0, 0.3))],
+            )
 
         fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
         if scale == "log" and units:
@@ -2151,6 +2244,22 @@ class CreateProducts:
                 cb.ax.set_yticklabels(labels)
 
         long_name, units, _ = self._resolve_label(var)
+
+        short_label = self.variable_short_labels.get(var, "")
+        if short_label:
+            curr_ax.text(
+                0.5,
+                0.02,
+                short_label,
+                transform=curr_ax.transAxes,
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                color="white",
+                alpha=0.7,
+                zorder=10,
+                path_effects=[pe.withStroke(linewidth=1, foreground=(0, 0, 0, 0.3))],
+            )
 
         fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
         if scale == "log" and units:
