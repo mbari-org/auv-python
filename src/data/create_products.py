@@ -1617,14 +1617,15 @@ class CreateProducts:
         cb = fig.colorbar(dummy_im, ax=curr_ax, pad=0.01)
         cb.set_ticks([])
 
+        fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
         if scale == "log" and units:
-            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
+            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
         elif scale == "log":
-            cb.set_label(f"{long_name}\n[log10]", fontsize=7)
+            cb.set_label(f"{long_name}\n[log10]", fontsize=fs)
         elif units:
-            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=fs)
         else:
-            cb.set_label(long_name, fontsize=8)
+            cb.set_label(long_name, fontsize=fs)
 
     def _plot_var(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
@@ -1872,14 +1873,15 @@ class CreateProducts:
 
         long_name, units, _ = self._resolve_label(var)
 
+        fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
         if scale == "log" and units:
-            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
+            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
         elif scale == "log":
-            cb.set_label(f"{long_name}\n[log10]", fontsize=7)
+            cb.set_label(f"{long_name}\n[log10]", fontsize=fs)
         elif units:
-            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=fs)
         else:
-            cb.set_label(long_name, fontsize=8)
+            cb.set_label(long_name, fontsize=fs)
 
         # Add CTD label for density, temperature, and salinity plots
         if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
@@ -2150,14 +2152,15 @@ class CreateProducts:
 
         long_name, units, _ = self._resolve_label(var)
 
+        fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
         if scale == "log" and units:
-            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=7)
+            cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
         elif scale == "log":
-            cb.set_label(f"{long_name}\n[log10]", fontsize=7)
+            cb.set_label(f"{long_name}\n[log10]", fontsize=fs)
         elif units:
-            cb.set_label(f"{long_name}\n[{units}]", fontsize=8)
+            cb.set_label(f"{long_name}\n[{units}]", fontsize=fs)
         else:
-            cb.set_label(long_name, fontsize=8)
+            cb.set_label(long_name, fontsize=fs)
 
         # Add CTD label for density, temperature, and salinity plots
         if best_ctd and (var == "density" or "_temperature" in var or "_salinity" in var):
