@@ -22,7 +22,6 @@ import cmocean
 import contextily as ctx
 import gsw
 import matplotlib  # noqa: ICN001
-import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -1687,11 +1686,16 @@ class CreateProducts:
                 transform=curr_ax.transAxes,
                 ha="center",
                 va="bottom",
-                fontsize=10,
-                color="white",
+                fontsize=14,
+                color="black",
                 alpha=0.7,
                 zorder=10,
-                path_effects=[pe.withStroke(linewidth=1, foreground=(0, 0, 0, 0.3))],
+                bbox={
+                    "boxstyle": "round,pad=0.15",
+                    "facecolor": "white",
+                    "alpha": 0.7,
+                    "edgecolor": "none",
+                },
             )
 
         fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
@@ -1959,11 +1963,16 @@ class CreateProducts:
                 transform=curr_ax.transAxes,
                 ha="center",
                 va="bottom",
-                fontsize=10,
-                color="white",
+                fontsize=14,
+                color="black",
                 alpha=0.7,
                 zorder=10,
-                path_effects=[pe.withStroke(linewidth=1, foreground=(0, 0, 0, 0.3))],
+                bbox={
+                    "boxstyle": "round,pad=0.15",
+                    "facecolor": "white",
+                    "alpha": 0.7,
+                    "edgecolor": "none",
+                },
             )
 
         fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
@@ -2254,11 +2263,16 @@ class CreateProducts:
                 transform=curr_ax.transAxes,
                 ha="center",
                 va="bottom",
-                fontsize=10,
-                color="white",
+                fontsize=14,
+                color="black",
                 alpha=0.7,
                 zorder=10,
-                path_effects=[pe.withStroke(linewidth=1, foreground=(0, 0, 0, 0.3))],
+                bbox={
+                    "boxstyle": "round,pad=0.15",
+                    "facecolor": "white",
+                    "alpha": 0.7,
+                    "edgecolor": "none",
+                },
             )
 
         fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
