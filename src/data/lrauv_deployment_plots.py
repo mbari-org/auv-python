@@ -368,12 +368,13 @@ class DeploymentPlotter:
                     other_png_paths=[p for p in png_paths if p != png_path],
                 )
                 self.logger.info("Per-PNG HTML written to %s", per_png_html)
-        archiver = Archiver(add_handlers=True, clobber=True)
-        archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
-        archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
         html_paths = [
             Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
+        self._update_index_html(deployment_dir, html_paths)
+        archiver = Archiver(add_handlers=True, clobber=True)
+        archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
+        archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
         self._notify(notify, raw_name or plot_name_stem, html_paths, force=force)
         if update_ssds_provenance:
             self._submit_provenance(
@@ -384,6 +385,62 @@ class DeploymentPlotter:
                 png_paths=png_paths,
                 nc_files=nc_files,
             )
+
+    def _update_index_html(self, deployment_dir: Path, html_paths: list[Path]) -> None:
+        """Create or update quick_look_plots.html in the YYYY parent directory.
+
+        Each entry shows a quarter-size thumbnail linking to the HTML page,
+        followed by the relative path as a text link.  Repeated runs are safe —
+        existing hrefs are preserved and duplicates are skipped.
+        """
+        year_dir = deployment_dir.parent
+        index_path = year_dir / "quick_look_plots.html"
+        dlist_dir = deployment_dir.name
+
+        known_hrefs: set[str] = set()
+        if index_path.exists():
+            content = index_path.read_text()
+            known_hrefs = set(re.findall(r'href="([^"#][^"]*\.html)"', content))
+
+        for html_path in sorted(html_paths):
+            known_hrefs.add(f"{dlist_dir}/{html_path.name}")
+
+        items = ""
+        for href in sorted(known_hrefs):
+            png_href = href[:-5] + ".png"
+            png_path = year_dir / png_href
+            if png_path.exists():
+                items += (
+                    "<p>\n"
+                    f'  <a href="{href}">'
+                    f'<img src="{png_href}" width="25%" alt="{href}"><br>{href}</a>\n'
+                    "</p>\n"
+                )
+            else:
+                items += f'<p><a href="{href}">{href}</a></p>\n'
+
+        year_label = year_dir.name
+        vehicle = deployment_dir.parts[-4] if len(deployment_dir.parts) > 4 else ""  # noqa: PLR2004
+        title = (
+            f"Quick Look Plots — {vehicle} {year_label}"
+            if vehicle
+            else f"Quick Look Plots — {year_label}"
+        )
+        html = (
+            "<!DOCTYPE html>\n"
+            '<html lang="en">\n'
+            "<head>\n"
+            '  <meta charset="utf-8">\n'
+            f"  <title>{title}</title>\n"
+            "</head>\n"
+            "<body>\n"
+            f"<h1>{title}</h1>\n"
+            f"{items}"
+            "</body>\n"
+            "</html>\n"
+        )
+        index_path.write_text(html)
+        self.logger.info("Updated index: %s", index_path)
 
     def _send_notify_email(
         self,
