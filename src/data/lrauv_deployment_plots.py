@@ -371,7 +371,7 @@ class DeploymentPlotter:
         html_paths = [
             Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
-        self._update_index_html(deployment_dir, html_paths)
+        self._update_index_html(deployment_dir, html_paths, deployment_name=raw_name, clobber=force)
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
@@ -386,38 +386,61 @@ class DeploymentPlotter:
                 nc_files=nc_files,
             )
 
-    def _update_index_html(self, deployment_dir: Path, html_paths: list[Path]) -> None:
+    def _update_index_html(
+        self,
+        deployment_dir: Path,
+        html_paths: list[Path],
+        deployment_name: str | None = None,
+        clobber: bool = False,  # noqa: FBT001, FBT002
+    ) -> None:
         """Create or update quick_look_plots.html in the YYYY parent directory.
 
-        Each entry shows a quarter-size thumbnail linking to the HTML page,
-        followed by the relative path as a text link.  Repeated runs are safe —
-        existing hrefs are preserved and duplicates are skipped.
+        Each deployment gets an <h2> header (the deployment name when available,
+        otherwise the dlist directory name) and a table row of thumbnails.
+        Repeated runs are safe — existing hrefs and names are preserved.
+        Pass clobber=True to discard the existing file and start fresh.
         """
         year_dir = deployment_dir.parent
         index_path = year_dir / "quick_look_plots.html"
         dlist_dir = deployment_dir.name
 
         known_hrefs: set[str] = set()
-        if index_path.exists():
+        group_names: dict[str, str] = {}  # dlist_dir → deployment name
+        if not clobber and index_path.exists():
             content = index_path.read_text()
             known_hrefs = set(re.findall(r'href="([^"#][^"]*\.html)"', content))
+            group_names = dict(re.findall(r'<h2 id="([^"]+)">([^<]+)</h2>', content))
+
+        group_names[dlist_dir] = deployment_name or group_names.get(dlist_dir, dlist_dir)
 
         for html_path in sorted(html_paths):
             known_hrefs.add(f"{dlist_dir}/{html_path.name}")
 
-        items = ""
+        # Group hrefs by deployment directory (the prefix before '/')
+        grouped: dict[str, list[str]] = {}
         for href in sorted(known_hrefs):
-            png_href = href[:-5] + ".png"
-            png_path = year_dir / png_href
-            if png_path.exists():
-                items += (
-                    "<p>\n"
-                    f'  <a href="{href}">'
-                    f'<img src="{png_href}" width="25%" alt="{href}"><br>{href}</a>\n'
-                    "</p>\n"
-                )
-            else:
-                items += f'<p><a href="{href}">{href}</a></p>\n'
+            group = href.split("/")[0] if "/" in href else ""
+            grouped.setdefault(group, []).append(href)
+
+        body = ""
+        for group in sorted(grouped):
+            label = group_names.get(group, group)
+            body += f'<h2 id="{group}">{label}</h2>\n'
+            body += '<table width="100%">\n<tr>\n'
+            for href in grouped[group]:
+                png_href = href[:-5] + ".png"
+                png_path = year_dir / png_href
+                body += '  <td valign="top">\n'
+                if png_path.exists():
+                    body += (
+                        f'    <a href="{href}">'
+                        f'<img src="{png_href}" width="100%" alt="{href}"><br>'
+                        f"{Path(href).name}</a>\n"
+                    )
+                else:
+                    body += f'    <a href="{href}">{Path(href).name}</a>\n'
+                body += "  </td>\n"
+            body += "</tr>\n</table>\n"
 
         year_label = year_dir.name
         vehicle = deployment_dir.parts[-4] if len(deployment_dir.parts) > 4 else ""  # noqa: PLR2004
@@ -435,7 +458,7 @@ class DeploymentPlotter:
             "</head>\n"
             "<body>\n"
             f"<h1>{title}</h1>\n"
-            f"{items}"
+            f"{body}"
             "</body>\n"
             "</html>\n"
         )
@@ -1035,6 +1058,36 @@ class DeploymentPlotter:
                         self.logger.debug("No .dlist sibling found for %s", date_range_dir)
         return dlists
 
+    def build_index_for_dlist(self, dlist: str, force: bool = False) -> None:  # noqa: FBT001, FBT002
+        """Update quick_look_plots.html from existing HTML files in the deployment directory.
+
+        No plots are generated.  Useful for rebuilding the index after files are
+        moved, renamed, or when the index is out of sync.
+        """
+        dlist_rel = Path(dlist)
+        if dlist_rel.is_absolute():
+            deployment_dir = dlist_rel.parent / dlist_rel.stem
+        else:
+            deployment_dir = Path(BASE_LRAUV_PATH, dlist_rel.parent, dlist_rel.stem)
+
+        if not deployment_dir.is_dir():
+            self.logger.warning("Deployment directory not found: %s", deployment_dir)
+            return
+
+        html_paths = sorted(deployment_dir.glob("*.html"))
+        if not html_paths:
+            self.logger.warning("No HTML files found in %s", deployment_dir)
+            return
+
+        dlist_content = self._read_dlist_content(dlist)
+        deployment_name = self._parse_deployment_name(dlist_content) if dlist_content else None
+        self.logger.info(
+            "Building index for %s (%d HTML file(s))", deployment_dir.name, len(html_paths)
+        )
+        self._update_index_html(
+            deployment_dir, html_paths, deployment_name=deployment_name, clobber=force
+        )
+
     def process_command_line(self) -> None:
         parser = argparse.ArgumentParser(
             description=__doc__,
@@ -1100,6 +1153,15 @@ class DeploymentPlotter:
             ),
         )
         parser.add_argument(
+            "--build_index",
+            action="store_true",
+            help=(
+                "Only rebuild quick_look_plots.html for the specified deployment(s)."
+                " Scans existing HTML files in each deployment directory and updates"
+                " the index. No plots are generated or regenerated."
+            ),
+        )
+        parser.add_argument(
             "--notify",
             action="append",
             nargs="?",
@@ -1144,10 +1206,13 @@ if __name__ == "__main__":
         sys.exit(0)
 
     for dlist in dlists:
-        dp.plot_deployment(
-            dlist,
-            verbose=args.verbose,
-            update_ssds_provenance=args.update_ssds_provenance,
-            force=args.force,
-            notify=args.notify,
-        )
+        if args.build_index:
+            dp.build_index_for_dlist(dlist, force=args.force)
+        else:
+            dp.plot_deployment(
+                dlist,
+                verbose=args.verbose,
+                update_ssds_provenance=args.update_ssds_provenance,
+                force=args.force,
+                notify=args.notify,
+            )
