@@ -1360,6 +1360,14 @@ class CreateProducts:
             lon_bounds = [valid_lons.min() - lon_margin, valid_lons.max() + lon_margin]
             lat_bounds = [valid_lats.min() - lat_margin, valid_lats.max() + lat_margin]
         x_bounds, y_bounds = transformer.transform(lon_bounds, lat_bounds)
+
+        # Expand the smaller Mercator dimension so the map area is always square.
+        half = max(x_bounds[1] - x_bounds[0], y_bounds[1] - y_bounds[0]) / 2
+        x_mid = (x_bounds[0] + x_bounds[1]) / 2
+        y_mid = (y_bounds[0] + y_bounds[1]) / 2
+        x_bounds = [x_mid - half, x_mid + half]
+        y_bounds = [y_mid - half, y_mid + half]
+
         map_ax.set_xlim(x_bounds)
         map_ax.set_ylim(y_bounds)
 
