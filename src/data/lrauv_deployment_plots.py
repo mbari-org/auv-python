@@ -715,6 +715,23 @@ class DeploymentPlotter:
                     return url
         return fallback
 
+    def _duration_min_from_nc_url(self, nc_url: str) -> int | None:
+        """Parse start/end timestamps from nc filename and return duration in minutes.
+
+        Expects filenames like ``202506092228_202506101928_1S.nc`` where each
+        timestamp is ``YYYYMMDDHHNN`` (12 digits).
+        """
+        fname = nc_url.rsplit("/", 1)[-1]
+        m = re.match(r"(\d{12})_(\d{12})", fname)
+        if not m:
+            return None
+        try:
+            t0 = datetime.strptime(m.group(1), "%Y%m%d%H%M").replace(tzinfo=UTC)
+            t1 = datetime.strptime(m.group(2), "%Y%m%d%H%M").replace(tzinfo=UTC)
+            return int((t1 - t0).total_seconds() / 60)
+        except ValueError:
+            return None
+
     def _per_log_png_links(self, nc_urls: list[str]) -> list[tuple[str, str]]:
         """Return (url, label) pairs for each existing per-log PNG."""
         parts: list[tuple[str, str]] = []
@@ -756,14 +773,38 @@ class DeploymentPlotter:
             nc_urls = grouped[log_dir]
             log_stoqs_url = self._per_log_stoqs_url(nc_urls, auv_name, stoqs_url)
             png_links = self._per_log_png_links(nc_urls)
+
+            dap_links = []
+            for nc_url in nc_urls:
+                nc4_url = re.sub(rf"_{FREQ}\.nc$", ".nc4", nc_url)
+                dap_links.append(
+                    f'<a href="{nc4_url}.html" {nt}>Original .nc4</a>'
+                    f"<br>"
+                    f'<a href="{nc_url}.html" {nt}>Resampled .nc</a>'
+                )
+
+            stoqs_label = "STOQS"
+            if log_stoqs_url:
+                dur_min = next(
+                    (
+                        d
+                        for nc_url in nc_urls
+                        if (d := self._duration_min_from_nc_url(nc_url)) is not None
+                    ),
+                    None,
+                )
+                after_scheme = log_stoqs_url.split("//", 1)[-1]
+                db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
+                stoqs_label = f"{dur_min} min from {db_label}" if dur_min is not None else db_label
+
             rows.append(
                 {
                     "dir": log_dir,
                     "plots": "<br>".join(f'<a href="{u}" {nt}>{lbl}</a>' for u, lbl in png_links),
-                    "dap": "".join(
-                        f'<a href="{nc_url}.html" {nt}>OPeNDAP</a>' for nc_url in nc_urls
+                    "dap": "<br>".join(dap_links),
+                    "stoqs": (
+                        f'<a href="{log_stoqs_url}" {nt}>{stoqs_label}</a>' if log_stoqs_url else ""
                     ),
-                    "stoqs": f'<a href="{log_stoqs_url}" {nt}>STOQS</a>' if log_stoqs_url else "",
                 }
             )
 
@@ -780,7 +821,7 @@ class DeploymentPlotter:
             log_rows += f"    <tr><td>{r['dir']}</td>{data_cells}</tr>\n"
 
         log_table = (
-            "  <table>\n"
+            '  <table border="1" cellpadding="4" cellspacing="0">\n'
             f"    <thead><tr>{header_cells}</tr></thead>\n"
             "    <tbody>\n"
             f"{log_rows}"
