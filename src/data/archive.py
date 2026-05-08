@@ -323,20 +323,27 @@ class Archiver:
             self.logger.warning("%s not found; is %s mounted?", dst_dir, LRAUV_VOL)
             return
         dst_dir.mkdir(parents=True, exist_ok=True)
-        candidates = list(deployment_dir.glob(f"{plot_name_stem}_*.png"))
-        candidates.append(deployment_dir / f"{plot_name_stem}.html")
-        candidates.extend(deployment_dir.glob(f"{plot_name_stem}_*.html"))
-        for src_file in candidates:
+        candidates: list[tuple[Path, Path]] = [
+            (src, dst_dir / src.name)
+            for src in (
+                list(deployment_dir.glob(f"{plot_name_stem}_*.png"))
+                + [deployment_dir / f"{plot_name_stem}.html"]
+                + list(deployment_dir.glob(f"{plot_name_stem}_*.html"))
+            )
+        ]
+        index_src = deployment_dir.parent / "quick_look_plots.html"
+        if index_src.exists():
+            candidates.append((index_src, dst_dir.parent / index_src.name))
+        for src_file, dst_file in candidates:
             if not src_file.exists():
                 self.logger.debug("Source file not found, skipping: %s", src_file)
                 continue
-            dst_file = dst_dir / src_file.name
             if self.clobber:
                 if dst_file.exists():
                     self.logger.info("Removing %s", dst_file)
                     dst_file.unlink()
                 shutil.copyfile(src_file, dst_file)
-                self.logger.info("copyfile %s %s done.", src_file.name, dst_dir)
+                self.logger.info("copyfile %s %s done.", src_file.name, dst_file.parent)
             elif dst_file.exists():
                 self.logger.info(
                     "%-60s exists, but is not being archived because --clobber is not specified.",
