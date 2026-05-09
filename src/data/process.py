@@ -703,6 +703,7 @@ class Processor:
 
         cp.plot_biolume_2column()
         cp.plot_planktivore_2column()
+        cp.plot_engineering_2column()
         cp.plot_2column()
         if mission and "dorado" in cp.auv_name.lower():
             cp.gulper_odv()

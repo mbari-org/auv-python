@@ -306,6 +306,7 @@ class DeploymentPlotter:
                 cp.plot_2column(),
                 cp.plot_biolume_2column(),
                 cp.plot_planktivore_2column(),
+                cp.plot_engineering_2column(),
             )
             if p is not None
         ]
@@ -971,11 +972,17 @@ class DeploymentPlotter:
         )
         html_path.write_text(html, encoding="utf-8")
 
-    _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
+    _PLOT_KINDS = (
+        "2column_cmocean",
+        "2column_biolume",
+        "2column_planktivore",
+        "2column_engineering",
+    )
     _PLOT_KIND_LABELS = {
         "2column_cmocean": "Standard",
         "2column_biolume": "Bioluminescence",
         "2column_planktivore": "Planktivore",
+        "2column_engineering": "Engineering",
     }
 
     def _png_urls_for_nc(self, nc_url: str) -> list[str]:

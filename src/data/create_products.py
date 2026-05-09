@@ -214,10 +214,12 @@ class CreateProducts:
     }
 
     centered_vars = {"pitch_angle"}  # noqa: RUF012
-    scatter_marker_size = {"average_current": 5, "battery_charge": 10}  # noqa: RUF012
+    scatter_marker_size = {"average_current": 5, "battery_charge": 10, "battery_voltage": 10}  # noqa: RUF012
 
     # Override labels for variables whose name is not a good y-axis label.
-    variable_display_names: dict[str, str] = {"density": "Sigma-t"}  # noqa: RUF012
+    variable_display_names: dict[str, str] = {  # noqa: RUF012
+        "density": "Sigma-t",
+    }
 
     # Maps dataset variable name → short human-readable label for use in plots and UIs.
     variable_short_labels: dict[str, str] = {  # noqa: RUF012
@@ -253,9 +255,18 @@ class CreateProducts:
         "ctdseabird_sea_water_salinity": "Salinity",
         "ctdseabird_mass_concentration_of_oxygen_in_sea_water": "Oxygen",
         # ── LRAUV other ───────────────────────────────────────────────────────
+        "parlicor_downwelling_photosynthetic_photon_flux_in_sea_water": "PAR",
         "onboard_platform_average_current": "Current",
-        "bpc1_platform_battery_charge": "Battery",
+        "bpc1_platform_battery_charge": "Battery Charge",
+        "bpc1_platform_battery_voltage": "Battery Voltage",
+        "universals_platform_yaw_angle": "Heading",
         "universals_platform_pitch_angle": "Pitch",
+        "universals_platform_roll_angle": "Roll",
+        "universals_platform_speed_wrt_sea_water": "Speed",
+        "buoyancyservo_platform_buoyancy_position": "Buoyancy",
+        "elevatorservo_platform_elevator_angle": "Elevator",
+        "massservo_platform_mass_position": "Mass Position",
+        "rudderservo_platform_rudder_angle": "Rudder",
         # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
         "wetlabsbb2fl_particulatebackscatteringcoeff470nm": "Backscatter 470nm",
         "wetlabsbb2fl_particulatebackscatteringcoeff650nm": "Backscatter 650nm",
@@ -314,9 +325,18 @@ class CreateProducts:
         "ctdseabird_sea_water_salinity": ("psu", "haline"),
         "ctdseabird_mass_concentration_of_oxygen_in_sea_water": ("ug/l", "oxy"),
         # ── LRAUV other ───────────────────────────────────────────────────────
+        "parlicor_downwelling_photosynthetic_photon_flux_in_sea_water": ("umol/s/m2", "solar"),
         "onboard_platform_average_current": ("mA", "jet"),
         "bpc1_platform_battery_charge": ("Ah", "jet"),
+        "bpc1_platform_battery_voltage": ("V", "jet"),
+        "universals_platform_yaw_angle": ("degrees", "twilight"),
         "universals_platform_pitch_angle": ("degrees", "balance"),
+        "universals_platform_roll_angle": ("degrees", "balance"),
+        "universals_platform_speed_wrt_sea_water": ("m/s", "speed"),
+        "buoyancyservo_platform_buoyancy_position": ("m", "gray"),
+        "elevatorservo_platform_elevator_angle": ("degrees", "balance"),
+        "massservo_platform_mass_position": ("m", "gray"),
+        "rudderservo_platform_rudder_angle": ("degrees", "balance"),
         # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
         "wetlabsbb2fl_particulatebackscatteringcoeff470nm": ("1/m", "BuPu"),
         "wetlabsbb2fl_particulatebackscatteringcoeff650nm": ("1/m", "Reds"),
@@ -338,6 +358,17 @@ class CreateProducts:
         "backseat_planktivore_casetemp": ("°C", "thermal"),
         "backseat_planktivore_casehumidity": ("%", "PuBu"),
         "backseat_planktivore_casepress": ("dbar", "deep"),
+    }
+
+    # Unit conversions applied only during plotting: var → (factor, display_units).
+    # The raw dataset values are multiplied by factor; display_units overrides the label.
+    variable_plot_conversions: dict[str, tuple[float, str]] = {  # noqa: RUF012
+        "ctdseabird_mass_concentration_of_oxygen_in_sea_water": (1e-3, "mg/l"),
+    }
+
+    # Per-variable colorbar tick format string, overrides the generic magnitude-based logic.
+    variable_colorbar_format: dict[str, str] = {  # noqa: RUF012
+        "ctdseabird_mass_concentration_of_oxygen_in_sea_water": "{:.1f}",
     }
 
     def _open_ds(self):
@@ -507,8 +538,8 @@ class CreateProducts:
             ("density", "linear"),
             ("ctdseabird_sea_water_temperature", "linear"),
             ("ctdseabird_sea_water_salinity", "linear"),
-            ("bpc1_platform_battery_charge", "linear"),
             ("ctdseabird_mass_concentration_of_oxygen_in_sea_water", "linear"),
+            ("parlicor_downwelling_photosynthetic_photon_flux_in_sea_water", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
@@ -573,6 +604,20 @@ class CreateProducts:
             ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
             ("backseat_planktivore_casepress", "linear"),
+        ]
+
+    def _get_lrauv_engineering_plot_variables(self) -> list:
+        """Get LRAUV engineering/platform variables for plot_engineering_2column()."""
+        return [
+            ("bpc1_platform_battery_charge", "linear"),
+            ("bpc1_platform_battery_voltage", "linear"),
+            ("onboard_platform_average_current", "linear"),
+            ("universals_platform_speed_wrt_sea_water", "linear"),
+            ("universals_platform_yaw_angle", "linear"),
+            ("universals_platform_roll_angle", "linear"),
+            ("buoyancyservo_platform_buoyancy_position", "linear"),
+            ("elevatorservo_platform_elevator_angle", "linear"),
+            ("massservo_platform_mass_position", "linear"),
         ]
 
     def _log_file_distance_ranges(self, distnav: xr.DataArray) -> list[tuple[str, float, float]]:
@@ -1595,6 +1640,12 @@ class CreateProducts:
 
         return "\n".join(lines)
 
+    def _apply_plot_conversion(self, var: str, data: np.ndarray) -> np.ndarray:
+        """Multiply data by the per-variable plot conversion factor, if any."""
+        if var in self.variable_plot_conversions:
+            return data * self.variable_plot_conversions[var][0]
+        return data
+
     def _resolve_label(self, var: str) -> tuple[str, str, str]:
         """Return (display_name, units, colormap) for a variable.
 
@@ -1611,6 +1662,9 @@ class CreateProducts:
             else:
                 units = ""
                 color_map_name = self._get_colormap_name(var)
+
+        if var in self.variable_plot_conversions:
+            units = self.variable_plot_conversions[var][1]
 
         if len(long_name) > self.MAX_LONG_NAME_LENGTH:
             long_name = var
@@ -1706,7 +1760,9 @@ class CreateProducts:
                 },
             )
 
-        fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
+        fs = 7 if "particulatebackscatter" in var else (9 if scale == "log" else 11)
+        if "oxygen" in var:
+            fs -= 1
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
         elif scale == "log":
@@ -1797,10 +1853,10 @@ class CreateProducts:
         else:
             if scale == "log":
                 # Filter out zeros and negative values before log10 to avoid warnings
-                data = self.ds[var].to_numpy()
+                data = self._apply_plot_conversion(var, self.ds[var].to_numpy())
                 var_to_plot = np.where(data > 0, np.log10(data), np.nan)
             else:
-                var_to_plot = self.ds[var].to_numpy()
+                var_to_plot = self._apply_plot_conversion(var, self.ds[var].to_numpy())
             # Filter out both NaN and infinite values
             valid_data = var_to_plot[~np.isnan(var_to_plot) & ~np.isinf(var_to_plot)]
             if len(valid_data) == 0:
@@ -1931,31 +1987,30 @@ class CreateProducts:
         # Format tick labels intelligently based on value range
         tick_values = cb.get_ticks()
         if len(tick_values) > 0:
-            value_range = abs(tick_values.max() - tick_values.min())
-            max_val = abs(tick_values).max()
-
-            # Threshold constants for tick label formatting
-            VERY_LARGE_VALUE_THRESHOLD = 9_999
-            LARGE_VALUE_THRESHOLD = 100
-            LARGE_RANGE_THRESHOLD = 10
-            MEDIUM_VALUE_THRESHOLD = 10
-
-            # Choose format based on magnitude and range
-            if max_val > VERY_LARGE_VALUE_THRESHOLD:
-                # Very large values (e.g. flash intensity): use scientific notation
-                labels = [f"{x:.3g}" for x in tick_values]
-            elif max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
-                # Large values or large range: use integers
-                labels = [f"{int(round(x))}" for x in tick_values]
-            elif max_val >= MEDIUM_VALUE_THRESHOLD:
-                # Medium values: 1 decimal place
-                labels = [f"{x:.1f}" for x in tick_values]
-            elif max_val >= 1:
-                # Values around 1-10: 2 decimal places
-                labels = [f"{x:.2f}" for x in tick_values]
+            if var in self.variable_colorbar_format:
+                fmt = self.variable_colorbar_format[var]
+                labels = [fmt.format(x) for x in tick_values]
             else:
-                # Small values: use scientific notation
-                labels = [f"{x:.2g}" for x in tick_values]
+                value_range = abs(tick_values.max() - tick_values.min())
+                max_val = abs(tick_values).max()
+
+                # Threshold constants for tick label formatting
+                VERY_LARGE_VALUE_THRESHOLD = 9_999
+                LARGE_VALUE_THRESHOLD = 100
+                LARGE_RANGE_THRESHOLD = 10
+                MEDIUM_VALUE_THRESHOLD = 10
+
+                # Choose format based on magnitude and range
+                if max_val > VERY_LARGE_VALUE_THRESHOLD:
+                    labels = [f"{x:.3g}" for x in tick_values]
+                elif max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                    labels = [f"{int(round(x))}" for x in tick_values]
+                elif max_val >= MEDIUM_VALUE_THRESHOLD:
+                    labels = [f"{x:.1f}" for x in tick_values]
+                elif max_val >= 1:
+                    labels = [f"{x:.2f}" for x in tick_values]
+                else:
+                    labels = [f"{x:.2g}" for x in tick_values]
 
             cb.ax.set_yticks(tick_values)
             cb.ax.set_yticklabels(labels)
@@ -1983,7 +2038,9 @@ class CreateProducts:
                 },
             )
 
-        fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
+        fs = 7 if "particulatebackscatter" in var else (9 if scale == "log" else 11)
+        if "oxygen" in var:
+            fs -= 1
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
         elif scale == "log":
@@ -2037,10 +2094,10 @@ class CreateProducts:
         else:
             if scale == "log":
                 # Filter out zeros and negative values before log10 to avoid warnings
-                data = self.ds[var].to_numpy()
+                data = self._apply_plot_conversion(var, self.ds[var].to_numpy())
                 var_to_plot = np.where(data > 0, np.log10(data), np.nan)
             else:
-                var_to_plot = self.ds[var].to_numpy()
+                var_to_plot = self._apply_plot_conversion(var, self.ds[var].to_numpy())
             # Filter out both NaN and infinite values (e.g., log10(0) = -inf)
             valid_data = var_to_plot[~np.isnan(var_to_plot) & ~np.isinf(var_to_plot)]
             if len(valid_data) == 0:
@@ -2231,31 +2288,30 @@ class CreateProducts:
         else:
             tick_values = cb.get_ticks()
             if len(tick_values) > 0:
-                value_range = abs(tick_values.max() - tick_values.min())
-                max_val = abs(tick_values).max()
-
-                # Threshold constants for tick label formatting
-                VERY_LARGE_VALUE_THRESHOLD = 9_999
-                LARGE_VALUE_THRESHOLD = 100
-                LARGE_RANGE_THRESHOLD = 10
-                MEDIUM_VALUE_THRESHOLD = 10
-
-                # Choose format based on magnitude and range
-                if max_val > VERY_LARGE_VALUE_THRESHOLD:
-                    # Very large values (e.g. flash intensity): use scientific notation
-                    labels = [f"{x:.3g}" for x in tick_values]
-                elif max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
-                    # Large values or large range: use integers
-                    labels = [f"{int(round(x))}" for x in tick_values]
-                elif max_val >= MEDIUM_VALUE_THRESHOLD:
-                    # Medium values: 1 decimal place
-                    labels = [f"{x:.1f}" for x in tick_values]
-                elif max_val >= 1:
-                    # Values around 1-10: 2 decimal places
-                    labels = [f"{x:.2f}" for x in tick_values]
+                if var in self.variable_colorbar_format:
+                    fmt = self.variable_colorbar_format[var]
+                    labels = [fmt.format(x) for x in tick_values]
                 else:
-                    # Small values: use scientific notation
-                    labels = [f"{x:.2g}" for x in tick_values]
+                    value_range = abs(tick_values.max() - tick_values.min())
+                    max_val = abs(tick_values).max()
+
+                    # Threshold constants for tick label formatting
+                    VERY_LARGE_VALUE_THRESHOLD = 9_999
+                    LARGE_VALUE_THRESHOLD = 100
+                    LARGE_RANGE_THRESHOLD = 10
+                    MEDIUM_VALUE_THRESHOLD = 10
+
+                    # Choose format based on magnitude and range
+                    if max_val > VERY_LARGE_VALUE_THRESHOLD:
+                        labels = [f"{x:.3g}" for x in tick_values]
+                    elif max_val >= LARGE_VALUE_THRESHOLD or value_range >= LARGE_RANGE_THRESHOLD:
+                        labels = [f"{int(round(x))}" for x in tick_values]
+                    elif max_val >= MEDIUM_VALUE_THRESHOLD:
+                        labels = [f"{x:.1f}" for x in tick_values]
+                    elif max_val >= 1:
+                        labels = [f"{x:.2f}" for x in tick_values]
+                    else:
+                        labels = [f"{x:.2g}" for x in tick_values]
 
                 cb.ax.set_yticks(tick_values)
                 cb.ax.set_yticklabels(labels)
@@ -2283,7 +2339,9 @@ class CreateProducts:
                 },
             )
 
-        fs = 7 if "particulatebackscatter" in var else (8 if scale == "log" else 9)
+        fs = 7 if "particulatebackscatter" in var else (9 if scale == "log" else 11)
+        if "oxygen" in var:
+            fs -= 1
         if scale == "log" and units:
             cb.set_label(f"{long_name}\n[log10({units})]", fontsize=fs)
         elif scale == "log":
@@ -2859,6 +2917,116 @@ class CreateProducts:
         self.logger.info("Saved planktivore 2column plot to %s", output_file)
         if not self._is_lrauv():
             self._write_dorado_mission_html(output_file)
+        return str(output_file)
+
+    def plot_engineering_2column(self) -> str:  # noqa: C901, PLR0912, PLR0915
+        """Create 2-column engineering plot with map and LRAUV platform/engineering variables."""
+        if "pytest" in sys.modules:
+            self.logger.info("Skipping plot_engineering_2column in pytest environment")
+            return None
+
+        if not self._is_lrauv():
+            self.logger.info("Skipping plot_engineering_2column for non-LRAUV mission")
+            return None
+
+        self._open_ds()
+
+        plot_variables = self._get_lrauv_engineering_plot_variables()
+        if not any(var in self.ds for var, _ in plot_variables):
+            self.logger.warning(
+                "No engineering plot variables found in dataset, skipping plot_engineering_2column",
+            )
+            return None
+
+        idist, iz, distnav = self._grid_dims([var for var, _ in plot_variables])
+        if idist.size == 0 or iz.size == 0 or distnav.size == 0:
+            self.logger.warning(
+                "Skipping plot_engineering_2column due to missing gridding dimensions"
+            )
+            return None
+
+        fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(18, 10))
+        plt.subplots_adjust(hspace=0.15, wspace=0.04, left=0.05, right=0.97, top=0.96, bottom=0.06)
+
+        self._compute_density_lrauv()
+
+        self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
+
+        try:
+            profile_bottoms = self._profile_bottoms(distnav)
+        except (TypeError, ValueError) as e:
+            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
+            profile_bottoms = None
+
+        try:
+            bottom_depths = self._get_bathymetry(
+                self.ds.cf["longitude"].to_numpy(),
+                self.ds.cf["latitude"].to_numpy(),
+            )
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
+            bottom_depths = None
+
+        row = 1
+        col = 0
+
+        for var, scale in plot_variables:
+            self.logger.info("Plotting %s...", var)
+            if var not in self.ds:
+                self.logger.warning("%s not in dataset, plotting with no data", var)
+
+            self._plot_var(
+                var,
+                idist,
+                iz,
+                distnav,
+                fig,
+                ax,
+                row,
+                col,
+                profile_bottoms,
+                scale=scale,
+                gulper_locations={},
+                bottom_depths=bottom_depths,
+                best_ctd=None,
+            )
+            if row != 4:  # noqa: PLR2004
+                ax[row, col].get_xaxis().set_visible(False)
+            else:
+                ax[row, col].set_xlabel("Distance along track (km)")
+
+            if row == 4 and col == 0:  # noqa: PLR2004
+                row = 0
+                col = 1
+            else:
+                row += 1
+
+        self._plot_nighttime_indicator(fig, ax[0, 1], distnav)
+        self._plot_log_file_boundaries(fig, ax[0, 0], ax[1, 0], distnav)
+
+        out_dir = (
+            self.output_dir
+            if self.output_dir is not None
+            else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+        )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stem = self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+        output_file = Path(out_dir, f"{stem}_{self.freq}_2column_engineering.png")
+        created = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        fig.text(
+            0,
+            0,
+            f"Created by auv-python's create_products.py on {created}.",
+            fontsize=6,
+            fontstyle="italic",
+            ha="left",
+            va="bottom",
+        )
+        plt.savefig(output_file, dpi=100, bbox_inches="tight")
+        plt.show()
+        plt.close(fig)
+
+        self.logger.info("Saved engineering 2column plot to %s", output_file)
         return str(output_file)
 
     def _get_best_ctd(self) -> str:
