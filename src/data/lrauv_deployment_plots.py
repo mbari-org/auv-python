@@ -306,6 +306,7 @@ class DeploymentPlotter:
                 cp.plot_2column(),
                 cp.plot_biolume_2column(),
                 cp.plot_planktivore_2column(),
+                cp.plot_engineering_2column(),
             )
             if p is not None
         ]
@@ -342,10 +343,7 @@ class DeploymentPlotter:
     ) -> None:
         """Fetch STOQS permalink and write per-PNG HTML pages."""
         dlist_no_ext = str(Path(dlist).with_suffix(""))
-        html_title = (
-            "Combined, Aligned, and Resampled LRAUV instrument data from "
-            f"Deployment\n{raw_name or plot_name_stem}\n{dlist_no_ext}"
-        )
+        html_title = f"{raw_name or plot_name_stem}\n{dlist_no_ext}"
         stoqs_url = None
         try:
             stoqs_url = stoqs_url_from_ds(combined_ds, auv_name=dlist.split("/")[0])
@@ -925,7 +923,10 @@ class DeploymentPlotter:
         if stoqs_url:
             after_scheme = stoqs_url.split("//", 1)[-1] if "//" in stoqs_url else stoqs_url
             db_label = after_scheme.split("/")[1] if "/" in after_scheme else after_scheme
-            stoqs_line = f'<p>View these data in <a href="{stoqs_url}" {nt}>{db_label}</a></p>\n'
+            stoqs_line = (
+                f'<p><a href="{stoqs_url}" {nt}>'
+                f"Query these measurements in STOQS ({db_label})</a></p>\n"
+            )
 
         if png_file_path is not None and png_file_path.exists():
             b64 = base64.b64encode(png_file_path.read_bytes()).decode("ascii")
@@ -947,7 +948,7 @@ class DeploymentPlotter:
             f'<a href="{script_github_url}" {nt}>lrauv_deployment_plots.py</a>'
             f" on {created_ts}</small>"
             f'<small><a href="{ssds_explorer_url}" {nt}>'
-            "Processrun details in SSDS</a></small>"
+            "Full provenance details in SSDS</a></small>"
             "</p>\n"
         )
         html = (
@@ -960,6 +961,7 @@ class DeploymentPlotter:
             "<body>\n"
             f"  <h1>{html_title_single}</h1>\n"
             f'  <img src="{img_src}" alt="{png_name}">\n'
+            "  <h2>More from this deployment</h2>\n"
             f"  {other_plots_line}"
             f"  {stoqs_line}"
             "  <h2>Log files</h2>\n"
@@ -970,11 +972,17 @@ class DeploymentPlotter:
         )
         html_path.write_text(html, encoding="utf-8")
 
-    _PLOT_KINDS = ("2column_cmocean", "2column_biolume", "2column_planktivore")
+    _PLOT_KINDS = (
+        "2column_cmocean",
+        "2column_biolume",
+        "2column_planktivore",
+        "2column_engineering",
+    )
     _PLOT_KIND_LABELS = {
         "2column_cmocean": "Standard",
         "2column_biolume": "Bioluminescence",
         "2column_planktivore": "Planktivore",
+        "2column_engineering": "Engineering",
     }
 
     def _png_urls_for_nc(self, nc_url: str) -> list[str]:
@@ -1081,12 +1089,20 @@ class DeploymentPlotter:
 
         dlist_content = self._read_dlist_content(dlist)
         deployment_name = self._parse_deployment_name(dlist_content) if dlist_content else None
+        plot_name_stem = (
+            deployment_name.replace(" ", "_").replace("/", "_")
+            if deployment_name
+            else dlist_rel.stem
+        )
         self.logger.info(
             "Building index for %s (%d HTML file(s))", deployment_dir.name, len(html_paths)
         )
         self._update_index_html(
             deployment_dir, html_paths, deployment_name=deployment_name, clobber=force
         )
+        archiver = Archiver(add_handlers=True, clobber=True)
+        archiver.logger.setLevel(logging.WARNING)
+        archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
 
     def process_command_line(self) -> None:
         parser = argparse.ArgumentParser(
