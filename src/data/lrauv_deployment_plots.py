@@ -369,7 +369,7 @@ class DeploymentPlotter:
         html_paths = [
             Path(p).with_suffix(".html") for p in png_paths if Path(p).with_suffix(".html").exists()
         ]
-        self._update_index_html(deployment_dir, html_paths, deployment_name=raw_name, clobber=force)
+        self._update_index_html(deployment_dir, html_paths, deployment_name=raw_name)
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
