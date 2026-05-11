@@ -404,10 +404,17 @@ class DeploymentPlotter:
 
         known_hrefs: set[str] = set()
         group_names: dict[str, str] = {}  # dlist_dir → deployment name
-        if not clobber and index_path.exists():
+        if index_path.exists():
             content = index_path.read_text()
-            known_hrefs = set(re.findall(r'href="([^"#][^"]*\.html)"', content))
+            all_hrefs = set(re.findall(r'href="([^"#][^"]*\.html)"', content))
             group_names = dict(re.findall(r'<h2 id="([^"]+)">([^<]+)</h2>', content))
+            # clobber=True drops only this deployment's existing entries so they are rebuilt;
+            # other deployments' entries are always preserved.
+            known_hrefs = (
+                {h for h in all_hrefs if not h.startswith(f"{dlist_dir}/")}
+                if clobber
+                else all_hrefs
+            )
 
         group_names[dlist_dir] = deployment_name or group_names.get(dlist_dir, dlist_dir)
 
@@ -421,22 +428,28 @@ class DeploymentPlotter:
             grouped.setdefault(group, []).append(href)
 
         max_cols = max((len(hrefs) for hrefs in grouped.values()), default=1)
+        col_width = f"{100 // max_cols}%"
         body = ""
         for group in sorted(grouped):
             label = group_names.get(group, group)
             body += f'<h2 id="{group}">{label}</h2>\n'
             body += '<table width="100%">\n<tr>\n'
-            sorted_hrefs = sorted(
-                grouped[group],
-                key=lambda h: next(
-                    (i for i, k in enumerate(self._PLOT_COLUMN_ORDER) if k in h),
+            # Map each known href to its column index so gaps produce blank cells.
+            col_map: dict[int, str] = {}
+            for href in grouped[group]:
+                col = next(
+                    (i for i, k in enumerate(self._PLOT_COLUMN_ORDER) if k in href),
                     len(self._PLOT_COLUMN_ORDER),
-                ),
-            )
-            for href in sorted_hrefs:
+                )
+                col_map[col] = href
+            for col in range(max_cols):
+                href = col_map.get(col)
+                if href is None:
+                    body += f'  <td width="{col_width}"></td>\n'
+                    continue
                 png_href = href[:-5] + ".png"
                 png_path = year_dir / png_href
-                body += '  <td valign="top">\n'
+                body += f'  <td valign="top" width="{col_width}">\n'
                 if png_path.exists():
                     body += (
                         f'    <a href="{href}">'
@@ -446,8 +459,6 @@ class DeploymentPlotter:
                 else:
                     body += f'    <a href="{href}">{Path(href).name}</a>\n'
                 body += "  </td>\n"
-            for _ in range(max_cols - len(sorted_hrefs)):
-                body += "  <td></td>\n"
             body += "</tr>\n</table>\n"
 
         year_label = year_dir.name
