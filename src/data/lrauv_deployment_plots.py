@@ -420,12 +420,20 @@ class DeploymentPlotter:
             group = href.split("/")[0] if "/" in href else ""
             grouped.setdefault(group, []).append(href)
 
+        max_cols = max((len(hrefs) for hrefs in grouped.values()), default=1)
         body = ""
         for group in sorted(grouped):
             label = group_names.get(group, group)
             body += f'<h2 id="{group}">{label}</h2>\n'
             body += '<table width="100%">\n<tr>\n'
-            for href in grouped[group]:
+            sorted_hrefs = sorted(
+                grouped[group],
+                key=lambda h: next(
+                    (i for i, k in enumerate(self._PLOT_COLUMN_ORDER) if k in h),
+                    len(self._PLOT_COLUMN_ORDER),
+                ),
+            )
+            for href in sorted_hrefs:
                 png_href = href[:-5] + ".png"
                 png_path = year_dir / png_href
                 body += '  <td valign="top">\n'
@@ -438,6 +446,8 @@ class DeploymentPlotter:
                 else:
                     body += f'    <a href="{href}">{Path(href).name}</a>\n'
                 body += "  </td>\n"
+            for _ in range(max_cols - len(sorted_hrefs)):
+                body += "  <td></td>\n"
             body += "</tr>\n</table>\n"
 
         year_label = year_dir.name
@@ -977,6 +987,13 @@ class DeploymentPlotter:
         "2column_biolume",
         "2column_planktivore",
         "2column_engineering",
+    )
+    # Column order in quick_look_plots.html: cmocean=0, engineering=1, biolume/planktivore=2
+    _PLOT_COLUMN_ORDER = (
+        "2column_cmocean",
+        "2column_engineering",
+        "2column_biolume",
+        "2column_planktivore",
     )
     _PLOT_KIND_LABELS = {
         "2column_cmocean": "Standard",
