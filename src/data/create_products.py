@@ -1031,7 +1031,7 @@ class CreateProducts:
             max_depth = max(np.floor(np.nanmax(depths_with_data) / 10) * 10, 10)
         else:
             max_depth = max(np.floor(np.nanmax(depth_values) / 10) * 10, 10)
-        iz = np.arange(0, max_depth, 0.5)
+        iz = np.arange(0, max_depth + 0.5, 0.5)  # include max_depth so axis reaches it
 
         return idist, iz, distnav
 
@@ -1927,16 +1927,21 @@ class CreateProducts:
         # Add bathymetry as grey filled contour if available
         if bottom_depths is not None:
             dist_km = distnav.to_numpy() / 1000.0
+            # get_yticks() includes the locator's "next nice step" beyond the view
+            # limit, matching the deepest tick label the user sees (e.g. 300 m
+            # when the view limit is 280 m and the tick step is 50 m).
+            y_max = max(curr_ax.get_yticks())
+            capped = np.fmin(bottom_depths, y_max)
             xb_bathy = np.append(
                 dist_km,
                 [curr_ax.get_xlim()[1], curr_ax.get_xlim()[1], curr_ax.get_xlim()[0], dist_km[0]],
             )
             yb_bathy = np.append(
-                bottom_depths,
-                [bottom_depths[-1], curr_ax.get_ylim()[0], curr_ax.get_ylim()[0], bottom_depths[0]],
+                capped,
+                [capped[-1], y_max, y_max, capped[0]],
             )
             try:
-                curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8)
+                curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8, lw=0)
             except ValueError as e:
                 self.logger.warning("Could not fill bathymetry area: %s", e)  # noqa: TRY400
 
@@ -2195,19 +2200,18 @@ class CreateProducts:
 
         # Add bathymetry as grey filled contour if available
         if bottom_depths is not None:
-            # Pair bottom_depths with distance along track
             dist_km = distnav.to_numpy() / 1000.0
-            # Create polygon for seafloor: from left to right along bottom,
-            # then back along axis bottom
+            y_max = max(curr_ax.get_yticks())
+            capped = np.fmin(bottom_depths, y_max)
             xb_bathy = np.append(
                 dist_km,
                 [curr_ax.get_xlim()[1], curr_ax.get_xlim()[1], curr_ax.get_xlim()[0], dist_km[0]],
             )
             yb_bathy = np.append(
-                bottom_depths,
-                [bottom_depths[-1], curr_ax.get_ylim()[0], curr_ax.get_ylim()[0], bottom_depths[0]],
+                capped,
+                [capped[-1], y_max, y_max, capped[0]],
             )
-            curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8)
+            curr_ax.fill(xb_bathy, yb_bathy, color="#CCCCCC", zorder=1, alpha=0.8, lw=0)
 
         # Add measurement location dots for density plot
         if var == "density":

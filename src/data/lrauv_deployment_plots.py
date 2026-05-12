@@ -427,7 +427,19 @@ class DeploymentPlotter:
             group = href.split("/")[0] if "/" in href else ""
             grouped.setdefault(group, []).append(href)
 
-        max_cols = max((len(hrefs) for hrefs in grouped.values()), default=1)
+        def _col_index(href: str) -> int:
+            return next(
+                (i for i, k in enumerate(self._PLOT_COLUMN_ORDER) if k in href),
+                len(self._PLOT_COLUMN_ORDER),
+            )
+
+        max_cols = (
+            max(
+                (_col_index(href) for hrefs in grouped.values() for href in hrefs),
+                default=0,
+            )
+            + 1
+        )
         col_width = f"{100 // max_cols}%"
         body = ""
         for group in sorted(grouped):
@@ -435,13 +447,7 @@ class DeploymentPlotter:
             body += f'<h2 id="{group}">{label}</h2>\n'
             body += '<table width="100%">\n<tr>\n'
             # Map each known href to its column index so gaps produce blank cells.
-            col_map: dict[int, str] = {}
-            for href in grouped[group]:
-                col = next(
-                    (i for i, k in enumerate(self._PLOT_COLUMN_ORDER) if k in href),
-                    len(self._PLOT_COLUMN_ORDER),
-                )
-                col_map[col] = href
+            col_map: dict[int, str] = {_col_index(href): href for href in grouped[group]}
             for col in range(max_cols):
                 href = col_map.get(col)
                 if href is None:
