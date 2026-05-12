@@ -543,7 +543,7 @@ class CreateProducts:
             ("wetlabsbb2fl_particulatebackscatteringcoeff470nm", "linear"),
             ("wetlabsbb2fl_particulatebackscatteringcoeff650nm", "linear"),
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
-            ("universals_platform_pitch_angle", "linear"),
+            ("universals_platform_speed_wrt_sea_water", "linear"),
         ]
 
     def _get_dorado_biolume_variables(self) -> list:
@@ -612,7 +612,7 @@ class CreateProducts:
             ("bpc1_platform_battery_charge", "linear"),
             ("bpc1_platform_battery_voltage", "linear"),
             ("onboard_platform_average_current", "linear"),
-            ("universals_platform_speed_wrt_sea_water", "linear"),
+            ("universals_platform_pitch_angle", "linear"),
             ("universals_platform_yaw_angle", "linear"),
             ("universals_platform_roll_angle", "linear"),
             ("buoyancyservo_platform_buoyancy_position", "linear"),
