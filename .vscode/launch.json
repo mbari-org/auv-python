@@ -521,7 +521,9 @@
             // Test engineering plot links
             //"args": ["-v", "1", "--dlist", "ahi/missionlogs/2025/20250128_20250131.dlist", "--update_ssds_provenance", "--force"]
             // Test --build_index for 2026 to test a fixed layout
-            "args": ["-v", "1", "--build_index", "--start", "20260101", "--end", "20261231", "--force"]
+            //"args": ["-v", "1", "--build_index", "--start", "20260101", "--end", "20261231", "--force"]
+            // Test fixing the "folded" bathymetry 
+            "args": ["-v", "1", "--dlist", "ahi/missionlogs/2026/20260218_20260220.dlist", "--force", "--update_ssds_provenance", "--notify", "mccann@mbari.org"]
 
         },
 
