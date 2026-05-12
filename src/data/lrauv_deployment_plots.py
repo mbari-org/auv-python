@@ -429,8 +429,8 @@ class DeploymentPlotter:
 
         def _col_index(href: str) -> int:
             return next(
-                (i for i, k in enumerate(self._PLOT_COLUMN_ORDER) if k in href),
-                len(self._PLOT_COLUMN_ORDER),
+                (col for key, col in self._PLOT_COLUMN_ORDER if key in href),
+                max(col for _, col in self._PLOT_COLUMN_ORDER) + 1,
             )
 
         max_cols = (
@@ -1005,12 +1005,13 @@ class DeploymentPlotter:
         "2column_planktivore",
         "2column_engineering",
     )
-    # Column order in quick_look_plots.html: cmocean=0, engineering=1, biolume/planktivore=2
+    # (kind_substring, column_index) — biolume and planktivore are mutually exclusive
+    # so they share column 2, keeping the table at 3 columns maximum.
     _PLOT_COLUMN_ORDER = (
-        "2column_cmocean",
-        "2column_engineering",
-        "2column_biolume",
-        "2column_planktivore",
+        ("2column_cmocean", 0),
+        ("2column_engineering", 1),
+        ("2column_biolume", 2),
+        ("2column_planktivore", 2),
     )
     _PLOT_KIND_LABELS = {
         "2column_cmocean": "Standard",
