@@ -243,7 +243,7 @@ class CreateProducts:
         # ── bioluminescence (Dorado) ───────────────────────────────────────────
         "biolume_flow": "Flow",
         "biolume_avg_biolume": "Bioluminescence",
-        "biolume_intflash": "Integrated Flash",
+        "biolume_intflash": "Flash Intensity",
         "biolume_bg_biolume": "Background Biolum.",
         "biolume_nbflash_high": "High Flash Count",
         "biolume_nbflash_low": "Low Flash Count",
@@ -275,7 +275,7 @@ class CreateProducts:
         "wetlabsubat_flow_rate": "Flow",
         "wetlabsubat_flow": "Flow",
         "wetlabsubat_average_bioluminescence": "Bioluminescence",
-        "wetlabsubat_intflash": "Integrated Flash",
+        "wetlabsubat_intflash": "Flash Intensity",
         "wetlabsubat_bg_biolume": "Background Biolum.",
         "wetlabsubat_nbflash_high": "High Flash Count",
         "wetlabsubat_nbflash_low": "Low Flash Count",
