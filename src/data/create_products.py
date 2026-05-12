@@ -1905,9 +1905,10 @@ class CreateProducts:
             v97_5,
         )
 
-        # Set axis limits
+        # Set axis limits and freeze them so scatter() cannot autoscale beyond max(iz).
         curr_ax.set_xlim([min(distnav.to_numpy()) / 1000.0, max(distnav.to_numpy()) / 1000.0])
         curr_ax.set_ylim(max(iz), min(iz))
+        curr_ax.autoscale(enable=False)
 
         # Create scatter plot with actual data points
         marker_size = next(
@@ -1927,10 +1928,7 @@ class CreateProducts:
         # Add bathymetry as grey filled contour if available
         if bottom_depths is not None:
             dist_km = distnav.to_numpy() / 1000.0
-            # get_yticks() includes the locator's "next nice step" beyond the view
-            # limit, matching the deepest tick label the user sees (e.g. 300 m
-            # when the view limit is 280 m and the tick step is 50 m).
-            y_max = max(curr_ax.get_yticks())
+            y_max = float(max(iz))
             capped = np.fmin(bottom_depths, y_max)
             xb_bathy = np.append(
                 dist_km,
@@ -1978,10 +1976,10 @@ class CreateProducts:
         else:
             curr_ax.set_ylabel("")
 
-        # Set y-axis ticks adaptively based on depth range
+        # Set y-axis ticks adaptively based on depth range; stay within the view limit.
         y_min, y_max = curr_ax.get_ylim()
         tick_step = 10 if y_min <= 50 else 50  # noqa: PLR2004
-        y_ticks = np.arange(0, int(y_min) + tick_step, tick_step)
+        y_ticks = np.arange(0, y_min + 0.001, tick_step)
         curr_ax.set_yticks(y_ticks)
 
         cb = fig.colorbar(scatter, ax=curr_ax, pad=0.01)
@@ -2201,7 +2199,7 @@ class CreateProducts:
         # Add bathymetry as grey filled contour if available
         if bottom_depths is not None:
             dist_km = distnav.to_numpy() / 1000.0
-            y_max = max(curr_ax.get_yticks())
+            y_max = float(max(iz))
             capped = np.fmin(bottom_depths, y_max)
             xb_bathy = np.append(
                 dist_km,
