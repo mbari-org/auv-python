@@ -2974,3 +2974,9 @@ dorado_info["2026.113.00"] = {
         "Monterey Bay MBTS Mission - 11326G ISUS, and LISST payloads removed  - ctdToUse = ctd1 "
     ),
 }
+dorado_info["2026.133.00"] = {
+    "program": f"{MBTSLINE}",
+    "comment": (
+        "Monterey Bay MBTS Mission - 13326G ISUS, and LISST payloads removed  - ctdToUse = ctd1 "
+    ),
+}
