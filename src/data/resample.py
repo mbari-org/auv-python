@@ -46,6 +46,56 @@ SURFACE_EXCLUSION_DEPTH_M = 2.0  # meters - min depth below surface for proxy co
 MAX_INTERPOLATE_LIMIT = 3  # Maximum number of consecutive NaNs to fill during interpolation
 
 
+def compute_profile_number(
+    depth_da: xr.DataArray,
+    profile_min_depth_change: float = PROFILE_MIN_DEPTH_CHANGE,
+) -> xr.DataArray | None:
+    """Return a sequential profile-number DataArray from a 1-D depth time series.
+
+    Uses scipy peak detection to find depth turning points and increments the
+    counter when consecutive peaks differ by more than profile_min_depth_change.
+    Returns None if depth_da is empty.
+    """
+    if len(depth_da) == 0:
+        return None
+    options = {"prominence": 10, "width": 30}
+    peaks_pos, _ = signal.find_peaks(depth_da.to_numpy(), **options)
+    peaks_neg, _ = signal.find_peaks(-depth_da.to_numpy(), **options)
+    peaks = np.concatenate((peaks_pos, peaks_neg, [0], [len(depth_da) - 1]))
+    peaks.sort(kind="mergesort")
+    s_peaks = depth_da.isel(time=peaks).to_pandas()
+    profiles: list[int] = []
+    count = 1
+    k = 0
+    for tv in depth_da.coords["time"].to_numpy():
+        if tv > s_peaks.index[k + 1]:
+            k += 1
+            if abs(s_peaks.iloc[k + 1] - s_peaks.iloc[k]) > profile_min_depth_change:
+                count += 1
+        profiles.append(count)
+        if k > len(s_peaks) - 2:
+            break
+    # Safety fill: extend to cover any remaining time values
+    if len(profiles) < len(depth_da):
+        profiles.extend([count] * (len(depth_da) - len(profiles)))
+    return xr.DataArray(
+        profiles,
+        dims="time",
+        coords={"time": depth_da.coords["time"].to_numpy()},
+        name="profile_number",
+        attrs={
+            "long_name": "Profile number",
+            "comment": (
+                f"Sequential profile counter identifying individual vertical casts. "
+                f"Profiles are detected from depth vertices using scipy.signal.find_peaks "
+                f"with prominence=10m and width=30 samples. Increments when vehicle "
+                f"transitions between upcast and downcast with "
+                f">{profile_min_depth_change}m vertical displacement."
+            ),
+        },
+    )
+
+
 class InvalidAlignFile(Exception):
     pass
 
@@ -833,54 +883,9 @@ class Resampler:
                 "No depth data available to compute profile numbers",
             )
             return
-        # Find depth vertices value using scipy's find_peaks algorithm
-        options = {"prominence": 10, "width": 30}
-        peaks_pos, _ = signal.find_peaks(self.resampled_nc["depth"], **options)
-        peaks_neg, _ = signal.find_peaks(-self.resampled_nc["depth"], **options)
-        # Need to add the first and last time values to the list of peaks
-        peaks = np.concatenate(
-            (peaks_pos, peaks_neg, [0], [len(self.resampled_nc["depth"]) - 1]),
-        )
-        peaks.sort(kind="mergesort")
-        s_peaks = self.resampled_nc["depth"][peaks].to_pandas()
-
-        # Assign a profile number to each time value
-        profiles = []
-        count = 1
-        k = 0
-        self.logger.info(
-            "Before accessing time coordinate - resampled_nc variables: %s, coords: %s",
-            list(self.resampled_nc.variables.keys()),
-            list(self.resampled_nc.coords.keys()),
-        )
-        for tv in self.resampled_nc["time"].to_numpy():
-            if tv > s_peaks.index[k + 1]:
-                # Encountered a new simple_depth point
-                k += 1
-                if abs(s_peaks.iloc[k + 1] - s_peaks.iloc[k]) > profile_min_depth_change:
-                    # Completed downcast or upcast
-                    count += 1
-            profiles.append(count)
-            if k > len(s_peaks) - 2:
-                break
-
-        self.resampled_nc["profile_number"] = xr.DataArray(
-            profiles,
-            dims="time",
-            coords=[self.resampled_nc["time"].to_numpy()],
-            name="profile_number",
-        )
-        self.resampled_nc["profile_number"].attrs["coordinates"] = "time depth latitude longitude"
-        self.resampled_nc["profile_number"].attrs = {
-            "long_name": "Profile number",
-            "comment": (
-                f"Sequential profile counter identifying individual vertical casts. "
-                f"Profiles are detected from depth vertices using scipy.signal.find_peaks "
-                f"with prominence=10m and width=30 samples. Increments when vehicle "
-                f"transitions between upcast and downcast with >{profile_min_depth_change}m "
-                f"vertical displacement."
-            ),
-        }
+        profile_da = compute_profile_number(self.resampled_nc["depth"], profile_min_depth_change)
+        if profile_da is not None:
+            self.resampled_nc["profile_number"] = profile_da
 
     def set_proxy_parameters(
         self, mission_start: datetime, auv_name: str = "dorado"
