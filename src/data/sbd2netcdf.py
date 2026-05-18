@@ -68,6 +68,9 @@ SBD_PARMS = {
         "PeakPlanktivoreHMavgROI",
         "PeakPlanktivoreHMavgROIDepth",
     ],
+    "CBIT": [
+        "ampHoursUsed",
+    ],
 }
 
 # Root-level non-coordinate variables: variable name → output prefix
@@ -89,6 +92,7 @@ GROUP_PREFIX = {
     "WetLabsBB2FL": "wetlabsbb2fl",
     "_": "backseat",
     "Science": "science",
+    "CBIT": "cbit",
 }
 
 
@@ -123,6 +127,13 @@ class SbdExtract:
         self.clobber = clobber
         self.commandline = commandline
         self.logger.setLevel(self._log_levels[min(verbose, 2)])
+
+    def _rel(self, path: Path) -> Path:
+        """Return path relative to vehicle_dir, falling back to the full path."""
+        try:
+            return path.relative_to(self.vehicle_dir)
+        except ValueError:
+            return path
 
     def sbd_file_list(self) -> list[Path]:
         """Return sorted list of shore.nc4 paths whose directory timestamp is in [start, end]."""
@@ -219,6 +230,16 @@ class SbdExtract:
         # interp() requires a unique, sorted time index.
         return da.drop_duplicates("time").sortby("time")
 
+    def _is_output_fresh(self, src: Path, out: Path) -> bool:
+        """Return True if out exists, is not clobbered, and is newer than src."""
+        if not out.exists() or self.clobber:
+            return False
+        if src.stat().st_mtime <= out.stat().st_mtime:
+            self.logger.info("Up to date, skipping: %s", self._rel(out))
+            return True
+        self.logger.info("%s is newer — reprocessing: %s", self._rel(src), self._rel(out))
+        return False
+
     def process_one_file(self, nc_path: Path) -> Path | None:
         """Process one shore.nc4 → write shore_{FREQ}.nc in the same directory.
 
@@ -227,11 +248,10 @@ class SbdExtract:
         dataset has a single shared 'time' dimension.
         """
         out_path = nc_path.parent / f"shore_{FREQ}.nc"
-        if out_path.exists() and not self.clobber:
-            self.logger.info("Already exists, skipping: %s", out_path)
+        if self._is_output_fresh(nc_path, out_path):
             return out_path
 
-        self.logger.info("Reading %s", nc_path)
+        self.logger.info("Reading %s", self._rel(nc_path))
 
         # Collect a DataArray per output variable, each with its own time axis.
         data_arrays: dict[str, xr.DataArray] = {}
@@ -242,7 +262,7 @@ class SbdExtract:
                     data_arrays[self._output_var_name(group, var)] = da
 
         if not data_arrays:
-            self.logger.warning("No variables extracted from %s", nc_path.name)
+            self.logger.warning("No variables extracted from %s", self._rel(nc_path))
             return None
 
         # Build a common 1S grid that spans all individually-timed variables.
@@ -275,8 +295,8 @@ class SbdExtract:
             if profile_da is not None:
                 ds["profile_number"] = profile_da
         ds.attrs.update(self._global_metadata(ds))
-        self.logger.info("Writing %s", out_path)
-        ds.to_netcdf(out_path)
+        self.logger.info("Writing %s", self._rel(out_path))
+        ds.to_netcdf(out_path, format="NETCDF4_CLASSIC")
         return out_path
 
     def _global_metadata(self, ds: xr.Dataset) -> dict:

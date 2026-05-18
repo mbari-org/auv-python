@@ -265,6 +265,7 @@ class CreateProducts:
         "universals_platform_speed_wrt_sea_water": "Speed",
         "buoyancyservo_platform_buoyancy_position": "Buoyancy",
         "elevatorservo_platform_elevator_angle": "Elevator",
+        "cbit_amphoursused": "Ah Used",
         "massservo_platform_mass_position": "Mass Position",
         "rudderservo_platform_rudder_angle": "Rudder",
         # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
@@ -469,7 +470,7 @@ class CreateProducts:
         sal_var = "ctdseabird_sea_water_salinity"
 
         if temp_var not in self.ds or sal_var not in self.ds:
-            self.logger.warning(
+            self.logger.debug(
                 "Cannot compute density: %s or %s not in dataset",
                 temp_var,
                 sal_var,
@@ -612,6 +613,7 @@ class CreateProducts:
 
     def _get_lrauv_engineering_plot_variables(self) -> list:
         """Get LRAUV engineering/platform variables for plot_engineering_2column()."""
+        is_pyxis_realtime = self.auv_name == "pyxis" and self.mission and "realtime" in self.mission
         return [
             ("bpc1_platform_battery_charge", "linear"),
             ("bpc1_platform_battery_voltage", "linear"),
@@ -620,7 +622,12 @@ class CreateProducts:
             ("universals_platform_yaw_angle", "linear"),
             ("universals_platform_roll_angle", "linear"),
             ("buoyancyservo_platform_buoyancy_position", "linear"),
-            ("elevatorservo_platform_elevator_angle", "linear"),
+            (
+                "cbit_amphoursused"
+                if is_pyxis_realtime
+                else "elevatorservo_platform_elevator_angle",
+                "linear",
+            ),
             ("massservo_platform_mass_position", "linear"),
         ]
 
@@ -1111,7 +1118,7 @@ class CreateProducts:
         # Otherwise fall back to global grids
         points = pd.DataFrame({"lon": lons, "lat": lats}).dropna()
         if len(pd.DataFrame({"lon": lons, "lat": lats})) != len(points):
-            self.logger.warning(
+            self.logger.debug(
                 "Some lon/lat points have NaNs, these will be skipped for bathymetry retrieval"
             )
 
@@ -1777,6 +1784,9 @@ class CreateProducts:
             else:
                 units = ""
                 color_map_name = self._get_colormap_name(var)
+            # If lookup tables have no units, try the dataset attrs directly
+            if not units and var in self.ds:
+                units = self.ds[var].attrs.get("units", "")
 
         if var in self.variable_plot_conversions:
             units = self.variable_plot_conversions[var][1]
@@ -1965,7 +1975,7 @@ class CreateProducts:
         # Check if variable exists and has valid data
         no_data = False
         if var not in self.ds:
-            self.logger.warning("%s not in dataset", var)
+            self.logger.debug("%s not in dataset", var)
             no_data = True
         else:
             if scale == "log":
@@ -2615,7 +2625,7 @@ class CreateProducts:
         # Use a quick pre-check with LRAUV or Dorado variables (excluding computed 'density')
         plot_variables = self._get_plot_variables(None if self._is_lrauv() else "ctd1")
         if not any(var in self.ds for var, _ in plot_variables if var != "density"):
-            self.logger.warning(
+            self.logger.debug(
                 "No plot variables found in dataset, skipping plot_2column",
             )
             return None
@@ -2745,7 +2755,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved 2column plot to %s", output_file)
@@ -2898,7 +2908,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved biolume 2column plot to %s", output_file)
@@ -2930,7 +2940,7 @@ class CreateProducts:
             if v.startswith("backseat_planktivore_")
         ]
         if not any(var in self.ds for var in planktivore_vars):
-            self.logger.warning(
+            self.logger.debug(
                 "No backseat_planktivore plot variables found in dataset, "
                 "skipping plot_planktivore_2column",
             )
@@ -3054,7 +3064,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved planktivore 2column plot to %s", output_file)
@@ -3116,7 +3126,7 @@ class CreateProducts:
         for var, scale in plot_variables:
             self.logger.info("Plotting %s...", var)
             if var not in self.ds:
-                self.logger.warning("%s not in dataset, plotting with no data", var)
+                self.logger.debug("%s not in dataset, plotting with no data", var)
 
             self._plot_var(
                 var,
@@ -3166,7 +3176,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved engineering 2column plot to %s", output_file)

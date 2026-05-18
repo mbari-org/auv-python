@@ -12,8 +12,17 @@ and produces:
         <vehicle>_<YYYYMMDD_YYYYMMDD>_sbd_1S_2column_planktivore.png  (if applicable)
 
 Usage:
-    uv run src/data/process_lrauv_sbd.py --auv_name ahi \\
-        --start 20260406 --end 20260412 -v
+    # All vehicles for the current month:
+    uv run src/data/process_lrauv_sbd.py --current_month -v
+
+    # All vehicles for the previous month:
+    uv run src/data/process_lrauv_sbd.py --previous_month -v
+
+    # Last 7 days for a single vehicle:
+    uv run src/data/process_lrauv_sbd.py --last_n_days 7 --auv_name ahi -v
+
+    # Explicit date range for a single vehicle:
+    uv run src/data/process_lrauv_sbd.py --start 20260406 --end 20260412 --auv_name ahi -v
 """
 
 __author__ = "Mike McCann"
@@ -22,10 +31,11 @@ __copyright__ = "Copyright 2026, Monterey Bay Aquarium Research Institute"
 import argparse
 import logging
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import xarray as xr
+from common_args import ALL_LRAUV_NAMES
 from sbd2netcdf import FREQ, SbdExtract
 
 _LOG_LEVELS = (logging.WARN, logging.INFO, logging.DEBUG)
@@ -48,21 +58,52 @@ def _parse_dt(s: str) -> datetime:
     raise ValueError(msg)
 
 
+def _rel(path: Path, base: str) -> Path:
+    """Return path relative to base, falling back to the full path."""
+    try:
+        return path.relative_to(base)
+    except ValueError:
+        return path
+
+
 def process_command_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--auv_name", required=True, help="AUV name, e.g. ahi, tethys")
     parser.add_argument(
+        "--auv_name",
+        nargs="+",
+        default=list(ALL_LRAUV_NAMES),
+        metavar="NAME",
+        help="One or more AUV names (default: all known LRAUVs)",
+    )
+    date_mode = parser.add_mutually_exclusive_group(required=True)
+    date_mode.add_argument(
+        "--current_month",
+        action="store_true",
+        help="Process from the first of the current month through today",
+    )
+    date_mode.add_argument(
+        "--previous_month",
+        action="store_true",
+        help="Process the entire previous calendar month",
+    )
+    date_mode.add_argument(
+        "--last_n_days",
+        type=int,
+        metavar="N",
+        help="Process the last N days",
+    )
+    date_mode.add_argument(
         "--start",
-        required=True,
-        help="Start datetime: YYYYMMDDTHHMMSS or YYYYMMDD",
+        metavar="YYYYMMDD",
+        help="Start datetime: YYYYMMDDTHHMMSS or YYYYMMDD (use with --end)",
     )
     parser.add_argument(
         "--end",
-        required=True,
-        help="End datetime: YYYYMMDDTHHMMSS or YYYYMMDD",
+        metavar="YYYYMMDD",
+        help="End datetime: YYYYMMDDTHHMMSS or YYYYMMDD (only used with --start)",
     )
     parser.add_argument(
         "--vehicle_dir",
@@ -89,7 +130,32 @@ def process_command_line() -> argparse.Namespace:
         nargs="?",
         help="Verbosity level: 0=WARN (default), 1=INFO, 2=DEBUG",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.start and not args.end:
+        parser.error("--end is required when --start is used")
+    return args
+
+
+def _resolve_date_range(args: argparse.Namespace) -> tuple[datetime, datetime]:
+    """Return (start, end) UTC datetimes from the active date-mode flag."""
+    now = datetime.now(tz=UTC)
+    if args.current_month:
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = now
+    elif args.previous_month:
+        first_of_this = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_of_prev = first_of_this - timedelta(days=1)
+        start = last_of_prev.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = last_of_prev.replace(hour=23, minute=59, second=59, microsecond=0)
+    elif args.last_n_days is not None:
+        start = (now - timedelta(days=args.last_n_days)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        end = now
+    else:
+        start = _parse_dt(args.start)
+        end = _parse_dt(args.end)
+    return start, end
 
 
 def _concat_month_files(output_dir: "Path") -> "tuple[xr.Dataset, list[Path]]":
@@ -124,9 +190,14 @@ def _make_per_log_plots(
     for p in month_files:
         out_png = p.parent / f"shore_{FREQ}_2column_cmocean.png"
         if out_png.exists() and not args.clobber:
-            logger.info("Skipping per-log plot (exists): %s", out_png)
-            continue
-        logger.info("Creating per-log plots for %s", p.name)
+            if p.stat().st_mtime <= out_png.stat().st_mtime:
+                logger.info(
+                    "Per-log plot up to date, skipping: %s", _rel(out_png, args.vehicle_dir)
+                )
+                continue
+            logger.info("shore_1S.nc is newer — replotting: %s", _rel(p, args.vehicle_dir))
+        else:
+            logger.info("Creating per-log plots for %s", _rel(p, args.vehicle_dir))
         try:
             with xr.open_dataset(p) as ds_log:
                 cp = CreateProducts(
@@ -169,6 +240,14 @@ def _make_products(
 
     output_dir = out_paths[0].parent.parent  # YYYYMM directory
     ds, month_files = _concat_month_files(output_dir)
+
+    monthly_png = output_dir / f"{args.auv_name}_{output_dir.name}_sbd_{FREQ}_2column_cmocean.png"
+    if monthly_png.exists() and not args.clobber:
+        newest_nc = max(p.stat().st_mtime for p in month_files)
+        if newest_nc <= monthly_png.stat().st_mtime:
+            logger.info("Monthly plots up to date for %s — skipping", output_dir.name)
+            return
+
     plot_stem = f"{args.auv_name}_{output_dir.name}_sbd"
     cp = CreateProducts(
         auv_name=args.auv_name,
@@ -236,33 +315,37 @@ def main() -> None:
     args = process_command_line()
     logger.setLevel(_LOG_LEVELS[min(args.verbose, 2)])
 
-    start = _parse_dt(args.start)
-    end = _parse_dt(args.end)
+    start, end = _resolve_date_range(args)
+    logger.info("Date range: %s → %s", start.date(), end.date())
 
-    extractor = SbdExtract(
-        auv_name=args.auv_name,
-        start=start,
-        end=end,
-        vehicle_dir=args.vehicle_dir,
-        verbose=args.verbose,
-        clobber=args.clobber,
-        commandline=" ".join(sys.argv),
-    )
+    for auv_name in args.auv_name:
+        logger.info("Processing %s", auv_name)
+        vehicle_args = argparse.Namespace(**{**vars(args), "auv_name": auv_name})
 
-    out_paths = extractor.process()
-    if not out_paths:
-        logger.error("No data produced — check that shore.nc4 files exist for this range.")
-        sys.exit(1)
+        extractor = SbdExtract(
+            auv_name=auv_name,
+            start=start,
+            end=end,
+            vehicle_dir=args.vehicle_dir,
+            verbose=args.verbose,
+            clobber=args.clobber,
+            commandline=" ".join(sys.argv),
+        )
 
-    if args.noproducts:
-        logger.info("Skipping create_products (--noproducts specified)")
-        return
+        out_paths = extractor.process()
+        if not out_paths:
+            logger.warning("No data for %s — skipping", auv_name)
+            continue
 
-    logger.info("Creating products from %d shore_1S.nc files", len(out_paths))
-    try:
-        _make_products(args, start, end, out_paths)
-    except RuntimeError as e:
-        logger.warning("create_products failed: %s", e)
+        if args.noproducts:
+            logger.info("Skipping create_products (--noproducts specified)")
+            continue
+
+        logger.info("Creating products from %d shore_1S.nc files for %s", len(out_paths), auv_name)
+        try:
+            _make_products(vehicle_args, start, end, out_paths)
+        except RuntimeError as e:
+            logger.warning("create_products failed for %s: %s", auv_name, e)
 
 
 if __name__ == "__main__":
