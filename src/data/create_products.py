@@ -656,8 +656,17 @@ class CreateProducts:
                 t_start = pd.Timestamp(parts[0]).tz_localize("UTC")
                 t_end = pd.Timestamp(parts[1]).tz_localize("UTC")
             except Exception:  # noqa: BLE001
-                self.logger.debug("Could not parse start/end times from filename: %s", filename)
-                continue
+                # Filename doesn't encode a time range (e.g. shore_1S.nc).
+                # Fall back to reading time_coverage_* from the file itself.
+                try:
+                    with xr.open_dataset(url) as ds_log:
+                        t_start = pd.Timestamp(ds_log.attrs["time_coverage_start"]).tz_localize(
+                            "UTC"
+                        )
+                        t_end = pd.Timestamp(ds_log.attrs["time_coverage_end"]).tz_localize("UTC")
+                except Exception:  # noqa: BLE001
+                    self.logger.debug("Could not determine time range for %s, skipping", filename)
+                    continue
 
             if label in seen_starts:
                 continue

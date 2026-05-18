@@ -169,6 +169,7 @@ def main() -> None:
             verbose=args.verbose,
             ds=ds,
             log_file="sbd_placeholder.nc4",
+            nc_files=[str(p) for p in month_files],
             output_dir=output_dir,
             plot_name_stem=plot_stem,
         )
