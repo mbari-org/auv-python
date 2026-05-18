@@ -1470,7 +1470,10 @@ class CreateProducts:
         end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Get title from netCDF attributes
-        if self._is_lrauv() and self.plot_name_stem:
+        if self._is_lrauv() and self.plot_name_stem and "realtime" in self.mission:
+            month_year = pd.to_datetime(times[0]).strftime("%B %Y")
+            title = f"Interpolated realtime SBD data for {self.auv_name} in {month_year}"
+        elif self._is_lrauv() and self.plot_name_stem:
             # Derive dlist path (vehicle/missionlogs/year/dlist_dir) from log_file
             lf_parts = Path(self.log_file).parts
             dlist_path = "/".join(lf_parts[:4]) if len(lf_parts) >= 4 else self.log_file  # noqa: PLR2004
@@ -1628,7 +1631,7 @@ class CreateProducts:
 
         # Position text in figure coordinates, to the right of the colorbar.
         # Center the full block vertically on the map.
-        text_x = ref_pos.x0 + map_width + cbar_pad + cbar_width + 0.03
+        text_x = ref_pos.x0 + map_width + cbar_pad + cbar_width + 0.05
         text_y = map_y0 + map_height / 2 + total_text_height / 2
 
         # Add title
