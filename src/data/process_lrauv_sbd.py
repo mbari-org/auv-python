@@ -174,6 +174,7 @@ def main() -> None:
         )
         cp.plot_2column()
         cp.plot_planktivore_2column()
+        cp.plot_engineering_2column()
     except RuntimeError as e:
         logger.warning("create_products failed: %s", e)
 

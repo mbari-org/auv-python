@@ -178,7 +178,9 @@ class SbdExtract:
             prefix = ROOT_VAR_PREFIXES.get(var, "")
             return f"{prefix}_{var}" if prefix else var
         prefix = GROUP_PREFIX.get(group, group.lower().replace("_", ""))
-        return f"{prefix}_{var}"
+        # Lowercase to match the all-lowercase convention in create_products.py
+        # lookup tables (shore.nc4 group variables use mixed case).
+        return f"{prefix}_{var}".lower()
 
     def _read_var_da(self, nc_path: Path, group: str, var: str) -> xr.DataArray | None:
         """Open one variable as a time-indexed DataArray with dim 'time'.
