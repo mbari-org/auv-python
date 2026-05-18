@@ -838,6 +838,23 @@ class CreateProducts:
         self.logger.info("Wrote per-log HTML to %s", html_path)
         return str(html_path)
 
+    def sbd_png_paths(self) -> list[Path]:
+        """Return paths of existing SBD monthly plot PNGs in output_dir.
+
+        Used by process_lrauv_sbd.py to locate PNGs before passing them
+        to DeploymentPlotter._write_per_png_html().
+        """
+        if not self.output_dir or not self.plot_name_stem:
+            return []
+        suffixes = ("_2column_cmocean", "_2column_planktivore", "_2column_engineering")
+        return [
+            p
+            for suffix in suffixes
+            if (
+                p := Path(self.output_dir) / f"{self.plot_name_stem}_{self.freq}{suffix}.png"
+            ).exists()
+        ]
+
     def _plot_nighttime_indicator(  # noqa: PLR0915, C901
         self,
         fig: matplotlib.figure.Figure,

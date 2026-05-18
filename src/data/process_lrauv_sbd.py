@@ -90,6 +90,99 @@ def process_command_line() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _make_products(
+    args: argparse.Namespace, start: datetime, end: datetime, out_paths: list
+) -> None:
+    """Build plots and HTML index from the shore_1S.nc files produced by SbdExtract."""
+    import importlib.util
+
+    if importlib.util.find_spec("create_products") is None:
+        logger.warning("create_products not available — skipping plots")
+        return
+
+    try:
+        from create_products import CreateProducts
+    except ImportError as e:
+        logger.warning("Cannot import create_products: %s — skipping plots", e)
+        return
+
+    date_range = f"{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}"
+    mission = f"realtime/sbdlogs/{start.strftime('%Y')}/{date_range}"
+
+    import xarray as xr
+
+    output_dir = out_paths[0].parent.parent  # YYYYMM directory
+    month_files = sorted(output_dir.rglob(f"shore_{FREQ}.nc"))
+    logger.info("Combining %d shore_%s.nc files from %s", len(month_files), FREQ, output_dir)
+    _GEO_COORDS = ("depth", "latitude", "longitude")
+    individual = []
+    for p in month_files:
+        d = xr.open_dataset(p)
+        present = [c for c in _GEO_COORDS if c in d.coords]
+        if present:
+            d = d.reset_coords(present)
+        individual.append(d)
+    ds = xr.concat(individual, dim="time", join="outer")
+    ds = ds.sortby("time").drop_duplicates("time")
+    geo_present = [c for c in _GEO_COORDS if c in ds]
+    if geo_present:
+        ds = ds.set_coords(geo_present)
+    plot_stem = f"{args.auv_name}_{output_dir.name}_sbd"
+    cp = CreateProducts(
+        auv_name=args.auv_name,
+        mission=mission,
+        base_path=args.vehicle_dir,
+        freq="1S",
+        verbose=args.verbose,
+        ds=ds,
+        log_file="sbd_placeholder.nc4",
+        nc_files=[str(p) for p in month_files],
+        output_dir=output_dir,
+        plot_name_stem=plot_stem,
+    )
+    cp.plot_2column()
+    cp.plot_planktivore_2column()
+    cp.plot_engineering_2column()
+
+    png_paths = cp.sbd_png_paths()
+    if png_paths:
+        from lrauv_deployment_plots import DeploymentPlotter
+        from make_permalink import stoqs_url_from_ds
+
+        dp = DeploymentPlotter()
+        dp.logger.setLevel(_LOG_LEVELS[min(args.verbose, 2)])
+
+        stoqs_url = None
+        try:
+            stoqs_url = stoqs_url_from_ds(ds, auv_name=args.auv_name)
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Could not generate STOQS URL: %s", e)
+
+        nc_file_strs = [str(p) for p in month_files]
+        html_paths = []
+        for png_path in png_paths:
+            html_path = png_path.with_suffix(".html")
+            other_pngs = [str(p) for p in png_paths if p != png_path]
+            dp._write_per_png_html(
+                html_path=html_path,
+                title=f"{args.auv_name} {png_path.stem}",
+                png_name=png_path.name,
+                png_url="",
+                stoqs_url=stoqs_url,
+                nc_files=nc_file_strs,
+                auv_name=args.auv_name,
+                png_file_path=png_path,
+                other_png_paths=other_pngs,
+            )
+            html_paths.append(html_path)
+
+        dp._update_index_html(
+            output_dir,
+            html_paths,
+            deployment_name=f"{args.auv_name} {output_dir.name}",
+        )
+
+
 def main() -> None:
     args = process_command_line()
     logger.setLevel(_LOG_LEVELS[min(args.verbose, 2)])
@@ -116,66 +209,9 @@ def main() -> None:
         logger.info("Skipping create_products (--noproducts specified)")
         return
 
-    # Produce quick-look plots via create_products
-    import importlib.util
-
-    if importlib.util.find_spec("create_products") is None:
-        logger.warning("create_products not available — skipping plots")
-        return
-
-    try:
-        from create_products import CreateProducts
-    except ImportError as e:
-        logger.warning("Cannot import create_products: %s — skipping plots", e)
-        return
-
-    date_range = f"{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}"
-    mission = f"realtime/sbdlogs/{start.strftime('%Y')}/{date_range}"
-
     logger.info("Creating products from %d shore_1S.nc files", len(out_paths))
     try:
-        import xarray as xr
-
-        # Combine all shore_1S.nc files in the YYYYMM directory — not just those
-        # touched by --start/--end — so the plot covers the full month.
-        # Some log periods may have no depth data, so depth/lat/lon may be absent
-        # as coordinates.  xr.concat requires coordinates in all datasets, so
-        # demote them to data variables first, concat with join="outer"
-        # (NaN-fill absent variables), then promote back.
-        # Log periods can also overlap in time, so sort and deduplicate after.
-        # Pre-open as ds so _open_ds() is a no-op; log_file enables _is_lrauv().
-        output_dir = out_paths[0].parent.parent  # YYYYMM directory
-        month_files = sorted(output_dir.rglob(f"shore_{FREQ}.nc"))
-        logger.info("Combining %d shore_%s.nc files from %s", len(month_files), FREQ, output_dir)
-        _GEO_COORDS = ("depth", "latitude", "longitude")
-        individual = []
-        for p in month_files:
-            d = xr.open_dataset(p)
-            present = [c for c in _GEO_COORDS if c in d.coords]
-            if present:
-                d = d.reset_coords(present)
-            individual.append(d)
-        ds = xr.concat(individual, dim="time", join="outer")
-        ds = ds.sortby("time").drop_duplicates("time")
-        geo_present = [c for c in _GEO_COORDS if c in ds]
-        if geo_present:
-            ds = ds.set_coords(geo_present)
-        plot_stem = f"{args.auv_name}_{output_dir.name}_sbd"
-        cp = CreateProducts(
-            auv_name=args.auv_name,
-            mission=mission,
-            base_path=args.vehicle_dir,
-            freq="1S",
-            verbose=args.verbose,
-            ds=ds,
-            log_file="sbd_placeholder.nc4",
-            nc_files=[str(p) for p in month_files],
-            output_dir=output_dir,
-            plot_name_stem=plot_stem,
-        )
-        cp.plot_2column()
-        cp.plot_planktivore_2column()
-        cp.plot_engineering_2column()
+        _make_products(args, start, end, out_paths)
     except RuntimeError as e:
         logger.warning("create_products failed: %s", e)
 
