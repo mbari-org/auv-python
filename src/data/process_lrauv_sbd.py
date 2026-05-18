@@ -114,6 +114,40 @@ def _concat_month_files(output_dir: "Path") -> "tuple[xr.Dataset, list[Path]]":
     return ds, month_files
 
 
+def _make_per_log_plots(
+    args: argparse.Namespace,
+    month_files: list,
+    mission: str,
+    CreateProducts: type,  # noqa: N803
+) -> None:
+    """Create per-log plots for each shore_1S.nc in month_files."""
+    for p in month_files:
+        out_png = p.parent / f"shore_{FREQ}_2column_cmocean.png"
+        if out_png.exists() and not args.clobber:
+            logger.info("Skipping per-log plot (exists): %s", out_png)
+            continue
+        logger.info("Creating per-log plots for %s", p.name)
+        try:
+            with xr.open_dataset(p) as ds_log:
+                cp = CreateProducts(
+                    auv_name=args.auv_name,
+                    mission=mission,
+                    base_path=args.vehicle_dir,
+                    freq=FREQ,
+                    verbose=args.verbose,
+                    ds=ds_log,
+                    log_file=str(p),
+                    nc_files=[str(p)],
+                    output_dir=p.parent,
+                    plot_name_stem="shore",
+                )
+                cp.plot_2column()
+                cp.plot_planktivore_2column()
+                cp.plot_engineering_2column()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Per-log plot failed for %s: %s", p.name, e)
+
+
 def _make_products(
     args: argparse.Namespace, start: datetime, end: datetime, out_paths: list
 ) -> None:
@@ -148,6 +182,8 @@ def _make_products(
         output_dir=output_dir,
         plot_name_stem=plot_stem,
     )
+    _make_per_log_plots(args, month_files, mission, CreateProducts)
+
     cp.plot_2column()
     cp.plot_planktivore_2column()
     cp.plot_engineering_2column()

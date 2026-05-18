@@ -496,7 +496,11 @@
             //"args": ["--auv_name", "ahi", "--start", "20260317", "--end", "20260318", "-v", "--noproducts"]
             // ahi 47 CFE deployment April 2026
             //"args": ["--auv_name", "ahi", "--start", "20260406", "--end", "20260412", "-v"]
-            "args": ["--auv_name", "ahi", "--start", "20260303", "--end", "20260331", "-v", "2", "--clobber"]
+            //"args": ["--auv_name", "ahi", "--start", "20260303", "--end", "20260331", "-v", "2", "--clobber"]
+            // Test a month with fewer plots to make
+            //"args": ["--auv_name", "daphne", "--start", "20260101", "--end", "20260131", "-v", "2", "--clobber"]
+            // Test pyxis
+            "args": ["--auv_name", "pyxis", "--start", "20260501", "--end", "20260531", "-v", "2", "--clobber"]
         },
         {
             "name": "lrauv_deployment_plots",
