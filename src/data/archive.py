@@ -294,6 +294,50 @@ class Archiver:
                     src_file.name,
                 )
 
+    def copy_sbd_to_LRAUV(self, sbd_nc_path: Path) -> None:
+        """Copy SBD resampled netCDF and any product files to the LRAUV archive volume.
+
+        Maps:
+            data/lrauv_data/{auv}/realtime/sbdlogs/{YYYY}/{date_range}/
+          → /Volumes/LRAUV/{auv}/realtime/sbdlogs/{YYYY}/{date_range}/
+
+        Args:
+            sbd_nc_path: Absolute path to the *_sbd_1S.nc output file.
+        """
+        src_dir = sbd_nc_path.parent
+        # Derive the destination by replacing BASE_LRAUV_PATH prefix with LRAUV_VOL
+        try:
+            rel = src_dir.relative_to(BASE_LRAUV_PATH)
+        except ValueError:
+            self.logger.exception(
+                "SBD path %s is not under BASE_LRAUV_PATH %s", src_dir, BASE_LRAUV_PATH
+            )
+            return
+        dst_dir = Path(LRAUV_VOL) / rel
+        try:
+            dst_dir.stat()
+        except FileNotFoundError:
+            self.logger.warning("Destination %s not found — is %s mounted?", dst_dir, LRAUV_VOL)
+            return
+
+        stem = sbd_nc_path.stem  # e.g. ahi_20260317_20260318_sbd_1S
+        for pattern in (f"{stem}.nc", f"{stem}_*.png", f"{stem}_*.txt"):
+            for src_file in sorted(src_dir.glob(pattern)):
+                dst_file = dst_dir / src_file.name
+                if self.clobber:
+                    if dst_file.exists():
+                        self.logger.info("Removing %s", dst_file)
+                        dst_file.unlink()
+                    self.logger.info("copyfile %s %s", src_file, dst_dir)
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+                elif not dst_file.exists():
+                    self.logger.info("copyfile %s %s", src_file, dst_dir)
+                    shutil.copyfile(src_file, dst_file)
+                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
+                else:
+                    self.logger.info("%s exists, not overwriting (use --clobber)", dst_file.name)
+
     def copy_lrauv_deployment(self, deployment_dir: Path, plot_name_stem: str) -> None:
         """Copy LRAUV deployment plots and HTML index to the LRAUV archive volume.
 

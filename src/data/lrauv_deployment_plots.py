@@ -1021,7 +1021,19 @@ class DeploymentPlotter:
     }
 
     def _png_urls_for_nc(self, nc_url: str) -> list[str]:
-        """Return web-accessible PNG URLs for all plot kinds for one OPeNDAP nc URL."""
+        """Return web PNG URLs for all plot kinds for one nc path or OPeNDAP URL."""
+        if not nc_url.startswith("http"):
+            nc_path = Path(nc_url)
+            for local_base in (Path(LRAUV_VOL), BASE_LRAUV_PATH):
+                try:
+                    rel = nc_path.relative_to(local_base)
+                    base = BASE_LRAUV_WEB.rstrip("/") + "/" + str(rel)[: -len(".nc")]
+                    return [f"{base}_{kind}.png" for kind in self._PLOT_KINDS]
+                except ValueError:
+                    continue
+            # Unrecognised local path — fall back to local file paths
+            base = nc_url[: -len(".nc")]
+            return [f"{base}_{kind}.png" for kind in self._PLOT_KINDS]
         rel = nc_url.replace(LRAUV_OPENDAP_BASE.rstrip("/") + "/", "")
         base = BASE_LRAUV_WEB.rstrip("/") + "/" + rel[: -len(".nc")]
         return [f"{base}_{kind}.png" for kind in self._PLOT_KINDS]
@@ -1034,7 +1046,15 @@ class DeploymentPlotter:
         return Path(path_str).stem
 
     def _url_exists(self, url: str) -> bool:
-        """Return True if the URL responds with HTTP 200 to a HEAD request."""
+        """Return True if the resource exists (local check for BASE_LRAUV_WEB URLs)."""
+        if url.startswith(BASE_LRAUV_WEB):
+            rel = url[len(BASE_LRAUV_WEB.rstrip("/")) + 1 :]
+            for local_base in (Path(LRAUV_VOL), BASE_LRAUV_PATH):
+                if (local_base / rel).exists():
+                    return True
+            return False
+        if not url.startswith("http"):
+            return Path(url).exists()
         try:
             req = urllib.request.Request(url, method="HEAD")  # noqa: S310
             with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310

@@ -265,6 +265,7 @@ class CreateProducts:
         "universals_platform_speed_wrt_sea_water": "Speed",
         "buoyancyservo_platform_buoyancy_position": "Buoyancy",
         "elevatorservo_platform_elevator_angle": "Elevator",
+        "cbit_amphoursused": "Ah Used",
         "massservo_platform_mass_position": "Mass Position",
         "rudderservo_platform_rudder_angle": "Rudder",
         # ── LRAUV WetLabs BB2FL ───────────────────────────────────────────────
@@ -469,7 +470,7 @@ class CreateProducts:
         sal_var = "ctdseabird_sea_water_salinity"
 
         if temp_var not in self.ds or sal_var not in self.ds:
-            self.logger.warning(
+            self.logger.debug(
                 "Cannot compute density: %s or %s not in dataset",
                 temp_var,
                 sal_var,
@@ -530,11 +531,14 @@ class CreateProducts:
         ]
 
     def _get_lrauv_plot_variables(self) -> list:
-        """Get LRAUV-specific plot variables.
+        """Get LRAUV-specific plot variables, resolved against self.ds.
 
-        Returns variables commonly available in LRAUV log files.
+        Each canonical name is looked up in self.ds via _resolve_var_in_ds so
+        that SBD realtime datasets (which store variables as bin_median_ variants)
+        return the name actually present in the dataset.  Variables absent from
+        the dataset keep their canonical name so downstream checks can detect them.
         """
-        return [
+        candidates = [
             ("density", "linear"),
             ("ctdseabird_sea_water_temperature", "linear"),
             ("ctdseabird_sea_water_salinity", "linear"),
@@ -545,6 +549,7 @@ class CreateProducts:
             ("wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water", "linear"),
             ("universals_platform_speed_wrt_sea_water", "linear"),
         ]
+        return [(self._resolve_var_in_ds(var) or var, scale) for var, scale in candidates]
 
     def _get_dorado_biolume_variables(self) -> list:
         """Get Dorado-specific bioluminescence plot variables for plot_biolume_2column()."""
@@ -608,6 +613,7 @@ class CreateProducts:
 
     def _get_lrauv_engineering_plot_variables(self) -> list:
         """Get LRAUV engineering/platform variables for plot_engineering_2column()."""
+        is_pyxis_realtime = self.auv_name == "pyxis" and self.mission and "realtime" in self.mission
         return [
             ("bpc1_platform_battery_charge", "linear"),
             ("bpc1_platform_battery_voltage", "linear"),
@@ -616,7 +622,12 @@ class CreateProducts:
             ("universals_platform_yaw_angle", "linear"),
             ("universals_platform_roll_angle", "linear"),
             ("buoyancyservo_platform_buoyancy_position", "linear"),
-            ("elevatorservo_platform_elevator_angle", "linear"),
+            (
+                "cbit_amphoursused"
+                if is_pyxis_realtime
+                else "elevatorservo_platform_elevator_angle",
+                "linear",
+            ),
             ("massservo_platform_mass_position", "linear"),
         ]
 
@@ -652,8 +663,17 @@ class CreateProducts:
                 t_start = pd.Timestamp(parts[0]).tz_localize("UTC")
                 t_end = pd.Timestamp(parts[1]).tz_localize("UTC")
             except Exception:  # noqa: BLE001
-                self.logger.debug("Could not parse start/end times from filename: %s", filename)
-                continue
+                # Filename doesn't encode a time range (e.g. shore_1S.nc).
+                # Fall back to reading time_coverage_* from the file itself.
+                try:
+                    with xr.open_dataset(url) as ds_log:
+                        t_start = pd.Timestamp(ds_log.attrs["time_coverage_start"]).tz_localize(
+                            "UTC"
+                        )
+                        t_end = pd.Timestamp(ds_log.attrs["time_coverage_end"]).tz_localize("UTC")
+                except Exception:  # noqa: BLE001
+                    self.logger.debug("Could not determine time range for %s, skipping", filename)
+                    continue
 
             if label in seen_starts:
                 continue
@@ -825,7 +845,24 @@ class CreateProducts:
         self.logger.info("Wrote per-log HTML to %s", html_path)
         return str(html_path)
 
-    def _plot_nighttime_indicator(  # noqa: PLR0915
+    def sbd_png_paths(self) -> list[Path]:
+        """Return paths of existing SBD monthly plot PNGs in output_dir.
+
+        Used by process_lrauv_sbd.py to locate PNGs before passing them
+        to DeploymentPlotter._write_per_png_html().
+        """
+        if not self.output_dir or not self.plot_name_stem:
+            return []
+        suffixes = ("_2column_cmocean", "_2column_planktivore", "_2column_engineering")
+        return [
+            p
+            for suffix in suffixes
+            if (
+                p := Path(self.output_dir) / f"{self.plot_name_stem}_{self.freq}{suffix}.png"
+            ).exists()
+        ]
+
+    def _plot_nighttime_indicator(  # noqa: PLR0915, C901
         self,
         fig: matplotlib.figure.Figure,
         ref_ax: matplotlib.axes.Axes,
@@ -848,6 +885,17 @@ class CreateProducts:
         lats = self.ds.cf["latitude"].to_numpy()
         lons = self.ds.cf["longitude"].to_numpy()
         dist_km = distnav.to_numpy() / 1000.0
+
+        # distnav may be NaN-filtered to fewer points than the full dataset
+        # (e.g. sparse GPS in realtime SBD data); align all arrays to it.
+        n_ds = len(times)
+        if len(distnav) != n_ds:
+            ds_time = self.ds.cf["time"].to_numpy()
+            nav_idx = np.searchsorted(ds_time, distnav.coords["time"].to_numpy())
+            nav_idx = nav_idx[nav_idx < n_ds]
+            times = times[nav_idx]
+            lats = lats[nav_idx]
+            lons = lons[nav_idx]
 
         # Subsample for speed (pysolar is slow)
         n = len(times)
@@ -891,7 +939,7 @@ class CreateProducts:
             night_ax.axvspan(night_start, sub_dist[-1], color="black", lw=0)
 
         # Draw a short tick and local date label at each local midnight
-        utc_offset_h = int(round(float(np.median(lons)) / 15))
+        utc_offset_h = int(round(float(np.nanmedian(lons)) / 15))
         local_tz = timezone(timedelta(hours=utc_offset_h))
         times_s = np.array([t.timestamp() for t in times])
         day = times[0].to_pydatetime().astimezone(local_tz).date()
@@ -962,15 +1010,32 @@ class CreateProducts:
             return np.array([]), np.array([]), xr.DataArray()
         MAX_LONGITUDE_VALUES = 400
         n_subsample = 200 if len(self.ds.cf["longitude"].to_numpy()) > MAX_LONGITUDE_VALUES else 1
+        # Fill NaN gaps in lat/lon before subsampling so np.interp receives no NaN.
+        # Sparse GPS coverage (e.g. realtime SBD data) leaves gaps that would
+        # otherwise propagate NaN through cumsum and shorten distnav.
+        lon_filled = (
+            pd.Series(self.ds.cf["longitude"].to_numpy())
+            .interpolate(method="linear")
+            .ffill()
+            .bfill()
+            .to_numpy()
+        )
+        lat_filled = (
+            pd.Series(self.ds.cf["latitude"].to_numpy())
+            .interpolate(method="linear")
+            .ffill()
+            .bfill()
+            .to_numpy()
+        )
         lon_sub_intrp = np.interp(
             self.ds.cf["time"].to_numpy().astype(np.int64),
             self.ds.cf["time"].to_numpy()[::n_subsample].astype(np.int64),
-            self.ds.cf["longitude"].to_numpy()[::n_subsample],
+            lon_filled[::n_subsample],
         )
         lat_sub_intrp = np.interp(
             self.ds.cf["time"].to_numpy().astype(np.int64),
             self.ds.cf["time"].to_numpy()[::n_subsample].astype(np.int64),
-            self.ds.cf["latitude"].to_numpy()[::n_subsample],
+            lat_filled[::n_subsample],
         )
         x, y = pyproj.Proj(proj="utm", zone=utm_zone, ellps="WGS84")(
             lon_sub_intrp,
@@ -1053,7 +1118,7 @@ class CreateProducts:
         # Otherwise fall back to global grids
         points = pd.DataFrame({"lon": lons, "lat": lats}).dropna()
         if len(pd.DataFrame({"lon": lons, "lat": lats})) != len(points):
-            self.logger.warning(
+            self.logger.debug(
                 "Some lon/lat points have NaNs, these will be skipped for bathymetry retrieval"
             )
 
@@ -1118,6 +1183,8 @@ class CreateProducts:
         Returns:
             Dictionary mapping bottle number to (distance_km, depth_m) tuple
         """
+        if "realtime" in self.mission:
+            return {}
         gulper = Gulper()
         gulper.args = argparse.Namespace()
         gulper.args.base_path = self.base_path
@@ -1201,13 +1268,50 @@ class CreateProducts:
 
         return locations
 
+    @staticmethod
+    def _canonical_var_name(var: str) -> str:
+        """Strip bin_mean_ / bin_median_ prefix from the instrument-variable part.
+
+        Maps SBD realtime variable names to their delayed-mode equivalents so that
+        colormap, label, and format lookups work without duplicating every entry.
+
+        Examples:
+            ctdseabird_bin_median_sea_water_temperature
+              → ctdseabird_sea_water_temperature
+            wetlabsbb2fl_bin_median_mass_concentration_of_chlorophyll_in_sea_water
+              → wetlabsbb2fl_mass_concentration_of_chlorophyll_in_sea_water
+        """
+        import re as _re
+
+        return _re.sub(r"_bin_(?:mean|median)_", "_", var, count=1)
+
+    def _resolve_var_in_ds(self, var: str) -> str | None:
+        """Return the name under which var is stored in self.ds, or None.
+
+        Checks the canonical name first, then the SBD realtime bin_median_ /
+        bin_mean_ variants (e.g. ctdseabird_sea_water_temperature →
+        ctdseabird_bin_median_sea_water_temperature).
+        """
+        if var in self.ds:
+            return var
+        if "_" not in var:
+            return None
+        idx = var.index("_")
+        group, stem = var[:idx], var[idx + 1 :]
+        for infix in ("bin_median_", "bin_mean_"):
+            candidate = f"{group}_{infix}{stem}"
+            if candidate in self.ds:
+                return candidate
+        return None
+
     def _get_colormap_name(self, var: str) -> str:
         """Get colormap name for a variable.
 
         Tries in order:
         1. Lookup by standard_name attribute
-        2. Lookup by matching variable name parts
-        3. Default to 'cividis'
+        2. Lookup via canonical (bin_*-stripped) name → cmocean_lookup by var suffix
+        3. Lookup by matching variable name parts
+        4. Default to 'cividis'
 
         Args:
             var: Variable name
@@ -1220,6 +1324,14 @@ class CreateProducts:
             standard_name = self.ds[var].attrs["standard_name"]
             if standard_name in self.cmocean_lookup:
                 return self.cmocean_lookup[standard_name]
+
+        # For bin_median_/bin_mean_ SBD variables, map to canonical delayed-mode name
+        # and derive colormap from the suffix (e.g. "sea_water_temperature" → "thermal").
+        canonical = self._canonical_var_name(var)
+        if canonical != var:
+            suffix = canonical.split("_", 1)[-1]  # strip group prefix
+            if suffix in self.cmocean_lookup:
+                return self.cmocean_lookup[suffix]
 
         # Fallback: try matching variable name parts
         var_lower = var.lower()
@@ -1365,7 +1477,10 @@ class CreateProducts:
         end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Get title from netCDF attributes
-        if self._is_lrauv() and self.plot_name_stem:
+        if self._is_lrauv() and self.plot_name_stem and "realtime" in self.mission:
+            month_year = pd.to_datetime(times[0]).strftime("%B %Y")
+            title = f"Interpolated realtime SBD data for {self.auv_name} in {month_year}"
+        elif self._is_lrauv() and self.plot_name_stem:
             # Derive dlist path (vehicle/missionlogs/year/dlist_dir) from log_file
             lf_parts = Path(self.log_file).parts
             dlist_path = "/".join(lf_parts[:4]) if len(lf_parts) >= 4 else self.log_file  # noqa: PLR2004
@@ -1523,7 +1638,7 @@ class CreateProducts:
 
         # Position text in figure coordinates, to the right of the colorbar.
         # Center the full block vertically on the map.
-        text_x = ref_pos.x0 + map_width + cbar_pad + cbar_width + 0.03
+        text_x = ref_pos.x0 + map_width + cbar_pad + cbar_width + 0.05
         text_y = map_y0 + map_height / 2 + total_text_height / 2
 
         # Add title
@@ -1649,19 +1764,29 @@ class CreateProducts:
     def _resolve_label(self, var: str) -> tuple[str, str, str]:
         """Return (display_name, units, colormap) for a variable.
 
-        Priority: dataset attrs > variable_display_names > variable name.
+        Priority: dataset attrs > variable_display_names > canonical-name fallbacks > variable name.
+        For SBD bin_median_/bin_mean_ variables the canonical (stripped) name is tried in
+        display and fallback lookups so that entries don't need to be duplicated.
         """
+        canonical = self._canonical_var_name(var)
         if var in self.ds and self.ds[var].attrs.get("long_name"):
             long_name = self.ds[var].attrs["long_name"]
             units = self.ds[var].attrs.get("units", "")
             color_map_name = self._get_colormap_name(var)
         else:
-            long_name = self.variable_display_names.get(var, var)
+            long_name = self.variable_display_names.get(
+                var, self.variable_display_names.get(canonical, var)
+            )
             if var in self.variable_fallback_metadata:
                 units, color_map_name = self.variable_fallback_metadata[var]
+            elif canonical in self.variable_fallback_metadata:
+                units, color_map_name = self.variable_fallback_metadata[canonical]
             else:
                 units = ""
                 color_map_name = self._get_colormap_name(var)
+            # If lookup tables have no units, try the dataset attrs directly
+            if not units and var in self.ds:
+                units = self.ds[var].attrs.get("units", "")
 
         if var in self.variable_plot_conversions:
             units = self.variable_plot_conversions[var][1]
@@ -1739,7 +1864,9 @@ class CreateProducts:
         cb = fig.colorbar(dummy_im, ax=curr_ax, pad=0.01)
         cb.set_ticks([])
 
-        short_label = self.variable_short_labels.get(var, "")
+        short_label = self.variable_short_labels.get(
+            var, self.variable_short_labels.get(self._canonical_var_name(var), "")
+        )
         if short_label:
             curr_ax.text(
                 0.5,
@@ -1848,7 +1975,7 @@ class CreateProducts:
         # Check if variable exists and has valid data
         no_data = False
         if var not in self.ds:
-            self.logger.warning("%s not in dataset", var)
+            self.logger.debug("%s not in dataset", var)
             no_data = True
         else:
             if scale == "log":
@@ -1910,14 +2037,28 @@ class CreateProducts:
         curr_ax.set_ylim(max(iz), min(iz))
         curr_ax.autoscale(enable=False)
 
+        # distnav may be shorter than the dataset when NaN positions were
+        # filtered in _grid_dims (e.g. sparse GPS in realtime SBD data).
+        # Align depth and var arrays to distnav's time subset.
+        n_ds = len(self.ds.cf["time"])
+        if len(distnav) != n_ds:
+            ds_time = self.ds.cf["time"].to_numpy()
+            nav_idx = np.searchsorted(ds_time, distnav.coords["time"].to_numpy())
+            nav_idx = nav_idx[nav_idx < n_ds]
+            depth_for_scatter = self.ds.cf["depth"].to_numpy()[nav_idx]
+            var_for_scatter = var_to_plot[nav_idx]
+        else:
+            depth_for_scatter = self.ds.cf["depth"].to_numpy()
+            var_for_scatter = var_to_plot
+
         # Create scatter plot with actual data points
         marker_size = next(
             (size for key, size in self.scatter_marker_size.items() if key in var.lower()), 1
         )
         scatter = curr_ax.scatter(
             distnav.to_numpy() / 1000.0,
-            self.ds.cf["depth"].to_numpy(),
-            c=var_to_plot,
+            depth_for_scatter,
+            c=var_for_scatter,
             s=marker_size,
             cmap=cmap,
             norm=norm,
@@ -1990,8 +2131,11 @@ class CreateProducts:
         # Format tick labels intelligently based on value range
         tick_values = cb.get_ticks()
         if len(tick_values) > 0:
-            if var in self.variable_colorbar_format:
-                fmt = self.variable_colorbar_format[var]
+            _cbfmt_key = (
+                var if var in self.variable_colorbar_format else self._canonical_var_name(var)
+            )
+            if _cbfmt_key in self.variable_colorbar_format:
+                fmt = self.variable_colorbar_format[_cbfmt_key]
                 labels = [fmt.format(x) for x in tick_values]
             else:
                 value_range = abs(tick_values.max() - tick_values.min())
@@ -2020,7 +2164,9 @@ class CreateProducts:
 
         long_name, units, _ = self._resolve_label(var)
 
-        short_label = self.variable_short_labels.get(var, "")
+        short_label = self.variable_short_labels.get(
+            var, self.variable_short_labels.get(self._canonical_var_name(var), "")
+        )
         if short_label:
             curr_ax.text(
                 0.5,
@@ -2290,8 +2436,11 @@ class CreateProducts:
         else:
             tick_values = cb.get_ticks()
             if len(tick_values) > 0:
-                if var in self.variable_colorbar_format:
-                    fmt = self.variable_colorbar_format[var]
+                _cbfmt_key = (
+                    var if var in self.variable_colorbar_format else self._canonical_var_name(var)
+                )
+                if _cbfmt_key in self.variable_colorbar_format:
+                    fmt = self.variable_colorbar_format[_cbfmt_key]
                     labels = [fmt.format(x) for x in tick_values]
                 else:
                     value_range = abs(tick_values.max() - tick_values.min())
@@ -2320,7 +2469,9 @@ class CreateProducts:
 
         long_name, units, _ = self._resolve_label(var)
 
-        short_label = self.variable_short_labels.get(var, "")
+        short_label = self.variable_short_labels.get(
+            var, self.variable_short_labels.get(self._canonical_var_name(var), "")
+        )
         if short_label:
             curr_ax.text(
                 0.5,
@@ -2474,7 +2625,7 @@ class CreateProducts:
         # Use a quick pre-check with LRAUV or Dorado variables (excluding computed 'density')
         plot_variables = self._get_plot_variables(None if self._is_lrauv() else "ctd1")
         if not any(var in self.ds for var, _ in plot_variables if var != "density"):
-            self.logger.warning(
+            self.logger.debug(
                 "No plot variables found in dataset, skipping plot_2column",
             )
             return None
@@ -2604,7 +2755,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved 2column plot to %s", output_file)
@@ -2757,7 +2908,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved biolume 2column plot to %s", output_file)
@@ -2789,7 +2940,7 @@ class CreateProducts:
             if v.startswith("backseat_planktivore_")
         ]
         if not any(var in self.ds for var in planktivore_vars):
-            self.logger.warning(
+            self.logger.debug(
                 "No backseat_planktivore plot variables found in dataset, "
                 "skipping plot_planktivore_2column",
             )
@@ -2913,7 +3064,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved planktivore 2column plot to %s", output_file)
@@ -2975,7 +3126,7 @@ class CreateProducts:
         for var, scale in plot_variables:
             self.logger.info("Plotting %s...", var)
             if var not in self.ds:
-                self.logger.warning("%s not in dataset, plotting with no data", var)
+                self.logger.debug("%s not in dataset, plotting with no data", var)
 
             self._plot_var(
                 var,
@@ -3025,7 +3176,7 @@ class CreateProducts:
             va="bottom",
         )
         plt.savefig(output_file, dpi=100, bbox_inches="tight")
-        plt.show()
+
         plt.close(fig)
 
         self.logger.info("Saved engineering 2column plot to %s", output_file)

@@ -13,6 +13,23 @@ DEFAULT_BASE_PATH = Path(__file__).parent.joinpath("../../data/auv_data").resolv
 DEFAULT_FREQ = "1S"  # 1 Hz resampling frequency
 DEFAULT_MF_WIDTH = 3  # Median filter width
 
+ALL_LRAUV_NAMES = (
+    "ahi",
+    "aku",
+    "brezo",
+    "brizo",
+    "daphne",
+    "galene",
+    "makai",
+    "opah",
+    "polaris",
+    "pontus",
+    "pyxis",
+    "tethys",
+    "triton",
+    "whoidhs",
+)
+
 
 class CommonArgumentParser:
     """Shared argument parser factory for all AUV processing modules."""
