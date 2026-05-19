@@ -1183,7 +1183,7 @@ class CreateProducts:
         Returns:
             Dictionary mapping bottle number to (distance_km, depth_m) tuple
         """
-        if "realtime" in self.mission:
+        if self.mission and "realtime" in self.mission:
             return {}
         gulper = Gulper()
         gulper.args = argparse.Namespace()
@@ -1477,7 +1477,7 @@ class CreateProducts:
         end_time = pd.to_datetime(times[-1]).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Get title from netCDF attributes
-        if self._is_lrauv() and self.plot_name_stem and "realtime" in self.mission:
+        if self._is_lrauv() and self.plot_name_stem and self.mission and "realtime" in self.mission:
             month_year = pd.to_datetime(times[0]).strftime("%B %Y")
             title = f"Interpolated realtime SBD data for {self.auv_name} in {month_year}"
         elif self._is_lrauv() and self.plot_name_stem:
