@@ -66,7 +66,7 @@ from pathlib import Path
 from socket import gethostname
 
 from align import Align_NetCDF, InvalidCalFile, InvalidCombinedFile
-from archive import LOG_NAME, Archiver
+from archive import LOG_NAME, LRAUV_VOL, Archiver
 from calibrate import EXPECTED_SENSORS, Calibrate_NetCDF
 from combine import Combine_NetCDF
 from create_products import MISSIONIMAGES, CreateProducts
@@ -115,9 +115,8 @@ def log_file_processor(func):
             raise
         finally:
             if hasattr(self, "log_handler"):
-                # Cleanup and archiving logic
-                if self.config.get("clobber"):
-                    self.archive(mission=None, log_file=log_file)
+                # Archive whenever processing ran (freshness check happens before this decorator)
+                self.archive(mission=None, log_file=log_file)
                 if not self.config.get("no_cleanup"):
                     self.cleanup(log_file=log_file)
                 self.logger.info(
@@ -1301,12 +1300,48 @@ class Processor:
             )
         self.logger.info("Finished processing log file: %s", log_file)
 
+    def _process_log_file_list(self, log_files: list) -> None:
+        """Apply freshness check and process each log file in the list."""
+        for log_file in log_files:
+            self.auv_name = log_file.split("/")[0].lower()
+            if not self.config.get("clobber") and self._is_log_output_fresh(log_file):
+                continue
+            self.logger.info("Processing log file: %s", log_file)
+            try:
+                self.process_log_file(log_file)
+            except (InvalidCalFile, InvalidCombinedFile) as e:
+                self.logger.warning("%s", e)
+
+    def _is_log_output_fresh(self, log_file: str) -> bool:
+        """Return True if the archived _1S.nc is up to date vs the source nc4 on the NFS mount.
+
+        Uses the NFS-mount copy of the nc4 (always present) and the archived _1S.nc on
+        LRAUV_VOL (written by copy_to_LRAUV after cleanup removes local copies).
+        Returns False when either file is absent so processing proceeds normally.
+        """
+        nc4_path = Path(self.vehicle_dir, log_file)
+        resampled_path = Path(
+            LRAUV_VOL,
+            Path(log_file).parent,
+            f"{Path(log_file).stem}_{FREQ}.nc",
+        )
+        if not nc4_path.exists() or not resampled_path.exists():
+            return False
+        if nc4_path.stat().st_mtime <= resampled_path.stat().st_mtime:
+            self.logger.info("Output up to date, skipping: %s", log_file)
+            return True
+        self.logger.info("Source nc4 is newer, reprocessing: %s", log_file)
+        return False
+
     def process_log_files(self) -> None:
         if self.config.get("log_file"):
             # log_file is string like:
             # brizo/missionlogs/2025/20250909_20250915/20250914T080941/202509140809_202509150109.nc4
-            self.auv_name = self.config["log_file"].split("/")[0].lower()
-            self.process_log_file(self.config["log_file"])
+            log_file = self.config["log_file"]
+            self.auv_name = log_file.split("/")[0].lower()
+            if not self.config.get("clobber") and self._is_log_output_fresh(log_file):
+                return
+            self.process_log_file(log_file)
         elif self.config.get("start") and self.config.get("end"):
             # Process multiple log files within datetime range
             log_files = self.log_file_list(
@@ -1321,14 +1356,7 @@ class Processor:
                 return
 
             self.logger.info("Processing %d log files in datetime range", len(log_files))
-            for log_file in log_files:
-                # Extract AUV name from path
-                self.auv_name = log_file.split("/")[0].lower()
-                self.logger.info("Processing log file: %s", log_file)
-                try:
-                    self.process_log_file(log_file)
-                except (InvalidCalFile, InvalidCombinedFile) as e:
-                    self.logger.warning("%s", e)
+            self._process_log_file_list(log_files)
         elif self.config.get("last_n_days"):
             # Process log files from the last N days
             end_dt = datetime.now(tz=UTC)
@@ -1358,14 +1386,7 @@ class Processor:
                 len(log_files),
                 self.config["last_n_days"],
             )
-            for log_file in log_files:
-                # Extract AUV name from path
-                self.auv_name = log_file.split("/")[0].lower()
-                self.logger.info("Processing log file: %s", log_file)
-                try:
-                    self.process_log_file(log_file)
-                except (InvalidCalFile, InvalidCombinedFile) as e:
-                    self.logger.warning("%s", e)
+            self._process_log_file_list(log_files)
         else:
             self.logger.error(
                 "Must provide either --log_file, both --start and --end, or --last_n_days arguments"

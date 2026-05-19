@@ -209,7 +209,20 @@ class Archiver:
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
 
-    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:  # noqa: C901, PLR0912, PLR0915
+    def _archive_file(self, src_file: Path, dst_file: Path) -> None:
+        """Copy src to dst; skip if dst already exists unless --clobber."""
+        if not src_file.exists():
+            return
+        if dst_file.exists():
+            if self.clobber:
+                dst_file.unlink()
+            else:
+                self.logger.info("Already archived, skipping: %s", dst_file.name)
+                return
+        shutil.copyfile(src_file, dst_file)
+        self.logger.info("copyfile %s %s done.", src_file.name, dst_file.parent)
+
+    def copy_to_LRAUV(self, log_file: str, freq: str = FREQ) -> None:
         "Copy the intermediate and resampled netCDF file(s) to the archive LRAUV location"
         src_dir = Path(BASE_LRAUV_PATH, Path(log_file).parent)
         dst_dir = Path(LRAUV_VOL, Path(log_file).parent)
@@ -220,79 +233,20 @@ class Archiver:
             self.logger.info("Is %s mounted?", self.mount_dir)
             sys.exit(1)
         for src_file in sorted(src_dir.glob(f"{Path(log_file).stem}_{GROUP}_*.nc")):
-            dst_file = Path(dst_dir, src_file.name)
-            if self.clobber:
-                if dst_file.exists():
-                    self.logger.info("Removing %s", dst_file)
-                    dst_file.unlink()
-                if src_file.exists():
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-            elif src_file.exists():
-                self.logger.info(
-                    "%-75s exists, but is not being archived because --clobber is not specified.",
-                    src_file.name,
-                )
+            self._archive_file(src_file, Path(dst_dir, src_file.name))
         for ftype in (f"{freq}.nc", "combined.nc4", "align.nc4"):
             src_file = Path(src_dir, f"{Path(log_file).stem}_{ftype}")
-            dst_file = Path(dst_dir, src_file.name)
-            if self.clobber:
-                if dst_file.exists():
-                    self.logger.info("Removing %s", dst_file)
-                    dst_file.unlink()
-                if src_file.exists():
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-            elif src_file.exists():
-                self.logger.info(
-                    "%-36s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
-                    src_file.name,
-                )
+            self._archive_file(src_file, Path(dst_dir, src_file.name))
         # Copy PNG product files created by create_products.py
         self.logger.info("Archiving product files")
         for src_file in src_dir.glob(f"{Path(log_file).stem}_*.png"):
-            dst_file = Path(dst_dir, src_file.name)
-            if self.clobber:
-                if dst_file.exists():
-                    self.logger.info("Removing %s", dst_file)
-                    dst_file.unlink()
-                if src_file.exists():
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-            elif src_file.exists():
-                self.logger.info(
-                    "%-36s exists, but is not being archived because --clobber is not specified.",
-                    src_file.name,
-                )
-
+            self._archive_file(src_file, Path(dst_dir, src_file.name))
         # Copy ODV/text product files created by create_products.py (e.g., *_Sipper.txt)
         for src_file in src_dir.glob(f"{Path(log_file).stem}_*.txt"):
-            dst_file = Path(dst_dir, src_file.name)
-            if self.clobber:
-                if dst_file.exists():
-                    self.logger.info("Removing %s", dst_file)
-                    dst_file.unlink()
-                if src_file.exists():
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-            elif src_file.exists():
-                self.logger.info(
-                    "%-36s exists, but is not being archived because --clobber is not specified.",
-                    src_file.name,
-                )
+            self._archive_file(src_file, Path(dst_dir, src_file.name))
         # Copy the processing.log file last so that we get everything
         src_file = Path(src_dir, f"{Path(log_file).stem}_{LOG_NAME}")
-        dst_file = Path(dst_dir, src_file.name)
-        if src_file.exists():
-            if self.clobber:
-                self.logger.info("copyfile %s %s", src_file, dst_dir)
-                shutil.copyfile(src_file, dst_file)
-                self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-            elif src_file.exists():
-                self.logger.info(
-                    "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
-                    src_file.name,
-                )
+        self._archive_file(src_file, Path(dst_dir, src_file.name))
 
     def copy_sbd_to_LRAUV(self, sbd_nc_path: Path) -> None:
         """Copy SBD resampled netCDF and any product files to the LRAUV archive volume.

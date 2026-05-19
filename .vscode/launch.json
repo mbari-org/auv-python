@@ -480,11 +480,13 @@
             // Test ESP markers - Shallow log file from Denmark deployment in June 2024, has large depth values in self.ds.depth.values[6500:6800]
             //"args": ["-v", "1", "--log_file", "makai/missionlogs/2024/20240607_20240615/20240611T082709/202406110827_202406111026.nc4", "--update_ssds_provenance", "--clobber"]
             // Test making engineering plot with a short log file
-            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250128_20250131/20250129T145420/202501291454_202501292233.nc4"]
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2025/20250128_20250131/20250129T145420/202501291454_202501292233.nc4"]
             // and for the rest of the log files of this deployment
             //"args": ["-v", "1", "--auv_name", "ahi", "--start", "20250127T000000", "--end", "20250201T000000", "--update_ssds_provenance", "--clobber", "--no_cleanup"]
             // Test having a better y-max that puts data instead of white space at the bottom
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260410T010521/202604100105_202604100800.nc4"]
+            // Test processing only new data - as we would do in production with a cron job
+            "args": ["-v", "1", "--last_n_days", "14"]
         },
         {
             "name": "process_lrauv_sbd",
