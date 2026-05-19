@@ -46,6 +46,7 @@ SBD_PARMS = {
         "time_fix",
         "latitude_fix",
         "longitude_fix",
+        "downwelling_photosynthetic_photon_flux_in_sea_water",
     ],
     "CTD_Seabird": [
         "bin_median_sea_water_temperature",
@@ -81,6 +82,7 @@ ROOT_VAR_PREFIXES = {
     "time_fix": "nal9602",
     "latitude_fix": "nal9602",
     "longitude_fix": "nal9602",
+    "downwelling_photosynthetic_photon_flux_in_sea_water": "parlicor",
 }
 
 # Coordinates from the root group — no prefix applied
