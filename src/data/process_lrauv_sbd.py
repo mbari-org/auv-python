@@ -215,6 +215,7 @@ def _make_per_log_plots(
                 cp.plot_2column()
                 cp.plot_planktivore_2column()
                 cp.plot_engineering_2column()
+                cp.plot_cbit_2column()
         except Exception as e:  # noqa: BLE001
             logger.warning("Per-log plot failed for %s: %s", p.name, e)
 
@@ -266,6 +267,7 @@ def _make_products(
     cp.plot_2column()
     cp.plot_planktivore_2column()
     cp.plot_engineering_2column()
+    cp.plot_cbit_2column()
 
     png_paths = cp.sbd_png_paths()
     if png_paths:

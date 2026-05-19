@@ -613,7 +613,6 @@ class CreateProducts:
 
     def _get_lrauv_engineering_plot_variables(self) -> list:
         """Get LRAUV engineering/platform variables for plot_engineering_2column()."""
-        is_pyxis_realtime = self.auv_name == "pyxis" and self.mission and "realtime" in self.mission
         return [
             ("bpc1_platform_battery_charge", "linear"),
             ("bpc1_platform_battery_voltage", "linear"),
@@ -622,12 +621,7 @@ class CreateProducts:
             ("universals_platform_yaw_angle", "linear"),
             ("universals_platform_roll_angle", "linear"),
             ("buoyancyservo_platform_buoyancy_position", "linear"),
-            (
-                "cbit_amphoursused"
-                if is_pyxis_realtime
-                else "elevatorservo_platform_elevator_angle",
-                "linear",
-            ),
+            ("elevatorservo_platform_elevator_angle", "linear"),
             ("massservo_platform_mass_position", "linear"),
         ]
 
@@ -853,7 +847,12 @@ class CreateProducts:
         """
         if not self.output_dir or not self.plot_name_stem:
             return []
-        suffixes = ("_2column_cmocean", "_2column_planktivore", "_2column_engineering")
+        suffixes = (
+            "_2column_cmocean",
+            "_2column_planktivore",
+            "_2column_engineering",
+            "_2column_cbit",
+        )
         return [
             p
             for suffix in suffixes
@@ -1447,11 +1446,41 @@ class CreateProducts:
             )
             first = False
 
-    def _plot_track_map(  # noqa: PLR0915
+    def _section_overlays(self, distnav: xr.DataArray) -> tuple:
+        """Return (profile_bottoms, bottom_depths) for section plots, None on error."""
+        try:
+            profile_bottoms = self._profile_bottoms(distnav)
+        except (TypeError, ValueError) as e:
+            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
+            profile_bottoms = None
+        try:
+            bottom_depths = self._get_bathymetry(
+                self.ds.cf["longitude"].to_numpy(),
+                self.ds.cf["latitude"].to_numpy(),
+            )
+        except ValueError as e:  # noqa: BLE001
+            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
+            bottom_depths = None
+        return profile_bottoms, bottom_depths
+
+    def _cumulative_profile_numbers(self) -> np.ndarray:
+        """Return profile_number array that increments monotonically across log files."""
+        profile_numbers = self.ds["profile_number"].to_numpy()
+        result = profile_numbers.copy().astype(float)
+        offset = 0
+        for i in range(1, len(profile_numbers)):
+            if profile_numbers[i] < profile_numbers[i - 1]:
+                offset += profile_numbers[i - 1]
+            result[i] = profile_numbers[i] + offset
+        return result
+
+    def _plot_track_map(  # noqa: PLR0915, PLR0913
         self,
         map_ax: matplotlib.axes.Axes,
         reference_ax: matplotlib.axes.Axes,
         night_ref_ax: matplotlib.axes.Axes | None = None,
+        color_data: np.ndarray | None = None,
+        color_label: str | None = None,
     ) -> None:
         """Plot AUV track map on left side with title and times on right.
 
@@ -1534,21 +1563,17 @@ class CreateProducts:
         # Make the plot square by using equal aspect with explicit box adjustment
         map_ax.set_aspect("equal", adjustable="box")
 
-        # Plot the track colored by a cumulative profile number that keeps
-        # incrementing across concatenated log files (profile_number resets to
-        # zero at the start of each log file).
-        profile_numbers = self.ds["profile_number"].to_numpy()
-        cumulative_profile = profile_numbers.copy().astype(float)
-        offset = 0
-        for i in range(1, len(profile_numbers)):
-            if profile_numbers[i] < profile_numbers[i - 1]:
-                offset += profile_numbers[i - 1]
-            cumulative_profile[i] = profile_numbers[i] + offset
+        # Color the track by caller-supplied data when provided, otherwise by
+        # cumulative profile number (keeps incrementing across concatenated files).
+        if color_data is not None:
+            c_values, cmap_name = color_data, "hot_r"
+        else:
+            c_values, cmap_name = self._cumulative_profile_numbers(), "jet"
         scatter = map_ax.scatter(
             x_merc,
             y_merc,
-            c=cumulative_profile,
-            cmap="jet",
+            c=c_values,
+            cmap=cmap_name,
             s=1,
             alpha=0.6,
         )
@@ -1607,7 +1632,7 @@ class CreateProducts:
             cax=cbar_ax,
             orientation="vertical",
         )
-        cbar.set_label("Profile Number", fontsize=9)
+        cbar.set_label(color_label if color_label is not None else "Profile Number", fontsize=9)
         cbar.ax.tick_params(labelsize=8)
 
         # Remove axes, labels, and ticks but keep the border
@@ -2981,20 +3006,7 @@ class CreateProducts:
                 self.logger.warning("Error retrieving sipper locations: %s", e)  # noqa: TRY400
                 gulper_locations = {}
 
-        try:
-            profile_bottoms = self._profile_bottoms(distnav)
-        except (TypeError, ValueError) as e:
-            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
-            profile_bottoms = None
-
-        try:
-            bottom_depths = self._get_bathymetry(
-                self.ds.cf["longitude"].to_numpy(),
-                self.ds.cf["latitude"].to_numpy(),
-            )
-        except ValueError as e:  # noqa: BLE001
-            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
-            bottom_depths = None
+        profile_bottoms, bottom_depths = self._section_overlays(distnav)
 
         row = 1
         col = 0
@@ -3105,20 +3117,7 @@ class CreateProducts:
 
         self._plot_track_map(ax[0, 0], ax[1, 0], ax[0, 1])
 
-        try:
-            profile_bottoms = self._profile_bottoms(distnav)
-        except (TypeError, ValueError) as e:
-            self.logger.warning("Error computing profile bottoms: %s", e)  # noqa: TRY400
-            profile_bottoms = None
-
-        try:
-            bottom_depths = self._get_bathymetry(
-                self.ds.cf["longitude"].to_numpy(),
-                self.ds.cf["latitude"].to_numpy(),
-            )
-        except ValueError as e:  # noqa: BLE001
-            self.logger.warning("Error retrieving bathymetry: %s", e)  # noqa: TRY400
-            bottom_depths = None
+        profile_bottoms, bottom_depths = self._section_overlays(distnav)
 
         row = 1
         col = 0
@@ -3180,6 +3179,106 @@ class CreateProducts:
         plt.close(fig)
 
         self.logger.info("Saved engineering 2column plot to %s", output_file)
+        return str(output_file)
+
+    def plot_cbit_2column(self) -> str:
+        """Create a 3-panel plot for cbit_amphoursused: track map, distance scatter, time series."""
+        _CBIT_VAR = "cbit_amphoursused"
+
+        if "pytest" in sys.modules:
+            return None
+        if not self._is_lrauv():
+            return None
+
+        self._open_ds()
+
+        if _CBIT_VAR not in self.ds:
+            self.logger.debug("%s not in dataset, skipping plot_cbit_2column", _CBIT_VAR)
+            return None
+
+        cbit = self.ds[_CBIT_VAR].dropna("time")
+        if cbit.size == 0:
+            self.logger.debug("No valid %s data, skipping plot_cbit_2column", _CBIT_VAR)
+            return None
+
+        idist, iz, distnav = self._grid_dims([_CBIT_VAR])
+        if distnav.size == 0:
+            self.logger.warning("Skipping plot_cbit_2column due to missing distnav")
+            return None
+
+        units = self.ds[_CBIT_VAR].attrs.get("units", "Ah")
+        ylabel = f"Amp-hours Used ({units})"
+
+        cbit_at_nav = cbit.interp(time=distnav.coords["time"], method="linear").to_numpy()
+        times = pd.to_datetime(cbit.coords["time"].to_numpy())
+        cbit_vals = cbit.to_numpy()
+
+        fig = plt.figure(figsize=(18, 8))
+        gs = matplotlib.gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.15)
+        ax_map = fig.add_subplot(gs[0, 0])
+        ax_section = fig.add_subplot(gs[0, 1])
+        ax_time = fig.add_subplot(gs[1, :])
+
+        # Track map colored by Ah Used
+        self._plot_track_map(
+            ax_map,
+            ax_time,
+            ax_section,
+            color_data=cbit_at_nav,
+            color_label=ylabel,
+        )
+
+        # Depth-vs-distance section colored by Ah Used (same style as other plot pages)
+        profile_bottoms, bottom_depths = self._section_overlays(distnav)
+
+        ax_array = np.array([[ax_map, ax_section]])
+        self._plot_var(
+            _CBIT_VAR,
+            idist,
+            iz,
+            distnav,
+            fig,
+            ax_array,
+            0,
+            1,
+            profile_bottoms,
+            scale="linear",
+            gulper_locations={},
+            bottom_depths=bottom_depths,
+            best_ctd=None,
+        )
+        ax_section.set_xlabel("Distance along track (km)")
+
+        # Time series
+        ax_time.plot(times, cbit_vals, color="tab:red", linewidth=1)
+        ax_time.set_xlabel("Time (UTC)")
+        ax_time.set_ylabel(ylabel)
+        ax_time.set_title("Ah Used vs. Time")
+        ax_time.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%Y-%m-%d\n%H:%M"))
+        plt.setp(ax_time.get_xticklabels(), rotation=0, ha="center", fontsize=8)
+
+        out_dir = (
+            self.output_dir
+            if self.output_dir is not None
+            else Path(BASE_LRAUV_PATH, f"{Path(self.log_file).parent}")
+        )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stem = self.plot_name_stem if self.plot_name_stem is not None else Path(self.log_file).stem
+        output_file = Path(out_dir, f"{stem}_{self.freq}_2column_cbit.png")
+        created = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        fig.text(
+            0,
+            0,
+            f"Created by auv-python's create_products.py on {created}.",
+            fontsize=6,
+            fontstyle="italic",
+            ha="left",
+            va="bottom",
+        )
+        plt.savefig(output_file, dpi=100, bbox_inches="tight")
+        plt.close(fig)
+
+        self.logger.info("Saved cbit 2column plot to %s", output_file)
         return str(output_file)
 
     def _get_best_ctd(self) -> str:

@@ -501,12 +501,12 @@
             //"args": ["--auv_name", "ahi", "--start", "20260303", "--end", "20260331", "-v", "2", "--clobber"]
             // Test a month with fewer plots to make
             //"args": ["--auv_name", "daphne", "--start", "20260101", "--end", "20260131", "-v", "2", "--clobber"]
-            // Test pyxis
-            //"args": ["--auv_name", "pyxis", "--start", "20260501", "--end", "20260531", "-v", "1", "--clobber"]
+            // Test pyxis and cbit_amphoursused plot
+            "args": ["--auv_name", "pyxis", "--start", "20260501", "--end", "20260531", "-v", "1", "--clobber"]
             // Test --current_month
             //"args": ["--current_month", "-v", "1"]
             // Test reading downwelling_photosynthetic_photon_flux_in_sea_water from the root group of the netCDF file instead of the instrument group, which was the case for some early daphne log files
-            "args": ["--auv_name", "daphne", "--start", "20260501", "--end", "20260531", "-v", "1", "--clobber"]
+            //"args": ["--auv_name", "daphne", "--start", "20260501", "--end", "20260531", "-v", "1", "--clobber"]
         },
         {
             "name": "lrauv_deployment_plots",
