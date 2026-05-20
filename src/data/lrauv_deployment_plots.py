@@ -837,6 +837,13 @@ class DeploymentPlotter:
         except ValueError:
             return None
 
+    def _resolve_dur_min(self, nc_url: str, nc_durations: dict[str, int] | None) -> int | None:
+        """Return duration in minutes for nc_url, trying filename parse then nc_durations."""
+        d = self._duration_min_from_nc_url(nc_url)
+        if d is None and nc_durations:
+            d = nc_durations.get(nc_url)
+        return d
+
     def _per_log_png_links(self, nc_urls: list[str]) -> list[tuple[str, str]]:
         """Return (url, label) pairs for each existing per-log PNG."""
         parts: list[tuple[str, str]] = []
@@ -858,6 +865,7 @@ class DeploymentPlotter:
         auv_name: str = "",
         png_file_path: Path | None = None,
         other_png_paths: list[str] | None = None,
+        nc_durations: dict[str, int] | None = None,
     ) -> None:
         """Write a plain HTML page for one deployment PNG.
 
@@ -895,7 +903,7 @@ class DeploymentPlotter:
                     (
                         d
                         for nc_url in nc_urls
-                        if (d := self._duration_min_from_nc_url(nc_url)) is not None
+                        if (d := self._resolve_dur_min(nc_url, nc_durations)) is not None
                     ),
                     None,
                 )

@@ -201,12 +201,10 @@ def _make_per_log_plots(
 ) -> None:
     """Create per-log plots for each shore_1S.nc in month_files."""
     for p in month_files:
-        out_png = p.parent / f"shore_{FREQ}_2column_cmocean.png"
-        if out_png.exists() and not args.clobber:
-            if p.stat().st_mtime <= out_png.stat().st_mtime:
-                logger.info(
-                    "Per-log plot up to date, skipping: %s", _rel(out_png, args.vehicle_dir)
-                )
+        sentinel = p.parent / f"shore_{FREQ}.plotted"
+        if sentinel.exists() and not args.clobber:
+            if p.stat().st_mtime <= sentinel.stat().st_mtime:
+                logger.info("Per-log plots up to date, skipping: %s", _rel(p, args.vehicle_dir))
                 continue
             logger.info("shore_1S.nc is newer — replotting: %s", _rel(p, args.vehicle_dir))
         else:
@@ -231,6 +229,7 @@ def _make_per_log_plots(
                 cp.plot_cbit_2column()
         except Exception as e:  # noqa: BLE001
             logger.warning("Per-log plot failed for %s: %s", p.name, e)
+        sentinel.touch()
 
 
 def _make_products(
@@ -302,6 +301,14 @@ def _make_products(
         html_title = f"Interpolated realtime SBD data for {args.auv_name} in {month_year}"
 
         nc_file_strs = [_to_opendap_url(p, args.vehicle_dir) for p in month_files]
+        nc_durations: dict[str, int] = {}
+        for p, url in zip(month_files, nc_file_strs, strict=True):
+            with xr.open_dataset(p) as d:
+                times = d.cf["time"].to_numpy()
+                if len(times) > 1:
+                    nc_durations[url] = int(
+                        (times[-1] - times[0]).astype("timedelta64[m]").astype(int)
+                    )
         html_paths = []
         for png_path in png_paths:
             html_path = png_path.with_suffix(".html")
@@ -316,6 +323,7 @@ def _make_products(
                 auv_name=args.auv_name,
                 png_file_path=png_path,
                 other_png_paths=other_pngs,
+                nc_durations=nc_durations,
             )
             html_paths.append(html_path)
 
