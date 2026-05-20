@@ -36,6 +36,8 @@ from pathlib import Path
 
 import xarray as xr
 from common_args import ALL_LRAUV_NAMES
+from nc42netcdfs import BASE_LRAUV_PATH
+from resample import LRAUV_OPENDAP_BASE
 from sbd2netcdf import FREQ, SbdExtract
 
 _LOG_LEVELS = (logging.WARN, logging.INFO, logging.DEBUG)
@@ -46,6 +48,17 @@ _handler = logging.StreamHandler()
 _handler.setFormatter(_formatter)
 logger = logging.getLogger(__name__)
 logger.addHandler(_handler)
+
+
+def _to_opendap_url(path: Path, vehicle_dir: str) -> str:
+    """Convert a local shore_1S.nc path to its OPeNDAP URL."""
+    for local_base in (Path(vehicle_dir), BASE_LRAUV_PATH):
+        try:
+            rel = path.relative_to(local_base)
+            return LRAUV_OPENDAP_BASE.rstrip("/") + "/" + str(rel)
+        except ValueError:
+            continue
+    return str(path)
 
 
 def _parse_dt(s: str) -> datetime:
@@ -288,7 +301,7 @@ def _make_products(
         month_year = pd.to_datetime(ds.cf["time"].to_numpy()[0]).strftime("%B %Y")
         html_title = f"Interpolated realtime SBD data for {args.auv_name} in {month_year}"
 
-        nc_file_strs = [str(p) for p in month_files]
+        nc_file_strs = [_to_opendap_url(p, args.vehicle_dir) for p in month_files]
         html_paths = []
         for png_path in png_paths:
             html_path = png_path.with_suffix(".html")

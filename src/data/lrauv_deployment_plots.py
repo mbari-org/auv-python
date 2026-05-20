@@ -882,10 +882,11 @@ class DeploymentPlotter:
             dap_links = []
             for nc_url in nc_urls:
                 nc4_url = re.sub(rf"_{FREQ}\.nc$", ".nc4", nc_url)
+                nc_label = "Interpolated .nc" if "/realtime/" in nc_url else "Resampled .nc"
                 dap_links.append(
                     f'<a href="{nc4_url}.html" {nt}>Original .nc4</a>'
                     f"<br>"
-                    f'<a href="{nc_url}.html" {nt}>Resampled .nc</a>'
+                    f'<a href="{nc_url}.html" {nt}>{nc_label}</a>'
                 )
 
             stoqs_label = "STOQS"
