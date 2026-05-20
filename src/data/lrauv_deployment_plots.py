@@ -854,6 +854,16 @@ class DeploymentPlotter:
                     parts.append((png_url, pname))
         return parts
 
+    def _provenance_link_html(self, html_path: Path, nc_files: list[str], nt: str) -> str:
+        """Return SSDS provenance anchor HTML, or empty string for realtime data."""
+        if any("/realtime/" in url for url in nc_files):
+            return ""
+        ssds_url = (
+            "https://mooring-ssds.shore.mbari.org/explorer/ssds_metadata/dataproducer/"
+            f"?resource_name={html_path.name}"
+        )
+        return f'<small><a href="{ssds_url}" {nt}>Full provenance details in SSDS</a></small>'
+
     def _write_per_png_html(  # noqa: C901, PLR0913
         self,
         html_path: Path,
@@ -973,18 +983,14 @@ class DeploymentPlotter:
         html_title_single = title.replace("\n", " \u2014 ")
         script_github_url = get_script_github_url("src/data/lrauv_deployment_plots.py")
         created_ts = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-        ssds_explorer_url = (
-            "https://mooring-ssds.shore.mbari.org/explorer/ssds_metadata/dataproducer/"
-            f"?resource_name={html_path.name}"
-        )
+        provenance_link = self._provenance_link_html(html_path, nc_files, nt)
         footer = (
             "<hr>\n"
             '<p style="display: flex; justify-content: space-between">'
             "<small>Created by "
             f'<a href="{script_github_url}" {nt}>lrauv_deployment_plots.py</a>'
             f" on {created_ts}</small>"
-            f'<small><a href="{ssds_explorer_url}" {nt}>'
-            "Full provenance details in SSDS</a></small>"
+            f"{provenance_link}"
             "</p>\n"
         )
         html = (
