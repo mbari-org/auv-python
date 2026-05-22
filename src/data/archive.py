@@ -111,19 +111,7 @@ class Archiver:
                 ftypes = (f"{freq}.nc", "cal.nc4", "align.nc4")
             for ftype in ftypes:
                 src_file = Path(f"{nc_file_base}_{ftype}")
-                dst_file = Path(surveynetcdfs_dir, src_file.name)
-                if self.clobber:
-                    if dst_file.exists():
-                        self.logger.info("Removing %s", dst_file)
-                        dst_file.unlink()
-                    if src_file.exists():
-                        shutil.copyfile(src_file, dst_file)
-                        self.logger.info("copyfile %s %s done.", src_file, surveynetcdfs_dir)
-                elif src_file.exists():
-                    self.logger.info(
-                        "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
-                        src_file.name,
-                    )
+                self._archive_file(src_file, Path(surveynetcdfs_dir, src_file.name))
 
             if not self.resample:
                 # Copy intermediate files to AUVCTD/missionnetcdfs/YYYY/YYYYJJJ
@@ -141,15 +129,7 @@ class Archiver:
                 # so that lopc.nc is archived along with the other netcdf versions of the log files.
                 for log in [*LOG_FILES, "lopc.log"]:
                     src_file = Path(src_dir, f"{log.replace('.log', '')}.nc")
-                    if self.clobber:
-                        if src_file.exists():
-                            shutil.copyfile(src_file, missionnetcdfs_dir / src_file.name)
-                            self.logger.info("copyfile %s %s done.", src_file, missionnetcdfs_dir)
-                    elif src_file.exists():
-                        self.logger.info(
-                            "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
-                            src_file.name,
-                        )
+                    self._archive_file(src_file, missionnetcdfs_dir / src_file.name)
 
         # Copy files created by create_products.py
         self.logger.info("Archiving product files")
@@ -163,26 +143,8 @@ class Archiver:
             if Path(src_dir).exists():
                 dst_dir = Path(surveys_dir, year, dst_dir)  # noqa: PLW2901
                 Path(dst_dir).mkdir(parents=True, exist_ok=True)
-                if self.clobber:
-                    # Copy files individually to avoid permission issues with copytree.
-                    # This will not copy subdirectories, but we don't expect any.
-                    for src_file in src_dir.glob("*"):
-                        dst_file = Path(dst_dir, src_file.name)
-                        if dst_file.exists():
-                            self.logger.info("Removing %s", dst_file)
-                            dst_file.unlink()
-                        shutil.copyfile(src_file, dst_file)
-                        self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-
-                    # shutil.copytree(
-                    #     src_dir, dst_dir, dirs_exist_ok=True, copy_function=shutil.copy
-                    # )
-                    # self.logger.info("copytree %s/* %s done.", src_dir, dst_dir)
-                elif src_dir.exists():
-                    self.logger.info(
-                        "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
-                        src_dir.name,
-                    )
+                for src_file in src_dir.glob("*"):
+                    self._archive_file(src_file, Path(dst_dir, src_file.name))
             else:
                 self.logger.debug("%s not found", src_dir)
         if self.create_products or self.resample:
@@ -194,17 +156,7 @@ class Archiver:
         else:
             # Copy the processing.log file last so that we get everything
             src_file = Path(f"{nc_file_base}_{LOG_NAME}")
-            dst_file = Path(surveynetcdfs_dir, src_file.name)
-            if src_file.exists():
-                if self.clobber:
-                    self.logger.info("copyfile %s %s", src_file, surveynetcdfs_dir)
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, surveynetcdfs_dir)
-                elif src_file.exists():
-                    self.logger.info(
-                        "%26s exists, but is not being archived because --clobber is not specified.",  # noqa: E501
-                        src_file.name,
-                    )
+            self._archive_file(src_file, Path(surveynetcdfs_dir, src_file.name))
 
     def copy_to_M3(self, resampled_nc_file: str) -> None:
         pass
