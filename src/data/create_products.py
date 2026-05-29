@@ -1074,7 +1074,7 @@ class CreateProducts:
         idist = np.linspace(
             distnav.to_numpy()[0],
             distnav.to_numpy()[-1],
-            int(3 * self.ds["profile_number"].to_numpy()[-1]),
+            int(3 * np.nanmax(self.ds["profile_number"].to_numpy())),
         )
         # Vertical gridded to .5 m, rounded down to nearest 10m (minimum 10m)
         # Use only depths where at least one sensor variable has valid data to
