@@ -309,10 +309,11 @@ def _make_products(
                     nc_durations[url] = int(
                         (times[-1] - times[0]).astype("timedelta64[m]").astype(int)
                     )
-        html_paths = []
-        for png_path in png_paths:
-            html_path = png_path.with_suffix(".html")
-            other_pngs = [str(p) for p in png_paths if p != png_path]
+        html_paths = [
+            png_path.with_name(f"{png_path.stem.removeprefix(f'{args.auv_name}_')}.html")
+            for png_path in png_paths
+        ]
+        for png_path, html_path in zip(png_paths, html_paths, strict=True):
             dp._write_per_png_html(
                 html_path=html_path,
                 title=html_title,
@@ -322,10 +323,9 @@ def _make_products(
                 nc_files=nc_file_strs,
                 auv_name=args.auv_name,
                 png_file_path=png_path,
-                other_png_paths=other_pngs,
+                sibling_html_paths=[p for p in html_paths if p != html_path],
                 nc_durations=nc_durations,
             )
-            html_paths.append(html_path)
 
         dp._update_index_html(
             output_dir,
