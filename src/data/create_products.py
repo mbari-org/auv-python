@@ -3250,7 +3250,7 @@ class CreateProducts:
         ax_section.set_xlabel("Distance along track (km)")
 
         # Time series
-        ax_time.plot(times, cbit_vals, color="tab:red", linewidth=1)
+        ax_time.plot(times, cbit_vals, color="tab:red", linewidth=1, marker=".", markersize=3)
         ax_time.set_xlabel("Time (UTC)")
         ax_time.set_ylabel(ylabel)
         ax_time.set_title("Ah Used vs. Time")

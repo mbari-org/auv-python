@@ -864,6 +864,27 @@ class DeploymentPlotter:
         )
         return f'<small><a href="{ssds_url}" {nt}>Full provenance details in SSDS</a></small>'
 
+    def _other_plots_line(
+        self,
+        nt: str,
+        sibling_html_paths: list[Path] | None,
+        other_png_paths: list[str] | None,
+    ) -> str:
+        """Return an HTML paragraph linking to sibling deployment plots, or empty string."""
+        if sibling_html_paths:
+            links = [f'<a href="{p.name}" {nt}>{p.stem}.png</a>' for p in sibling_html_paths]
+        elif other_png_paths:
+            links = [
+                f'<a href="{Path(p).with_suffix(".html").name}" {nt}>{Path(p).name}</a>'
+                for p in other_png_paths
+                if Path(p).exists()
+            ]
+        else:
+            return ""
+        if not links:
+            return ""
+        return "<p>Other plots for this deployment: " + " | ".join(links) + "</p>\n"
+
     def _write_per_png_html(  # noqa: C901, PLR0913
         self,
         html_path: Path,
@@ -876,6 +897,7 @@ class DeploymentPlotter:
         png_file_path: Path | None = None,
         other_png_paths: list[str] | None = None,
         nc_durations: dict[str, int] | None = None,
+        sibling_html_paths: list[Path] | None = None,
     ) -> None:
         """Write a plain HTML page for one deployment PNG.
 
@@ -953,17 +975,7 @@ class DeploymentPlotter:
             "  </table>\n"
         )
 
-        other_plots_line = ""
-        if other_png_paths:
-            sibling_links = [
-                f'<a href="{Path(p).with_suffix(".html").name}" {nt}>{Path(p).name}</a>'
-                for p in other_png_paths
-                if Path(p).exists()
-            ]
-            if sibling_links:
-                other_plots_line = (
-                    "<p>Other plots for this deployment: " + " | ".join(sibling_links) + "</p>\n"
-                )
+        other_plots_line = self._other_plots_line(nt, sibling_html_paths, other_png_paths)
 
         stoqs_line = ""
         if stoqs_url:
