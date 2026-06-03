@@ -254,14 +254,14 @@ def _make_products(
     output_dir = out_paths[0].parent.parent  # YYYYMM directory
     ds, month_files = _concat_month_files(output_dir)
 
-    monthly_png = output_dir / f"{args.auv_name}_{output_dir.name}_sbd_{FREQ}_2column_cmocean.png"
+    monthly_png = output_dir / f"{output_dir.name}_sbd_{FREQ}_2column_cmocean.png"
     if monthly_png.exists() and not args.clobber:
         newest_nc = max(p.stat().st_mtime for p in month_files)
         if newest_nc <= monthly_png.stat().st_mtime:
             logger.info("Monthly plots up to date for %s — skipping", output_dir.name)
             return
 
-    plot_stem = f"{args.auv_name}_{output_dir.name}_sbd"
+    plot_stem = f"{output_dir.name}_sbd"
     cp = CreateProducts(
         auv_name=args.auv_name,
         mission=mission,
@@ -309,10 +309,7 @@ def _make_products(
                     nc_durations[url] = int(
                         (times[-1] - times[0]).astype("timedelta64[m]").astype(int)
                     )
-        html_paths = [
-            png_path.with_name(f"{png_path.stem.removeprefix(f'{args.auv_name}_')}.html")
-            for png_path in png_paths
-        ]
+        html_paths = [p.with_suffix(".html") for p in png_paths]
         for png_path, html_path in zip(png_paths, html_paths, strict=True):
             dp._write_per_png_html(
                 html_path=html_path,
@@ -323,7 +320,7 @@ def _make_products(
                 nc_files=nc_file_strs,
                 auv_name=args.auv_name,
                 png_file_path=png_path,
-                sibling_html_paths=[p for p in html_paths if p != html_path],
+                other_png_paths=[str(p) for p in png_paths if p != png_path],
                 nc_durations=nc_durations,
             )
 
@@ -331,6 +328,7 @@ def _make_products(
             output_dir,
             html_paths,
             deployment_name=f"{args.auv_name} {output_dir.name}",
+            clobber=True,
         )
 
 

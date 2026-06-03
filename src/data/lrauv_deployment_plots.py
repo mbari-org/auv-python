@@ -408,6 +408,10 @@ class DeploymentPlotter:
             content = index_path.read_text()
             all_hrefs = set(re.findall(r'href="([^"#][^"]*\.html)"', content))
             group_names = dict(re.findall(r'<h2 id="([^"]+)">([^<]+)</h2>', content))
+            # Drop hrefs whose filename has a prefix before the group name (old auv_name_ style).
+            all_hrefs = {
+                h for h in all_hrefs if "/" not in h or Path(h).name.startswith(h.split("/")[0])
+            }
             # clobber=True drops only this deployment's existing entries so they are rebuilt;
             # other deployments' entries are always preserved.
             known_hrefs = (
@@ -867,13 +871,10 @@ class DeploymentPlotter:
     def _other_plots_line(
         self,
         nt: str,
-        sibling_html_paths: list[Path] | None,
         other_png_paths: list[str] | None,
     ) -> str:
         """Return an HTML paragraph linking to sibling deployment plots, or empty string."""
-        if sibling_html_paths:
-            links = [f'<a href="{p.name}" {nt}>{p.stem}.png</a>' for p in sibling_html_paths]
-        elif other_png_paths:
+        if other_png_paths:
             links = [
                 f'<a href="{Path(p).with_suffix(".html").name}" {nt}>{Path(p).name}</a>'
                 for p in other_png_paths
@@ -897,7 +898,6 @@ class DeploymentPlotter:
         png_file_path: Path | None = None,
         other_png_paths: list[str] | None = None,
         nc_durations: dict[str, int] | None = None,
-        sibling_html_paths: list[Path] | None = None,
     ) -> None:
         """Write a plain HTML page for one deployment PNG.
 
@@ -975,7 +975,7 @@ class DeploymentPlotter:
             "  </table>\n"
         )
 
-        other_plots_line = self._other_plots_line(nt, sibling_html_paths, other_png_paths)
+        other_plots_line = self._other_plots_line(nt, other_png_paths)
 
         stoqs_line = ""
         if stoqs_url:
