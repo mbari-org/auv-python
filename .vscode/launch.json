@@ -487,7 +487,9 @@
             // Test having a better y-max that puts data instead of white space at the bottom
             //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260410T010521/202604100105_202604100800.nc4"]
             // Test processing only new data - as we would do in production with a cron job
-            "args": ["-v", "1", "--last_n_days", "14"]
+            //"args": ["-v", "1", "--last_n_days", "14"]
+            // Test improving out of range log message for Planktivore deployment in April 2026 - Ahi 47 CFE
+            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260410T080016/202604100800_202604111036.nc4", "--clobber"]
         },
         {
             "name": "process_lrauv_sbd",
