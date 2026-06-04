@@ -1070,32 +1070,41 @@ class CreateProducts:
                 attrs=distnav.attrs,
             )
 
-        # Horizontal gridded to 3x the number of profiles
+        # Horizontal gridded to 3x the number of profiles (or len of distnav if unavailable)
+        num_profiles = (
+            int(np.nanmax(self.ds["profile_number"].to_numpy()))
+            if "profile_number" in self.ds
+            else len(distnav)
+        )
         idist = np.linspace(
             distnav.to_numpy()[0],
             distnav.to_numpy()[-1],
-            int(3 * np.nanmax(self.ds["profile_number"].to_numpy())),
+            3 * num_profiles,
         )
         # Vertical gridded to .5 m, rounded down to nearest 10m (minimum 10m)
         # Use only depths where at least one sensor variable has valid data to
         # exclude bogus depth values recorded when no valid sensor data was logged
         # (e.g. from memory corruption events)
-        depth_values = self.ds.cf["depth"].to_numpy()
-        time_dim = self.ds.cf["depth"].dims[0]
-        nav_vars = {"depth", "latitude", "longitude", "profile_number"}
-        has_valid_sensor_data = np.zeros(len(depth_values), dtype=bool)
-        vars_to_check = [
-            v for v in (plot_vars or self.ds.data_vars) if v in self.ds and "pitch" not in v
-        ]
-        for var in vars_to_check:
-            if var not in nav_vars and time_dim in self.ds[var].dims and self.ds[var].ndim == 1:
-                has_valid_sensor_data |= ~np.isnan(self.ds[var].to_numpy())
-        depths_with_data = depth_values[has_valid_sensor_data]
-        if len(depths_with_data) > 0 and not np.all(np.isnan(depths_with_data)):
-            max_depth = max(np.floor(np.nanmax(depths_with_data) / 10) * 10, 10)
+        if "depth" not in self.ds.cf:
+            self.logger.debug("No depth variable in dataset, using minimal iz")
+            iz = np.arange(0, 10.5, 0.5)
         else:
-            max_depth = max(np.floor(np.nanmax(depth_values) / 10) * 10, 10)
-        iz = np.arange(0, max_depth + 0.5, 0.5)  # include max_depth so axis reaches it
+            depth_values = self.ds.cf["depth"].to_numpy()
+            time_dim = self.ds.cf["depth"].dims[0]
+            nav_vars = {"depth", "latitude", "longitude", "profile_number"}
+            has_valid_sensor_data = np.zeros(len(depth_values), dtype=bool)
+            vars_to_check = [
+                v for v in (plot_vars or self.ds.data_vars) if v in self.ds and "pitch" not in v
+            ]
+            for var in vars_to_check:
+                if var not in nav_vars and time_dim in self.ds[var].dims and self.ds[var].ndim == 1:
+                    has_valid_sensor_data |= ~np.isnan(self.ds[var].to_numpy())
+            depths_with_data = depth_values[has_valid_sensor_data]
+            if len(depths_with_data) > 0 and not np.all(np.isnan(depths_with_data)):
+                max_depth = max(np.floor(np.nanmax(depths_with_data) / 10) * 10, 10)
+            else:
+                max_depth = max(np.floor(np.nanmax(depth_values) / 10) * 10, 10)
+            iz = np.arange(0, max_depth + 0.5, 0.5)  # include max_depth so axis reaches it
 
         return idist, iz, distnav
 
@@ -1166,6 +1175,9 @@ class CreateProducts:
         """Return array of distance and depth points defining the bottom of the profiles
         where there is no data"""
 
+        if "depth" not in self.ds.cf:
+            self.logger.debug("No depth variable in dataset, skipping profile bottoms")
+            return None
         # Create a DataArray of depths indexed by distance
         depth_dist = xr.DataArray(
             self.ds.cf["depth"].to_numpy(),
@@ -1464,7 +1476,13 @@ class CreateProducts:
         return profile_bottoms, bottom_depths
 
     def _cumulative_profile_numbers(self) -> np.ndarray:
-        """Return profile_number array that increments monotonically across log files."""
+        """Return profile_number array that increments monotonically across log files.
+
+        Falls back to a simple index array when profile_number is absent.
+        """
+        if "profile_number" not in self.ds:
+            self.logger.debug("profile_number not in dataset, using index array for track color")
+            return np.arange(len(self.ds["time"]), dtype=float)
         profile_numbers = self.ds["profile_number"].to_numpy()
         result = profile_numbers.copy().astype(float)
         offset = 0
@@ -2066,14 +2084,19 @@ class CreateProducts:
         # filtered in _grid_dims (e.g. sparse GPS in realtime SBD data).
         # Align depth and var arrays to distnav's time subset.
         n_ds = len(self.ds.cf["time"])
+        has_depth = "depth" in self.ds.cf
         if len(distnav) != n_ds:
             ds_time = self.ds.cf["time"].to_numpy()
             nav_idx = np.searchsorted(ds_time, distnav.coords["time"].to_numpy())
             nav_idx = nav_idx[nav_idx < n_ds]
-            depth_for_scatter = self.ds.cf["depth"].to_numpy()[nav_idx]
+            depth_for_scatter = (
+                self.ds.cf["depth"].to_numpy()[nav_idx] if has_depth else np.zeros(len(nav_idx))
+            )
             var_for_scatter = var_to_plot[nav_idx]
         else:
-            depth_for_scatter = self.ds.cf["depth"].to_numpy()
+            depth_for_scatter = (
+                self.ds.cf["depth"].to_numpy() if has_depth else np.zeros(len(var_to_plot))
+            )
             var_for_scatter = var_to_plot
 
         # Create scatter plot with actual data points
