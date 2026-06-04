@@ -806,14 +806,35 @@ class Extract:
 
         if outliers_found > 0:
             non_finite = np.sum(~is_finite)
-            out_of_range = np.sum(~is_in_range & is_finite)
+            out_of_range_mask = ~is_in_range & is_finite
+            out_of_range = np.sum(out_of_range_mask)
 
+            win_start = datetime.fromtimestamp(MIN_UNIX_TIME, tz=UTC).strftime("%Y-%m-%dT%H:%MZ")
+            win_end = datetime.fromtimestamp(MAX_UNIX_TIME, tz=UTC).strftime("%Y-%m-%dT%H:%MZ")
             self.logger.info(
                 "Pre-filtered %d invalid time values: %d non-finite, %d out-of-range",
                 outliers_found,
                 non_finite,
                 out_of_range,
             )
+            self.logger.info("  Valid window : [%s ──── %s]", win_start, win_end)
+            if out_of_range:
+                bad = time_array[out_of_range_mask]
+                bad_start = datetime.fromtimestamp(bad.min(), tz=UTC).strftime("%Y-%m-%dT%H:%MZ")
+                bad_end = datetime.fromtimestamp(bad.max(), tz=UTC).strftime("%Y-%m-%dT%H:%MZ")
+                before = np.sum(bad < MIN_UNIX_TIME)
+                after = np.sum(bad > MAX_UNIX_TIME)
+                parts = []
+                if before:
+                    parts.append(f"{before} before")
+                if after:
+                    parts.append(f"{after} after")
+                self.logger.info(
+                    "  Rejected     : [%s ──── %s]  (%s window)",
+                    bad_start,
+                    bad_end,
+                    ", ".join(parts),
+                )
 
         return valid_indices
 
