@@ -884,7 +884,8 @@ class DeploymentPlotter:
             return ""
         if not links:
             return ""
-        return "<p>Other plots for this deployment: " + " | ".join(links) + "</p>\n"
+        context = "month" if any("sbdlogs" in f for f in (other_png_paths or [])) else "deployment"
+        return f"<p>Other plots for this {context}: " + " | ".join(links) + "</p>\n"
 
     def _write_per_png_html(  # noqa: C901, PLR0913
         self,
@@ -1032,20 +1033,23 @@ class DeploymentPlotter:
         "2column_biolume",
         "2column_planktivore",
         "2column_engineering",
+        "2column_cbit",
     )
     # (kind_substring, column_index) — biolume and planktivore are mutually exclusive
-    # so they share column 2, keeping the table at 3 columns maximum.
+    # so they share column 2, keeping the cbit column at index 3.
     _PLOT_COLUMN_ORDER = (
         ("2column_cmocean", 0),
         ("2column_engineering", 1),
         ("2column_biolume", 2),
         ("2column_planktivore", 2),
+        ("2column_cbit", 3),
     )
     _PLOT_KIND_LABELS = {
         "2column_cmocean": "Standard",
         "2column_biolume": "Bioluminescence",
         "2column_planktivore": "Planktivore",
         "2column_engineering": "Engineering",
+        "2column_cbit": "Cbit",
     }
 
     def _png_urls_for_nc(self, nc_url: str) -> list[str]:
