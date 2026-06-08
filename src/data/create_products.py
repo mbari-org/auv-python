@@ -3204,8 +3204,71 @@ class CreateProducts:
         self.logger.info("Saved engineering 2column plot to %s", output_file)
         return str(output_file)
 
+    def _plot_cbit_time_series(
+        self,
+        ax: matplotlib.axes.Axes,
+        times: pd.DatetimeIndex,
+        cbit_vals: np.ndarray,
+        ylabel: str,
+    ) -> None:
+        ax.plot(times, cbit_vals, color="tab:red", linewidth=1, marker=".", markersize=3)
+        ax.set_xlabel("Time (UTC)")
+        ax.set_ylabel(ylabel)
+        ax.set_title("Ah Used vs. Time")
+        ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%Y-%m-%d\n%H:%M"))
+        plt.setp(ax.get_xticklabels(), rotation=0, ha="center", fontsize=8)
+        ax.grid(visible=True, linestyle="--", alpha=0.5)
+
+    def _plot_cbit_distance(
+        self,
+        ax: matplotlib.axes.Axes,
+        distnav: xr.DataArray,
+        cbit_at_nav: np.ndarray,
+        ylabel: str,
+    ) -> None:
+        dist_km = distnav.to_numpy() / 1000.0
+        inst_rate = np.gradient(cbit_at_nav, dist_km)
+
+        (line_ah,) = ax.plot(
+            dist_km,
+            cbit_at_nav,
+            color="tab:red",
+            linewidth=1,
+            marker=".",
+            markersize=3,
+            label="Ah Used",
+        )
+        ax_rate = ax.twinx()
+        (line_rate,) = ax_rate.plot(
+            dist_km,
+            inst_rate,
+            color="tab:blue",
+            linewidth=0.8,
+            alpha=0.6,
+            label="Instantaneous rate (Ah/km)",
+        )
+        ax_rate.set_ylabel("Instantaneous rate (Ah/km)", color="tab:blue")
+        ax_rate.tick_params(axis="y", labelcolor="tab:blue")
+        last_rate = inst_rate[~np.isnan(inst_rate)][-1] if np.any(~np.isnan(inst_rate)) else None
+        if last_rate is not None:
+            ax_rate.annotate(
+                f"{last_rate:.3f}",
+                xy=(dist_km[-1], last_rate),
+                xytext=(4, 0),
+                textcoords="offset points",
+                color="tab:blue",
+                fontsize=8,
+                va="center",
+            )
+        ax.set_xlabel("Distance along track (km)")
+        ax.set_ylabel(ylabel)
+        ax.set_title("Ah Used vs. Distance")
+        ax.grid(visible=True, axis="x", linestyle="--", alpha=0.5)
+        ax_rate.grid(visible=True, axis="y", linestyle="--", alpha=0.5)
+        ax.legend(handles=[line_ah, line_rate], loc="upper left", fontsize=8)
+
     def plot_cbit_2column(self) -> str:
-        """Create a 3-panel plot for cbit_amphoursused: track map, distance scatter, time series."""
+        """Create a 4-panel plot for cbit_amphoursused: track map, depth section, time series, distance."""  # noqa: E501
         _CBIT_VAR = "cbit_amphoursused"
 
         if "pytest" in sys.modules:
@@ -3236,11 +3299,15 @@ class CreateProducts:
         times = pd.to_datetime(cbit.coords["time"].to_numpy())
         cbit_vals = cbit.to_numpy()
 
-        fig = plt.figure(figsize=(18, 8))
-        gs = matplotlib.gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.15)
+        fig = plt.figure(figsize=(18, 11))
+        gs = matplotlib.gridspec.GridSpec(
+            3, 2, figure=fig, hspace=0.45, wspace=0.15, height_ratios=[3, 2, 3]
+        )
+        fig.subplots_adjust(left=0.06)
         ax_map = fig.add_subplot(gs[0, 0])
         ax_section = fig.add_subplot(gs[0, 1])
         ax_time = fig.add_subplot(gs[1, :])
+        ax_dist = fig.add_subplot(gs[2, :])
 
         # Track map colored by Ah Used
         self._plot_track_map(
@@ -3272,13 +3339,8 @@ class CreateProducts:
         )
         ax_section.set_xlabel("Distance along track (km)")
 
-        # Time series
-        ax_time.plot(times, cbit_vals, color="tab:red", linewidth=1, marker=".", markersize=3)
-        ax_time.set_xlabel("Time (UTC)")
-        ax_time.set_ylabel(ylabel)
-        ax_time.set_title("Ah Used vs. Time")
-        ax_time.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%Y-%m-%d\n%H:%M"))
-        plt.setp(ax_time.get_xticklabels(), rotation=0, ha="center", fontsize=8)
+        self._plot_cbit_time_series(ax_time, times, cbit_vals, ylabel)
+        self._plot_cbit_distance(ax_dist, distnav, cbit_at_nav, ylabel)
 
         out_dir = (
             self.output_dir
