@@ -1005,6 +1005,7 @@ class DeploymentPlotter:
             f"{provenance_link}"
             "</p>\n"
         )
+        more_heading = "month" if any("sbdlogs" in f for f in nc_files) else "deployment"
         html = (
             "<!DOCTYPE html>\n"
             '<html lang="en">\n'
@@ -1015,7 +1016,7 @@ class DeploymentPlotter:
             "<body>\n"
             f"  <h1>{html_title_single}</h1>\n"
             f'  <img src="{img_src}" alt="{png_name}">\n'
-            "  <h2>More from this deployment</h2>\n"
+            f"  <h2>More from this {more_heading}</h2>\n"
             f"  {other_plots_line}"
             f"  {stoqs_line}"
             "  <h2>Log files</h2>\n"
