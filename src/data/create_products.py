@@ -3227,7 +3227,12 @@ class CreateProducts:
         ylabel: str,
     ) -> None:
         dist_km = distnav.to_numpy() / 1000.0
-        inst_rate = np.gradient(cbit_at_nav, dist_km)
+        # Resample cbit_at_nav onto a regular 1 km grid before computing the gradient.
+        # Using the raw nav-time arrays directly produces near-zero per-step Ah changes
+        # because cbit is sparsely telemetered and densely interpolated in time.
+        dist_grid = np.arange(dist_km[0], dist_km[-1], 1.0)
+        cbit_grid = np.interp(dist_grid, dist_km, cbit_at_nav)
+        inst_rate = np.gradient(cbit_grid, dist_grid)
 
         (line_ah,) = ax.plot(
             dist_km,
@@ -3240,7 +3245,7 @@ class CreateProducts:
         )
         ax_rate = ax.twinx()
         (line_rate,) = ax_rate.plot(
-            dist_km,
+            dist_grid,
             inst_rate,
             color="tab:blue",
             linewidth=0.8,
@@ -3249,11 +3254,24 @@ class CreateProducts:
         )
         ax_rate.set_ylabel("Instantaneous rate (Ah/km)", color="tab:blue")
         ax_rate.tick_params(axis="y", labelcolor="tab:blue")
-        last_rate = inst_rate[~np.isnan(inst_rate)][-1] if np.any(~np.isnan(inst_rate)) else None
+        valid_rate = inst_rate[~np.isnan(inst_rate)]
+        last_rate = valid_rate[-1] if len(valid_rate) else None
+        mean_rate = float(np.nanmean(inst_rate)) if len(valid_rate) else None
         if last_rate is not None:
             ax_rate.annotate(
                 f"{last_rate:.3f}",
-                xy=(dist_km[-1], last_rate),
+                xy=(dist_grid[-1], last_rate),
+                xytext=(4, 0),
+                textcoords="offset points",
+                color="tab:blue",
+                fontsize=8,
+                va="center",
+            )
+        if mean_rate is not None:
+            ax_rate.axhline(mean_rate, color="tab:blue", linewidth=1, linestyle="--", alpha=0.8)
+            ax_rate.annotate(
+                f"{mean_rate:.3f}",
+                xy=(dist_grid[-1], mean_rate),
                 xytext=(4, 0),
                 textcoords="offset points",
                 color="tab:blue",
