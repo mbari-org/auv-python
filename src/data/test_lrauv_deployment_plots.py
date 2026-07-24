@@ -525,19 +525,49 @@ class TestForceFlag:
         return depl_dir
 
     def test_skips_when_outputs_exist(self, dp, tmp_path):
-        """plot_deployment() must return without calling CreateProducts when a PNG exists."""
+        """plot_deployment() must return without calling CreateProducts when
+        outputs exist and are newer than every source nc file."""
         depl_dir = self._make_deployment_dir(tmp_path)
-        # Pre-create an output PNG that _deployment_has_outputs() will find
-        (depl_dir / "CANON_April_2025_2column_cmocean.png").touch()
+        # Pre-create an output PNG (+ HTML sibling) that _deployment_has_outputs() will find
+        png = depl_dir / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        (depl_dir / "CANON_April_2025_2column_cmocean.html").touch()
 
         with (
             patch("lrauv_deployment_plots.BASE_LRAUV_PATH", tmp_path),
             patch.object(dp, "_read_dlist_content", return_value=_DLIST_CONTENT),
+            patch.object(dp, "_collect_nc_files", return_value=[_NC_URL]),
+            patch.object(dp, "_nc_file_mtime", return_value=png.stat().st_mtime - 100),
             patch("lrauv_deployment_plots.CreateProducts") as mock_cp_cls,
         ):
             dp.plot_deployment(_DLIST, verbose=1)  # force=False by default
 
         mock_cp_cls.assert_not_called()  # noqa: S101
+
+    def test_reprocesses_when_nc_file_newer_than_outputs(self, dp, tmp_path):
+        """plot_deployment() must reprocess when a source nc file is newer than
+        the existing outputs, even without --force (the staleness case)."""
+        depl_dir = self._make_deployment_dir(tmp_path)
+        png = depl_dir / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        (depl_dir / "CANON_April_2025_2column_cmocean.html").touch()
+
+        mock_cp = MagicMock()
+        mock_cp.plot_2column.return_value = None
+        mock_cp.plot_biolume_2column.return_value = None
+        mock_cp.plot_planktivore_2column.return_value = None
+
+        with (
+            patch("lrauv_deployment_plots.BASE_LRAUV_PATH", tmp_path),
+            patch.object(dp, "_read_dlist_content", return_value=_DLIST_CONTENT),
+            patch.object(dp, "_collect_nc_files", return_value=[_NC_URL]),
+            patch.object(dp, "_nc_file_mtime", return_value=png.stat().st_mtime + 100),
+            patch.object(dp, "_concat_datasets", return_value=_make_ds("2025-04-14")),
+            patch("lrauv_deployment_plots.CreateProducts", return_value=mock_cp),
+        ):
+            dp.plot_deployment(_DLIST, verbose=1)  # force=False by default
+
+        mock_cp.plot_2column.assert_called_once()  # noqa: S101
 
     def test_force_reprocesses_when_outputs_exist(self, dp, tmp_path):
         """plot_deployment(force=True) must proceed even when a PNG already exists."""
@@ -566,11 +596,82 @@ class TestForceFlag:
         mock_cp.plot_2column.assert_called_once()  # noqa: S101
 
     def test_deployment_has_outputs_false_when_empty(self, dp, tmp_path):
-        assert not dp._deployment_has_outputs(tmp_path, "CANON_April_2025")  # noqa: S101
+        assert not dp._deployment_has_outputs(tmp_path, "CANON_April_2025", [])  # noqa: S101
 
-    def test_deployment_has_outputs_true_when_png_present(self, dp, tmp_path):
+    def test_deployment_has_outputs_true_when_png_and_html_present_and_fresh(self, dp, tmp_path):
+        png = tmp_path / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        (tmp_path / "CANON_April_2025_2column_cmocean.html").touch()
+        with patch.object(dp, "_nc_file_mtime", return_value=png.stat().st_mtime - 100):
+            assert dp._deployment_has_outputs(  # noqa: S101
+                tmp_path, "CANON_April_2025", [_NC_URL]
+            )
+
+    def test_deployment_has_outputs_false_when_html_missing(self, dp, tmp_path):
+        """A PNG without its HTML sibling must be treated as incomplete, not up to date."""
         (tmp_path / "CANON_April_2025_2column_cmocean.png").touch()
-        assert dp._deployment_has_outputs(tmp_path, "CANON_April_2025")  # noqa: S101
+        assert not dp._deployment_has_outputs(  # noqa: S101
+            tmp_path, "CANON_April_2025", [_NC_URL]
+        )
+
+    def test_deployment_has_outputs_false_when_nc_file_newer(self, dp, tmp_path):
+        """A source nc file modified after the existing outputs must force a reprocess."""
+        png = tmp_path / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        (tmp_path / "CANON_April_2025_2column_cmocean.html").touch()
+        with patch.object(dp, "_nc_file_mtime", return_value=png.stat().st_mtime + 100):
+            assert not dp._deployment_has_outputs(  # noqa: S101
+                tmp_path, "CANON_April_2025", [_NC_URL]
+            )
+
+    def test_deployment_has_outputs_false_when_mtime_unknown(self, dp, tmp_path):
+        """An nc file whose modification time can't be determined must be treated as stale."""
+        png = tmp_path / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        (tmp_path / "CANON_April_2025_2column_cmocean.html").touch()
+        with patch.object(dp, "_nc_file_mtime", return_value=None):
+            assert not dp._deployment_has_outputs(  # noqa: S101
+                tmp_path, "CANON_April_2025", [_NC_URL]
+            )
+
+    def test_deployment_has_outputs_false_when_expected_kind_missing(self, dp, tmp_path):
+        """A per-log biolume PNG with no combined-deployment biolume PNG must be stale,
+        even though the cmocean PNG+HTML pair is present and fresh."""
+        png = tmp_path / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        (tmp_path / "CANON_April_2025_2column_cmocean.html").touch()
+        with (
+            patch.object(dp, "_nc_file_mtime", return_value=png.stat().st_mtime - 100),
+            patch.object(dp, "_expected_deployment_plot_kinds", return_value={"2column_biolume"}),
+        ):
+            assert not dp._deployment_has_outputs(  # noqa: S101
+                tmp_path, "CANON_April_2025", [_NC_URL]
+            )
+
+    def test_deployment_has_outputs_true_when_expected_kind_present(self, dp, tmp_path):
+        """A per-log biolume PNG is satisfied when the matching combined-deployment
+        biolume PNG (+ HTML sibling) already exists."""
+        cmocean_png = tmp_path / "CANON_April_2025_2column_cmocean.png"
+        cmocean_png.touch()
+        (tmp_path / "CANON_April_2025_2column_cmocean.html").touch()
+        biolume_png = tmp_path / "CANON_April_2025_2column_biolume.png"
+        biolume_png.touch()
+        (tmp_path / "CANON_April_2025_2column_biolume.html").touch()
+        oldest_mtime = min(cmocean_png.stat().st_mtime, biolume_png.stat().st_mtime)
+        with (
+            patch.object(dp, "_nc_file_mtime", return_value=oldest_mtime - 100),
+            patch.object(dp, "_expected_deployment_plot_kinds", return_value={"2column_biolume"}),
+        ):
+            assert dp._deployment_has_outputs(  # noqa: S101
+                tmp_path, "CANON_April_2025", [_NC_URL]
+            )
+
+    def test_expected_deployment_plot_kinds_excludes_cbit(self, dp):
+        """cbit is sbd-only and must never be reported as an expected combined-deployment kind."""
+        with patch.object(dp, "_url_exists", return_value=True):
+            expected = dp._expected_deployment_plot_kinds([_NC_URL])
+        assert "2column_cbit" not in expected  # noqa: S101
+        assert expected == set(dp._DEPLOYMENT_PLOT_KINDS)  # noqa: S101
 
 
 class TestStoqsUrlFromDs:

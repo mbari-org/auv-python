@@ -30,6 +30,7 @@ from datetime import UTC, datetime, timedelta
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -186,9 +187,130 @@ class DeploymentPlotter:
         self.logger.info("Concatenating %d dataset(s) via xr.concat", len(datasets))
         return xr.concat(datasets, dim="time", join="outer")
 
-    def _deployment_has_outputs(self, deployment_dir: Path, plot_name_stem: str) -> bool:
-        """Return True if any per-deployment PNG already exists in *deployment_dir*."""
-        return any(deployment_dir.glob(f"{plot_name_stem}_*.png"))
+    def _local_path_for_nc_url(self, nc_url: str) -> Path | None:
+        """Return a local filesystem Path for an OPeNDAP nc URL, if it resolves
+        under LRAUV_VOL or BASE_LRAUV_PATH, else None."""
+        opendap_prefix = LRAUV_OPENDAP_BASE.rstrip("/") + "/"
+        if not nc_url.startswith(opendap_prefix):
+            return None
+        rel = nc_url[len(opendap_prefix) :]
+        for local_base in (Path(LRAUV_VOL), BASE_LRAUV_PATH):
+            candidate = local_base / rel
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _nc_file_mtime(self, nc_file: Path | str) -> float | None:  # noqa: PLR0911
+        """Return the modification time (epoch seconds) of one nc file, local or remote.
+
+        Tries a local stat first (direct Path, or an OPeNDAP URL that resolves
+        under LRAUV_VOL/BASE_LRAUV_PATH), then falls back to an HTTP HEAD request
+        against the plain (non-OPeNDAP) BASE_LRAUV_WEB URL for its Last-Modified
+        header. Returns None if no modification time could be determined, which
+        callers should treat as "staleness unknown" rather than "unchanged".
+        """
+        if isinstance(nc_file, Path):
+            try:
+                return nc_file.stat().st_mtime
+            except OSError:
+                return None
+
+        local_path = self._local_path_for_nc_url(nc_file)
+        if local_path is not None:
+            try:
+                return local_path.stat().st_mtime
+            except OSError:
+                return None
+
+        plain_url = nc_file.replace(LRAUV_OPENDAP_BASE.rstrip("/"), BASE_LRAUV_WEB.rstrip("/"))
+        try:
+            req = urllib.request.Request(plain_url, method="HEAD")  # noqa: S310
+            with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
+                last_modified = resp.headers.get("Last-Modified")
+        except (urllib.error.URLError, OSError) as e:
+            self.logger.debug("Could not HEAD %s: %s", plain_url, e)
+            return None
+        if not last_modified:
+            return None
+        try:
+            return parsedate_to_datetime(last_modified).timestamp()
+        except (TypeError, ValueError) as e:
+            self.logger.debug(
+                "Could not parse Last-Modified %r for %s: %s", last_modified, plain_url, e
+            )
+            return None
+
+    def _expected_deployment_plot_kinds(self, nc_files: list[Path | str]) -> set[str]:
+        """Return which _DEPLOYMENT_PLOT_KINDS this deployment should produce.
+
+        combined_ds has no single source nc file of its own to check for
+        existence, so per-log PNGs (one per individual log's nc file, already
+        used for the "Quick Look Plots" column in the per-PNG HTML table) are
+        used as a proxy: if any log in the deployment has a per-log PNG for a
+        given kind, the deployment-level (combined_ds) plot of that kind is
+        expected too. Stops checking a kind as soon as one log confirms it, to
+        avoid an existence check (HTTP HEAD for non-local files) per log file.
+        """
+        remaining = set(self._DEPLOYMENT_PLOT_KINDS)
+        expected: set[str] = set()
+        for nc_file in nc_files:
+            if not remaining:
+                break
+            for kind, url in zip(
+                self._PLOT_KINDS, self._png_urls_for_nc(str(nc_file)), strict=True
+            ):
+                if kind in remaining and self._url_exists(url):
+                    expected.add(kind)
+                    remaining.discard(kind)
+        return expected
+
+    def _deployment_has_outputs(
+        self, deployment_dir: Path, plot_name_stem: str, nc_files: list[Path | str]
+    ) -> bool:
+        """Return True if per-deployment outputs exist and are newer than every
+        source nc file in *nc_files*.
+
+        Requires: at least one output PNG, every output PNG has its HTML
+        sibling, every _DEPLOYMENT_PLOT_KINDS kind with per-log data has a
+        corresponding combined output, and no nc_file's modification time is
+        newer than the oldest output PNG. Any nc_file whose modification time
+        can't be determined is treated as stale (reprocess), so a transient
+        lookup failure never masks genuinely new or changed source data.
+        """
+        pngs = list(deployment_dir.glob(f"{plot_name_stem}_*.png"))
+        if not pngs:
+            return False
+        if any(not png.with_suffix(".html").exists() for png in pngs):
+            self.logger.info("Per-PNG HTML missing for one or more outputs; reprocessing")
+            return False
+
+        expected_kinds = self._expected_deployment_plot_kinds(nc_files)
+        existing_kinds = {
+            kind for kind in self._DEPLOYMENT_PLOT_KINDS if any(kind in p.name for p in pngs)
+        }
+        missing_kinds = expected_kinds - existing_kinds
+        if missing_kinds:
+            self.logger.info(
+                "Deployment plot kind(s) %s have per-log data but no combined output;"
+                " reprocessing",
+                sorted(missing_kinds),
+            )
+            return False
+
+        oldest_png_mtime = min(p.stat().st_mtime for p in pngs)
+        for nc_file in nc_files:
+            nc_mtime = self._nc_file_mtime(nc_file)
+            if nc_mtime is None:
+                self.logger.info(
+                    "Could not determine modification time for %s; reprocessing to be safe",
+                    nc_file,
+                )
+                return False
+            if nc_mtime > oldest_png_mtime:
+                self.logger.info("%s modified after existing outputs; reprocessing", nc_file)
+                return False
+
+        return True
 
     def plot_deployment(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
@@ -235,13 +357,11 @@ class DeploymentPlotter:
         # Fetch .dlist content from network share, local copy, or DODS web server
         dlist_content = self._read_dlist_content(dlist)
         if dlist_content is None:
-            self.logger.warning(
-                "Could not read .dlist; plot_name_stem will fall back to %s",
-                dlist_rel.stem,
-            )
+            self.logger.error("Cannot collect nc files without dlist content")
+            return
 
         # Deployment name (spaces → underscores for filenames)
-        raw_name = self._parse_deployment_name(dlist_content) if dlist_content else None
+        raw_name = self._parse_deployment_name(dlist_content)
         if raw_name:
             plot_name_stem = raw_name.replace(" ", "_").replace("/", "_")
             self.logger.info("Deployment name: %s", raw_name)
@@ -252,16 +372,8 @@ class DeploymentPlotter:
                 plot_name_stem,
             )
 
-        if not force and self._deployment_has_outputs(deployment_dir, plot_name_stem):
-            self.logger.info(
-                "Outputs already exist for %s, skipping (use --force to reprocess)", dlist
-            )
-            return
-
-        # Gather and concatenate per-log resampled files
-        if dlist_content is None:
-            self.logger.error("Cannot collect nc files without dlist content")
-            return
+        # Gather per-log resampled files first: needed both to build the plots
+        # and to check whether any of them are newer than existing outputs.
         nc_files = self._collect_nc_files(deployment_dir, dlist_content)
         if not nc_files:
             return
@@ -269,6 +381,14 @@ class DeploymentPlotter:
         self.logger.info("Found %d *_%s.nc file(s)", len(nc_files), FREQ)
         for f in nc_files:
             self.logger.info("  %s", f)
+
+        if not force and self._deployment_has_outputs(deployment_dir, plot_name_stem, nc_files):
+            self.logger.info(
+                "Outputs already exist and are up to date for %s, skipping"
+                " (use --force to reprocess)",
+                dlist,
+            )
+            return
 
         combined_ds = self._concat_datasets(nc_files)
         if combined_ds is None:
@@ -1035,6 +1155,9 @@ class DeploymentPlotter:
         "2column_engineering",
         "2column_cbit",
     )
+    # cbit is sbd-only (process_lrauv_sbd.py) — never produced from combined_ds,
+    # so it's excluded from the deployment-level completeness check.
+    _DEPLOYMENT_PLOT_KINDS = tuple(k for k in _PLOT_KINDS if k != "2column_cbit")
     # (kind_substring, column_index) — biolume and planktivore are mutually exclusive
     # so they share column 2, keeping the cbit column at index 3.
     _PLOT_COLUMN_ORDER = (
