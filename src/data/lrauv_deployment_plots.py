@@ -528,10 +528,6 @@ class DeploymentPlotter:
             content = index_path.read_text()
             all_hrefs = set(re.findall(r'href="([^"#][^"]*\.html)"', content))
             group_names = dict(re.findall(r'<h2 id="([^"]+)">([^<]+)</h2>', content))
-            # Drop hrefs whose filename has a prefix before the group name (old auv_name_ style).
-            all_hrefs = {
-                h for h in all_hrefs if "/" not in h or Path(h).name.startswith(h.split("/")[0])
-            }
             # clobber=True drops only this deployment's existing entries so they are rebuilt;
             # other deployments' entries are always preserved.
             known_hrefs = (
