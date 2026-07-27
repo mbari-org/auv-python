@@ -415,6 +415,48 @@ class TestBuildAndWriteHtml:
         assert not (tmp_path / "ghost.html").exists()  # noqa: S101
 
 
+class TestUpdateIndexHtml:
+    """Regression tests for quick_look_plots.html accumulating multiple deployments.
+
+    a3f4b45 ("Drop <auv_name> suffix from all the file names.") added a filter
+    intended to purge leftover old auv_name-prefixed hrefs when re-reading an
+    existing index, but it compared the href's filename against the date-range
+    dlist_dir instead of the old auv_name prefix. Since filenames are built from
+    the deployment name (not the dlist_dir), the filter matched nothing on
+    re-read and silently dropped every previously recorded deployment's entries.
+    """
+
+    def test_preserves_prior_deployments_across_calls(self, dp, tmp_path):
+        """A second deployment's _update_index_html() call must not erase the
+        first deployment's entries."""
+        year_dir = tmp_path / "2025"
+        depl_dir_1 = year_dir / "20250414_20250418"
+        depl_dir_2 = year_dir / "20250501_20250505"
+        depl_dir_1.mkdir(parents=True)
+        depl_dir_2.mkdir(parents=True)
+
+        dp._update_index_html(
+            depl_dir_1,
+            [depl_dir_1 / "CANON_April_2025_2column_cmocean.html"],
+            deployment_name="CANON April 2025",
+        )
+        dp._update_index_html(
+            depl_dir_2,
+            [depl_dir_2 / "CANON_May_2025_2column_cmocean.html"],
+            deployment_name="CANON May 2025",
+        )
+
+        content = (year_dir / "quick_look_plots.html").read_text()
+        assert (  # noqa: S101
+            'href="20250414_20250418/CANON_April_2025_2column_cmocean.html"' in content
+        )
+        assert (  # noqa: S101
+            'href="20250501_20250505/CANON_May_2025_2column_cmocean.html"' in content
+        )
+        assert "CANON April 2025" in content  # noqa: S101
+        assert "CANON May 2025" in content  # noqa: S101
+
+
 # ---------------------------------------------------------------------------
 # Tests for plot_deployment() — exercises the stoqs_url_from_ds call path
 # ---------------------------------------------------------------------------
