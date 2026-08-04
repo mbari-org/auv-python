@@ -139,6 +139,17 @@ class Processor:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    # Maps auv_name to the entry-point script of each Processor subclass that
+    # goes through process_mission(), used only to label the provenance
+    # record's script_name there. LRAUV ("tethys" et al.) is deliberately
+    # excluded: it's processed via process_log_file() instead, which has its
+    # own separate, correctly-hardcoded script_name.
+    _AUV_SCRIPT_NAMES = {
+        "dorado": "src/data/process_dorado.py",
+        "i2map": "src/data/process_i2map.py",
+        "Dorado389": "src/data/process_Dorado389.py",
+    }
+
     def __init__(self, auv_name, vehicle_dir, mount_dir, calibration_dir, config=None) -> None:  # noqa: PLR0913
         # Variables to be set by subclasses, e.g.:
         # auv_name = "i2map"
@@ -1017,6 +1028,14 @@ class Processor:
             self.resample(mission)
             self.create_products(mission)
             if self.config["update_ssds_provenance"]:
+                script_name = self._AUV_SCRIPT_NAMES.get(self.auv_name)
+                if script_name is None:
+                    self.logger.warning(
+                        "No script_name mapping for auv_name %r;"
+                        " provenance script_name will default to process.py",
+                        self.auv_name,
+                    )
+                    script_name = "src/data/process.py"
                 self._submit_provenance(
                     output_nc=str(
                         Path(
@@ -1039,7 +1058,7 @@ class Processor:
                     ],
                     pr_start=_pr_start,
                     pr_end=datetime.now(tz=UTC).isoformat(),
-                    script_name="src/data/process_dorado.py",
+                    script_name=script_name,
                     log_file=str(
                         Path(
                             self.config["base_path"],

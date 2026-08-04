@@ -162,15 +162,21 @@ class Archiver:
         pass
 
     def _archive_file(self, src_file: Path, dst_file: Path) -> None:
-        """Copy src to dst; skip if dst already exists unless --clobber."""
+        """Copy src to dst; skip only if dst already exists and is at least as
+        new as src. --clobber always forces a copy regardless of freshness.
+        """
         if not src_file.exists():
+            self.logger.debug("Source file not found, skipping: %s", src_file)
             return
         if dst_file.exists():
             if self.clobber:
                 dst_file.unlink()
-            else:
-                self.logger.info("Already archived, skipping: %s", dst_file.name)
+            elif dst_file.stat().st_mtime >= src_file.stat().st_mtime:
+                self.logger.info("Already archived and up to date, skipping: %s", dst_file.name)
                 return
+            else:
+                self.logger.info("Archived copy of %s is stale, re-archiving", dst_file.name)
+                dst_file.unlink()
         shutil.copyfile(src_file, dst_file)
         self.logger.info("copyfile %s %s done.", src_file.name, dst_file.parent)
 
@@ -229,20 +235,7 @@ class Archiver:
         stem = sbd_nc_path.stem  # e.g. ahi_20260317_20260318_sbd_1S
         for pattern in (f"{stem}.nc", f"{stem}_*.png", f"{stem}_*.txt"):
             for src_file in sorted(src_dir.glob(pattern)):
-                dst_file = dst_dir / src_file.name
-                if self.clobber:
-                    if dst_file.exists():
-                        self.logger.info("Removing %s", dst_file)
-                        dst_file.unlink()
-                    self.logger.info("copyfile %s %s", src_file, dst_dir)
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-                elif not dst_file.exists():
-                    self.logger.info("copyfile %s %s", src_file, dst_dir)
-                    shutil.copyfile(src_file, dst_file)
-                    self.logger.info("copyfile %s %s done.", src_file, dst_dir)
-                else:
-                    self.logger.info("%s exists, not overwriting (use --clobber)", dst_file.name)
+                self._archive_file(src_file, dst_dir / src_file.name)
 
     def copy_lrauv_deployment(self, deployment_dir: Path, plot_name_stem: str) -> None:
         """Copy LRAUV deployment plots and HTML index to the LRAUV archive volume.
@@ -285,23 +278,7 @@ class Archiver:
         if index_src.exists():
             candidates.append((index_src, dst_dir.parent / index_src.name))
         for src_file, dst_file in candidates:
-            if not src_file.exists():
-                self.logger.debug("Source file not found, skipping: %s", src_file)
-                continue
-            if self.clobber:
-                if dst_file.exists():
-                    self.logger.info("Removing %s", dst_file)
-                    dst_file.unlink()
-                shutil.copyfile(src_file, dst_file)
-                self.logger.info("copyfile %s %s done.", src_file.name, dst_file.parent)
-            elif dst_file.exists():
-                self.logger.info(
-                    "%-60s exists, but is not being archived because --clobber is not specified.",
-                    src_file.name,
-                )
-            else:
-                shutil.copyfile(src_file, dst_file)
-                self.logger.info("copyfile %s %s done.", src_file.name, dst_dir)
+            self._archive_file(src_file, dst_file)
 
     def process_command_line(self):
         """Process command line arguments using shared parser infrastructure."""
