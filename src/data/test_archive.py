@@ -9,7 +9,7 @@ import pytest
 from archive import Archiver
 
 
-@pytest.fixture()
+@pytest.fixture()  # noqa: PT001
 def arch():
     return Archiver(add_handlers=False, clobber=False)
 

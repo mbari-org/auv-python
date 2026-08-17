@@ -80,6 +80,18 @@ BASE_PATH = DEFAULT_BASE_PATH
 MISSIONODVS = "missionodvs"
 MISSIONIMAGES = "missionimages"
 
+# Persist contextily's basemap tile cache across process invocations (it defaults to a
+# per-session temp dir that's deleted on exit) so repeated/batch runs re-fetch far fewer
+# tiles from OpenStreetMap, reducing exposure to its rate limiting (403s).
+CONTEXTILY_CACHE_DIR = Path(BASE_PATH).parent / "contextily_cache"
+CONTEXTILY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+ctx.set_cache_dir(str(CONTEXTILY_CACHE_DIR))
+
+# Identify ourselves to OpenStreetMap's tile servers per their usage policy
+# (https://operations.osmfoundation.org/policies/tiles/), instead of contextily's
+# default generic/anonymous User-Agent.
+ctx.tile.USER_AGENT = "auv-python (https://github.com/mbari-org/auv-python; auv-python@mbari.org)"
+
 
 class CreateProducts:
     logger = logging.getLogger(__name__)
