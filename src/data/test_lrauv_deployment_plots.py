@@ -415,6 +415,76 @@ class TestBuildAndWriteHtml:
         assert not (tmp_path / "ghost.html").exists()  # noqa: S101
 
 
+class TestPendingLogDirs:
+    """_pending_log_dirs() identifies .dlist log directories still missing data,
+    i.e. still being transferred from the vehicle to the archive filesystem."""
+
+    _DLIST_CONTENT = "# Deployment name: CANON April 2025\n20250414T120000\n"
+
+    def test_empty_when_all_dirs_present(self, dp):
+        assert dp._pending_log_dirs(self._DLIST_CONTENT, [_NC_URL]) == []  # noqa: S101
+
+    def test_lists_dir_with_no_nc_file(self, dp):
+        dlist_content = self._DLIST_CONTENT + "20250415T080000\n"
+        assert dp._pending_log_dirs(dlist_content, [_NC_URL]) == [  # noqa: S101
+            "20250415T080000"
+        ]
+
+    def test_ignores_commented_out_dirs(self, dp):
+        dlist_content = self._DLIST_CONTENT + "# 20250415T080000\n"
+        assert dp._pending_log_dirs(dlist_content, [_NC_URL]) == []  # noqa: S101
+
+
+class TestNotificationGating:
+    """_build_and_write_html() must withhold --notify until every .dlist log
+    directory has produced data, logging a warning instead in the meantime."""
+
+    _DLIST = "ahi/missionlogs/2025/20250414_20250418.dlist"
+
+    def _call(self, dp, tmp_path, *, pending_log_dirs, notify=None):
+        png = tmp_path / "CANON_April_2025_2column_cmocean.png"
+        png.touch()
+        with (
+            patch("make_permalink.requests.Session") as mock_session_cls,
+            patch.object(dp, "_url_exists", return_value=False),
+            patch.object(dp, "_stoqs_url_for_nc_url", return_value=None),
+            patch.object(dp, "_notify") as mock_notify,
+        ):
+            mock_session_cls.return_value.__enter__.return_value.get = _mock_session_get("7")
+            dp._build_and_write_html(
+                tmp_path,
+                self._DLIST,
+                "CANON_April_2025",
+                "CANON April 2025",
+                _make_ds("2025-04-14"),
+                [str(png)],
+                [_NC_URL],
+                notify=notify,
+                pending_log_dirs=pending_log_dirs,
+            )
+        return mock_notify
+
+    def test_notifies_when_fully_transferred(self, dp, tmp_path):
+        mock_notify = self._call(dp, tmp_path, pending_log_dirs=[], notify=["a@b.com"])
+        mock_notify.assert_called_once()
+
+    def test_withholds_notification_when_pending(self, dp, tmp_path, caplog):
+        caplog.set_level("WARNING")
+        mock_notify = self._call(
+            dp, tmp_path, pending_log_dirs=["20250415T080000"], notify=["a@b.com"]
+        )
+        mock_notify.assert_not_called()
+        assert "still waiting" in caplog.text  # noqa: S101
+        assert "20250415T080000" in caplog.text  # noqa: S101
+
+    def test_no_warning_when_notify_not_requested(self, dp, tmp_path, caplog):
+        """Nothing was ever going to be sent, so withholding it isn't warning-worthy."""
+        caplog.set_level("WARNING")
+        mock_notify = self._call(dp, tmp_path, pending_log_dirs=["20250415T080000"], notify=None)
+        mock_notify.assert_not_called()
+        assert "still waiting" not in caplog.text  # noqa: S101
+
+
 class TestUpdateIndexHtml:
     """Regression tests for quick_look_plots.html accumulating multiple deployments.
 

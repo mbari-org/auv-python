@@ -139,20 +139,26 @@ class DeploymentPlotter:
         opendap_base = LRAUV_OPENDAP_BASE.rstrip("/") + "/" + rel_path
         return [opendap_base + name for name in nc_names]
 
-    def _collect_nc_files(self, deployment_dir: Path, dlist_content: str) -> list[Path | str]:
-        """Return *_{FREQ}.nc files (local Paths or OPeNDAP URL strings) for
-        each log directory listed in the .dlist.
+    def _dlist_log_dirs(self, dlist_content: str) -> list[str]:
+        """Return the log-directory names listed in .dlist content.
 
         Non-comment, non-empty lines in the .dlist are timestamp subdirectory
         names (e.g. ``20230213T183535``).  Lines starting with ``#`` are
         skipped — including commented-out directories for short/excluded runs.
-        Missing or empty subdirectories generate a warning and are skipped.
         """
-        log_dirs = [
+        return [
             line.strip()
             for line in dlist_content.splitlines()
             if line.strip() and not line.strip().startswith("#")
         ]
+
+    def _collect_nc_files(self, deployment_dir: Path, dlist_content: str) -> list[Path | str]:
+        """Return *_{FREQ}.nc files (local Paths or OPeNDAP URL strings) for
+        each log directory listed in the .dlist.
+
+        Missing or empty subdirectories generate a warning and are skipped.
+        """
+        log_dirs = self._dlist_log_dirs(dlist_content)
         if not log_dirs:
             self.logger.warning("No log directories found in dlist content")
             return []
@@ -162,6 +168,16 @@ class DeploymentPlotter:
             nc_files.extend(self._nc_files_for_dir(deployment_dir, dir_name))
 
         return nc_files
+
+    def _pending_log_dirs(self, dlist_content: str, nc_files: list[Path | str]) -> list[str]:
+        """Return .dlist log directories with no corresponding nc_file yet.
+
+        A non-empty result means the vehicle-to-archive data transfer for this
+        deployment is still in progress — used to withhold notifications until
+        every log directory in the .dlist has produced data.
+        """
+        found_dirs = {str(f).rsplit("/", 2)[1] for f in nc_files}
+        return [d for d in self._dlist_log_dirs(dlist_content) if d not in found_dirs]
 
     def _concat_datasets(self, nc_files: list[Path | str]) -> xr.Dataset | None:
         """Concatenate per-log datasets into a single deployment-wide Dataset.
@@ -382,6 +398,14 @@ class DeploymentPlotter:
         for f in nc_files:
             self.logger.info("  %s", f)
 
+        pending_log_dirs = self._pending_log_dirs(dlist_content, nc_files)
+        if pending_log_dirs:
+            self.logger.info(
+                "%d log dir(s) not yet transferred: %s",
+                len(pending_log_dirs),
+                ", ".join(sorted(pending_log_dirs)),
+            )
+
         if not force and self._deployment_has_outputs(deployment_dir, plot_name_stem, nc_files):
             self.logger.info(
                 "Outputs already exist and are up to date for %s, skipping"
@@ -445,6 +469,7 @@ class DeploymentPlotter:
                 update_ssds_provenance=update_ssds_provenance,
                 force=force,
                 notify=notify,
+                pending_log_dirs=pending_log_dirs,
             )
 
     def _build_and_write_html(  # noqa: PLR0913
@@ -460,6 +485,7 @@ class DeploymentPlotter:
         update_ssds_provenance: bool = False,  # noqa: FBT001, FBT002
         force: bool = False,  # noqa: FBT001, FBT002
         notify: list[str] | None = None,
+        pending_log_dirs: list[str] | None = None,
     ) -> None:
         """Fetch STOQS permalink and write per-PNG HTML pages."""
         dlist_no_ext = str(Path(dlist).with_suffix(""))
@@ -493,7 +519,18 @@ class DeploymentPlotter:
         archiver = Archiver(add_handlers=True, clobber=True)
         archiver.logger.setLevel(self._log_levels[min(verbose, 2)])
         archiver.copy_lrauv_deployment(deployment_dir, plot_name_stem)
-        self._notify(notify, raw_name or plot_name_stem, html_paths, force=force)
+        if pending_log_dirs:
+            if notify is not None:
+                self.logger.warning(
+                    "Processing finished but withholding notification for %s:"
+                    " still waiting for %d log dir(s) to finish transferring"
+                    " from the vehicle: %s",
+                    raw_name or plot_name_stem,
+                    len(pending_log_dirs),
+                    ", ".join(sorted(pending_log_dirs)),
+                )
+        else:
+            self._notify(notify, raw_name or plot_name_stem, html_paths, force=force)
         if update_ssds_provenance:
             self._submit_provenance(
                 deployment_dir=deployment_dir,
