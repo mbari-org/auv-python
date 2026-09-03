@@ -1102,20 +1102,21 @@ class CreateProducts:
             iz = np.arange(0, 10.5, 0.5)
         else:
             depth_values = self.ds.cf["depth"].to_numpy()
-            time_dim = self.ds.cf["depth"].dims[0]
             nav_vars = {"depth", "latitude", "longitude", "profile_number"}
             has_valid_sensor_data = np.zeros(len(depth_values), dtype=bool)
             vars_to_check = [
                 v for v in (plot_vars or self.ds.data_vars) if v in self.ds and "pitch" not in v
             ]
             for var in vars_to_check:
-                if var not in nav_vars and time_dim in self.ds[var].dims and self.ds[var].ndim == 1:
+                if var not in nav_vars and self.ds[var].to_numpy().shape == depth_values.shape:
                     has_valid_sensor_data |= ~np.isnan(self.ds[var].to_numpy())
             depths_with_data = depth_values[has_valid_sensor_data]
+            # Round up (not down) so the axis always fully contains the actual plotted
+            # depths instead of clipping up to 10m off the bottom of every plot.
             if len(depths_with_data) > 0 and not np.all(np.isnan(depths_with_data)):
-                max_depth = max(np.floor(np.nanmax(depths_with_data) / 10) * 10, 10)
+                max_depth = max(np.ceil(np.nanmax(depths_with_data) / 10) * 10, 10)
             else:
-                max_depth = max(np.floor(np.nanmax(depth_values) / 10) * 10, 10)
+                max_depth = max(np.ceil(np.nanmax(depth_values) / 10) * 10, 10)
             iz = np.arange(0, max_depth + 0.5, 0.5)  # include max_depth so axis reaches it
 
         return idist, iz, distnav
