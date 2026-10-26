@@ -59,6 +59,10 @@ class DeploymentPlotter:
     logger.addHandler(_handler)
     _log_levels = (logging.WARN, logging.INFO, logging.DEBUG)
 
+    # Retry settings for transient dods server errors (e.g. 502 Bad Gateway)
+    OPEN_ATTEMPTS = 5
+    RETRY_DELAY_SECS = 15
+
     def _read_dlist_content(self, dlist: str) -> str | None:
         """Return the text content of the .dlist file from the first available source.
 
@@ -190,18 +194,42 @@ class DeploymentPlotter:
         if not nc_files:
             return None
 
-        datasets = []
-        for p in nc_files:
-            try:
-                datasets.append(xr.open_dataset(str(p)))
-            except OSError as e:
-                self.logger.warning("Skipping %s: %s", p, e)
-
+        # The dods server intermittently returns 502 Bad Gateway, on a different
+        # file each time. Opening is lazy, so each file is fully loaded inside
+        # its own retry loop; xr.concat then makes no further network reads.
+        opened = (self._open_dataset_with_retry(p) for p in nc_files)
+        datasets = [ds for ds in opened if ds is not None]
         if not datasets:
             return None
 
         self.logger.info("Concatenating %d dataset(s) via xr.concat", len(datasets))
         return xr.concat(datasets, dim="time", join="outer")
+
+    def _open_dataset_with_retry(self, p: Path | str) -> xr.Dataset | None:
+        """Open and load one nc file, retrying transient server errors (e.g. 502).
+
+        The data is loaded into memory here so that failures happen inside the
+        retry loop rather than later during concat or plotting. Returns None
+        (with a warning) if the file still can't be read after all attempts.
+        """
+        for attempt in range(1, self.OPEN_ATTEMPTS + 1):
+            try:
+                with xr.open_dataset(str(p)) as ds:
+                    return ds.load()
+            except (OSError, RuntimeError) as e:
+                if attempt == self.OPEN_ATTEMPTS:
+                    self.logger.warning("Skipping %s: %s", p, e)
+                    raise
+                delay = self.RETRY_DELAY_SECS * attempt
+                self.logger.warning(
+                    "Read of %s failed (attempt %d/%d); retrying in %d s",
+                    p,
+                    attempt,
+                    self.OPEN_ATTEMPTS,
+                    delay,
+                )
+                time.sleep(delay)
+        return None
 
     def _local_path_for_nc_url(self, nc_url: str) -> Path | None:
         """Return a local filesystem Path for an OPeNDAP nc URL, if it resolves
@@ -307,8 +335,7 @@ class DeploymentPlotter:
         missing_kinds = expected_kinds - existing_kinds
         if missing_kinds:
             self.logger.info(
-                "Deployment plot kind(s) %s have per-log data but no combined output;"
-                " reprocessing",
+                "Deployment plot kind(s) %s have per-log data but no combined output; reprocessing",
                 sorted(missing_kinds),
             )
             return False
