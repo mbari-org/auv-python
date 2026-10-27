@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import time
+import warnings
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -32,6 +33,16 @@ from common_args import get_standard_lrauv_parser
 from dorado_info import dorado_info
 from logs2netcdfs import AUV_NetCDF, BASE_PATH, MISSIONNETCDFS, SUMMARY_SOURCE, TIME
 from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
+
+# pysolar 0.13 (latest) has a leap second table that ends in 2025 and warns for
+# later dates. No leap seconds have been added since 2016 and the sun position
+# error would be negligible, so silence just that warning.
+warnings.filterwarnings(
+    "ignore",
+    message="Leap seconds for year .* are not available",
+    category=UserWarning,
+    module="pysolar",
+)
 
 MF_WIDTH = 3
 FREQ = "1S"
