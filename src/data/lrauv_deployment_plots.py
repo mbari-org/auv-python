@@ -62,6 +62,12 @@ class DeploymentPlotter:
     # Retry settings for transient dods server errors (e.g. 502 Bad Gateway)
     OPEN_ATTEMPTS = 5
     RETRY_DELAY_SECS = 15
+    # Retries for the per-log-dir HTTP directory listings
+    LISTING_ATTEMPTS = 3
+    LISTING_RETRY_DELAY_SECS = 5
+    # Per log dir: True if its HTTP listing shows a .nc4 (log transferred from
+    # the vehicle), False if not, None if the listing could not be fetched
+    _log_dir_has_nc4: dict[str, bool | None] = {}  # noqa: RUF012
 
     def _read_dlist_content(self, dlist: str) -> str | None:
         """Return the text content of the .dlist file from the first available source.
@@ -128,12 +134,28 @@ class DeploymentPlotter:
 
         dir_url = BASE_LRAUV_WEB.rstrip("/") + "/" + rel_path
         self.logger.info("Fetching HTTP listing: %s", dir_url)
-        try:
-            with urllib.request.urlopen(dir_url, timeout=10) as resp:  # noqa: S310
-                html = resp.read().decode()
-        except (urllib.error.URLError, OSError) as e:
-            self.logger.warning("HTTP listing failed for %s: %s", dir_url, e)
-            return []
+        html = None
+        for attempt in range(1, self.LISTING_ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(dir_url, timeout=10) as resp:  # noqa: S310
+                    html = resp.read().decode()
+                break
+            except (urllib.error.URLError, OSError) as e:
+                self.logger.warning(
+                    "HTTP listing failed for %s (attempt %d/%d): %s",
+                    dir_url,
+                    attempt,
+                    self.LISTING_ATTEMPTS,
+                    e,
+                )
+                if attempt == self.LISTING_ATTEMPTS:
+                    self._log_dir_has_nc4[rel_dir] = None  # transfer status unknown
+                    return []
+                time.sleep(self.LISTING_RETRY_DELAY_SECS * attempt)
+
+        # The .nc4 file's presence means the log has been transferred from the
+        # vehicle; it says nothing about whether *_{FREQ}.nc has been made yet.
+        self._log_dir_has_nc4[rel_dir] = re.search(r'href="[^"/]+\.nc4"', html) is not None
 
         nc_names = sorted(m.group(1) for m in re.finditer(rf'href="([^"]+_{FREQ}\.nc)"', html))
         if not nc_names:
@@ -167,21 +189,87 @@ class DeploymentPlotter:
             self.logger.warning("No log directories found in dlist content")
             return []
 
+        self._log_dir_has_nc4 = {}
         nc_files: list[Path | str] = []
         for dir_name in log_dirs:
             nc_files.extend(self._nc_files_for_dir(deployment_dir, dir_name))
 
         return nc_files
 
-    def _pending_log_dirs(self, dlist_content: str, nc_files: list[Path | str]) -> list[str]:
-        """Return .dlist log directories with no corresponding nc_file yet.
+    def _processing_log_errors(self, deployment_dir: Path, rel_dir: str) -> list[str]:
+        """Return the ERROR lines from *_processing.log in one log subdirectory.
+
+        auv-python writes a ``{log_file_stem}_processing.log`` next to each .nc4
+        file. An ERROR in it means processing ran but could not produce the
+        *_{FREQ}.nc file, so waiting for the transfer won't help. Returns an
+        empty list if there is no log, it can't be fetched, or it has no errors.
+        """
+        rel_deployment = deployment_dir.relative_to(BASE_LRAUV_PATH)
+        rel_path = str(rel_deployment).replace("\\", "/") + f"/{rel_dir}/"
+        dir_url = BASE_LRAUV_WEB.rstrip("/") + "/" + rel_path
+        try:
+            with urllib.request.urlopen(dir_url, timeout=10) as resp:  # noqa: S310
+                html = resp.read().decode()
+            log_names = sorted(re.findall(r'href="([^"/]+_processing\.log)"', html))
+            errors = []
+            for log_name in log_names:
+                with urllib.request.urlopen(dir_url + log_name, timeout=10) as resp:  # noqa: S310
+                    text = resp.read().decode(errors="replace")
+                errors.extend(line for line in text.splitlines() if line.startswith("ERROR"))
+        except (urllib.error.URLError, OSError) as e:
+            self.logger.debug("Could not read processing log in %s: %s", dir_url, e)
+            return []
+        return errors
+
+    def _pending_log_dirs(
+        self,
+        dlist_content: str,
+        nc_files: list[Path | str],
+        deployment_dir: Path | None = None,
+    ) -> list[str]:
+        """Return .dlist log directories whose .nc4 has not been transferred yet.
 
         A non-empty result means the vehicle-to-archive data transfer for this
         deployment is still in progress — used to withhold notifications until
-        every log directory in the .dlist has produced data.
+        every log directory in the .dlist has been transferred.
+
+        The presence of the .nc4 file in a directory's HTTP listing (recorded by
+        _collect_nc_files()) is what makes it not pending. A missing *_{FREQ}.nc
+        does not: auv-python may still be processing the .nc4, or may have failed
+        to make the nc file from it; the reason is logged at INFO (with any ERROR
+        lines from *_processing.log if deployment_dir is given). A directory whose
+        listing couldn't be fetched is pending as its transfer status is unknown.
+        When there is no listing information for a directory, it falls back to
+        whether it has an nc file in nc_files.
         """
         found_dirs = {str(f).rsplit("/", 2)[1] for f in nc_files}
-        return [d for d in self._dlist_log_dirs(dlist_content) if d not in found_dirs]
+        pending = []
+        for d in self._dlist_log_dirs(dlist_content):
+            has_nc4 = self._log_dir_has_nc4.get(d, d in found_dirs)
+            if has_nc4:
+                if d not in found_dirs:
+                    errors = (
+                        self._processing_log_errors(deployment_dir, d) if deployment_dir else []
+                    )
+                    self.logger.info(
+                        "Log dir %s is not pending: .nc4 has been transferred but there is"
+                        " no *_%s.nc. %s",
+                        d,
+                        FREQ,
+                        "Processing failed: " + " | ".join(errors)
+                        if errors
+                        else "It is awaiting processing.",
+                    )
+                continue
+            self.logger.info(
+                "Log dir %s is pending: %s",
+                d,
+                "HTTP listing failed, so transfer status is unknown"
+                if has_nc4 is None and d in self._log_dir_has_nc4
+                else ".nc4 has not been transferred",
+            )
+            pending.append(d)
+        return pending
 
     def _concat_datasets(self, nc_files: list[Path | str]) -> xr.Dataset | None:
         """Concatenate per-log datasets into a single deployment-wide Dataset.
@@ -425,7 +513,7 @@ class DeploymentPlotter:
         for f in nc_files:
             self.logger.info("  %s", f)
 
-        pending_log_dirs = self._pending_log_dirs(dlist_content, nc_files)
+        pending_log_dirs = self._pending_log_dirs(dlist_content, nc_files, deployment_dir)
         if pending_log_dirs:
             self.logger.info(
                 "%d log dir(s) not yet transferred: %s",
@@ -550,8 +638,8 @@ class DeploymentPlotter:
             if notify is not None:
                 self.logger.warning(
                     "Processing finished but withholding notification for %s:"
-                    " still waiting for %d log dir(s) to finish transferring"
-                    " from the vehicle: %s",
+                    " still waiting for %d log dir(s) to be transferred from the"
+                    " vehicle or processed (see INFO log for each reason): %s",
                     raw_name or plot_name_stem,
                     len(pending_log_dirs),
                     ", ".join(sorted(pending_log_dirs)),
