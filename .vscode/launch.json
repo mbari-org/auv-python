@@ -303,7 +303,9 @@
             //"args": ["-v", "1", "--mission", "2024.324.00", "--noinput"],
             //"args": ["-v", "1", "--mission", "2025.030.00", "--noinput"],
             //"args": ["-v", "1", "--mission", "2025.296.00", "--noinput", "--no_cleanup"],
-            "args": ["-v", "1", "--mission", "2026.138.02", "--noinput", "--no_cleanup", "--clobber"],
+            //"args": ["-v", "1", "--mission", "2026.138.02", "--noinput", "--no_cleanup", "--clobber"],
+            // Test with fix for finding correct oxygen cal file
+            "args": ["-v", "1", "--mission", "2026.279.00", "--noinput", "--no_cleanup"],
         },
         {
             "name": "process_dorado",

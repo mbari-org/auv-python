@@ -1100,27 +1100,22 @@ class Calibrate_NetCDF:
     ) -> dict:
         cal_date_xml_files = {}
         for cal_date_dir in cal_date_dirs:
-            find_cmd = f'find "{Path(sensor_dir, cal_date_dir)}" -iname "*.xml"'
-            self.logger.debug("Executing %s", find_cmd)
-            import subprocess
-
-            safe_sensor_dir = Path(sensor_dir).resolve()
+            # Search only this cal date's directory. Including the whole sensor
+            # (serial number) directory would return the same first-found XML file
+            # for every cal date, so only one calibration would ever be considered.
             safe_cal_date_dir = Path(sensor_dir, cal_date_dir).resolve()
-
-            find_cmd = f'find "{safe_sensor_dir}" "{safe_cal_date_dir}" -iname "*.xml"'
-            if not safe_sensor_dir.is_dir() or not safe_cal_date_dir.is_dir():
+            if not safe_cal_date_dir.is_dir():
                 error_message = "Invalid directory paths provided."
                 raise ValueError(error_message)
-            if not safe_sensor_dir.is_dir() or not safe_cal_date_dir.is_dir():
-                error_message = "Invalid directory paths provided."
-                raise ValueError(error_message)
+            find_cmd = f'find "{safe_cal_date_dir}" -iname "*.xml"'
+            self.logger.debug("Executing %s", find_cmd)
             result = subprocess.run(  # noqa: S603
                 shlex.split(find_cmd),  # noqa: S603
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            xml_files = [x for x in result.stdout.split("\n") if x]
+            xml_files = sorted(x for x in result.stdout.split("\n") if x)
             if len(xml_files) == 0:
                 self.logger.debug(
                     "Cannot find %s.xml in %s/%s",
@@ -1136,7 +1131,7 @@ class Calibrate_NetCDF:
                     sensor_dir,
                     cal_date_dir,
                 )
-                self.logger.info("{xml_files}")
+                self.logger.info("%s", xml_files)
             cal_xml_filename = xml_files[0]
 
             # The .xml file looks like:
