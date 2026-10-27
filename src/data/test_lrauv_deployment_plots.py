@@ -2,6 +2,7 @@
 
 import json
 import sys
+import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -433,6 +434,86 @@ class TestPendingLogDirs:
     def test_ignores_commented_out_dirs(self, dp):
         dlist_content = self._DLIST_CONTENT + "# 20250415T080000\n"
         assert dp._pending_log_dirs(dlist_content, [_NC_URL]) == []  # noqa: S101
+
+    def test_nc4_present_without_nc_is_not_pending(self, dp, tmp_path, caplog):
+        dlist_content = self._DLIST_CONTENT + "20250415T080000\n"
+        error = "ERROR 2025-04-15 combine.py _add_nudged_coordinates():993 [1] no position"
+        dp._log_dir_has_nc4 = {"20250415T080000": True}
+        with (
+            patch.object(dp, "_processing_log_errors", return_value=[error]),
+            caplog.at_level("INFO", logger=dp.logger.name),
+        ):
+            result = dp._pending_log_dirs(dlist_content, [_NC_URL], tmp_path)
+        assert result == []  # noqa: S101
+        assert "20250415T080000 is not pending" in caplog.text  # noqa: S101
+        assert "no position" in caplog.text  # noqa: S101
+
+    def test_nc4_present_without_nc_or_error_is_awaiting_processing(self, dp, tmp_path, caplog):
+        dlist_content = self._DLIST_CONTENT + "20250415T080000\n"
+        dp._log_dir_has_nc4 = {"20250415T080000": True}
+        with (
+            patch.object(dp, "_processing_log_errors", return_value=[]),
+            caplog.at_level("INFO", logger=dp.logger.name),
+        ):
+            result = dp._pending_log_dirs(dlist_content, [_NC_URL], tmp_path)
+        assert result == []  # noqa: S101
+        assert "awaiting processing" in caplog.text  # noqa: S101
+
+    def test_no_nc4_is_pending(self, dp, tmp_path):
+        dlist_content = self._DLIST_CONTENT + "20250415T080000\n"
+        dp._log_dir_has_nc4 = {"20250415T080000": False}
+        assert dp._pending_log_dirs(dlist_content, [_NC_URL], tmp_path) == [  # noqa: S101
+            "20250415T080000"
+        ]
+
+    def test_failed_listing_is_pending(self, dp, tmp_path):
+        dlist_content = self._DLIST_CONTENT + "20250415T080000\n"
+        dp._log_dir_has_nc4 = {"20250415T080000": None}
+        assert dp._pending_log_dirs(dlist_content, [_NC_URL], tmp_path) == [  # noqa: S101
+            "20250415T080000"
+        ]
+
+
+class TestNcFilesForDir:
+    """_nc_files_for_dir() retries failed HTTP listings and records why a log
+    directory has no nc file, so it isn't mistaken for an untransferred one."""
+
+    def _listing(self, html):
+        resp = MagicMock()
+        resp.read.return_value = html.encode()
+        resp.__enter__.return_value = resp
+        return resp
+
+    def _call(self, dp, tmp_path, urlopen):
+        dp._log_dir_has_nc4 = {}
+        with (
+            patch("lrauv_deployment_plots.BASE_LRAUV_PATH", tmp_path),
+            patch("lrauv_deployment_plots.urllib.request.urlopen", urlopen),
+            patch("lrauv_deployment_plots.time.sleep"),
+        ):
+            return dp._nc_files_for_dir(tmp_path / "pontus" / "dep", "20250414T120000")
+
+    def test_retries_listing_failure_then_succeeds(self, dp, tmp_path):
+        urlopen = MagicMock(
+            side_effect=[
+                urllib.error.URLError("502 Bad Gateway"),
+                self._listing('<a href="a_1S.nc">a_1S.nc</a>'),
+            ]
+        )
+        assert len(self._call(dp, tmp_path, urlopen)) == 1  # noqa: S101
+        assert dp._log_dir_has_nc4 == {"20250414T120000": False}  # noqa: S101
+
+    def test_listing_failure_after_all_attempts_is_recorded(self, dp, tmp_path):
+        urlopen = MagicMock(side_effect=urllib.error.URLError("502 Bad Gateway"))
+        assert self._call(dp, tmp_path, urlopen) == []  # noqa: S101
+        assert urlopen.call_count == dp.LISTING_ATTEMPTS  # noqa: S101
+        assert dp._log_dir_has_nc4["20250414T120000"] is None  # noqa: S101
+
+    def test_nc4_without_nc_is_recorded_as_transferred(self, dp, tmp_path):
+        urlopen = MagicMock(return_value=self._listing('<a href="a.nc4">a.nc4</a>'))
+        assert self._call(dp, tmp_path, urlopen) == []  # noqa: S101
+        assert urlopen.call_count == 1  # noqa: S101
+        assert dp._log_dir_has_nc4["20250414T120000"] is True  # noqa: S101
 
 
 class TestNotificationGating:
