@@ -491,7 +491,9 @@
             // Test processing only new data - as we would do in production with a cron job
             //"args": ["-v", "1", "--last_n_days", "14"]
             // Test improving out of range log message for Planktivore deployment in April 2026 - Ahi 47 CFE
-            "args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260410T080016/202604100800_202604111036.nc4", "--clobber"]
+            //"args": ["-v", "1", "--log_file", "ahi/missionlogs/2026/20260406_20260412/20260410T080016/202604100800_202604111036.nc4", "--clobber"]
+            // Test parsing for "MAXON" to get sipper data
+            "args": ["-v", "1", "--log_file", "daphne/missionlogs/2026/20261001_20261005/20261001T213640/202610012136_202610021748.nc4", "--clobber", "--no_cleanup"]
         },
         {
             "name": "process_lrauv_sbd",
