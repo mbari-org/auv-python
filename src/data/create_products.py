@@ -77,6 +77,8 @@ except Exception:  # noqa: BLE001
 # Define BASE_PATH for backward compatibility
 BASE_PATH = DEFAULT_BASE_PATH
 
+MAX_ABS_LONGITUDE = 180.0
+MAX_ABS_LATITUDE = 90.0
 MISSIONODVS = "missionodvs"
 MISSIONIMAGES = "missionimages"
 
@@ -1011,33 +1013,39 @@ class CreateProducts:
         # distnav = cumsum(sqrt(dxFix.^2 + dyFix.^2));	% in m
         # dists = distnav / 1000; 	% in km
 
+        # Positions outside the physical range of longitude/latitude are corrupt;
+        # treat them as missing so that they cannot corrupt the UTM zone or the
+        # distance along track. The NaN gaps are filled by interpolation below.
         try:
-            utm_zone = int(31 + (self.ds.cf["longitude"].mean() // 6))
-        except (KeyError, ValueError):
+            lon_values = self.ds.cf["longitude"].to_numpy().astype(float)
+            lat_values = self.ds.cf["latitude"].to_numpy().astype(float)
+        except KeyError:
+            self.logger.warning("Cannot find longitude and latitude for distance calculation")
+            return np.array([]), np.array([]), xr.DataArray()
+        bad_position = (np.abs(lon_values) > MAX_ABS_LONGITUDE) | (
+            np.abs(lat_values) > MAX_ABS_LATITUDE
+        )
+        if bad_position.any():
+            self.logger.warning(
+                "Ignoring %d position(s) outside the valid longitude/latitude range",
+                bad_position.sum(),
+            )
+            lon_values[bad_position] = np.nan
+            lat_values[bad_position] = np.nan
+        if not np.isfinite(lon_values).any():
             self.logger.warning(
                 "Cannot compute mean longitude for UTM zone calculation, "
                 "longitude data may be empty or contain NaNs",
             )
             return np.array([]), np.array([]), xr.DataArray()
+        utm_zone = int(31 + (np.nanmean(lon_values) // 6))
         MAX_LONGITUDE_VALUES = 400
-        n_subsample = 200 if len(self.ds.cf["longitude"].to_numpy()) > MAX_LONGITUDE_VALUES else 1
+        n_subsample = 200 if len(lon_values) > MAX_LONGITUDE_VALUES else 1
         # Fill NaN gaps in lat/lon before subsampling so np.interp receives no NaN.
         # Sparse GPS coverage (e.g. realtime SBD data) leaves gaps that would
         # otherwise propagate NaN through cumsum and shorten distnav.
-        lon_filled = (
-            pd.Series(self.ds.cf["longitude"].to_numpy())
-            .interpolate(method="linear")
-            .ffill()
-            .bfill()
-            .to_numpy()
-        )
-        lat_filled = (
-            pd.Series(self.ds.cf["latitude"].to_numpy())
-            .interpolate(method="linear")
-            .ffill()
-            .bfill()
-            .to_numpy()
-        )
+        lon_filled = pd.Series(lon_values).interpolate(method="linear").ffill().bfill().to_numpy()
+        lat_filled = pd.Series(lat_values).interpolate(method="linear").ffill().bfill().to_numpy()
         lon_sub_intrp = np.interp(
             self.ds.cf["time"].to_numpy().astype(np.int64),
             self.ds.cf["time"].to_numpy()[::n_subsample].astype(np.int64),

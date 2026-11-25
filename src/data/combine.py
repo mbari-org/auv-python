@@ -935,8 +935,63 @@ class Combine_NetCDF:
             n_times,
         )
 
+    # Physical limits for position variables. Corrupt values (e.g. ~1e26 degrees
+    # seen in a triton universals_longitude) must be removed before positions are
+    # nudged and resampled, as they otherwise propagate into the 1S data and break
+    # computations such as the UTM zone in create_products.
+    _POSITION_PHYSICAL_RANGES = {
+        "universals": {
+            "universals_longitude": Range(-180.0, 180.0),
+            "universals_latitude": Range(-90.0, 90.0),
+        },
+        "nal9602": {
+            "nal9602_longitude_fix": Range(-180.0, 180.0),
+            "nal9602_latitude_fix": Range(-90.0, 90.0),
+        },
+    }
+
+    def _physical_coordinate_qc(self) -> None:
+        """Remove positions outside the physical range of longitude and latitude.
+
+        Applies to every log file. Only instruments having out-of-range values
+        are touched, so well-behaved logs pass through unchanged.
+        """
+        for instrument, ranges in self._POSITION_PHYSICAL_RANGES.items():
+            variables = [var for var in ranges if var in self.combined_nc.variables]
+            n_bad = {
+                var: int(
+                    (
+                        (self.combined_nc[var] < ranges[var].min)
+                        | (self.combined_nc[var] > ranges[var].max)
+                    )
+                    .sum()
+                    .item()
+                )
+                for var in variables
+            }
+            if not any(n_bad.values()):
+                continue
+            self.logger.warning(
+                "Removing %s samples with positions outside the physical range of "
+                "longitude/latitude from %s data: %s",
+                sum(n_bad.values()),
+                instrument,
+                {var: n for var, n in n_bad.items() if n},
+            )
+            self._range_qc_combined_nc(
+                instrument=instrument,
+                variables=variables,
+                ranges=ranges,
+                set_to_nan=False,
+            )
+
     def _initial_coordinate_qc(self) -> None:
-        """Perform initial QC on core coordinate variables for specific log files."""
+        """Perform initial QC on core coordinate variables.
+
+        All logs get the physical-range check; specific log files also get a
+        tighter regional check.
+        """
+        self._physical_coordinate_qc()
         if self.log_file in (
             "tethys/missionlogs/2012/20120908_20120920/20120909T010636/201209090106_201209091521.nc4",
             "brizo/missionlogs/2025/20250909_20250915/20250913T080940/202509130809_202509140809.nc4",
