@@ -7,7 +7,7 @@ CANONSampler component messages.  Two message types are needed to identify
 each sample event:
 
   Start message  (INFO level):
-      "ELMO will go to position ..."
+      "ELMO will go to position ..."   or   "MAXON will go to position ..."
 
   Sample-number/error message  (IMPORTANT level):
       "Sample <n>, err_code=<m>"   or   "Sample <n>, (err_code=<m>)"
@@ -34,8 +34,11 @@ from nc42netcdfs import BASE_LRAUV_PATH, BASE_LRAUV_WEB
 # Module-level constants (derived from STOQS SampleLoaders.py conventions)
 # ---------------------------------------------------------------------------
 
-# Substring that marks the start of a sip
+# Substrings that mark the start of a sip; the message names the motor
+# controller driving the sampler: ELMO or MAXON
 SIPPERING = "ELMO will go to position"
+SIPPERING_MAXON = "MAXON will go to position"
+SIPPERING_MARKERS = (SIPPERING, SIPPERING_MAXON)
 
 # Pattern to extract the sample number from the confirmation message.
 # Handles both "Sample 1, err_code=0" and "Sample 1, (err_code=0)"
@@ -95,7 +98,7 @@ class Sipper:
             self.logger.info("Reading remote syslog %s", syslog_url)
             with requests.get(syslog_url, stream=True, timeout=TIMEOUT) as resp:
                 if resp.status_code != HTTPStatus.OK:
-                    msg = f"Cannot read {syslog_url}, " f"HTTP status={resp.status_code}"
+                    msg = f"Cannot read {syslog_url}, HTTP status={resp.status_code}"
                     raise FileNotFoundError(msg)
                 return [line.decode(errors="ignore") for line in resp.iter_lines()]
 
@@ -124,7 +127,7 @@ class Sipper:
             log_level = m.group("log_level").upper()
             message = m.group("log_message")
 
-            if SIPPERING in message:
+            if any(marker in message for marker in SIPPERING_MARKERS):
                 if log_level == "INFO":
                     samplings_at_info.append((esec, message))
                 else:

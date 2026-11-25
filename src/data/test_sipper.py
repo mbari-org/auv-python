@@ -5,7 +5,7 @@ import argparse
 import logging
 
 import pytest
-from sipper import SIPPERING, Sipper
+from sipper import SIPPERING, SIPPERING_MAXON, Sipper
 
 # ---------------------------------------------------------------------------
 # Synthetic syslog fragments
@@ -55,6 +55,24 @@ MALFORMED_MIXED_SYSLOG = [
     "   \n",
     _line(1565985091.135, "CANONSampler", "INFO", f"{SIPPERING} at 37.0N"),
     _line(1565985120.000, "CANONSampler", "IMPORTANT", "Sample 1, err_code=0"),
+]
+
+# Start messages naming the MAXON motor controller instead of ELMO
+MAXON_SYSLOG = [
+    _line(1565985091.135, "CANONSampler", "INFO", f"{SIPPERING_MAXON} at 37.0N -121.9W"),
+    _line(1565985120.000, "CANONSampler", "IMPORTANT", "Sample 1, err_code=0"),
+    _line(1565987000.500, "CANONSampler", "INFO", f"{SIPPERING_MAXON} at 37.1N -121.8W"),
+    _line(1565987050.200, "CANONSampler", "IMPORTANT", "Sample 2, err_code=0"),
+    # Non-CANONSampler line with MAXON text — must be ignored
+    _line(1565987100.000, "OtherComponent", "INFO", f"{SIPPERING_MAXON} irrelevant"),
+]
+
+# ELMO and MAXON start messages in the same syslog are paired in arrival order
+MIXED_ELMO_MAXON_SYSLOG = [
+    _line(1565985091.135, "CANONSampler", "INFO", f"{SIPPERING} at 37.0N"),
+    _line(1565985120.000, "CANONSampler", "IMPORTANT", "Sample 1, err_code=0"),
+    _line(1565987000.500, "CANONSampler", "INFO", f"{SIPPERING_MAXON} at 37.1N"),
+    _line(1565987050.200, "CANONSampler", "IMPORTANT", "Sample 2, err_code=0"),
 ]
 
 # Lines without trailing newlines (as returned by requests.iter_lines)
@@ -144,10 +162,17 @@ class TestParseLines:
         for val in result.values():
             assert isinstance(val, float)  # noqa: S101
 
+    # ---------------------------------------------------------------------------
+    # _match_sippers tests
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# _match_sippers tests
-# ---------------------------------------------------------------------------
+    def test_maxon_start_messages(self):
+        result = self._sipper()._parse_lines(MAXON_SYSLOG)
+        assert result == {1: pytest.approx(1565985091.135), 2: pytest.approx(1565987000.500)}  # noqa: S101
+
+    def test_mixed_elmo_and_maxon_start_messages(self):
+        result = self._sipper()._parse_lines(MIXED_ELMO_MAXON_SYSLOG)
+        assert result == {1: pytest.approx(1565985091.135), 2: pytest.approx(1565987000.500)}  # noqa: S101
 
 
 class TestMatchSippers:
