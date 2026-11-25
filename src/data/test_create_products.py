@@ -4,6 +4,7 @@ color-shaded quick look plots (2column, biolume, planktivore, engineering)."""
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
 from create_products import CreateProducts
 
@@ -83,3 +84,50 @@ class TestGridDimsMaxDepth:
         _, iz, _ = cp._grid_dims(["sensor", "odd_shape"])
 
         assert max(iz) == _EXPECTED_MAX_DEPTH  # noqa: S101
+
+
+class TestGridDimsCorruptPositions:
+    """A few corrupt longitude/latitude values (e.g. ~1e26 degrees from a bad log
+    sample) must not break the UTM zone or the distance along track."""
+
+    def _ds_with_bad_positions(self):
+        n = 50
+        depths = np.linspace(10.0, 100.0, n)
+        ds = _make_grid_dims_ds(depths, {"sensor": np.ones(n)})
+        lons = ds["longitude"].to_numpy().copy()
+        lats = ds["latitude"].to_numpy().copy()
+        lons[20:28] = 1.0e26
+        lats[30] = 5.0e30
+        return ds.assign_coords(longitude=("time", lons), latitude=("time", lats))
+
+    def test_corrupt_positions_do_not_raise(self, caplog):
+        cp = CreateProducts(ds=self._ds_with_bad_positions())
+
+        with caplog.at_level("WARNING", logger=cp.logger.name):
+            _, _, distnav = cp._grid_dims(["sensor"])
+
+        assert "Ignoring 9 position(s)" in caplog.text  # noqa: S101
+        assert np.isfinite(distnav.to_numpy()).all()  # noqa: S101
+        # ~0.1 deg lon (~9 km) + ~0.1 deg lat (~11 km) across the track
+        assert 10_000 < distnav.to_numpy()[-1] < 30_000  # noqa: PLR2004, S101
+
+    def test_distance_matches_clean_data(self):
+        """Interpolating across the removed samples gives nearly the clean distance."""
+        n = 50
+        clean = _make_grid_dims_ds(np.linspace(10.0, 100.0, n), {"sensor": np.ones(n)})
+        _, _, clean_dist = CreateProducts(ds=clean)._grid_dims(["sensor"])
+        _, _, bad_dist = CreateProducts(ds=self._ds_with_bad_positions())._grid_dims(["sensor"])
+
+        assert bad_dist.to_numpy()[-1] == pytest.approx(clean_dist.to_numpy()[-1], rel=0.01)  # noqa: S101
+
+    def test_all_positions_corrupt_returns_empty_result(self):
+        n = 10
+        ds = _make_grid_dims_ds(np.linspace(10.0, 100.0, n), {"sensor": np.ones(n)})
+        ds = ds.assign_coords(longitude=("time", np.full(n, 1.0e26)))
+
+        idist, iz, distnav = CreateProducts(ds=ds)._grid_dims(["sensor"])
+
+        # The existing "cannot compute" return value: empty arrays and a scalar NaN
+        assert idist.size == 0  # noqa: S101
+        assert iz.size == 0  # noqa: S101
+        assert distnav.ndim == 0  # noqa: S101

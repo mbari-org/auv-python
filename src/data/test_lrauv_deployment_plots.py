@@ -1,8 +1,10 @@
 """Tests for DeploymentPlotter — per-PNG HTML generation and helpers."""
 
 import json
+import os
 import sys
 import urllib.error
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +16,7 @@ import xarray as xr
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from lrauv_deployment_plots import DeploymentPlotter
+from lrauv_deployment_plots import FREQ, DeploymentPlotter
 from make_permalink import stoqs_url_from_ds
 
 # Representative OPeNDAP URL that matches the shape produced by the real code
@@ -1096,3 +1098,64 @@ class TestSendSlackFileUpload:
 
         assert mock_post.call_count == 1  # noqa: S101
         assert "chat.postMessage" in mock_post.call_args[0][0]  # noqa: S101
+
+
+class TestDlistList:
+    """_dlist_list() selects deployments overlapping the window, plus older
+    deployments in which a *_{FREQ}.nc file was modified since the window start."""
+
+    _NOW = datetime(2026, 11, 25, tzinfo=UTC)
+    _START = _NOW - timedelta(days=45)  # 2026-10-11
+
+    def _deployment(self, base, date_range, *, nc_age_days=None, year="2026"):
+        """Create a deployment dir with a .dlist and, optionally, one log's 1S nc
+        file last modified nc_age_days before _NOW."""
+        year_dir = base / "daphne" / "missionlogs" / year
+        log_dir = year_dir / date_range / "20261001T213640"
+        log_dir.mkdir(parents=True)
+        (year_dir / f"{date_range}.dlist").write_text("# Deployment name: x\n20261001T213640\n")
+        if nc_age_days is not None:
+            nc_file = log_dir / f"202610012136_202610021748_{FREQ}.nc"
+            nc_file.write_bytes(b"")
+            mtime = (self._NOW - timedelta(days=nc_age_days)).timestamp()
+            os.utime(nc_file, (mtime, mtime))
+
+    def _list(self, dp, base):
+        with patch("lrauv_deployment_plots.LRAUV_VOL", str(base)):
+            return dp._dlist_list(self._START, self._NOW)
+
+    def test_deployment_overlapping_window_is_listed(self, dp, tmp_path):
+        self._deployment(tmp_path, "20261101_20261105", nc_age_days=30)
+        assert self._list(dp, tmp_path) == [  # noqa: S101
+            "daphne/missionlogs/2026/20261101_20261105.dlist"
+        ]
+
+    def test_old_deployment_with_recently_modified_nc_is_listed(self, dp, tmp_path):
+        self._deployment(tmp_path, "20261001_20261005", nc_age_days=0)
+        assert self._list(dp, tmp_path) == [  # noqa: S101
+            "daphne/missionlogs/2026/20261001_20261005.dlist"
+        ]
+
+    def test_old_deployment_with_old_nc_is_not_listed(self, dp, tmp_path):
+        self._deployment(tmp_path, "20261001_20261005", nc_age_days=50)
+        assert self._list(dp, tmp_path) == []  # noqa: S101
+
+    def test_old_deployment_without_nc_files_is_not_listed(self, dp, tmp_path):
+        self._deployment(tmp_path, "20261001_20261005")
+        assert self._list(dp, tmp_path) == []  # noqa: S101
+
+    def test_previous_year_deployment_with_recent_nc_is_listed(self, dp, tmp_path):
+        start = datetime(2026, 1, 10, tzinfo=UTC)
+        self._deployment(tmp_path, "20251201_20251205", nc_age_days=0, year="2025")
+        with patch("lrauv_deployment_plots.LRAUV_VOL", str(tmp_path)):
+            result = dp._dlist_list(start, self._NOW)
+        assert result == ["daphne/missionlogs/2025/20251201_20251205.dlist"]  # noqa: S101
+
+    def test_deployment_after_window_is_not_listed(self, dp, tmp_path):
+        self._deployment(tmp_path, "20261201_20261205", nc_age_days=0)
+        assert self._list(dp, tmp_path) == []  # noqa: S101
+
+    def test_recent_nc_without_dlist_is_not_listed(self, dp, tmp_path):
+        self._deployment(tmp_path, "20261001_20261005", nc_age_days=0)
+        (tmp_path / "daphne/missionlogs/2026/20261001_20261005.dlist").unlink()
+        assert self._list(dp, tmp_path) == []  # noqa: S101

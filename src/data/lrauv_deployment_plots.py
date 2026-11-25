@@ -1365,6 +1365,18 @@ class DeploymentPlotter:
         except (urllib.error.URLError, OSError):
             return False
 
+    def _nc_modified_since(self, date_range_dir: Path, since_dt: datetime) -> bool:
+        """Return True if any ``*_{FREQ}.nc`` file in a log directory under
+        *date_range_dir* was modified at or after *since_dt*."""
+        since = since_dt.timestamp()
+        for nc_file in date_range_dir.glob(f"*/*_{FREQ}.nc"):
+            try:
+                if nc_file.stat().st_mtime >= since:
+                    return True
+            except OSError:
+                continue
+        return False
+
     def _dlist_list(  # noqa: C901, PLR0912
         self,
         start_dt: datetime,
@@ -1372,12 +1384,19 @@ class DeploymentPlotter:
         auv_name: str | None = None,
     ) -> list[str]:
         """Return dlist paths (relative to the scan base) whose date-range
-        directory overlaps with *start_dt*–*end_dt*.
+        directory overlaps with *start_dt*–*end_dt*, or that have a
+        ``*_{FREQ}.nc`` file modified since *start_dt*.
 
         Scans ``{base}/{auv}/missionlogs/{year}/`` for directories named
         ``YYYYMMDD_YYYYMMDD`` and checks whether they overlap the requested
         window.  The sibling ``.dlist`` file (``YYYYMMDD_YYYYMMDD.dlist``)
         is returned for each matching directory.
+
+        The second criterion picks up older deployments in which a log was
+        reprocessed recently, so that their deployment-level plots can be
+        refreshed; the freshness check in plot_deployment() then decides
+        whether anything actually needs to be replotted. Such deployments are
+        looked for in the year of *start_dt* and the year before it.
         """
         base = Path(LRAUV_VOL)
         if not base.is_dir():
@@ -1399,7 +1418,7 @@ class DeploymentPlotter:
                     year = int(year_dir.name)
                 except ValueError:
                     continue
-                if year < start_dt.year or year > end_dt.year:
+                if year < start_dt.year - 1 or year > end_dt.year:
                     continue
                 for date_range_dir in sorted(year_dir.glob("*/")):
                     # Directory name is YYYYMMDD_YYYYMMDD
@@ -1412,14 +1431,23 @@ class DeploymentPlotter:
                     except ValueError:
                         continue
                     # Overlap check: ranges overlap if dir_start <= end_dt and dir_end >= start_dt
-                    if dir_start > end_dt or dir_end < start_dt:
+                    in_window = dir_start <= end_dt and dir_end >= start_dt
+                    # A deployment that ended before the window qualifies only if
+                    # one of its logs has been reprocessed since the window start
+                    if not in_window and not (
+                        dir_end < start_dt and self._nc_modified_since(date_range_dir, start_dt)
+                    ):
                         continue
                     # The .dlist file is a sibling of the date_range directory, same name + .dlist
                     dlist_file = year_dir / f"{date_range_dir.name}.dlist"
                     if dlist_file.exists():
                         rel = f"{auv}/missionlogs/{year_dir.name}/{dlist_file.name}"
                         dlists.append(rel)
-                        self.logger.info("Found dlist: %s", rel)
+                        self.logger.info(
+                            "Found dlist: %s%s",
+                            rel,
+                            "" if in_window else f" ({FREQ}.nc modified since {start_dt:%Y-%m-%d})",
+                        )
                     else:
                         self.logger.debug("No .dlist sibling found for %s", date_range_dir)
         return dlists
